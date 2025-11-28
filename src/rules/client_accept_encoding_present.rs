@@ -4,7 +4,7 @@
 
 use hyper::{HeaderMap, Method};
 use crate::lint::Violation;
-use crate::lint::rules::Rule;
+use crate::rules::Rule;
 
 pub struct ClientAcceptEncodingPresent;
 
@@ -23,5 +23,31 @@ impl Rule for ClientAcceptEncodingPresent {
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyper::HeaderMap;
+
+    #[test]
+    fn check_request_missing_header() {
+        let rule = ClientAcceptEncodingPresent;
+        let method = Method::GET;
+        let headers = HeaderMap::new();
+        let violation = rule.check_request(&method, &headers);
+        assert!(violation.is_some());
+        assert_eq!(violation.unwrap().message, "Accept-Encoding header missing");
+    }
+
+    #[test]
+    fn check_request_present_header() {
+        let rule = ClientAcceptEncodingPresent;
+        let method = Method::GET;
+        let mut headers = HeaderMap::new();
+        headers.insert("accept-encoding", "gzip".parse().unwrap());
+        let violation = rule.check_request(&method, &headers);
+        assert!(violation.is_none());
     }
 }

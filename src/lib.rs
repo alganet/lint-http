@@ -11,5 +11,6 @@ pub mod capture;
 pub mod config;
 pub mod lint;
 pub mod proxy;
+pub mod rules;
 
 // Keep library small; main.rs remains the binary entrypoint.

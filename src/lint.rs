@@ -8,8 +8,7 @@ use crate::config::Config;
 use hyper::HeaderMap;
 use serde::Serialize;
 
-#[path = "rules/mod.rs"]
-mod rules;
+
 
 #[derive(Clone, Serialize)]
 pub struct Violation {
@@ -21,7 +20,7 @@ pub struct Violation {
 pub fn lint_response(status: u16, headers: &HeaderMap, cfg: &Config) -> Vec<Violation> {
     let mut out = Vec::new();
 
-    for rule in rules::RULES {
+    for rule in crate::rules::RULES {
         if cfg.is_enabled(rule.id()) {
             if let Some(v) = rule.check_response(status, headers) {
                 out.push(v);
@@ -35,7 +34,7 @@ pub fn lint_response(status: u16, headers: &HeaderMap, cfg: &Config) -> Vec<Viol
 pub fn lint_request(method: &hyper::Method, headers: &HeaderMap, cfg: &Config) -> Vec<Violation> {
     let mut out = Vec::new();
 
-    for rule in rules::RULES {
+    for rule in crate::rules::RULES {
         if cfg.is_enabled(rule.id()) {
             if let Some(v) = rule.check_request(method, headers) {
                 out.push(v);

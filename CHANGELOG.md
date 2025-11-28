@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.0] - 2025-11-28
+## [Unreleased]
 
 ### Added
 - HTTP forward proxy with request/response capture
@@ -17,3 +17,8 @@ All notable changes to this project will be documented in this file.
 - Three built-in rules: cache-control-present, etag-or-last-modified, x-content-type-options
 - TOML configuration support
 - Comprehensive test suite
+- Unit tests for all lint rules
+
+### Changed
+- Fixed crate namespaces for `src/rules` (moved from `lint::rules` to `crate::rules`)
+- Rewrote `README.md` to accurately reflect project functionality

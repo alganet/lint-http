@@ -4,7 +4,7 @@
 
 use hyper::HeaderMap;
 use crate::lint::Violation;
-use crate::lint::rules::Rule;
+use crate::rules::Rule;
 
 pub struct ServerXContentTypeOptions;
 
@@ -23,5 +23,50 @@ impl Rule for ServerXContentTypeOptions {
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyper::HeaderMap;
+
+    #[test]
+    fn check_response_200_missing_header() {
+        let rule = ServerXContentTypeOptions;
+        let status = 200;
+        let headers = HeaderMap::new();
+        let violation = rule.check_response(status, &headers);
+        assert!(violation.is_some());
+        assert_eq!(violation.unwrap().message, "X-Content-Type-Options header missing (nosniff)");
+    }
+
+    #[test]
+    fn check_response_200_present_header() {
+        let rule = ServerXContentTypeOptions;
+        let status = 200;
+        let mut headers = HeaderMap::new();
+        headers.insert("x-content-type-options", "nosniff".parse().unwrap());
+        let violation = rule.check_response(status, &headers);
+        assert!(violation.is_none());
+    }
+
+    #[test]
+    fn check_response_404_missing_header() {
+        let rule = ServerXContentTypeOptions;
+        let status = 404;
+        let headers = HeaderMap::new();
+        let violation = rule.check_response(status, &headers);
+        assert!(violation.is_some());
+        assert_eq!(violation.unwrap().message, "X-Content-Type-Options header missing (nosniff)");
+    }
+
+    #[test]
+    fn check_response_101_missing_header() {
+        let rule = ServerXContentTypeOptions;
+        let status = 101;
+        let headers = HeaderMap::new();
+        let violation = rule.check_response(status, &headers);
+        assert!(violation.is_none());
     }
 }

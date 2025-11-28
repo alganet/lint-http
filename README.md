@@ -1,14 +1,19 @@
-<!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
-
-SPDX-License-Identifier: ISC
--->
-
 # lint-http
 
-HTTP forward proxy that captures request/response metadata and runs lint rules.
+HTTP forward proxy with linting and capture capabilities.
+
+`lint-http` intercepts HTTP requests and responses, checks for adherence to best practices, and captures detailed traffic logs. It is designed to help developers identify missing headers and other common issues in their HTTP traffic.
+
+## Features
+
+- **Traffic Capture**: Logs full request and response details (method, URI, status, headers, timing) to a JSONL file.
+- **Linting**: Automatically checks for violations of HTTP best practices.
+- **Configuration**: Enable or disable specific lint rules via a TOML configuration file.
+- **Proxy**: Functions as a standard HTTP forward proxy, compatible with tools like `curl`, browsers, and other HTTP clients.
 
 ## Installation
+
+To install `lint-http` from source:
 
 ```bash
 cargo install --path .
@@ -16,37 +21,44 @@ cargo install --path .
 
 ## Usage
 
-Start the proxy:
+Start the proxy server:
 
 ```bash
-lint-http --listen 127.0.0.1:3000 --captures captures.jsonl
+lint-http
 ```
 
-Point your HTTP client to `http://127.0.0.1:3000`. The proxy forwards requests and appends capture records to `captures.jsonl`.
+By default, the server listens on `127.0.0.1:3000` and writes captures to `captures.jsonl`.
+
+### Options
+
+- `--listen <ADDR>`: Specify the address to listen on (default: `127.0.0.1:3000`).
+- `--captures <PATH>`: Specify the path to the capture file (default: `captures.jsonl`).
+- `--config <PATH>`: Specify the path to a TOML configuration file.
+
+Example:
+
+```bash
+lint-http --listen 127.0.0.1:8080 --captures my_traffic.jsonl --config rules.toml
+```
 
 ## Configuration
 
-Create a `config.toml` to toggle rules:
+You can configure `lint-http` using a TOML file. The `[rules]` section allows you to enable or disable specific rules.
+
+Example `config.toml`:
 
 ```toml
 [rules]
-cache-control-present = true
-etag-or-last-modified = false
-x-content-type-options = true
-```
-
-Run with config:
-
-```bash
-lint-http --listen 127.0.0.1:3000 --captures captures.jsonl --config config.toml
+server_cache_control_present = true
+client_user_agent_present = false
 ```
 
 ## Rules
 
-- **cache-control-present**: Warns if 200 responses lack Cache-Control header
-- **etag-or-last-modified**: Suggests ETag or Last-Modified for validation
-- **x-content-type-options**: Recommends X-Content-Type-Options: nosniff
+The following lint rules are available:
 
-## License
-
-ISC
+- `client_accept_encoding_present`: Checks if the client sends an `Accept-Encoding` header.
+- `client_user_agent_present`: Checks if the client sends a `User-Agent` header.
+- `server_cache_control_present`: Checks if 200 OK responses include a `Cache-Control` header.
+- `server_etag_or_last_modified`: Checks if 200 OK responses include either `ETag` or `Last-Modified` headers.
+- `server_x_content_type_options`: Checks if responses include `X-Content-Type-Options: nosniff`.
