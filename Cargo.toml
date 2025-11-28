@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+
+[package]
+name = "lint-http"
+version = "0.1.0"
+edition = "2021"
+authors = ["Alexandre Gomes Gaigalas <alganet@gmail.com>"]
+description = "HTTP forward proxy that captures request/response metadata and runs lint rules"
+license = "ISC"
+repository = "https://github.com/alganet/lint-http"
+readme = "README.md"
+keywords = ["proxy", "http", "lint", "testing", "debugging"]
+categories = ["network-programming", "development-tools"]
+
+[dependencies]
+tokio = { version = "1.43", features = ["full"] }
+hyper = { version = "0.14", features = ["full"] }
+clap = { version = "4.3", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.3", features = ["v4"] }
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+tracing-subscriber = "0.3"
+tracing = "0.1"
+toml = "0.7"
+
+
+[dev-dependencies]
+wiremock = "0.6"
+

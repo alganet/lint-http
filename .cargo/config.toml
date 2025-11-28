@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+
+[alias]
+# Run coverage via cargo-tarpaulin (requires cargo-tarpaulin installed)
+coverage = "tarpaulin --out Xml"
