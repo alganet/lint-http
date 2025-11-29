@@ -18,6 +18,7 @@ struct Shared {
     client: Client<hyper::client::HttpConnector>,
     captures: CaptureWriter,
     cfg: Arc<Config>,
+    state: Arc<crate::state::StateStore>,
 }
 
 pub async fn run_proxy(
@@ -26,10 +27,24 @@ pub async fn run_proxy(
     cfg: Arc<Config>,
 ) -> anyhow::Result<()> {
     let client: Client<hyper::client::HttpConnector> = Client::new();
+    let ttl = cfg.state.ttl_seconds;
+    let state = Arc::new(crate::state::StateStore::new(ttl));
+    
+    // Spawn background cleanup task
+    let state_cleanup = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            state_cleanup.cleanup_expired();
+        }
+    });
+    
     let shared = Arc::new(Shared {
         client,
         captures,
         cfg,
+        state,
     });
 
     let make_svc = hyper::service::make_service_fn(move |_conn| {
@@ -80,6 +95,16 @@ async fn handle_request(
     let method = req.method().clone();
     let uri_str = req.uri().to_string();
     let req_headers = req.headers().clone();
+    
+    // Extract client identifier (use dummy IP for now as we don't have access to peer_addr)
+    // In a real implementation, this would come from connection metadata or X-Forwarded-For
+    let client_ip = std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1));
+    let user_agent = req_headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
+    let client_id = crate::state::ClientIdentifier::new(client_ip, user_agent);
 
     let body = req.into_body();
 
@@ -143,8 +168,25 @@ async fn handle_request(
     let duration = started.elapsed().as_millis() as u64;
 
     // Evaluate lint rules using config
-    let mut violations = lint::lint_request(&method, &req_headers, &shared.cfg);
-    violations.extend(lint::lint_response(status, &headers, &shared.cfg));
+    let mut violations = lint::lint_request(
+        &client_id,
+        &uri_str,
+        &method,
+        &req_headers,
+        &shared.cfg,
+        &shared.state,
+    );
+    violations.extend(lint::lint_response(
+        &client_id,
+        &uri_str,
+        status,
+        &headers,
+        &shared.cfg,
+        &shared.state,
+    ));
+    
+    // Record transaction in state for future analysis
+    shared.state.record_transaction(&client_id, &uri_str, status, &headers);
 
     // Write capture (we don't capture bodies in MVP)
     let _ = captures
@@ -204,10 +246,12 @@ mod tests {
 
         let cfg = StdArc::new(crate::config::Config::default());
         let client = Client::new();
+        let state = StdArc::new(crate::state::StateStore::new(300));
         let shared = StdArc::new(Shared {
             client,
             captures: cw.clone(),
             cfg,
+            state,
         });
 
         let uri: Uri = mock.uri().parse().expect("parse uri");
@@ -237,10 +281,12 @@ mod tests {
 
         let cfg = StdArc::new(crate::config::Config::default());
         let client = Client::new();
+        let state = StdArc::new(crate::state::StateStore::new(300));
         let shared = StdArc::new(Shared {
             client,
             captures: cw.clone(),
             cfg,
+            state,
         });
 
         // Use a port that is (likely) closed to provoke a client error
@@ -277,10 +323,12 @@ mod tests {
 
         let cfg = StdArc::new(crate::config::Config::default());
         let client = Client::new();
+        let state = StdArc::new(crate::state::StateStore::new(300));
         let shared = StdArc::new(Shared {
             client,
             captures: cw.clone(),
             cfg,
+            state,
         });
 
         // Build a relative URI and set Host header so proxy builds absolute URI from Host
@@ -325,10 +373,12 @@ mod tests {
 
         let cfg = StdArc::new(crate::config::Config::default());
         let client = Client::new();
+        let state = StdArc::new(crate::state::StateStore::new(300));
         let shared = StdArc::new(Shared {
             client,
             captures: cw.clone(),
             cfg,
+            state,
         });
 
         let uri: Uri = format!("{}/ok", mock.uri()).parse().expect("parse uri");

@@ -4,13 +4,30 @@
 
 use hyper::{HeaderMap, Method};
 use crate::lint::Violation;
+use crate::state::{ClientIdentifier, StateStore};
 
 pub trait Rule: Send + Sync {
     fn id(&self) -> &'static str;
-    fn check_request(&self, _method: &Method, _headers: &HeaderMap) -> Option<Violation> {
+    
+    fn check_request(
+        &self,
+        _client: &ClientIdentifier,
+        _resource: &str,
+        _method: &Method,
+        _headers: &HeaderMap,
+        _state: &StateStore,
+    ) -> Option<Violation> {
         None
     }
-    fn check_response(&self, _status: u16, _headers: &HeaderMap) -> Option<Violation> {
+    
+    fn check_response(
+        &self,
+        _client: &ClientIdentifier,
+        _resource: &str,
+        _status: u16,
+        _headers: &HeaderMap,
+        _state: &StateStore,
+    ) -> Option<Violation> {
         None
     }
 }
@@ -20,6 +37,7 @@ pub mod server_etag_or_last_modified;
 pub mod server_x_content_type_options;
 pub mod client_user_agent_present;
 pub mod client_accept_encoding_present;
+pub mod client_cache_respect;
 
 pub const RULES: &[&dyn Rule] = &[
     &server_cache_control_present::ServerCacheControlPresent,
@@ -27,4 +45,5 @@ pub const RULES: &[&dyn Rule] = &[
     &server_x_content_type_options::ServerXContentTypeOptions,
     &client_user_agent_present::ClientUserAgentPresent,
     &client_accept_encoding_present::ClientAcceptEncodingPresent,
+    &client_cache_respect::ClientCacheRespect,
 ];

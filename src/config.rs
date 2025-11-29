@@ -7,10 +7,41 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct StateConfig {
+    /// TTL for state entries in seconds (default: 300 = 5 minutes)
+    #[serde(default = "default_ttl")]
+    pub ttl_seconds: u64,
+    
+    /// Whether to enable stateful analysis (default: true)
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+}
+
+fn default_ttl() -> u64 {
+    300
+}
+
+fn default_enabled() -> bool {
+    true
+}
+
+impl Default for StateConfig {
+    fn default() -> Self {
+        Self {
+            ttl_seconds: default_ttl(),
+            enabled: default_enabled(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
     #[serde(default)]
     pub rules: HashMap<String, bool>,
+    
+    #[serde(default)]
+    pub state: StateConfig,
 }
 
 impl Config {

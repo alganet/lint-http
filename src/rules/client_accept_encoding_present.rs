@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
-use hyper::{HeaderMap, Method};
+use hyper::HeaderMap;
 use crate::lint::Violation;
 use crate::rules::Rule;
 
@@ -13,12 +13,19 @@ impl Rule for ClientAcceptEncodingPresent {
         "client_accept_encoding_present"
     }
 
-    fn check_request(&self, _method: &Method, headers: &HeaderMap) -> Option<Violation> {
+    fn check_request(
+        &self,
+        _client: &crate::state::ClientIdentifier,
+        _resource: &str,
+        _method: &hyper::Method,
+        headers: &HeaderMap,
+        _state: &crate::state::StateStore,
+    ) -> Option<Violation> {
         if !headers.contains_key("accept-encoding") {
             Some(Violation {
                 rule: self.id().into(),
                 severity: "info".into(),
-                message: "Accept-Encoding header missing".into(),
+                message: "Request missing Accept-Encoding header".into(),
             })
         } else {
             None
@@ -30,24 +37,36 @@ impl Rule for ClientAcceptEncodingPresent {
 mod tests {
     use super::*;
     use hyper::HeaderMap;
+    use std::net::{IpAddr, Ipv4Addr};
+
+    fn make_test_context() -> (crate::state::ClientIdentifier, crate::state::StateStore) {
+        let client = crate::state::ClientIdentifier::new(
+            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            "test-agent".to_string(),
+        );
+        let state = crate::state::StateStore::new(300);
+        (client, state)
+    }
 
     #[test]
     fn check_request_missing_header() {
         let rule = ClientAcceptEncodingPresent;
-        let method = Method::GET;
+        let (client, state) = make_test_context();
+        let method = hyper::Method::GET;
         let headers = HeaderMap::new();
-        let violation = rule.check_request(&method, &headers);
+        let violation = rule.check_request(&client, "http://test.com", &method, &headers, &state);
         assert!(violation.is_some());
-        assert_eq!(violation.unwrap().message, "Accept-Encoding header missing");
+        assert_eq!(violation.unwrap().message, "Request missing Accept-Encoding header");
     }
 
     #[test]
     fn check_request_present_header() {
         let rule = ClientAcceptEncodingPresent;
-        let method = Method::GET;
+        let (client, state) = make_test_context();
+        let method = hyper::Method::GET;
         let mut headers = HeaderMap::new();
         headers.insert("accept-encoding", "gzip".parse().unwrap());
-        let violation = rule.check_request(&method, &headers);
+        let violation = rule.check_request(&client, "http://test.com", &method, &headers, &state);
         assert!(violation.is_none());
     }
 }
