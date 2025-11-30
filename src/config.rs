@@ -43,6 +43,8 @@ pub struct TlsConfig {
     pub ca_key_path: Option<String>,
     #[serde(default)]
     pub passthrough_domains: Vec<String>,
+    #[serde(default)]
+    pub suppress_headers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

@@ -211,7 +211,9 @@ async fn handle_http_logic(
     let mut builder = Request::builder().method(req.method()).uri(uri.clone());
     // copy headers
     for (name, value) in req.headers().iter() {
-        builder = builder.header(name, value);
+        if !shared.cfg.tls.suppress_headers.iter().any(|h| h.eq_ignore_ascii_case(name.as_str())) {
+             builder = builder.header(name, value);
+        }
     }
 
     // capture method/uri/headers before moving request
@@ -342,6 +344,16 @@ async fn handle_connect(
     conn_metadata: Arc<crate::connection::ConnectionMetadata>,
 ) -> anyhow::Result<()> {
     let host = uri.host().unwrap_or("unknown");
+
+    // Check for passthrough domains
+    if shared.cfg.tls.passthrough_domains.iter().any(|d| host.ends_with(d)) {
+        info!(%host, "tunneling connection (passthrough)");
+        if let Err(e) = tunnel(client_conn, host, uri.port_u16().unwrap_or(443)).await {
+            error!("tunnel error: {}", e);
+        }
+        return Ok(());
+    }
+
     let ca = shared.ca.as_ref().unwrap();
     let cert = ca.gen_cert_for_domain(host)?;
 
@@ -375,6 +387,12 @@ async fn handle_connect(
         error!("TLS connection error: {}", e);
     }
 
+    Ok(())
+}
+
+async fn tunnel(mut upgraded: Upgraded, host: &str, port: u16) -> std::io::Result<()> {
+    let mut server = tokio::net::TcpStream::connect((host, port)).await?;
+    let _ = tokio::io::copy_bidirectional(&mut upgraded, &mut server).await?;
     Ok(())
 }
 
