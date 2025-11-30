@@ -55,10 +55,4 @@ client_user_agent_present = false
 
 ## Rules
 
-The following lint rules are available:
-
-- `client_accept_encoding_present`: Checks if the client sends an `Accept-Encoding` header.
-- `client_user_agent_present`: Checks if the client sends a `User-Agent` header.
-- `server_cache_control_present`: Checks if 200 OK responses include a `Cache-Control` header.
-- `server_etag_or_last_modified`: Checks if 200 OK responses include either `ETag` or `Last-Modified` headers.
-- `server_x_content_type_options`: Checks if responses include `X-Content-Type-Options: nosniff`.
+See [docs/rules](docs/rules) for a list of available lint rules.

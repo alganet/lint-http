@@ -15,6 +15,7 @@ pub trait Rule: Send + Sync {
         _resource: &str,
         _method: &Method,
         _headers: &HeaderMap,
+        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
     ) -> Option<Violation> {
         None
@@ -26,6 +27,7 @@ pub trait Rule: Send + Sync {
         _resource: &str,
         _status: u16,
         _headers: &HeaderMap,
+        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
     ) -> Option<Violation> {
         None
@@ -38,6 +40,7 @@ pub mod server_x_content_type_options;
 pub mod client_user_agent_present;
 pub mod client_accept_encoding_present;
 pub mod client_cache_respect;
+pub mod connection_efficiency;
 
 pub const RULES: &[&dyn Rule] = &[
     &server_cache_control_present::ServerCacheControlPresent,
@@ -46,4 +49,5 @@ pub const RULES: &[&dyn Rule] = &[
     &client_user_agent_present::ClientUserAgentPresent,
     &client_accept_encoding_present::ClientAcceptEncodingPresent,
     &client_cache_respect::ClientCacheRespect,
+    &connection_efficiency::ConnectionEfficiency,
 ];

@@ -2,9 +2,10 @@
 //
 // SPDX-License-Identifier: ISC
 
-use hyper::HeaderMap;
+use hyper::{HeaderMap, Method};
 use crate::lint::Violation;
 use crate::rules::Rule;
+use crate::state::{ClientIdentifier, StateStore};
 
 pub struct ClientUserAgentPresent;
 
@@ -15,11 +16,12 @@ impl Rule for ClientUserAgentPresent {
 
     fn check_request(
         &self,
-        _client: &crate::state::ClientIdentifier,
+        _client: &ClientIdentifier,
         _resource: &str,
-        _method: &hyper::Method,
+        _method: &Method,
         headers: &HeaderMap,
-        _state: &crate::state::StateStore,
+        _conn: &crate::connection::ConnectionMetadata,
+        _state: &StateStore,
     ) -> Option<Violation> {
         if !headers.contains_key("user-agent") {
             Some(Violation {
@@ -54,7 +56,8 @@ mod tests {
         let (client, state) = make_test_context();
         let method = hyper::Method::GET;
         let headers = HeaderMap::new();
-        let violation = rule.check_request(&client, "http://test.com", &method, &headers, &state);
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let violation = rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
         assert!(violation.is_some());
         assert_eq!(violation.unwrap().message, "Request missing User-Agent header");
     }
@@ -66,7 +69,8 @@ mod tests {
         let method = hyper::Method::GET;
         let mut headers = HeaderMap::new();
         headers.insert("user-agent", "curl/7.68.0".parse().unwrap());
-        let violation = rule.check_request(&client, "http://test.com", &method, &headers, &state);
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let violation = rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
         assert!(violation.is_none());
     }
 }

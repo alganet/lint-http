@@ -20,6 +20,7 @@ impl Rule for ClientCacheRespect {
         resource: &str,
         _method: &hyper::Method,
         headers: &HeaderMap,
+        _conn: &crate::connection::ConnectionMetadata,
         state: &StateStore,
     ) -> Option<Violation> {
         // Check if we have a previous response for this client+resource
@@ -75,11 +76,13 @@ mod tests {
         let resource = "http://example.com/api/data";
 
         let headers = HeaderMap::new();
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
         let violation = rule.check_request(
             &client,
             resource,
             &hyper::Method::GET,
             &headers,
+            &conn,
             &store,
         );
 
@@ -101,11 +104,13 @@ mod tests {
         // Second request with If-None-Match
         let mut req_headers = HeaderMap::new();
         req_headers.insert("if-none-match", "\"abc123\"".parse().unwrap());
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
         let violation = rule.check_request(
             &client,
             resource,
             &hyper::Method::GET,
             &req_headers,
+            &conn,
             &store,
         );
 
@@ -126,11 +131,13 @@ mod tests {
 
         // Second request WITHOUT conditional headers
         let req_headers = HeaderMap::new();
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
         let violation = rule.check_request(
             &client,
             resource,
             &hyper::Method::GET,
             &req_headers,
+            &conn,
             &store,
         );
 
@@ -155,11 +162,13 @@ mod tests {
         // Second request without conditional headers should be fine
         // since server didn't provide validators
         let req_headers = HeaderMap::new();
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
         let violation = rule.check_request(
             &client,
             resource,
             &hyper::Method::GET,
             &req_headers,
+            &conn,
             &store,
         );
 

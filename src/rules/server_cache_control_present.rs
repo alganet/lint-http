@@ -5,6 +5,7 @@
 use hyper::HeaderMap;
 use crate::lint::Violation;
 use crate::rules::Rule;
+use crate::state::{ClientIdentifier, StateStore};
 
 pub struct ServerCacheControlPresent;
 
@@ -15,11 +16,12 @@ impl Rule for ServerCacheControlPresent {
 
     fn check_response(
         &self,
-        _client: &crate::state::ClientIdentifier,
+        _client: &ClientIdentifier,
         _resource: &str,
         status: u16,
         headers: &HeaderMap,
-        _state: &crate::state::StateStore,
+        _conn: &crate::connection::ConnectionMetadata,
+        _state: &StateStore,
     ) -> Option<Violation> {
         if status == 200 && !headers.contains_key("cache-control") {
             Some(Violation {
@@ -54,7 +56,8 @@ mod tests {
         let (client, state) = make_test_context();
         let status = 200;
         let headers = HeaderMap::new();
-        let violation = rule.check_response(&client, "http://test.com", status, &headers, &state);
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_some());
         assert_eq!(violation.unwrap().message, "Response 200 without Cache-Control header");
     }
@@ -66,7 +69,8 @@ mod tests {
         let status = 200;
         let mut headers = HeaderMap::new();
         headers.insert("cache-control", "no-cache".parse().unwrap());
-        let violation = rule.check_response(&client, "http://test.com", status, &headers, &state);
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
     }
 
@@ -76,7 +80,8 @@ mod tests {
         let (client, state) = make_test_context();
         let status = 404;
         let headers = HeaderMap::new();
-        let violation = rule.check_response(&client, "http://test.com", status, &headers, &state);
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
     }
 }

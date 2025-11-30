@@ -3,6 +3,13 @@
 # SPDX-License-Identifier: ISC
 
 [rules]
-cache-control-present = true
-etag-or-last-modified = false
-x-content-type-options = true
+# Client Rules
+client_accept_encoding_present = true
+client_user_agent_present = true
+client_cache_respect = true
+connection_efficiency = true
+
+# Server Rules
+server_cache_control_present = true
+server_etag_or_last_modified = true
+server_x_content_type_options = true

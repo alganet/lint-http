@@ -13,5 +13,6 @@ pub mod lint;
 pub mod proxy;
 pub mod rules;
 pub mod state;
+pub mod connection;
 
 // Keep library small; main.rs remains the binary entrypoint.

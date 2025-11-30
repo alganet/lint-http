@@ -47,9 +47,16 @@ pub async fn run_proxy(
         state,
     });
 
-    let make_svc = hyper::service::make_service_fn(move |_conn| {
+    let make_svc = hyper::service::make_service_fn(move |conn: &hyper::server::conn::AddrStream| {
         let shared = shared.clone();
-        async move { Ok::<_, Infallible>(service_fn(move |req| handle_request(req, shared.clone()))) }
+        let remote_addr = conn.remote_addr();
+        let conn_metadata = Arc::new(crate::connection::ConnectionMetadata::new(remote_addr));
+        
+        async move {
+            Ok::<_, Infallible>(service_fn(move |req| {
+                handle_request(req, shared.clone(), conn_metadata.clone())
+            }))
+        }
     });
 
     let server = Server::try_bind(&listen)?.serve(make_svc);
@@ -61,6 +68,7 @@ pub async fn run_proxy(
 async fn handle_request(
     req: Request<Body>,
     shared: Arc<Shared>,
+    conn_metadata: Arc<crate::connection::ConnectionMetadata>,
 ) -> Result<Response<Body>, Infallible> {
     let started = Instant::now();
 
@@ -96,9 +104,9 @@ async fn handle_request(
     let uri_str = req.uri().to_string();
     let req_headers = req.headers().clone();
     
-    // Extract client identifier (use dummy IP for now as we don't have access to peer_addr)
-    // In a real implementation, this would come from connection metadata or X-Forwarded-For
-    let client_ip = std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1));
+    // Extract client identifier
+    // Use the captured remote address from connection metadata
+    let client_ip = conn_metadata.remote_addr.ip();
     let user_agent = req_headers
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
@@ -173,6 +181,7 @@ async fn handle_request(
         &uri_str,
         &method,
         &req_headers,
+        &conn_metadata,
         &shared.cfg,
         &shared.state,
     );
@@ -181,12 +190,14 @@ async fn handle_request(
         &uri_str,
         status,
         &headers,
+        &conn_metadata,
         &shared.cfg,
         &shared.state,
     ));
     
     // Record transaction in state for future analysis
     shared.state.record_transaction(&client_id, &uri_str, status, &headers);
+    shared.state.record_connection(&client_id, &conn_metadata);
 
     // Write capture (we don't capture bodies in MVP)
     let _ = captures
@@ -261,7 +272,10 @@ mod tests {
             .body(Body::empty())
             .unwrap();
 
-        let resp = handle_request(req, shared.clone()).await.unwrap();
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse().unwrap(),
+        ));
+        let resp = handle_request(req, shared.clone(), conn_metadata).await.unwrap();
         assert_eq!(resp.status().as_u16(), 200);
         assert!(resp.headers().get("x-lint-violations").is_some());
 
@@ -296,7 +310,10 @@ mod tests {
             .body(Body::empty())
             .unwrap();
 
-        let resp = handle_request(req, shared.clone()).await.unwrap();
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse().unwrap(),
+        ));
+        let resp = handle_request(req, shared.clone(), conn_metadata).await.unwrap();
         assert_eq!(resp.status().as_u16(), 502);
 
         let s = fs::read_to_string(&tmp).await.expect("read capture");
@@ -340,7 +357,10 @@ mod tests {
             .body(Body::empty())
             .unwrap();
 
-        let resp = handle_request(req, shared.clone()).await.unwrap();
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse().unwrap(),
+        ));
+        let resp = handle_request(req, shared.clone(), conn_metadata).await.unwrap();
         assert_eq!(resp.status().as_u16(), 200);
 
         let s = fs::read_to_string(&tmp).await.expect("read capture");
@@ -390,7 +410,10 @@ mod tests {
             .body(Body::empty())
             .unwrap();
 
-        let resp = handle_request(req, shared.clone()).await.unwrap();
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse().unwrap(),
+        ));
+        let resp = handle_request(req, shared.clone(), conn_metadata).await.unwrap();
         assert_eq!(resp.status().as_u16(), 200);
         assert!(resp.headers().get("x-lint-violations").is_none());
 

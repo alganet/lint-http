@@ -75,9 +75,27 @@ impl TransactionRecord {
     }
 }
 
+#[derive(Debug, Clone)]
+struct ClientStats {
+    connection_count: u64,
+    request_count: u64,
+    last_seen: SystemTime,
+}
+
+impl Default for ClientStats {
+    fn default() -> Self {
+        Self {
+            connection_count: 0,
+            request_count: 0,
+            last_seen: SystemTime::UNIX_EPOCH,
+        }
+    }
+}
+
 /// Thread-safe store for transaction state.
 pub struct StateStore {
     store: Arc<RwLock<HashMap<ResourceKey, TransactionRecord>>>,
+    stats: Arc<RwLock<HashMap<ClientIdentifier, ClientStats>>>,
     ttl: Duration,
 }
 
@@ -85,6 +103,7 @@ impl StateStore {
     pub fn new(ttl_seconds: u64) -> Self {
         Self {
             store: Arc::new(RwLock::new(HashMap::new())),
+            stats: Arc::new(RwLock::new(HashMap::new())),
             ttl: Duration::from_secs(ttl_seconds),
         }
     }
@@ -105,6 +124,12 @@ impl StateStore {
 
         if let Ok(mut store) = self.store.write() {
             store.insert(key, record);
+        }
+
+        if let Ok(mut stats) = self.stats.write() {
+            let entry = stats.entry(client.clone()).or_default();
+            entry.request_count += 1;
+            entry.last_seen = SystemTime::now();
         }
     }
 
@@ -130,6 +155,43 @@ impl StateStore {
     pub fn cleanup_expired(&self) {
         if let Ok(mut store) = self.store.write() {
             store.retain(|_, record| !record.is_expired(self.ttl));
+        }
+    }
+
+    /// Record a new connection establishment.
+    pub fn record_connection(
+        &self,
+        client: &ClientIdentifier,
+        _metadata: &crate::connection::ConnectionMetadata,
+    ) {
+        if let Ok(mut stats) = self.stats.write() {
+            let entry = stats.entry(client.clone()).or_default();
+            entry.connection_count += 1;
+            entry.last_seen = SystemTime::now();
+        }
+    }
+
+    /// Get connection efficiency stats (requests per connection).
+    pub fn get_connection_efficiency(&self, client: &ClientIdentifier) -> Option<f64> {
+        if let Ok(stats) = self.stats.read() {
+            stats.get(client).map(|s| {
+                if s.connection_count == 0 {
+                    0.0
+                } else {
+                    s.request_count as f64 / s.connection_count as f64
+                }
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Get total connection count for a client.
+    pub fn get_connection_count(&self, client: &ClientIdentifier) -> u64 {
+        if let Ok(stats) = self.stats.read() {
+            stats.get(client).map(|s| s.connection_count).unwrap_or(0)
+        } else {
+            0
         }
     }
 }
@@ -250,5 +312,42 @@ mod tests {
         // Should complete without panicking
         let record = store.get_previous(&client, resource);
         assert!(record.is_some());
+    }
+
+    #[test]
+    fn track_connection_efficiency() {
+        let store = StateStore::new(300);
+        let client = make_client();
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+
+        // Initial state
+        assert_eq!(store.get_connection_count(&client), 0);
+        assert!(store.get_connection_efficiency(&client).is_none());
+
+        // Record connection
+        store.record_connection(&client, &conn);
+        assert_eq!(store.get_connection_count(&client), 1);
+        
+        // 0 requests, 1 connection -> efficiency 0.0
+        assert_eq!(store.get_connection_efficiency(&client), Some(0.0));
+
+        // Record request
+        let headers = HeaderMap::new();
+        store.record_transaction(&client, "http://example.com", 200, &headers);
+        
+        // 1 request, 1 connection -> efficiency 1.0
+        assert_eq!(store.get_connection_efficiency(&client), Some(1.0));
+
+        // Record another request
+        store.record_transaction(&client, "http://example.com", 200, &headers);
+        
+        // 2 requests, 1 connection -> efficiency 2.0
+        assert_eq!(store.get_connection_efficiency(&client), Some(2.0));
+
+        // Record another connection
+        store.record_connection(&client, &conn);
+        
+        // 2 requests, 2 connections -> efficiency 1.0
+        assert_eq!(store.get_connection_efficiency(&client), Some(1.0));
     }
 }

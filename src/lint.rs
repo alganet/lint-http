@@ -22,6 +22,7 @@ pub fn lint_response(
     resource: &str,
     status: u16,
     headers: &HeaderMap,
+    conn: &crate::connection::ConnectionMetadata,
     cfg: &Config,
     state: &crate::state::StateStore,
 ) -> Vec<Violation> {
@@ -29,7 +30,7 @@ pub fn lint_response(
 
     for rule in crate::rules::RULES {
         if cfg.is_enabled(rule.id()) {
-            if let Some(v) = rule.check_response(client, resource, status, headers, state) {
+            if let Some(v) = rule.check_response(client, resource, status, headers, conn, state) {
                 out.push(v);
             }
         }
@@ -43,6 +44,7 @@ pub fn lint_request(
     resource: &str,
     method: &hyper::Method,
     headers: &HeaderMap,
+    conn: &crate::connection::ConnectionMetadata,
     cfg: &Config,
     state: &crate::state::StateStore,
 ) -> Vec<Violation> {
@@ -50,7 +52,7 @@ pub fn lint_request(
 
     for rule in crate::rules::RULES {
         if cfg.is_enabled(rule.id()) {
-            if let Some(v) = rule.check_request(client, resource, method, headers, state) {
+            if let Some(v) = rule.check_request(client, resource, method, headers, conn, state) {
                 out.push(v);
             }
         }
@@ -78,7 +80,8 @@ mod tests {
         let state = crate::state::StateStore::new(300);
         let headers = HeaderMap::new();
         let cfg = Config::default();
-        let v = lint_response(&client, "http://test.com", 200, &headers, &cfg, &state);
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let v = lint_response(&client, "http://test.com", 200, &headers, &conn, &cfg, &state);
         // Should at least recommend Cache-Control and ETag/Last-Modified
         assert!(v.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
@@ -91,7 +94,8 @@ mod tests {
         let headers = HeaderMap::new();
         let cfg = Config::default();
         let method = hyper::Method::GET;
-        let v = lint_request(&client, "http://test.com", &method, &headers, &cfg, &state);
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let v = lint_request(&client, "http://test.com", &method, &headers, &conn, &cfg, &state);
         assert!(v.iter().any(|x| x.rule == "client_user_agent_present"));
         assert!(v.iter().any(|x| x.rule == "client_accept_encoding_present"));
     }
@@ -108,7 +112,8 @@ mod tests {
             state: crate::config::StateConfig::default(),
         };
         let headers = HeaderMap::new();
-        let v = lint_response(&client, "http://test.com", 200, &headers, &cfg, &state);
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let v = lint_response(&client, "http://test.com", 200, &headers, &conn, &cfg, &state);
         assert!(!v.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(!v.iter().any(|x| x.rule == "server_etag_or-last-modified"));
     }
