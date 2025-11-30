@@ -15,4 +15,7 @@ pub mod rules;
 pub mod state;
 pub mod connection;
 
+#[cfg(test)]
+pub mod test_helpers;
+
 // Keep library small; main.rs remains the binary entrypoint.

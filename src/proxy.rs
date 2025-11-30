@@ -4,7 +4,7 @@
 
 //! HTTP proxy server implementation with request forwarding and capture.
 
-use crate::capture::CaptureWriter;
+use crate::capture::{CaptureWriter, CaptureRecordBuilder};
 use crate::config::Config;
 use crate::lint;
 use hyper::{service::service_fn, Body, Client, Request, Response, Server, Uri};
@@ -133,13 +133,8 @@ async fn handle_request(
             let duration = started.elapsed().as_millis() as u64;
             let _ = captures
                 .write_capture(
-                    method.as_str(),
-                    &uri_str,
-                    500_u16,
-                    None,
-                    duration,
-                    &req_headers,
-                    vec![],
+                    CaptureRecordBuilder::new(method.as_str(), &uri_str, 500, &req_headers)
+                        .duration_ms(duration)
                 )
                 .await;
             return Ok(resp);
@@ -157,13 +152,8 @@ async fn handle_request(
             let duration = started.elapsed().as_millis() as u64;
             let _ = captures
                 .write_capture(
-                    method.as_str(),
-                    &uri_str,
-                    502_u16,
-                    None,
-                    duration,
-                    &req_headers,
-                    vec![],
+                    CaptureRecordBuilder::new(method.as_str(), &uri_str, 502, &req_headers)
+                        .duration_ms(duration)
                 )
                 .await;
             return Ok(resp);
@@ -202,13 +192,10 @@ async fn handle_request(
     // Write capture (we don't capture bodies in MVP)
     let _ = captures
         .write_capture(
-            method.as_str(),
-            &uri_str,
-            status,
-            Some(&headers),
-            duration,
-            &req_headers,
-            violations.clone(),
+            CaptureRecordBuilder::new(method.as_str(), &uri_str, status, &req_headers)
+                .response_headers(&headers)
+                .duration_ms(duration)
+                .violations(violations.clone())
         )
         .await;
 
@@ -251,7 +238,7 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let tmp = std::env::temp_dir().join(format!("patina_proxy_test_{}.jsonl", Uuid::new_v4()));
+        let tmp = std::env::temp_dir().join(format!("lint_proxy_test_{}.jsonl", Uuid::new_v4()));
         let p = tmp.to_str().unwrap().to_string();
         let cw = CaptureWriter::new(p.clone()).await.expect("create writer");
 
@@ -289,7 +276,7 @@ mod tests {
     #[tokio::test]
     async fn handle_request_upstream_error() {
         let tmp =
-            std::env::temp_dir().join(format!("patina_proxy_err_test_{}.jsonl", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("lint_proxy_err_test_{}.jsonl", Uuid::new_v4()));
         let p = tmp.to_str().unwrap().to_string();
         let cw = CaptureWriter::new(p.clone()).await.expect("create writer");
 
@@ -334,7 +321,7 @@ mod tests {
             .await;
 
         let tmp =
-            std::env::temp_dir().join(format!("patina_proxy_rel_test_{}.jsonl", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("lint_proxy_rel_test_{}.jsonl", Uuid::new_v4()));
         let p = tmp.to_str().unwrap().to_string();
         let cw = CaptureWriter::new(p.clone()).await.expect("create writer");
 
@@ -387,7 +374,7 @@ mod tests {
             .await;
 
         let tmp =
-            std::env::temp_dir().join(format!("patina_proxy_nv_test_{}.jsonl", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("lint_proxy_nv_test_{}.jsonl", Uuid::new_v4()));
         let p = tmp.to_str().unwrap().to_string();
         let cw = CaptureWriter::new(p.clone()).await.expect("create writer");
 

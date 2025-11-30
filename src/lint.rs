@@ -65,14 +65,7 @@ pub fn lint_request(
 mod tests {
     use super::*;
     use crate::config::Config;
-    use std::net::{IpAddr, Ipv4Addr};
-
-    fn make_test_client() -> crate::state::ClientIdentifier {
-        crate::state::ClientIdentifier::new(
-            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
-            "test-agent".to_string(),
-        )
-    }
+    use crate::test_helpers::{make_test_client, make_test_conn};
 
     #[test]
     fn lint_response_rules_emit_by_default() {
@@ -80,7 +73,7 @@ mod tests {
         let state = crate::state::StateStore::new(300);
         let headers = HeaderMap::new();
         let cfg = Config::default();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let conn = make_test_conn();
         let v = lint_response(&client, "http://test.com", 200, &headers, &conn, &cfg, &state);
         // Should at least recommend Cache-Control and ETag/Last-Modified
         assert!(v.iter().any(|x| x.rule == "server_cache_control_present"));
@@ -94,7 +87,7 @@ mod tests {
         let headers = HeaderMap::new();
         let cfg = Config::default();
         let method = hyper::Method::GET;
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let conn = make_test_conn();
         let v = lint_request(&client, "http://test.com", &method, &headers, &conn, &cfg, &state);
         assert!(v.iter().any(|x| x.rule == "client_user_agent_present"));
         assert!(v.iter().any(|x| x.rule == "client_accept_encoding_present"));
@@ -112,7 +105,7 @@ mod tests {
             state: crate::config::StateConfig::default(),
         };
         let headers = HeaderMap::new();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let conn = make_test_conn();
         let v = lint_response(&client, "http://test.com", 200, &headers, &conn, &cfg, &state);
         assert!(!v.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(!v.iter().any(|x| x.rule == "server_etag_or-last-modified"));

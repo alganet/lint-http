@@ -39,16 +39,7 @@ impl Rule for ServerXContentTypeOptions {
 mod tests {
     use super::*;
     use hyper::HeaderMap;
-    use std::net::{IpAddr, Ipv4Addr};
-
-    fn make_test_context() -> (crate::state::ClientIdentifier, crate::state::StateStore) {
-        let client = crate::state::ClientIdentifier::new(
-            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
-            "test-agent".to_string(),
-        );
-        let state = crate::state::StateStore::new(300);
-        (client, state)
-    }
+    use crate::test_helpers::{make_test_context, make_test_conn};
 
     #[test]
     fn check_response_200_missing_header() {
@@ -56,7 +47,7 @@ mod tests {
         let (client, state) = make_test_context();
         let status = 200;
         let headers = HeaderMap::new();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let conn = make_test_conn();
         let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_some());
         assert_eq!(violation.unwrap().message, "Missing X-Content-Type-Options: nosniff header");
@@ -69,7 +60,7 @@ mod tests {
         let status = 200;
         let mut headers = HeaderMap::new();
         headers.insert("x-content-type-options", "nosniff".parse().unwrap());
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let conn = make_test_conn();
         let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
     }
@@ -80,7 +71,7 @@ mod tests {
         let (client, state) = make_test_context();
         let status = 404;
         let headers = HeaderMap::new();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let conn = make_test_conn();
         let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
     }
@@ -91,7 +82,7 @@ mod tests {
         let (client, state) = make_test_context();
         let status = 101;
         let headers = HeaderMap::new();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let conn = make_test_conn();
         let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
     }

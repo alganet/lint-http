@@ -80,7 +80,7 @@ mod tests {
     #[tokio::test]
     async fn load_toml_file() {
         let tmp_toml =
-            std::env::temp_dir().join(format!("lint-httpttp_cfg_test_{}.toml", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
         let toml = r#"[rules]
 server_cache_control_present = true
 "#;
@@ -97,7 +97,7 @@ mod error_tests {
 
     #[tokio::test]
     async fn load_missing_file_errors() {
-        let p = std::env::temp_dir().join("lint-httpttp_cfg_missing_does_not_exist.toml");
+        let p = std::env::temp_dir().join("lint-http_cfg_missing_does_not_exist.toml");
         let res = Config::load_from_path(&p).await;
         assert!(res.is_err());
     }

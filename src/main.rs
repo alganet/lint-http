@@ -70,7 +70,7 @@ mod tests {
 
     #[tokio::test]
     async fn main_cli_config_loads_toml() {
-        let tmp = std::env::temp_dir().join(format!("patina_main_cli_cfg_{}.toml", Uuid::new_v4()));
+        let tmp = std::env::temp_dir().join(format!("lint_main_cli_cfg_{}.toml", Uuid::new_v4()));
         let toml = r#"[rules]
 cache-control-present = false
 "#;
@@ -106,7 +106,7 @@ cache-control-present = false
         let args = Args {
             listen: "127.0.0.1:0".to_string(),
             captures: std::env::temp_dir()
-                .join("patina_main_no_cfg.jsonl")
+                .join("lint_main_no_cfg.jsonl")
                 .to_str()
                 .unwrap()
                 .to_string(),

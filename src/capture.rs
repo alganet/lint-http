@@ -57,33 +57,76 @@ impl CaptureWriter {
         Ok(Self { file })
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub async fn write_capture(
-        &self,
-        method: &str,
-        uri: &str,
-        status: u16,
-        resp_headers: Option<&HeaderMap>,
-        duration_ms: u64,
-        request_headers: &HeaderMap,
-        violations: Vec<crate::lint::Violation>,
-    ) -> anyhow::Result<()> {
-        let id = Uuid::new_v4().to_string();
-        let rec = CaptureRecord {
-            id: id.clone(),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-            method: method.to_string(),
-            uri: uri.to_string(),
-            status,
-            duration_ms,
-            request_headers: headers_to_map(request_headers),
-            response_headers: resp_headers.map(headers_to_map),
-            violations,
-        };
-
-        let line = serde_json::to_string(&rec)?;
+    /// Write a capture record to the JSONL file
+    pub async fn write_capture(&self, builder: CaptureRecordBuilder<'_>) -> anyhow::Result<()> {
+        let record = builder.build();
+        let line = serde_json::to_string(&record)?;
         self.file.write_line(&line).await?;
         Ok(())
+    }
+}
+
+/// Builder for creating capture records with optional fields
+pub struct CaptureRecordBuilder<'a> {
+    method: &'a str,
+    uri: &'a str,
+    status: u16,
+    request_headers: &'a HeaderMap,
+    response_headers: Option<&'a HeaderMap>,
+    duration_ms: u64,
+    violations: Vec<crate::lint::Violation>,
+}
+
+impl<'a> CaptureRecordBuilder<'a> {
+    /// Create a new capture record builder with required fields
+    pub fn new(
+        method: &'a str,
+        uri: &'a str,
+        status: u16,
+        request_headers: &'a HeaderMap,
+    ) -> Self {
+        Self {
+            method,
+            uri,
+            status,
+            request_headers,
+            response_headers: None,
+            duration_ms: 0,
+            violations: Vec::new(),
+        }
+    }
+
+    /// Add response headers to the capture
+    pub fn response_headers(mut self, headers: &'a HeaderMap) -> Self {
+        self.response_headers = Some(headers);
+        self
+    }
+
+    /// Set the request duration in milliseconds
+    pub fn duration_ms(mut self, duration: u64) -> Self {
+        self.duration_ms = duration;
+        self
+    }
+
+    /// Add lint violations to the capture
+    pub fn violations(mut self, violations: Vec<crate::lint::Violation>) -> Self {
+        self.violations = violations;
+        self
+    }
+
+    /// Build the capture record (internal - generates ID and timestamp)
+    fn build(self) -> CaptureRecord {
+        CaptureRecord {
+            id: Uuid::new_v4().to_string(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            method: self.method.to_string(),
+            uri: self.uri.to_string(),
+            status: self.status,
+            duration_ms: self.duration_ms,
+            request_headers: headers_to_map(self.request_headers),
+            response_headers: self.response_headers.map(headers_to_map),
+            violations: self.violations,
+        }
     }
 }
 
@@ -132,7 +175,7 @@ mod tests {
     #[tokio::test]
     async fn write_capture_writes_jsonl() {
         let tmp =
-            std::env::temp_dir().join(format!("patina_capture_test_{}.jsonl", Uuid::new_v4()));
+            std::env::temp_dir().join(format!("lint_capture_test_{}.jsonl", Uuid::new_v4()));
         let p = tmp.to_str().unwrap().to_string();
 
         let cw = CaptureWriter::new(p.clone()).await.expect("create writer");
@@ -146,14 +189,11 @@ mod tests {
             message: "m".into(),
         }];
 
+        // Use builder pattern
         cw.write_capture(
-            "GET",
-            "http://example/",
-            200,
-            None,
-            10,
-            &req_headers,
-            violations,
+            CaptureRecordBuilder::new("GET", "http://example/", 200, &req_headers)
+                .duration_ms(10)
+                .violations(violations)
         )
         .await
         .expect("write capture");

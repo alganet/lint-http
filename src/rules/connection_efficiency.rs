@@ -7,6 +7,13 @@ use crate::lint::Violation;
 use crate::state::{ClientIdentifier, StateStore};
 use crate::rules::Rule;
 
+/// Minimum connection count before checking efficiency to avoid noise during initial load
+const MIN_CONNECTIONS_FOR_EFFICIENCY_CHECK: u64 = 5;
+
+/// Expected minimum connection reuse ratio (requests per connection).
+/// Values below this indicate poor connection reuse (missing Keep-Alive).
+const MIN_EFFICIENT_REUSE_RATIO: f64 = 1.1;
+
 pub struct ConnectionEfficiency;
 
 impl Rule for ConnectionEfficiency {
@@ -25,16 +32,14 @@ impl Rule for ConnectionEfficiency {
     ) -> Option<Violation> {
         let count = state.get_connection_count(client);
         
-        // Only check after a few connections to avoid noise on initial load
-        if count > 5 {
+        if count > MIN_CONNECTIONS_FOR_EFFICIENCY_CHECK {
             if let Some(efficiency) = state.get_connection_efficiency(client) {
                 // Efficiency = requests / connections.
                 // If efficiency is close to 1.0, it means 1 request per connection.
-                // We expect at least some reuse (e.g. > 1.1).
-                if efficiency < 1.1 {
+                if efficiency < MIN_EFFICIENT_REUSE_RATIO {
                     return Some(Violation {
-                        rule: self.id().to_string(),
-                        severity: "Warning".to_string(),
+                        rule: self.id().into(),
+                        severity: "warn".into(),
                         message: format!(
                             "Low connection efficiency ({:.2} reqs/conn). Client is not reusing connections (Keep-Alive).",
                             efficiency
@@ -50,17 +55,8 @@ impl Rule for ConnectionEfficiency {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::{IpAddr, Ipv4Addr};
+    use crate::test_helpers::{make_test_context, make_test_conn};
     use hyper::HeaderMap;
-
-    fn make_test_context() -> (ClientIdentifier, StateStore) {
-        let client = ClientIdentifier::new(
-            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
-            "test-agent".to_string(),
-        );
-        let state = StateStore::new(300);
-        (client, state)
-    }
 
     #[test]
     fn check_request_no_violation_initially() {
@@ -68,7 +64,7 @@ mod tests {
         let (client, state) = make_test_context();
         let method = hyper::Method::GET;
         let headers = HeaderMap::new();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let conn = make_test_conn();
 
         // First request, no history
         let violation = rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
@@ -104,7 +100,7 @@ mod tests {
         let headers = HeaderMap::new();
         
         // Simulate 1 connection with 10 requests (Efficiency = 10.0)
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let conn = make_test_conn();
         state.record_connection(&client, &conn);
         for _ in 0..10 {
              state.record_transaction(&client, "http://test.com", 200, &headers);
