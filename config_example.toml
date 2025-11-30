@@ -2,6 +2,14 @@
 #
 # SPDX-License-Identifier: ISC
 
+[state]
+ttl_seconds = 300
+
+[tls]
+enabled = true
+ca_cert_path = "ca.crt"
+ca_key_path = "ca.key" 
+
 [rules]
 # Client Rules
 client_accept_encoding_present = true

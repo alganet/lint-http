@@ -12,7 +12,7 @@ pub struct StateConfig {
     /// TTL for state entries in seconds (default: 300 = 5 minutes)
     #[serde(default = "default_ttl")]
     pub ttl_seconds: u64,
-    
+
     /// Whether to enable stateful analysis (default: true)
     #[serde(default = "default_enabled")]
     pub enabled: bool,
@@ -36,12 +36,25 @@ impl Default for StateConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
+pub struct TlsConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    pub ca_cert_path: Option<String>,
+    pub ca_key_path: Option<String>,
+    #[serde(default)]
+    pub passthrough_domains: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
     #[serde(default)]
     pub rules: HashMap<String, bool>,
-    
+
     #[serde(default)]
     pub state: StateConfig,
+
+    #[serde(default)]
+    pub tls: TlsConfig,
 }
 
 impl Config {

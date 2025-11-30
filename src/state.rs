@@ -47,12 +47,12 @@ impl TransactionRecord {
             .get("etag")
             .and_then(|v| v.to_str().ok())
             .map(String::from);
-        
+
         let last_modified = headers
             .get("last-modified")
             .and_then(|v| v.to_str().ok())
             .map(String::from);
-        
+
         let cache_control = headers
             .get("cache-control")
             .and_then(|v| v.to_str().ok())
@@ -327,26 +327,26 @@ mod tests {
         // Record connection
         store.record_connection(&client, &conn);
         assert_eq!(store.get_connection_count(&client), 1);
-        
+
         // 0 requests, 1 connection -> efficiency 0.0
         assert_eq!(store.get_connection_efficiency(&client), Some(0.0));
 
         // Record request
         let headers = HeaderMap::new();
         store.record_transaction(&client, "http://example.com", 200, &headers);
-        
+
         // 1 request, 1 connection -> efficiency 1.0
         assert_eq!(store.get_connection_efficiency(&client), Some(1.0));
 
         // Record another request
         store.record_transaction(&client, "http://example.com", 200, &headers);
-        
+
         // 2 requests, 1 connection -> efficiency 2.0
         assert_eq!(store.get_connection_efficiency(&client), Some(2.0));
 
         // Record another connection
         store.record_connection(&client, &conn);
-        
+
         // 2 requests, 2 connections -> efficiency 1.0
         assert_eq!(store.get_connection_efficiency(&client), Some(1.0));
     }

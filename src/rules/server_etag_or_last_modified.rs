@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: ISC
 
-use hyper::HeaderMap;
 use crate::lint::Violation;
 use crate::rules::Rule;
 use crate::state::{ClientIdentifier, StateStore};
+use hyper::HeaderMap;
 
 pub struct ServerEtagOrLastModified;
 
@@ -23,9 +23,7 @@ impl Rule for ServerEtagOrLastModified {
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
     ) -> Option<Violation> {
-        if status == 200
-            && !headers.contains_key("etag")
-            && !headers.contains_key("last-modified")
+        if status == 200 && !headers.contains_key("etag") && !headers.contains_key("last-modified")
         {
             Some(Violation {
                 rule: self.id().into(),
@@ -41,8 +39,8 @@ impl Rule for ServerEtagOrLastModified {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::{make_test_conn, make_test_context};
     use hyper::HeaderMap;
-    use crate::test_helpers::{make_test_context, make_test_conn};
 
     #[test]
     fn check_response_200_missing_headers() {
@@ -51,9 +49,13 @@ mod tests {
         let status = 200;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation =
+            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_some());
-        assert_eq!(violation.unwrap().message, "Response 200 without ETag or Last-Modified validator");
+        assert_eq!(
+            violation.unwrap().message,
+            "Response 200 without ETag or Last-Modified validator"
+        );
     }
 
     #[test]
@@ -64,7 +66,8 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("etag", "\"12345\"".parse().unwrap());
         let conn = make_test_conn();
-        let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation =
+            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
     }
 
@@ -74,9 +77,13 @@ mod tests {
         let (client, state) = make_test_context();
         let status = 200;
         let mut headers = HeaderMap::new();
-        headers.insert("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT".parse().unwrap());
+        headers.insert(
+            "last-modified",
+            "Wed, 21 Oct 2015 07:28:00 GMT".parse().unwrap(),
+        );
         let conn = make_test_conn();
-        let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation =
+            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
     }
 
@@ -87,7 +94,8 @@ mod tests {
         let status = 404;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation =
+            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
     }
 }

@@ -8,8 +8,6 @@ use crate::config::Config;
 use hyper::HeaderMap;
 use serde::Serialize;
 
-
-
 #[derive(Clone, Serialize)]
 pub struct Violation {
     pub rule: String,
@@ -74,7 +72,15 @@ mod tests {
         let headers = HeaderMap::new();
         let cfg = Config::default();
         let conn = make_test_conn();
-        let v = lint_response(&client, "http://test.com", 200, &headers, &conn, &cfg, &state);
+        let v = lint_response(
+            &client,
+            "http://test.com",
+            200,
+            &headers,
+            &conn,
+            &cfg,
+            &state,
+        );
         // Should at least recommend Cache-Control and ETag/Last-Modified
         assert!(v.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
@@ -88,7 +94,15 @@ mod tests {
         let cfg = Config::default();
         let method = hyper::Method::GET;
         let conn = make_test_conn();
-        let v = lint_request(&client, "http://test.com", &method, &headers, &conn, &cfg, &state);
+        let v = lint_request(
+            &client,
+            "http://test.com",
+            &method,
+            &headers,
+            &conn,
+            &cfg,
+            &state,
+        );
         assert!(v.iter().any(|x| x.rule == "client_user_agent_present"));
         assert!(v.iter().any(|x| x.rule == "client_accept_encoding_present"));
     }
@@ -103,10 +117,19 @@ mod tests {
         let cfg = Config {
             rules,
             state: crate::config::StateConfig::default(),
+            tls: crate::config::TlsConfig::default(),
         };
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let v = lint_response(&client, "http://test.com", 200, &headers, &conn, &cfg, &state);
+        let v = lint_response(
+            &client,
+            "http://test.com",
+            200,
+            &headers,
+            &conn,
+            &cfg,
+            &state,
+        );
         assert!(!v.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(!v.iter().any(|x| x.rule == "server_etag_or-last-modified"));
     }

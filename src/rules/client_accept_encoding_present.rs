@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: ISC
 
-use hyper::{HeaderMap, Method};
 use crate::lint::Violation;
 use crate::rules::Rule;
 use crate::state::{ClientIdentifier, StateStore};
+use hyper::{HeaderMap, Method};
 
 pub struct ClientAcceptEncodingPresent;
 
@@ -38,8 +38,8 @@ impl Rule for ClientAcceptEncodingPresent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::{make_test_conn, make_test_context};
     use hyper::HeaderMap;
-    use crate::test_helpers::{make_test_context, make_test_conn};
 
     #[test]
     fn check_request_missing_header() {
@@ -48,9 +48,13 @@ mod tests {
         let method = hyper::Method::GET;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let violation = rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
+        let violation =
+            rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
         assert!(violation.is_some());
-        assert_eq!(violation.unwrap().message, "Request missing Accept-Encoding header");
+        assert_eq!(
+            violation.unwrap().message,
+            "Request missing Accept-Encoding header"
+        );
     }
 
     #[test]
@@ -61,7 +65,8 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("accept-encoding", "gzip".parse().unwrap());
         let conn = make_test_conn();
-        let violation = rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
+        let violation =
+            rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
         assert!(violation.is_none());
     }
 }

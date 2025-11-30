@@ -79,12 +79,7 @@ pub struct CaptureRecordBuilder<'a> {
 
 impl<'a> CaptureRecordBuilder<'a> {
     /// Create a new capture record builder with required fields
-    pub fn new(
-        method: &'a str,
-        uri: &'a str,
-        status: u16,
-        request_headers: &'a HeaderMap,
-    ) -> Self {
+    pub fn new(method: &'a str, uri: &'a str, status: u16, request_headers: &'a HeaderMap) -> Self {
         Self {
             method,
             uri,
@@ -174,8 +169,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_capture_writes_jsonl() {
-        let tmp =
-            std::env::temp_dir().join(format!("lint_capture_test_{}.jsonl", Uuid::new_v4()));
+        let tmp = std::env::temp_dir().join(format!("lint_capture_test_{}.jsonl", Uuid::new_v4()));
         let p = tmp.to_str().unwrap().to_string();
 
         let cw = CaptureWriter::new(p.clone()).await.expect("create writer");
@@ -193,7 +187,7 @@ mod tests {
         cw.write_capture(
             CaptureRecordBuilder::new("GET", "http://example/", 200, &req_headers)
                 .duration_ms(10)
-                .violations(violations)
+                .violations(violations),
         )
         .await
         .expect("write capture");

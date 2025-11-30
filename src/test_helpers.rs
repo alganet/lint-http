@@ -23,6 +23,6 @@ pub fn make_test_context() -> (ClientIdentifier, StateStore) {
 /// Create a test connection metadata with standard test address
 pub fn make_test_conn() -> crate::connection::ConnectionMetadata {
     crate::connection::ConnectionMetadata::new(
-        "127.0.0.1:12345".parse().expect("valid test address")
+        "127.0.0.1:12345".parse().expect("valid test address"),
     )
 }

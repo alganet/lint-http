@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: ISC
 
-use hyper::HeaderMap;
 use crate::lint::Violation;
 use crate::rules::Rule;
 use crate::state::{ClientIdentifier, StateStore};
+use hyper::HeaderMap;
 
 pub struct ServerXContentTypeOptions;
 
@@ -38,8 +38,8 @@ impl Rule for ServerXContentTypeOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::{make_test_conn, make_test_context};
     use hyper::HeaderMap;
-    use crate::test_helpers::{make_test_context, make_test_conn};
 
     #[test]
     fn check_response_200_missing_header() {
@@ -48,9 +48,13 @@ mod tests {
         let status = 200;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation =
+            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_some());
-        assert_eq!(violation.unwrap().message, "Missing X-Content-Type-Options: nosniff header");
+        assert_eq!(
+            violation.unwrap().message,
+            "Missing X-Content-Type-Options: nosniff header"
+        );
     }
 
     #[test]
@@ -61,7 +65,8 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("x-content-type-options", "nosniff".parse().unwrap());
         let conn = make_test_conn();
-        let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation =
+            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
     }
 
@@ -72,7 +77,8 @@ mod tests {
         let status = 404;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation =
+            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
     }
 
@@ -83,7 +89,8 @@ mod tests {
         let status = 101;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let violation = rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation =
+            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
     }
 }

@@ -7,13 +7,14 @@
 //! This library provides the core functionality for lint-http, including
 //! proxy handling, capture writing, configuration, and lint rule evaluation.
 
+pub mod ca;
 pub mod capture;
 pub mod config;
+pub mod connection;
 pub mod lint;
 pub mod proxy;
 pub mod rules;
 pub mod state;
-pub mod connection;
 
 #[cfg(test)]
 pub mod test_helpers;

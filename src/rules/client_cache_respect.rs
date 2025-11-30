@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: ISC
 
-use hyper::HeaderMap;
 use crate::lint::Violation;
 use crate::rules::Rule;
 use crate::state::{ClientIdentifier, StateStore};
+use hyper::HeaderMap;
 
 pub struct ClientCacheRespect;
 
@@ -29,7 +29,7 @@ impl Rule for ClientCacheRespect {
         // If the previous response had validators (ETag or Last-Modified),
         // the client should send conditional headers
         let has_validators = previous.etag.is_some() || previous.last_modified.is_some();
-        
+
         if !has_validators {
             return None;
         }

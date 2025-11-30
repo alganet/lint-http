@@ -2,13 +2,13 @@
 //
 // SPDX-License-Identifier: ISC
 
-use hyper::{HeaderMap, Method};
 use crate::lint::Violation;
 use crate::state::{ClientIdentifier, StateStore};
+use hyper::{HeaderMap, Method};
 
 pub trait Rule: Send + Sync {
     fn id(&self) -> &'static str;
-    
+
     fn check_request(
         &self,
         _client: &ClientIdentifier,
@@ -20,7 +20,7 @@ pub trait Rule: Send + Sync {
     ) -> Option<Violation> {
         None
     }
-    
+
     fn check_response(
         &self,
         _client: &ClientIdentifier,
@@ -34,13 +34,13 @@ pub trait Rule: Send + Sync {
     }
 }
 
+pub mod client_accept_encoding_present;
+pub mod client_cache_respect;
+pub mod client_user_agent_present;
+pub mod connection_efficiency;
 pub mod server_cache_control_present;
 pub mod server_etag_or_last_modified;
 pub mod server_x_content_type_options;
-pub mod client_user_agent_present;
-pub mod client_accept_encoding_present;
-pub mod client_cache_respect;
-pub mod connection_efficiency;
 
 pub const RULES: &[&dyn Rule] = &[
     &server_cache_control_present::ServerCacheControlPresent,
