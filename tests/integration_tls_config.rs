@@ -2,13 +2,13 @@
 //
 // SPDX-License-Identifier: ISC
 
-use hyper::{Uri};
+use hyper::Uri;
 use std::sync::Arc;
 use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
-use wiremock::{Mock, MockServer, ResponseTemplate};
 use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
 async fn test_suppress_headers() {
@@ -20,7 +20,8 @@ async fn test_suppress_headers() {
         .mount(&mock)
         .await;
 
-    let tmp_capture = std::env::temp_dir().join(format!("lint_test_suppress_{}.jsonl", Uuid::new_v4()));
+    let tmp_capture =
+        std::env::temp_dir().join(format!("lint_test_suppress_{}.jsonl", Uuid::new_v4()));
     let cw = lint_http::capture::CaptureWriter::new(tmp_capture.to_str().unwrap().to_string())
         .await
         .expect("create writer");
@@ -37,7 +38,9 @@ async fn test_suppress_headers() {
     let cw_clone = cw.clone();
     let cfg_clone = cfg.clone();
     tokio::spawn(async move {
-        lint_http::proxy::run_proxy(proxy_addr, cw_clone, cfg_clone).await.unwrap();
+        lint_http::proxy::run_proxy(proxy_addr, cw_clone, cfg_clone)
+            .await
+            .unwrap();
     });
 
     // Wait for proxy to start
@@ -60,23 +63,23 @@ async fn test_suppress_headers() {
     let mut buf = [0; 4096];
     let n = stream.read(&mut buf).await.unwrap();
     let response = String::from_utf8_lossy(&buf[0..n]);
-    
+
     assert!(response.contains("200 OK"));
 
     // Now verify the capture to see if the header was suppressed in the upstream request?
     // We can't easily check upstream request from here without the mock telling us.
-    // BUT, we can check the capture file. 
+    // BUT, we can check the capture file.
     // Wait, the capture records the INCOMING request headers.
     // So the capture WILL contain "x-secret".
-    
+
     // To verify it was suppressed upstream, we need to check what the mock received.
     // Wiremock's `ScopedMock` or `MockServer::received_requests` would be useful.
     // `wiremock` 0.5+ has `received_requests()`.
-    
+
     let requests = mock.received_requests().await.unwrap();
     assert_eq!(requests.len(), 1);
     let received_req = &requests[0];
-    
+
     // Check headers
     assert!(received_req.headers.get("x-public").is_some());
     assert!(received_req.headers.get("x-secret").is_none());
@@ -116,17 +119,22 @@ async fn test_passthrough_domains() {
     let cw_clone = cw.clone();
     let cfg_clone = cfg.clone();
     tokio::spawn(async move {
-        lint_http::proxy::run_proxy(proxy_addr, cw_clone, cfg_clone).await.unwrap();
+        lint_http::proxy::run_proxy(proxy_addr, cw_clone, cfg_clone)
+            .await
+            .unwrap();
     });
 
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
     // Connect via proxy
     let mut stream = tokio::net::TcpStream::connect(proxy_addr).await.unwrap();
-    
-    let connect_req = format!("CONNECT localhost:{} HTTP/1.1\r\nHost: localhost:{}\r\n\r\n", target_port, target_port);
+
+    let connect_req = format!(
+        "CONNECT localhost:{} HTTP/1.1\r\nHost: localhost:{}\r\n\r\n",
+        target_port, target_port
+    );
     stream.write_all(connect_req.as_bytes()).await.unwrap();
-    
+
     let mut buf = [0; 1024];
     let n = stream.read(&mut buf).await.unwrap();
     let response = String::from_utf8_lossy(&buf[0..n]);

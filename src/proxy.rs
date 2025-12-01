@@ -211,8 +211,14 @@ async fn handle_http_logic(
     let mut builder = Request::builder().method(req.method()).uri(uri.clone());
     // copy headers
     for (name, value) in req.headers().iter() {
-        if !shared.cfg.tls.suppress_headers.iter().any(|h| h.eq_ignore_ascii_case(name.as_str())) {
-             builder = builder.header(name, value);
+        if !shared
+            .cfg
+            .tls
+            .suppress_headers
+            .iter()
+            .any(|h| h.eq_ignore_ascii_case(name.as_str()))
+        {
+            builder = builder.header(name, value);
         }
     }
 
@@ -346,7 +352,13 @@ async fn handle_connect(
     let host = uri.host().unwrap_or("unknown");
 
     // Check for passthrough domains
-    if shared.cfg.tls.passthrough_domains.iter().any(|d| host.ends_with(d)) {
+    if shared
+        .cfg
+        .tls
+        .passthrough_domains
+        .iter()
+        .any(|d| host.ends_with(d))
+    {
         info!(%host, "tunneling connection (passthrough)");
         if let Err(e) = tunnel(client_conn, host, uri.port_u16().unwrap_or(443)).await {
             error!("tunnel error: {}", e);

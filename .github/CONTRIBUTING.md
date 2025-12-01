@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Development
 
-Please refer to [docs/development.md](docs/development.md) for detailed instructions on:
+Please refer to [/docs/development.md](/docs/development.md) for detailed instructions on:
 
 - Setting up the environment
 - Running tests and QA
