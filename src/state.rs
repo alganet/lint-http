@@ -194,6 +194,46 @@ impl StateStore {
             0
         }
     }
+
+    /// Seed the StateStore from a capture record.
+    ///
+    /// This method populates the state with transaction data from previously captured
+    /// HTTP exchanges. It enables:
+    /// - Continuing analysis from previous proxy sessions
+    /// - Setting up elaborate testing scenarios with mocked previous states
+    ///
+    /// The client is identified from the request headers (user-agent). Since we don't
+    /// have the actual client IP from the capture, we use a localhost IP as a placeholder.
+    /// Transactions without response headers are skipped.
+    pub fn seed_from_capture(&self, record: &crate::capture::CaptureRecord) {
+        // Extract user agent from request headers, default to "unknown"
+        let user_agent = record
+            .request_headers
+            .get("user-agent")
+            .cloned()
+            .unwrap_or_else(|| "unknown".to_string());
+
+        // Use localhost IP as placeholder since we don't capture client IPs
+        let client_ip = std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1));
+        let client = ClientIdentifier::new(client_ip, user_agent);
+
+        // Only seed if we have response headers (complete transaction)
+        if let Some(ref resp_headers) = record.response_headers {
+            // Convert HashMap<String, String> to HeaderMap
+            let mut header_map = HeaderMap::new();
+            for (key, value) in resp_headers {
+                if let (Ok(name), Ok(val)) = (
+                    hyper::header::HeaderName::from_bytes(key.as_bytes()),
+                    hyper::header::HeaderValue::from_str(value),
+                ) {
+                    header_map.insert(name, val);
+                }
+            }
+
+            // Record the transaction
+            self.record_transaction(&client, &record.uri, record.status, &header_map);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -349,5 +389,78 @@ mod tests {
 
         // 2 requests, 2 connections -> efficiency 1.0
         assert_eq!(store.get_connection_efficiency(&client), Some(1.0));
+    }
+
+    #[test]
+    fn seed_from_capture_populates_state() {
+        let store = StateStore::new(300);
+
+        // Create a capture record with response headers
+        let mut resp_headers = std::collections::HashMap::new();
+        resp_headers.insert("etag".to_string(), "\"12345\"".to_string());
+        resp_headers.insert("cache-control".to_string(), "max-age=3600".to_string());
+
+        let mut req_headers = std::collections::HashMap::new();
+        req_headers.insert("user-agent".to_string(), "test-client/1.0".to_string());
+
+        let record = crate::capture::CaptureRecord {
+            id: "test-id".to_string(),
+            timestamp: "2024-01-01T00:00:00Z".to_string(),
+            method: "GET".to_string(),
+            uri: "http://example.com/resource".to_string(),
+            status: 200,
+            duration_ms: 100,
+            request_headers: req_headers,
+            response_headers: Some(resp_headers),
+            violations: vec![],
+        };
+
+        // Seed the state
+        store.seed_from_capture(&record);
+
+        // Verify the transaction was recorded
+        let client = ClientIdentifier::new(
+            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            "test-client/1.0".to_string(),
+        );
+
+        let prev = store.get_previous(&client, "http://example.com/resource");
+        assert!(prev.is_some());
+
+        let prev = prev.unwrap();
+        assert_eq!(prev.status, 200);
+        assert_eq!(prev.etag, Some("\"12345\"".to_string()));
+        assert_eq!(prev.cache_control, Some("max-age=3600".to_string()));
+    }
+
+    #[test]
+    fn seed_from_capture_without_response_headers_does_nothing() {
+        let store = StateStore::new(300);
+
+        let req_headers = std::collections::HashMap::new();
+
+        let record = crate::capture::CaptureRecord {
+            id: "test-id".to_string(),
+            timestamp: "2024-01-01T00:00:00Z".to_string(),
+            method: "GET".to_string(),
+            uri: "http://example.com/resource".to_string(),
+            status: 200,
+            duration_ms: 100,
+            request_headers: req_headers,
+            response_headers: None,
+            violations: vec![],
+        };
+
+        // Seed the state (should do nothing since no response headers)
+        store.seed_from_capture(&record);
+
+        // Verify nothing was recorded
+        let client = ClientIdentifier::new(
+            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            "unknown".to_string(),
+        );
+
+        let prev = store.get_previous(&client, "http://example.com/resource");
+        assert!(prev.is_none());
     }
 }

@@ -68,6 +68,23 @@ pub async fn run_proxy(
     let ttl = cfg.general.ttl_seconds;
     let state = Arc::new(crate::state::StateStore::new(ttl));
 
+    // Seed state from captures file if enabled
+    if cfg.general.captures_seed {
+        match crate::capture::load_captures(&cfg.general.captures).await {
+            Ok(records) => {
+                let count = records.len();
+                for record in &records {
+                    state.seed_from_capture(record);
+                }
+                info!(count, "seeded state from captures");
+            }
+            Err(e) => {
+                // Log warning but don't fail startup
+                tracing::warn!(error = %e, "failed to load captures for seeding");
+            }
+        }
+    }
+
     // Spawn background cleanup task
     let state_cleanup = state.clone();
     tokio::spawn(async move {

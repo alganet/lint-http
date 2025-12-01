@@ -6,6 +6,7 @@
 listen = "127.0.0.1:3000"
 captures = "captures.jsonl"
 ttl_seconds = 300
+captures_seed = false
 
 [tls]
 enabled = true

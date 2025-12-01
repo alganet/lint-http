@@ -4,7 +4,7 @@
 
 //! Request/response capture writing to JSONL format.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
@@ -64,6 +64,46 @@ impl CaptureWriter {
         self.file.write_line(&line).await?;
         Ok(())
     }
+}
+
+/// Load capture records from a JSONL file
+///
+/// Reads the file line-by-line and deserializes each line as a CaptureRecord.
+/// Malformed lines are skipped with a warning logged.
+/// Returns all successfully parsed records.
+pub async fn load_captures<P: AsRef<std::path::Path>>(
+    path: P,
+) -> anyhow::Result<Vec<CaptureRecord>> {
+    use tokio::io::AsyncBufReadExt;
+
+    let path_ref = path.as_ref();
+
+    // If file doesn't exist, return empty vector
+    if !tokio::fs::try_exists(path_ref).await.unwrap_or(false) {
+        return Ok(Vec::new());
+    }
+
+    let file = tokio::fs::File::open(path_ref).await?;
+    let reader = tokio::io::BufReader::new(file);
+    let mut lines = reader.lines();
+    let mut records = Vec::new();
+    let mut line_num = 0;
+
+    while let Some(line) = lines.next_line().await? {
+        line_num += 1;
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        match serde_json::from_str::<CaptureRecord>(&line) {
+            Ok(record) => records.push(record),
+            Err(e) => {
+                tracing::warn!(line = line_num, error = %e, "failed to parse capture record, skipping");
+            }
+        }
+    }
+
+    Ok(records)
 }
 
 /// Builder for creating capture records with optional fields
@@ -135,17 +175,17 @@ fn headers_to_map(h: &HeaderMap) -> std::collections::HashMap<String, String> {
     m
 }
 
-#[derive(Serialize)]
-struct CaptureRecord {
-    id: String,
-    timestamp: String,
-    method: String,
-    uri: String,
-    status: u16,
-    duration_ms: u64,
-    request_headers: std::collections::HashMap<String, String>,
-    response_headers: Option<std::collections::HashMap<String, String>>,
-    violations: Vec<crate::lint::Violation>,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CaptureRecord {
+    pub id: String,
+    pub timestamp: String,
+    pub method: String,
+    pub uri: String,
+    pub status: u16,
+    pub duration_ms: u64,
+    pub request_headers: std::collections::HashMap<String, String>,
+    pub response_headers: Option<std::collections::HashMap<String, String>>,
+    pub violations: Vec<crate::lint::Violation>,
 }
 
 #[cfg(test)]
@@ -200,5 +240,80 @@ mod tests {
         assert!(v["request_headers"].get("x-test").is_some());
 
         let _ = fs::remove_file(&tmp).await;
+    }
+
+    #[tokio::test]
+    async fn load_captures_reads_jsonl() {
+        let tmp = std::env::temp_dir().join(format!("lint_load_test_{}.jsonl", Uuid::new_v4()));
+        let p = tmp.to_str().unwrap().to_string();
+
+        // Write some sample capture records
+        let cw = CaptureWriter::new(p.clone()).await.expect("create writer");
+
+        let mut req_headers = HeaderMap::new();
+        req_headers.insert("user-agent", "test-client".parse().unwrap());
+
+        let mut resp_headers = HeaderMap::new();
+        resp_headers.insert("etag", "\"abc123\"".parse().unwrap());
+
+        cw.write_capture(
+            CaptureRecordBuilder::new("GET", "http://example/test", 200, &req_headers)
+                .response_headers(&resp_headers)
+                .duration_ms(100),
+        )
+        .await
+        .expect("write capture");
+
+        // Load the captures
+        let records = load_captures(&tmp).await.expect("load captures");
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].method, "GET");
+        assert_eq!(records[0].uri, "http://example/test");
+        assert_eq!(records[0].status, 200);
+        assert_eq!(records[0].duration_ms, 100);
+        assert!(records[0].response_headers.is_some());
+
+        let _ = fs::remove_file(&tmp).await;
+    }
+
+    #[tokio::test]
+    async fn load_captures_skips_malformed_lines() {
+        let tmp =
+            std::env::temp_dir().join(format!("lint_malformed_test_{}.jsonl", Uuid::new_v4()));
+
+        // Write a mix of valid and invalid JSON
+        let content = r#"{"id":"1","timestamp":"2024-01-01T00:00:00Z","method":"GET","uri":"http://example/","status":200,"duration_ms":0,"request_headers":{},"response_headers":null,"violations":[]}
+invalid json line
+{"id":"2","timestamp":"2024-01-01T00:00:01Z","method":"POST","uri":"http://example/post","status":201,"duration_ms":50,"request_headers":{},"response_headers":null,"violations":[]}
+"#;
+        fs::write(&tmp, content).await.expect("write file");
+
+        // Should load only the valid records
+        let records = load_captures(&tmp).await.expect("load captures");
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].id, "1");
+        assert_eq!(records[1].id, "2");
+
+        let _ = fs::remove_file(&tmp).await;
+    }
+
+    #[tokio::test]
+    async fn load_captures_empty_file_returns_empty() {
+        let tmp = std::env::temp_dir().join(format!("lint_empty_test_{}.jsonl", Uuid::new_v4()));
+        fs::write(&tmp, "").await.expect("write empty file");
+
+        let records = load_captures(&tmp).await.expect("load captures");
+        assert_eq!(records.len(), 0);
+
+        let _ = fs::remove_file(&tmp).await;
+    }
+
+    #[tokio::test]
+    async fn load_captures_nonexistent_file_returns_empty() {
+        let tmp = std::env::temp_dir().join(format!("lint_nonexistent_{}.jsonl", Uuid::new_v4()));
+
+        // Should not error, just return empty vector
+        let records = load_captures(&tmp).await.expect("load captures");
+        assert_eq!(records.len(), 0);
     }
 }

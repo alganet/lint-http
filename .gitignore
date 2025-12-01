@@ -4,7 +4,10 @@
 
 # Captures
 **/captures.jsonl
+
+# Coverage
 cobertura.xml
+/coverage
 
 # Temporary cert files
 ca.crt

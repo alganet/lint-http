@@ -33,11 +33,16 @@ The `[general]` section configures the core proxy behavior.
 listen = "127.0.0.1:3000"         # Address to listen on
 captures = "captures.jsonl"       # Path to capture file
 ttl_seconds = 300                 # How long to keep state records
+captures_seed = false             # Seed state from captures file on startup
 ```
 
 - **listen**: The IP address and port the proxy should bind to.
 - **captures**: The file path where traffic logs (JSONL) will be appended.
 - **ttl_seconds**: Time-to-live for stateful analysis records (e.g., tracking request frequency).
+- **captures_seed**: When set to `true`, the proxy will load previous capture records from the captures file on startup and seed the state store. This enables:
+  - Continuing analysis from previous proxy sessions (stateful rules will have access to "previous" transactions)
+  - Setting up elaborate testing scenarios with mocked previous states
+  - Default is `false` (disabled).
 
 ### TLS Configuration (Mandatory)
 

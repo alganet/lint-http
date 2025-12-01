@@ -18,6 +18,10 @@ pub struct GeneralConfig {
     /// TTL for state entries in seconds (default: 300 = 5 minutes)
     #[serde(default = "default_ttl")]
     pub ttl_seconds: u64,
+
+    /// Whether to seed StateStore from captures file on startup
+    #[serde(default = "default_captures_seed")]
+    pub captures_seed: bool,
 }
 
 fn default_ttl() -> u64 {
@@ -32,12 +36,17 @@ fn default_captures() -> String {
     "captures.jsonl".to_string()
 }
 
+fn default_captures_seed() -> bool {
+    false
+}
+
 impl Default for GeneralConfig {
     fn default() -> Self {
         Self {
             listen: default_listen(),
             captures: default_captures(),
             ttl_seconds: default_ttl(),
+            captures_seed: default_captures_seed(),
         }
     }
 }
@@ -107,6 +116,7 @@ server_cache_control_present = true
 listen = "127.0.0.1:3000"
 captures = "captures.jsonl"
 ttl_seconds = 300
+captures_seed = false
 
 [tls]
 enabled = false

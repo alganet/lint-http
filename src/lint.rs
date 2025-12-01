@@ -2,13 +2,14 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! HTTP response lint rules and violation reporting.
+//! HTTP request/response linting and rule evaluation.
 
 use crate::config::Config;
 use hyper::HeaderMap;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize)]
+/// Represents a single rule violation detected by the linter.
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Violation {
     pub rule: String,
     pub severity: String,
