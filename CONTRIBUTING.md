@@ -8,36 +8,18 @@ SPDX-License-Identifier: ISC
 
 ## Development
 
-```bash
-cargo build
-cargo test
-cargo fmt
-cargo clippy
-```
+Please refer to [docs/development.md](docs/development.md) for detailed instructions on:
 
-## Testing
-
-Run tests:
-```bash
-cargo test
-```
-
-Coverage:
-```bash
-cargo tarpaulin --out Xml
-```
+- Setting up the environment
+- Running tests and QA
+- Code style guidelines
+- Creating new lint rules
 
 ## Pull Requests
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run tests and linting
+4. Run tests and linting (see Development docs)
 5. Submit a pull request
 
-## Code Style
-
-- Follow Rust standard style (`cargo fmt`)
-- Address all clippy warnings
-- Add tests for new features
-- Update CHANGELOG.md

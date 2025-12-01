@@ -8,36 +8,42 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct StateConfig {
+pub struct GeneralConfig {
+    /// Listen address, e.g. 127.0.0.1:3000
+    pub listen: String,
+
+    /// Path to append captures JSONL
+    pub captures: String,
+
     /// TTL for state entries in seconds (default: 300 = 5 minutes)
     #[serde(default = "default_ttl")]
     pub ttl_seconds: u64,
-
-    /// Whether to enable stateful analysis (default: true)
-    #[serde(default = "default_enabled")]
-    pub enabled: bool,
 }
 
 fn default_ttl() -> u64 {
     300
 }
 
-fn default_enabled() -> bool {
-    true
+fn default_listen() -> String {
+    "127.0.0.1:3000".to_string()
 }
 
-impl Default for StateConfig {
+fn default_captures() -> String {
+    "captures.jsonl".to_string()
+}
+
+impl Default for GeneralConfig {
     fn default() -> Self {
         Self {
+            listen: default_listen(),
+            captures: default_captures(),
             ttl_seconds: default_ttl(),
-            enabled: default_enabled(),
         }
     }
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct TlsConfig {
-    #[serde(default)]
     pub enabled: bool,
     pub ca_cert_path: Option<String>,
     pub ca_key_path: Option<String>,
@@ -49,13 +55,11 @@ pub struct TlsConfig {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
+    pub general: GeneralConfig,
+
     #[serde(default)]
     pub rules: HashMap<String, bool>,
 
-    #[serde(default)]
-    pub state: StateConfig,
-
-    #[serde(default)]
     pub tls: TlsConfig,
 }
 
@@ -98,6 +102,14 @@ mod tests {
             std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
         let toml = r#"[rules]
 server_cache_control_present = true
+
+[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+ttl_seconds = 300
+
+[tls]
+enabled = false
 "#;
         fs::write(&tmp_toml, toml).await.expect("write toml");
         let cfg = Config::load_from_path(&tmp_toml).await.expect("load toml");

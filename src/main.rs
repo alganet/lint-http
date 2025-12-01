@@ -7,22 +7,14 @@ use std::net::SocketAddr;
 use tokio::signal;
 
 use lint_http::{capture, config, proxy};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 #[derive(Parser, Debug)]
-#[command(name = "lint-http")]
+#[command(name = "lint-http", version)]
 struct Args {
-    /// Listen address, e.g. 127.0.0.1:3000
-    #[arg(long, default_value = "127.0.0.1:3000")]
-    listen: String,
-
-    /// Path to append captures JSONL
-    #[arg(long, default_value = "captures.jsonl")]
-    captures: String,
-
-    /// Optional config YAML path (rules toggles)
+    /// Config TOML path (rules toggles, listen address, captures path)
     #[arg(long)]
-    config: Option<String>,
+    config: String,
 }
 
 #[tokio::main]
@@ -30,21 +22,11 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     let args = Args::parse();
 
-    let addr: SocketAddr = args.listen.parse()?;
-
-    let capture_writer = capture::CaptureWriter::new(args.captures).await?;
-
-    // Load config: optional CLI path; defaults if not provided
-    let cfg = if let Some(ref p) = args.config {
-        config::Config::load_from_path(p).await.unwrap_or_else(|e| {
-            warn!(%p, %e, "failed to load config, using defaults");
-            config::Config::default()
-        })
-    } else {
-        config::Config::default()
-    };
-
+    let cfg = config::Config::load_from_path(&args.config).await?;
     let cfg = std::sync::Arc::new(cfg);
+
+    let addr: SocketAddr = cfg.general.listen.parse()?;
+    let capture_writer = capture::CaptureWriter::new(cfg.general.captures.clone()).await?;
 
     let server = proxy::run_proxy(addr, capture_writer, cfg.clone());
 
@@ -73,58 +55,30 @@ mod tests {
         let tmp = std::env::temp_dir().join(format!("lint_main_cli_cfg_{}.toml", Uuid::new_v4()));
         let toml = r#"[rules]
 cache-control-present = false
+
+[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+ttl_seconds = 300
+
+[tls]
+enabled = false
 "#;
         fs::write(&tmp, toml).await.expect("write tmp");
 
         let args = Args {
-            listen: "127.0.0.1:0".to_string(),
-            captures: tmp.with_extension("jsonl").to_str().unwrap().to_string(),
-            config: Some(tmp.to_str().unwrap().to_string()),
+            config: tmp.to_str().unwrap().to_string(),
         };
 
-        let _addr: SocketAddr = args.listen.parse().expect("parse addr");
-        let _cw = capture::CaptureWriter::new(args.captures.clone())
+        let cfg = config::Config::load_from_path(&args.config)
             .await
-            .expect("create writer");
-
-        let cfg_path = args
-            .config
-            .or_else(|| std::env::var("LINT_PROXY_CONFIG").ok());
-        let cfg = if let Some(ref p) = cfg_path {
-            config::Config::load_from_path(p).await.unwrap_or_default()
-        } else {
-            config::Config::default()
-        };
+            .expect("load config");
 
         assert!(!cfg.is_enabled("cache-control-present"));
+        // check defaults
+        assert_eq!(cfg.general.listen, "127.0.0.1:3000");
 
         let _ = fs::remove_file(&tmp).await;
     }
-
-    #[tokio::test]
-    async fn main_no_config_uses_defaults() {
-        let args = Args {
-            listen: "127.0.0.1:0".to_string(),
-            captures: std::env::temp_dir()
-                .join("lint_main_no_cfg.jsonl")
-                .to_str()
-                .unwrap()
-                .to_string(),
-            config: None,
-        };
-
-        let _addr: SocketAddr = args.listen.parse().expect("parse addr");
-        let _cw = capture::CaptureWriter::new(args.captures.clone())
-            .await
-            .expect("create writer");
-
-        let cfg = if let Some(ref p) = args.config {
-            config::Config::load_from_path(p).await.unwrap_or_default()
-        } else {
-            config::Config::default()
-        };
-
-        // defaults should enable rules
-        assert!(cfg.is_enabled("cache-control-present"));
-    }
 }
+

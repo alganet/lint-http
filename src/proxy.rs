@@ -65,7 +65,7 @@ pub async fn run_proxy(
         None
     };
 
-    let ttl = cfg.state.ttl_seconds;
+    let ttl = cfg.general.ttl_seconds;
     let state = Arc::new(crate::state::StateStore::new(ttl));
 
     // Spawn background cleanup task

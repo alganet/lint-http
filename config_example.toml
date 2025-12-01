@@ -2,15 +2,17 @@
 #
 # SPDX-License-Identifier: ISC
 
-[state]
+[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
 ttl_seconds = 300
 
 [tls]
 enabled = true
 ca_cert_path = "ca.crt"
-# passthrough_domains = ["example.com"]
-# suppress_headers = ["X-Sensitive-Header"]
 ca_key_path = "ca.key" 
+passthrough_domains = ["example.com"]
+suppress_headers = ["X-Sensitive-Header"]
 
 [rules]
 # Client Rules

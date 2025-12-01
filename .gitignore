@@ -6,6 +6,10 @@
 **/captures.jsonl
 cobertura.xml
 
+# Temporary cert files
+ca.crt
+ca.key
+
 # Rust
 target/
 

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+//
+// SPDX-License-Identifier: ISC
+
 use hyper::{Uri};
 use std::sync::Arc;
 use tokio::fs;

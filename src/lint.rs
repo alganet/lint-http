@@ -116,8 +116,8 @@ mod tests {
         rules.insert("server_etag_or_last_modified".to_string(), false);
         let cfg = Config {
             rules,
-            state: crate::config::StateConfig::default(),
             tls: crate::config::TlsConfig::default(),
+            general: crate::config::GeneralConfig::default(),
         };
         let headers = HeaderMap::new();
         let conn = make_test_conn();

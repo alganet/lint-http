@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+
+SPDX-License-Identifier: ISC
+-->
+
 # lint-http
 
 **HTTP/HTTPS forward proxy with linting and capture capabilities.**
@@ -32,8 +38,8 @@ cargo install --path .
 ### Basic HTTP Proxy
 
 ```bash
-# Start the proxy
-lint-http
+# Start the proxy (requires a configuration file)
+lint-http --config config.toml
 
 # Use with curl
 curl -x http://localhost:3000 http://example.com
@@ -57,107 +63,36 @@ curl -x http://localhost:3000 --cacert lint-http-ca.crt --http2 https://www.goog
 
 ## Configuration
 
-### Command-Line Options
-
-- `--listen <ADDR>`: Address to listen on (default: `127.0.0.1:3000`)
-- `--captures <PATH>`: Path to capture file (default: `captures.jsonl`)
-- `--config <PATH>`: Path to TOML configuration file
-
-Example:
+`lint-http` is configured via a TOML file provided with the `--config` argument.
 
 ```bash
-lint-http --listen 0.0.0.0:8080 --captures traffic.jsonl --config rules.toml
+lint-http --config config.toml
 ```
 
-### Configuration File
+For detailed configuration options, including **TLS setup** and **General settings**, see [docs/configuration.md](docs/configuration.md).
 
-Create a `config.toml` file to customize behavior:
+### Quick Example
 
 ```toml
-# State Configuration
-[state]
-ttl_seconds = 300                 # How long to keep state records (default: 300)
+[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+ttl_seconds = 300
 
-# TLS Configuration
 [tls]
-enabled = true                    # Enable HTTPS interception
-ca_cert_path = "ca.crt"           # Path to CA certificate (auto-generated if missing)
-ca_key_path = "ca.key"            # Path to CA private key (auto-generated if missing)
-
-# Lint Rules Configuration
-[rules]
-# Client Rules
-client_accept_encoding_present = true   # Check for Accept-Encoding header
-client_user_agent_present = true        # Check for User-Agent header
-client_cache_respect = true             # Verify conditional requests for cached resources
-connection_efficiency = true            # Track requests per connection
-
-# Server Rules
-server_cache_control_present = true           # Verify Cache-Control headers
-server_etag_or_last_modified = true           # Check for ETag or Last-Modified
-server_x_content_type_options = true          # Verify X-Content-Type-Options: nosniff
-```
-
-See [`config_example.toml`](config_example.toml) for a complete example.
-
-## TLS/HTTPS Setup
-
-### Installing the CA Certificate
-
-For HTTPS interception to work, you need to trust the auto-generated CA certificate:
-
-#### Linux
-```bash
-# Download the certificate
-curl http://localhost:3000/_lint_http/cert > lint-http-ca.crt
-
-# Install it
-sudo cp lint-http-ca.crt /usr/local/share/ca-certificates/
-sudo update-ca-certificates
-```
-
-#### macOS
-```bash
-curl http://localhost:3000/_lint_http/cert > lint-http-ca.crt
-sudo security add-trusted-cert -d -r trustRoot \\
-  -k /Library/Keychains/System.keychain lint-http-ca.crt
-```
-
-#### Windows (PowerShell as Administrator)
-```powershell
-Invoke-WebRequest http://localhost:3000/_lint_http/cert -OutFile lint-http-ca.crt
-Import-Certificate -FilePath lint-http-ca.crt `
-  -CertStoreLocation Cert:\\LocalMachine\\Root
-```
-
-### Using with curl (without system-wide installation)
-
-```bash
-# Download CA cert
-curl http://localhost:3000/_lint_http/cert > ca.crt
-
-# Use --cacert for HTTPS requests
-curl -x http://localhost:3000 --cacert ca.crt https://example.com
+enabled = true
+# ... see docs for full TLS config
 ```
 
 ## Lint Rules
 
-`lint-http` includes several built-in rules organized by category:
+`lint-http` checks for various client and server best practices, such as:
 
-### Client Rules
+- **Client**: `User-Agent`, `Accept-Encoding`, Connection reuse, Cache respect.
+- **Server**: `Cache-Control`, `ETag`, Security headers.
 
-- **client_accept_encoding_present**: Checks if Accept-Encoding header is present
-- **client_user_agent_present**: Checks if User-Agent header is present  
-- **client_cache_respect**: Verifies clients send conditional headers (If-None-Match/If-Modified-Since) when re-requesting cached resources
-- **connection_efficiency**: Tracks requests per connection and warns about inefficient connection reuse
+For a complete list of rules and their explanations, see [docs/rules.md](docs/rules.md).
 
-### Server Rules
-
-- **server_cache_control_present**: Checks for Cache-Control header on cacheable responses
-- **server_etag_or_last_modified**: Checks for ETag or Last-Modified headers
-- **server_x_content_type_options**: Checks for X-Content-Type-Options: nosniff
-
-See [docs/rules](docs/rules) for detailed documentation on each rule.
 
 ## Capture Format
 
