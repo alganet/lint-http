@@ -6,6 +6,10 @@ SPDX-License-Identifier: ISC
 
 # lint-http
 
+⚠️ **Early stage, experimental and incomplete.** ⚠️
+
+---
+
 **HTTP/HTTPS forward proxy with linting and capture capabilities.**
 
 `lint-http` intercepts HTTP and HTTPS traffic, checks for adherence to best practices, and captures detailed traffic logs. It functions as a TLS-terminating proxy with on-the-fly certificate generation, making it ideal for debugging and analyzing encrypted traffic during development.
