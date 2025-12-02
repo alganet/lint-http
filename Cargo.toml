@@ -25,7 +25,7 @@ anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 tracing-subscriber = "0.3"
 tracing = "0.1"
-toml = "0.7"
+toml = "0.9"
 
 # TLS Support
 tokio-rustls = "0.24"
