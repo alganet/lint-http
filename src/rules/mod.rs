@@ -39,6 +39,7 @@ pub mod client_cache_respect;
 pub mod client_user_agent_present;
 pub mod connection_efficiency;
 pub mod server_cache_control_present;
+pub mod server_charset_specification;
 pub mod server_etag_or_last_modified;
 pub mod server_x_content_type_options;
 
@@ -50,4 +51,5 @@ pub const RULES: &[&dyn Rule] = &[
     &client_accept_encoding_present::ClientAcceptEncodingPresent,
     &client_cache_respect::ClientCacheRespect,
     &connection_efficiency::ConnectionEfficiency,
+    &server_charset_specification::ServerCharsetSpecification,
 ];

@@ -614,10 +614,11 @@ mod tests {
             .and(wiremock::matchers::path("/ok"))
             .respond_with(
                 ResponseTemplate::new(200)
+                    .set_body_bytes("ok".as_bytes())
                     .insert_header("cache-control", "max-age=1")
                     .insert_header("etag", "W/\"1\"")
                     .insert_header("x-content-type-options", "nosniff")
-                    .set_body_string("ok"),
+                    .insert_header("content-type", "text/plain; charset=utf-8"),
             )
             .mount(&mock)
             .await;
