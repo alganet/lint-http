@@ -4,7 +4,7 @@
 
 use anyhow::{Context, Result};
 use rcgen::{
-    BasicConstraints, Certificate, CertificateParams, DistinguishedName, DnType, IsCa, KeyPair,
+    BasicConstraints, CertificateParams, DistinguishedName, DnType, IsCa, Issuer, KeyPair,
     PKCS_ECDSA_P256_SHA256,
 };
 use rustls::{Certificate as RustlsCertificate, PrivateKey};
@@ -17,12 +17,8 @@ use tracing::info;
 /// Manages the Certificate Authority (CA) and generates leaf certificates for intercepted domains.
 pub struct CertificateAuthority {
     ca_cert_pem: String,
-    /// The CA certificate object used for signing.
-    /// It must be wrapped in a mutex because rcgen::Certificate might not be Sync/Send or we want interior mutability?
-    /// Actually rcgen::Certificate is Send + Sync if the key pair is. Ring key pairs are.
-    /// But to be safe and allow shared access if needed (though we only read), we can keep it direct if it's Sync.
-    /// However, `Certificate` doesn't implement `Clone`, so we wrap it in Arc if we need to share it, but here it's owned by `CertificateAuthority`.
-    ca_cert: Certificate,
+    /// The CA private key used for signing.
+    ca_key_pair: KeyPair,
     /// Cache of generated certificates for domains to avoid expensive regeneration.
     /// Key is the domain name.
     cache: Arc<RwLock<HashMap<String, Arc<rustls::sign::CertifiedKey>>>>,
@@ -57,7 +53,7 @@ impl CertificateAuthority {
         // Note: We are assuming the CA DN is "lint-http CA".
         // If the user provides a custom CA, this might cause issuer mismatch in generated certs
         // unless we parse the DN from the PEM. For MVP, we assume standard lint-http CA.
-        let mut params = CertificateParams::default();
+        let mut params = CertificateParams::new(vec![])?;
         params.is_ca = IsCa::Ca(BasicConstraints::Constrained(0));
         params.distinguished_name = DistinguishedName::new();
         params
@@ -66,20 +62,16 @@ impl CertificateAuthority {
         params
             .distinguished_name
             .push(DnType::OrganizationName, "lint-http");
-        params.key_pair = Some(key_pair);
-        params.alg = &PKCS_ECDSA_P256_SHA256;
-
-        let ca_cert = Certificate::from_params(params)?;
 
         Ok(Arc::new(Self {
             ca_cert_pem: cert_pem,
-            ca_cert,
+            ca_key_pair: key_pair,
             cache: Arc::new(RwLock::new(HashMap::new())),
         }))
     }
 
     async fn generate_and_save(cert_path: &Path, key_path: &Path) -> Result<Arc<Self>> {
-        let mut params = CertificateParams::default();
+        let mut params = CertificateParams::new(vec![])?;
         params.is_ca = IsCa::Ca(BasicConstraints::Constrained(0));
         params.distinguished_name = DistinguishedName::new();
         params
@@ -88,11 +80,11 @@ impl CertificateAuthority {
         params
             .distinguished_name
             .push(DnType::OrganizationName, "lint-http");
-        params.alg = &PKCS_ECDSA_P256_SHA256;
 
-        let cert = Certificate::from_params(params)?;
-        let cert_pem = cert.serialize_pem()?;
-        let key_pem = cert.serialize_private_key_pem();
+        let key_pair = KeyPair::generate_for(&PKCS_ECDSA_P256_SHA256)?;
+        let cert = params.self_signed(&key_pair)?;
+        let cert_pem = cert.pem();
+        let key_pem = key_pair.serialize_pem();
 
         if let Some(parent) = cert_path.parent() {
             fs::create_dir_all(parent).await?;
@@ -101,14 +93,9 @@ impl CertificateAuthority {
         fs::write(cert_path, &cert_pem).await?;
         fs::write(key_path, &key_pem).await?;
 
-        // We need to reconstruct the certificate object because `cert` is consumed?
-        // No, `serialize_pem` takes `&self`. So we can reuse `cert`.
-        // But `Certificate` is not Clone.
-        // So we can just return it.
-
         Ok(Arc::new(Self {
             ca_cert_pem: cert_pem,
-            ca_cert: cert,
+            ca_key_pair: key_pair,
             cache: Arc::new(RwLock::new(HashMap::new())),
         }))
     }
@@ -124,24 +111,19 @@ impl CertificateAuthority {
         }
 
         // Generate new cert
-        let mut params = CertificateParams::new(vec![domain.to_string()]);
+        let mut params = CertificateParams::new(vec![domain.to_string()])?;
         params.distinguished_name = DistinguishedName::new();
         params.distinguished_name.push(DnType::CommonName, domain);
         params.use_authority_key_identifier_extension = false;
-        params.alg = &PKCS_ECDSA_P256_SHA256;
 
         // Create key pair for the leaf cert
-        // Note: Certificate::from_params will generate a key pair if we don't provide one.
-        // But we need to sign it with the CA.
-
-        // rcgen 0.11: Certificate::from_params creates a self-signed cert (conceptually).
-        // To sign it with a CA, we use `serialize_pem_with_signer`.
-
-        let cert = Certificate::from_params(params)?;
+        let key_pair = KeyPair::generate_for(&PKCS_ECDSA_P256_SHA256)?;
 
         // Sign with CA
-        let cert_pem = cert.serialize_pem_with_signer(&self.ca_cert)?;
-        let key_pem = cert.serialize_private_key_pem();
+        let issuer = Issuer::new(self.ca_params()?, &self.ca_key_pair);
+        let cert = params.signed_by(&key_pair, &issuer)?;
+        let cert_pem = cert.pem();
+        let key_pem = key_pair.serialize_pem();
 
         let certs = rustls_pemfile::certs(&mut cert_pem.as_bytes())?;
         let leaf_cert = RustlsCertificate(certs.into_iter().next().unwrap());
@@ -165,6 +147,19 @@ impl CertificateAuthority {
 
     pub fn get_ca_cert_pem(&self) -> String {
         self.ca_cert_pem.clone()
+    }
+
+    fn ca_params(&self) -> Result<CertificateParams> {
+        let mut params = CertificateParams::new(vec![]).context("failed to create CA params")?;
+        params.is_ca = IsCa::Ca(BasicConstraints::Constrained(0));
+        params.distinguished_name = DistinguishedName::new();
+        params
+            .distinguished_name
+            .push(DnType::CommonName, "lint-http CA");
+        params
+            .distinguished_name
+            .push(DnType::OrganizationName, "lint-http");
+        Ok(params)
     }
 }
 
