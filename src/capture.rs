@@ -13,8 +13,6 @@ use uuid::Uuid;
 
 use hyper::header::HeaderMap;
 
-const DEFAULT_PATH: &str = "captures.jsonl";
-
 #[derive(Clone)]
 pub struct CaptureWriter {
     file: ArcFile,
@@ -49,10 +47,7 @@ impl ArcFile {
 impl CaptureWriter {
     pub async fn new<P: Into<PathBuf>>(path: P) -> anyhow::Result<Self> {
         let path: PathBuf = path.into();
-        let p = path
-            .to_str()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| DEFAULT_PATH.to_string());
+        let p = path.to_string_lossy().to_string();
         let file = ArcFile::new(&p).await?;
         Ok(Self { file })
     }
@@ -197,25 +192,29 @@ mod tests {
     use uuid::Uuid;
 
     #[test]
-    fn headers_to_map_basic() {
+    fn headers_to_map_basic() -> anyhow::Result<()> {
         let mut hm = HeaderMap::new();
-        hm.insert("content-type", "text/plain".parse().unwrap());
+        hm.insert("content-type", "text/plain".parse()?);
         let m = headers_to_map(&hm);
         assert_eq!(
             m.get("content-type").map(|s| s.as_str()),
             Some("text/plain")
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn write_capture_writes_jsonl() {
+    async fn write_capture_writes_jsonl() -> anyhow::Result<()> {
         let tmp = std::env::temp_dir().join(format!("lint_capture_test_{}.jsonl", Uuid::new_v4()));
-        let p = tmp.to_str().unwrap().to_string();
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
 
-        let cw = CaptureWriter::new(p.clone()).await.expect("create writer");
+        let cw = CaptureWriter::new(p.clone()).await?;
 
         let mut req_headers = HeaderMap::new();
-        req_headers.insert("x-test", "1".parse().unwrap());
+        req_headers.insert("x-test", "1".parse()?);
 
         let violations = vec![crate::lint::Violation {
             rule: "r1".into(),
@@ -229,43 +228,45 @@ mod tests {
                 .duration_ms(10)
                 .violations(violations),
         )
-        .await
-        .expect("write capture");
+        .await?;
 
-        let s = fs::read_to_string(&tmp).await.expect("read file");
-        let v: Value = serde_json::from_str(s.trim()).expect("parse jsonl");
-        assert_eq!(v["method"].as_str().unwrap(), "GET");
-        assert_eq!(v["uri"].as_str().unwrap(), "http://example/");
-        assert_eq!(v["status"].as_u64().unwrap(), 200);
+        let s = fs::read_to_string(&tmp).await?;
+        let v: Value = serde_json::from_str(s.trim())?;
+        assert_eq!(v["method"].as_str(), Some("GET"));
+        assert_eq!(v["uri"].as_str(), Some("http://example/"));
+        assert_eq!(v["status"].as_u64(), Some(200));
         assert!(v["request_headers"].get("x-test").is_some());
 
-        let _ = fs::remove_file(&tmp).await;
+        fs::remove_file(&tmp).await?;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn load_captures_reads_jsonl() {
+    async fn load_captures_reads_jsonl() -> anyhow::Result<()> {
         let tmp = std::env::temp_dir().join(format!("lint_load_test_{}.jsonl", Uuid::new_v4()));
-        let p = tmp.to_str().unwrap().to_string();
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
 
         // Write some sample capture records
-        let cw = CaptureWriter::new(p.clone()).await.expect("create writer");
+        let cw = CaptureWriter::new(p.clone()).await?;
 
         let mut req_headers = HeaderMap::new();
-        req_headers.insert("user-agent", "test-client".parse().unwrap());
+        req_headers.insert("user-agent", "test-client".parse()?);
 
         let mut resp_headers = HeaderMap::new();
-        resp_headers.insert("etag", "\"abc123\"".parse().unwrap());
+        resp_headers.insert("etag", "\"abc123\"".parse()?);
 
         cw.write_capture(
             CaptureRecordBuilder::new("GET", "http://example/test", 200, &req_headers)
                 .response_headers(&resp_headers)
                 .duration_ms(100),
         )
-        .await
-        .expect("write capture");
+        .await?;
 
         // Load the captures
-        let records = load_captures(&tmp).await.expect("load captures");
+        let records = load_captures(&tmp).await?;
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].method, "GET");
         assert_eq!(records[0].uri, "http://example/test");
@@ -273,11 +274,12 @@ mod tests {
         assert_eq!(records[0].duration_ms, 100);
         assert!(records[0].response_headers.is_some());
 
-        let _ = fs::remove_file(&tmp).await;
+        fs::remove_file(&tmp).await?;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn load_captures_skips_malformed_lines() {
+    async fn load_captures_skips_malformed_lines() -> anyhow::Result<()> {
         let tmp =
             std::env::temp_dir().join(format!("lint_malformed_test_{}.jsonl", Uuid::new_v4()));
 
@@ -286,34 +288,37 @@ mod tests {
 invalid json line
 {"id":"2","timestamp":"2024-01-01T00:00:01Z","method":"POST","uri":"http://example/post","status":201,"duration_ms":50,"request_headers":{},"response_headers":null,"violations":[]}
 "#;
-        fs::write(&tmp, content).await.expect("write file");
+        fs::write(&tmp, content).await?;
 
         // Should load only the valid records
-        let records = load_captures(&tmp).await.expect("load captures");
+        let records = load_captures(&tmp).await?;
         assert_eq!(records.len(), 2);
         assert_eq!(records[0].id, "1");
         assert_eq!(records[1].id, "2");
 
-        let _ = fs::remove_file(&tmp).await;
+        fs::remove_file(&tmp).await?;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn load_captures_empty_file_returns_empty() {
+    async fn load_captures_empty_file_returns_empty() -> anyhow::Result<()> {
         let tmp = std::env::temp_dir().join(format!("lint_empty_test_{}.jsonl", Uuid::new_v4()));
-        fs::write(&tmp, "").await.expect("write empty file");
+        fs::write(&tmp, "").await?;
 
-        let records = load_captures(&tmp).await.expect("load captures");
+        let records = load_captures(&tmp).await?;
         assert_eq!(records.len(), 0);
 
-        let _ = fs::remove_file(&tmp).await;
+        fs::remove_file(&tmp).await?;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn load_captures_nonexistent_file_returns_empty() {
+    async fn load_captures_nonexistent_file_returns_empty() -> anyhow::Result<()> {
         let tmp = std::env::temp_dir().join(format!("lint_nonexistent_{}.jsonl", Uuid::new_v4()));
 
         // Should not error, just return empty vector
-        let records = load_captures(&tmp).await.expect("load captures");
+        let records = load_captures(&tmp).await?;
         assert_eq!(records.len(), 0);
+        Ok(())
     }
 }

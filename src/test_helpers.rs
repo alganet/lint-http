@@ -5,7 +5,7 @@
 //! Shared test utilities to reduce duplication across test modules.
 
 use crate::state::{ClientIdentifier, StateStore};
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 /// Create a test client identifier with standard test values
 pub fn make_test_client() -> ClientIdentifier {
@@ -22,7 +22,8 @@ pub fn make_test_context() -> (ClientIdentifier, StateStore) {
 
 /// Create a test connection metadata with standard test address
 pub fn make_test_conn() -> crate::connection::ConnectionMetadata {
-    crate::connection::ConnectionMetadata::new(
-        "127.0.0.1:12345".parse().expect("valid test address"),
-    )
+    crate::connection::ConnectionMetadata::new(SocketAddr::new(
+        IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+        12345,
+    ))
 }

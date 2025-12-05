@@ -43,7 +43,7 @@ mod tests {
     use hyper::HeaderMap;
 
     #[test]
-    fn check_response_200_missing_headers() {
+    fn check_response_200_missing_headers() -> anyhow::Result<()> {
         let rule = ServerEtagOrLastModified;
         let (client, state) = make_test_context();
         let status = 200;
@@ -53,38 +53,38 @@ mod tests {
             rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_some());
         assert_eq!(
-            violation.unwrap().message,
-            "Response 200 without ETag or Last-Modified validator"
+            violation.map(|v| v.message),
+            Some("Response 200 without ETag or Last-Modified validator".to_string())
         );
+        Ok(())
     }
 
     #[test]
-    fn check_response_200_present_etag() {
+    fn check_response_200_present_etag() -> anyhow::Result<()> {
         let rule = ServerEtagOrLastModified;
         let (client, state) = make_test_context();
         let status = 200;
         let mut headers = HeaderMap::new();
-        headers.insert("etag", "\"12345\"".parse().unwrap());
+        headers.insert("etag", "\"12345\"".parse()?);
         let conn = make_test_conn();
         let violation =
             rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
+        Ok(())
     }
 
     #[test]
-    fn check_response_200_present_last_modified() {
+    fn check_response_200_present_last_modified() -> anyhow::Result<()> {
         let rule = ServerEtagOrLastModified;
         let (client, state) = make_test_context();
         let status = 200;
         let mut headers = HeaderMap::new();
-        headers.insert(
-            "last-modified",
-            "Wed, 21 Oct 2015 07:28:00 GMT".parse().unwrap(),
-        );
+        headers.insert("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT".parse()?);
         let conn = make_test_conn();
         let violation =
             rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
+        Ok(())
     }
 
     #[test]

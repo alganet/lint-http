@@ -42,7 +42,7 @@ mod tests {
     use hyper::HeaderMap;
 
     #[test]
-    fn check_request_missing_header() {
+    fn check_request_missing_user_agent() -> anyhow::Result<()> {
         let rule = ClientUserAgentPresent;
         let (client, state) = make_test_context();
         let method = hyper::Method::GET;
@@ -52,21 +52,23 @@ mod tests {
             rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
         assert!(violation.is_some());
         assert_eq!(
-            violation.unwrap().message,
-            "Request missing User-Agent header"
+            violation.map(|v| v.message),
+            Some("Request missing User-Agent header".to_string())
         );
+        Ok(())
     }
 
     #[test]
-    fn check_request_present_header() {
+    fn check_request_has_user_agent() -> anyhow::Result<()> {
         let rule = ClientUserAgentPresent;
         let (client, state) = make_test_context();
         let method = hyper::Method::GET;
         let mut headers = HeaderMap::new();
-        headers.insert("user-agent", "curl/7.68.0".parse().unwrap());
+        headers.insert("user-agent", "curl/7.68.0".parse()?);
         let conn = make_test_conn();
         let violation =
             rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
         assert!(violation.is_none());
+        Ok(())
     }
 }

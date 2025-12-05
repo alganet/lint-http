@@ -132,6 +132,6 @@ mod tests {
             &state,
         );
         assert!(!v.iter().any(|x| x.rule == "server_cache_control_present"));
-        assert!(!v.iter().any(|x| x.rule == "server_etag_or-last-modified"));
+        assert!(!v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
     }
 }

@@ -42,7 +42,7 @@ mod tests {
     use hyper::HeaderMap;
 
     #[test]
-    fn check_response_200_missing_header() {
+    fn check_response_200_missing_header() -> anyhow::Result<()> {
         let rule = ServerCacheControlPresent;
         let (client, state) = make_test_context();
         let status = 200;
@@ -52,22 +52,24 @@ mod tests {
             rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_some());
         assert_eq!(
-            violation.unwrap().message,
-            "Response 200 without Cache-Control header"
+            violation.map(|v| v.message),
+            Some("Response 200 without Cache-Control header".to_string())
         );
+        Ok(())
     }
 
     #[test]
-    fn check_response_200_present_header() {
+    fn check_response_200_present_header() -> anyhow::Result<()> {
         let rule = ServerCacheControlPresent;
         let (client, state) = make_test_context();
         let status = 200;
         let mut headers = HeaderMap::new();
-        headers.insert("cache-control", "no-cache".parse().unwrap());
+        headers.insert("cache-control", "no-cache".parse()?);
         let conn = make_test_conn();
         let violation =
             rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
         assert!(violation.is_none());
+        Ok(())
     }
 
     #[test]

@@ -106,7 +106,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_toml_file() {
+    async fn load_toml_file() -> anyhow::Result<()> {
         let tmp_toml =
             std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
         let toml = r#"[rules]
@@ -121,10 +121,11 @@ captures_seed = false
 [tls]
 enabled = false
 "#;
-        fs::write(&tmp_toml, toml).await.expect("write toml");
-        let cfg = Config::load_from_path(&tmp_toml).await.expect("load toml");
+        fs::write(&tmp_toml, toml).await?;
+        let cfg = Config::load_from_path(&tmp_toml).await?;
         assert!(cfg.is_enabled("server_cache_control_present"));
-        let _ = fs::remove_file(&tmp_toml).await;
+        fs::remove_file(&tmp_toml).await?;
+        Ok(())
     }
 }
 
