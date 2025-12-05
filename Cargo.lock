@@ -776,7 +776,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "clap",
- "hyper 0.14.32",
+ "hyper 1.8.1",
  "hyper-rustls",
  "pem",
  "rcgen",
