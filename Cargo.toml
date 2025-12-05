@@ -28,7 +28,7 @@ tracing = "0.1"
 toml = "0.9"
 
 # TLS Support
-tokio-rustls = "0.24"
+tokio-rustls = "0.26"
 rustls = "0.21"
 rustls-pemfile = "1.0"
 hyper-rustls = { version = "0.24", features = ["http1", "http2"] }
