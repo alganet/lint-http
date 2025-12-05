@@ -31,7 +31,7 @@ toml = "0.9"
 tokio-rustls = "0.24"
 rustls = "0.21"
 rustls-pemfile = "1.0"
-hyper-rustls = { version = "0.24", features = ["http1", "http2"] }
+hyper-rustls = { version = "0.27", features = ["http1", "http2"] }
 
 # Certificate Generation
 rcgen = "0.14"
