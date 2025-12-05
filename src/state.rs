@@ -147,6 +147,7 @@ impl StateStore {
         if let Ok(store) = self.store.read() {
             store.get(&key).cloned()
         } else {
+            tracing::warn!("StateStore lock poisoned during read");
             None
         }
     }
@@ -182,6 +183,7 @@ impl StateStore {
                 }
             })
         } else {
+            tracing::warn!("StateStore stats lock poisoned during read");
             None
         }
     }
@@ -251,28 +253,29 @@ mod tests {
     }
 
     #[test]
-    fn record_and_retrieve_transaction() {
+    fn record_and_retrieve_transaction() -> anyhow::Result<()> {
         let store = StateStore::new(300);
         let client = make_client();
         let resource = "http://example.com/resource";
 
         let mut headers = HeaderMap::new();
-        headers.insert("etag", "\"abc123\"".parse().unwrap());
-        headers.insert("cache-control", "max-age=3600".parse().unwrap());
+        headers.insert("etag", "\"abc123\"".parse()?);
+        headers.insert("cache-control", "max-age=3600".parse()?);
 
         store.record_transaction(&client, resource, 200, &headers);
 
         let record = store.get_previous(&client, resource);
         assert!(record.is_some());
-        let record = record.unwrap();
+        let record = record.ok_or_else(|| anyhow::anyhow!("expected record to exist"))?;
         assert_eq!(record.status, 200);
         assert_eq!(record.etag, Some("\"abc123\"".to_string()));
         assert_eq!(record.cache_control, Some("max-age=3600".to_string()));
         assert_eq!(record.last_modified, None);
+        Ok(())
     }
 
     #[test]
-    fn different_clients_have_separate_state() {
+    fn different_clients_have_separate_state() -> anyhow::Result<()> {
         let store = StateStore::new(300);
         let client1 = ClientIdentifier::new(
             IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
@@ -285,18 +288,23 @@ mod tests {
         let resource = "http://example.com/resource";
 
         let mut headers1 = HeaderMap::new();
-        headers1.insert("etag", "\"etag1\"".parse().unwrap());
+        headers1.insert("etag", "\"etag1\"".parse()?);
         store.record_transaction(&client1, resource, 200, &headers1);
 
         let mut headers2 = HeaderMap::new();
-        headers2.insert("etag", "\"etag2\"".parse().unwrap());
+        headers2.insert("etag", "\"etag2\"".parse()?);
         store.record_transaction(&client2, resource, 200, &headers2);
 
-        let record1 = store.get_previous(&client1, resource).unwrap();
-        let record2 = store.get_previous(&client2, resource).unwrap();
+        let record1 = store
+            .get_previous(&client1, resource)
+            .ok_or_else(|| anyhow::anyhow!("expected record1 to exist"))?;
+        let record2 = store
+            .get_previous(&client2, resource)
+            .ok_or_else(|| anyhow::anyhow!("expected record2 to exist"))?;
 
         assert_eq!(record1.etag, Some("\"etag1\"".to_string()));
         assert_eq!(record2.etag, Some("\"etag2\"".to_string()));
+        Ok(())
     }
 
     #[test]
@@ -322,7 +330,7 @@ mod tests {
     }
 
     #[test]
-    fn concurrent_access_is_safe() {
+    fn concurrent_access_is_safe() -> anyhow::Result<()> {
         let store = Arc::new(StateStore::new(300));
         let client = make_client();
         let resource = "http://example.com/resource";
@@ -346,19 +354,24 @@ mod tests {
             }
         });
 
-        handle1.join().unwrap();
-        handle2.join().unwrap();
+        if let Err(e) = handle1.join() {
+            panic!("thread1 panicked: {:?}", e);
+        }
+        if let Err(e) = handle2.join() {
+            panic!("thread2 panicked: {:?}", e);
+        }
 
         // Should complete without panicking
         let record = store.get_previous(&client, resource);
         assert!(record.is_some());
+        Ok(())
     }
 
     #[test]
-    fn track_connection_efficiency() {
+    fn track_connection_efficiency() -> anyhow::Result<()> {
         let store = StateStore::new(300);
         let client = make_client();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
 
         // Initial state
         assert_eq!(store.get_connection_count(&client), 0);
@@ -389,10 +402,11 @@ mod tests {
 
         // 2 requests, 2 connections -> efficiency 1.0
         assert_eq!(store.get_connection_efficiency(&client), Some(1.0));
+        Ok(())
     }
 
     #[test]
-    fn seed_from_capture_populates_state() {
+    fn seed_from_capture_populates_state() -> anyhow::Result<()> {
         let store = StateStore::new(300);
 
         // Create a capture record with response headers
@@ -424,13 +438,13 @@ mod tests {
             "test-client/1.0".to_string(),
         );
 
-        let prev = store.get_previous(&client, "http://example.com/resource");
-        assert!(prev.is_some());
-
-        let prev = prev.unwrap();
+        let prev = store
+            .get_previous(&client, "http://example.com/resource")
+            .ok_or_else(|| anyhow::anyhow!("State should contain seeded transaction"))?;
         assert_eq!(prev.status, 200);
         assert_eq!(prev.etag, Some("\"12345\"".to_string()));
         assert_eq!(prev.cache_control, Some("max-age=3600".to_string()));
+        Ok(())
     }
 
     #[test]

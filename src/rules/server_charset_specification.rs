@@ -49,88 +49,90 @@ mod tests {
     use hyper::HeaderMap;
 
     #[test]
-    fn check_response_no_violation_with_charset() {
+    fn check_response_no_violation_with_charset() -> anyhow::Result<()> {
         let rule = ServerCharsetSpecification;
         let (client, state) = make_test_context();
         let conn = make_test_conn();
         let mut headers = HeaderMap::new();
         headers.insert(
             hyper::header::CONTENT_TYPE,
-            "text/html; charset=utf-8".parse().unwrap(),
+            "text/html; charset=utf-8".parse()?,
         );
 
         let violation =
             rule.check_response(&client, "http://test.com", 200, &headers, &conn, &state);
         assert!(violation.is_none());
+        Ok(())
     }
 
     #[test]
-    fn check_response_no_violation_with_charset_nospace() {
+    fn check_response_no_violation_with_charset_nospace() -> anyhow::Result<()> {
         let rule = ServerCharsetSpecification;
         let (client, state) = make_test_context();
         let conn = make_test_conn();
         let mut headers = HeaderMap::new();
         headers.insert(
             hyper::header::CONTENT_TYPE,
-            "text/html;charset=utf-8".parse().unwrap(),
+            "text/html;charset=utf-8".parse()?,
         );
 
         let violation =
             rule.check_response(&client, "http://test.com", 200, &headers, &conn, &state);
         assert!(violation.is_none());
+        Ok(())
     }
 
     #[test]
-    fn check_response_no_violation_with_charset_case_insensitive() {
+    fn check_response_no_violation_with_charset_case_insensitive() -> anyhow::Result<()> {
         let rule = ServerCharsetSpecification;
         let (client, state) = make_test_context();
         let conn = make_test_conn();
         let mut headers = HeaderMap::new();
         headers.insert(
             hyper::header::CONTENT_TYPE,
-            "TEXT/HTML;CHARSET=UTF-8".parse().unwrap(),
+            "TEXT/HTML;CHARSET=UTF-8".parse()?,
         );
 
         let violation =
             rule.check_response(&client, "http://test.com", 200, &headers, &conn, &state);
         assert!(violation.is_none());
+        Ok(())
     }
 
     #[test]
-    fn check_response_violation_missing_charset() {
+    fn check_response_violation_missing_charset() -> anyhow::Result<()> {
         let rule = ServerCharsetSpecification;
         let (client, state) = make_test_context();
         let conn = make_test_conn();
         let mut headers = HeaderMap::new();
-        headers.insert(hyper::header::CONTENT_TYPE, "text/html".parse().unwrap());
+        headers.insert(hyper::header::CONTENT_TYPE, "text/html".parse()?);
 
         let violation =
             rule.check_response(&client, "http://test.com", 200, &headers, &conn, &state);
         assert!(violation.is_some());
         assert_eq!(
-            violation.unwrap().message,
-            "Text-based Content-Type header missing charset parameter."
+            violation.map(|v| v.message),
+            Some("Text-based Content-Type header missing charset parameter.".to_string())
         );
+        Ok(())
     }
 
     #[test]
-    fn check_response_no_violation_non_text() {
+    fn check_response_no_violation_non_text() -> anyhow::Result<()> {
         let rule = ServerCharsetSpecification;
         let (client, state) = make_test_context();
         let conn = make_test_conn();
         let mut headers = HeaderMap::new();
-        headers.insert(
-            hyper::header::CONTENT_TYPE,
-            "application/json".parse().unwrap(),
-        );
+        headers.insert(hyper::header::CONTENT_TYPE, "application/json".parse()?);
 
         let violation =
             rule.check_response(&client, "http://test.com", 200, &headers, &conn, &state);
         assert!(violation.is_none());
+        Ok(())
     }
 
     #[test]
-    fn check_response_no_violation_no_content_type() {
+    fn check_response_no_violation_no_content_type() -> anyhow::Result<()> {
         let rule = ServerCharsetSpecification;
         let (client, state) = make_test_context();
         let conn = make_test_conn();
@@ -139,5 +141,6 @@ mod tests {
         let violation =
             rule.check_response(&client, "http://test.com", 200, &headers, &conn, &state);
         assert!(violation.is_none());
+        Ok(())
     }
 }

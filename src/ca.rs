@@ -7,7 +7,8 @@ use rcgen::{
     BasicConstraints, CertificateParams, DistinguishedName, DnType, IsCa, Issuer, KeyPair,
     PKCS_ECDSA_P256_SHA256,
 };
-use rustls::{Certificate as RustlsCertificate, PrivateKey};
+use rustls::crypto::aws_lc_rs::sign::any_supported_type as aws_any_supported_type;
+use rustls::pki_types::{CertificateDer as RustlsCertificate, PrivateKeyDer as PrivateKey};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
@@ -48,20 +49,6 @@ impl CertificateAuthority {
 
         let key_pair =
             KeyPair::from_pem(&key_pem).context("failed to parse CA key pair from PEM")?;
-
-        // Reconstruct CA certificate object
-        // Note: We are assuming the CA DN is "lint-http CA".
-        // If the user provides a custom CA, this might cause issuer mismatch in generated certs
-        // unless we parse the DN from the PEM. For MVP, we assume standard lint-http CA.
-        let mut params = CertificateParams::new(vec![])?;
-        params.is_ca = IsCa::Ca(BasicConstraints::Constrained(0));
-        params.distinguished_name = DistinguishedName::new();
-        params
-            .distinguished_name
-            .push(DnType::CommonName, "lint-http CA");
-        params
-            .distinguished_name
-            .push(DnType::OrganizationName, "lint-http");
 
         Ok(Arc::new(Self {
             ca_cert_pem: cert_pem,
@@ -104,7 +91,10 @@ impl CertificateAuthority {
     pub fn gen_cert_for_domain(&self, domain: &str) -> Result<Arc<rustls::sign::CertifiedKey>> {
         // Check cache first
         {
-            let cache = self.cache.read().unwrap();
+            let cache = self
+                .cache
+                .read()
+                .map_err(|e| anyhow::anyhow!("CA cache RwLock poisoned: {}", e))?;
             if let Some(cert) = cache.get(domain) {
                 return Ok(cert.clone());
             }
@@ -126,19 +116,30 @@ impl CertificateAuthority {
         let key_pem = key_pair.serialize_pem();
 
         let certs = rustls_pemfile::certs(&mut cert_pem.as_bytes())?;
-        let leaf_cert = RustlsCertificate(certs.into_iter().next().unwrap());
+        let leaf_cert_pem = certs
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("no certificates parsed from PEM"))?;
+        let leaf_cert = RustlsCertificate::from(leaf_cert_pem);
 
         let keys = rustls_pemfile::pkcs8_private_keys(&mut key_pem.as_bytes())?;
-        let leaf_key = PrivateKey(keys.into_iter().next().unwrap());
+        let leaf_key_bytes = keys
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("no private keys parsed from PEM"))?;
+        let leaf_key_der = PrivateKey::try_from(leaf_key_bytes.as_slice())
+            .map_err(|e| anyhow::anyhow!("failed to parse private key DER: {}", e))?;
 
-        let certified_key = Arc::new(rustls::sign::CertifiedKey::new(
-            vec![leaf_cert],
-            rustls::sign::any_supported_type(&leaf_key).unwrap(),
-        ));
+        let signer = aws_any_supported_type(&leaf_key_der)
+            .map_err(|e| anyhow::anyhow!("failed to create leaf key signer: {}", e))?;
+        let certified_key = Arc::new(rustls::sign::CertifiedKey::new(vec![leaf_cert], signer));
 
         // Update cache
         {
-            let mut cache = self.cache.write().unwrap();
+            let mut cache = self
+                .cache
+                .write()
+                .map_err(|e| anyhow::anyhow!("CA cache RwLock poisoned: {}", e))?;
             cache.insert(domain.to_string(), certified_key.clone());
         }
 
@@ -166,19 +167,18 @@ impl CertificateAuthority {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::Result;
     use uuid::Uuid;
 
     #[tokio::test]
-    async fn test_generate_and_save_ca() {
+    async fn test_generate_and_save_ca() -> Result<()> {
         let temp_dir = std::env::temp_dir();
         let test_id = Uuid::new_v4();
         let cert_path = temp_dir.join(format!("test_ca_{}.crt", test_id));
         let key_path = temp_dir.join(format!("test_ca_{}.key", test_id));
 
         // Generate new CA
-        let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path)
-            .await
-            .expect("failed to generate CA");
+        let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
 
         // Verify files were created
         assert!(cert_path.exists());
@@ -192,25 +192,22 @@ mod tests {
         // Cleanup
         let _ = tokio::fs::remove_file(&cert_path).await;
         let _ = tokio::fs::remove_file(&key_path).await;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_load_existing_ca() {
+    async fn test_load_existing_ca() -> Result<()> {
         let temp_dir = std::env::temp_dir();
         let test_id = Uuid::new_v4();
         let cert_path = temp_dir.join(format!("test_ca_{}.crt", test_id));
         let key_path = temp_dir.join(format!("test_ca_{}.key", test_id));
 
         // First generate a CA
-        let ca1 = CertificateAuthority::load_or_generate(&cert_path, &key_path)
-            .await
-            .expect("failed to generate CA");
+        let ca1 = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
         let pem1 = ca1.get_ca_cert_pem();
 
         // Now load it again (should load, not generate)
-        let ca2 = CertificateAuthority::load_or_generate(&cert_path, &key_path)
-            .await
-            .expect("failed to load CA");
+        let ca2 = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
         let pem2 = ca2.get_ca_cert_pem();
 
         // Should have the same certificate
@@ -219,23 +216,20 @@ mod tests {
         // Cleanup
         let _ = tokio::fs::remove_file(&cert_path).await;
         let _ = tokio::fs::remove_file(&key_path).await;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_gen_cert_for_domain() {
+    async fn test_gen_cert_for_domain() -> Result<()> {
         let temp_dir = std::env::temp_dir();
         let test_id = Uuid::new_v4();
         let cert_path = temp_dir.join(format!("test_ca_{}.crt", test_id));
         let key_path = temp_dir.join(format!("test_ca_{}.key", test_id));
 
-        let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path)
-            .await
-            .expect("failed to generate CA");
+        let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
 
         // Generate cert for domain
-        let cert = ca
-            .gen_cert_for_domain("example.com")
-            .expect("failed to gen cert");
+        let cert = ca.gen_cert_for_domain("example.com")?;
 
         // Verify it's not None and has certificates
         assert!(!cert.cert.is_empty());
@@ -243,28 +237,23 @@ mod tests {
         // Cleanup
         let _ = tokio::fs::remove_file(&cert_path).await;
         let _ = tokio::fs::remove_file(&key_path).await;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_cert_cache_hit() {
+    async fn test_cert_cache_hit() -> Result<()> {
         let temp_dir = std::env::temp_dir();
         let test_id = Uuid::new_v4();
         let cert_path = temp_dir.join(format!("test_ca_{}.crt", test_id));
         let key_path = temp_dir.join(format!("test_ca_{}.key", test_id));
 
-        let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path)
-            .await
-            .expect("failed to generate CA");
+        let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
 
         // Generate cert for domain first time
-        let cert1 = ca
-            .gen_cert_for_domain("example.com")
-            .expect("failed to gen cert");
+        let cert1 = ca.gen_cert_for_domain("example.com")?;
 
         // Generate cert for same domain second time (should use cache)
-        let cert2 = ca
-            .gen_cert_for_domain("example.com")
-            .expect("failed to gen cert");
+        let cert2 = ca.gen_cert_for_domain("example.com")?;
 
         // Should return the same Arc (same pointer)
         assert!(Arc::ptr_eq(&cert1, &cert2));
@@ -272,29 +261,22 @@ mod tests {
         // Cleanup
         let _ = tokio::fs::remove_file(&cert_path).await;
         let _ = tokio::fs::remove_file(&key_path).await;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_multiple_domains() {
+    async fn test_multiple_domains() -> Result<()> {
         let temp_dir = std::env::temp_dir();
         let test_id = Uuid::new_v4();
         let cert_path = temp_dir.join(format!("test_ca_{}.crt", test_id));
         let key_path = temp_dir.join(format!("test_ca_{}.key", test_id));
 
-        let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path)
-            .await
-            .expect("failed to generate CA");
+        let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
 
         // Generate certs for different domains
-        let cert1 = ca
-            .gen_cert_for_domain("example.com")
-            .expect("failed to gen cert");
-        let cert2 = ca
-            .gen_cert_for_domain("google.com")
-            .expect("failed to gen cert");
-        let cert3 = ca
-            .gen_cert_for_domain("github.com")
-            .expect("failed to gen cert");
+        let cert1 = ca.gen_cert_for_domain("example.com")?;
+        let cert2 = ca.gen_cert_for_domain("google.com")?;
+        let cert3 = ca.gen_cert_for_domain("github.com")?;
 
         // Should all be different
         assert!(!Arc::ptr_eq(&cert1, &cert2));
@@ -304,5 +286,6 @@ mod tests {
         // Cleanup
         let _ = tokio::fs::remove_file(&cert_path).await;
         let _ = tokio::fs::remove_file(&key_path).await;
+        Ok(())
     }
 }

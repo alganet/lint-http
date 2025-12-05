@@ -51,7 +51,7 @@ mod tests {
     use uuid::Uuid;
 
     #[tokio::test]
-    async fn main_cli_config_loads_toml() {
+    async fn main_cli_config_loads_toml() -> anyhow::Result<()> {
         let tmp = std::env::temp_dir().join(format!("lint_main_cli_cfg_{}.toml", Uuid::new_v4()));
         let toml = r#"[rules]
 cache-control-present = false
@@ -64,20 +64,22 @@ ttl_seconds = 300
 [tls]
 enabled = false
 "#;
-        fs::write(&tmp, toml).await.expect("write tmp");
+        fs::write(&tmp, toml).await?;
 
         let args = Args {
-            config: tmp.to_str().unwrap().to_string(),
+            config: tmp
+                .to_str()
+                .ok_or_else(|| anyhow::anyhow!("config path not utf8"))?
+                .to_string(),
         };
 
-        let cfg = config::Config::load_from_path(&args.config)
-            .await
-            .expect("load config");
+        let cfg = config::Config::load_from_path(&args.config).await?;
 
         assert!(!cfg.is_enabled("cache-control-present"));
         // check defaults
         assert_eq!(cfg.general.listen, "127.0.0.1:3000");
 
-        let _ = fs::remove_file(&tmp).await;
+        fs::remove_file(&tmp).await?;
+        Ok(())
     }
 }

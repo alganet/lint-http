@@ -69,14 +69,14 @@ mod tests {
     }
 
     #[test]
-    fn no_violation_on_first_request() {
+    fn no_violation_on_first_request() -> anyhow::Result<()> {
         let rule = ClientCacheRespect;
         let store = StateStore::new(300);
         let client = make_client();
         let resource = "http://example.com/api/data";
 
         let headers = HeaderMap::new();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
         let violation = rule.check_request(
             &client,
             resource,
@@ -87,10 +87,11 @@ mod tests {
         );
 
         assert!(violation.is_none());
+        Ok(())
     }
 
     #[test]
-    fn no_violation_when_using_conditional_headers() {
+    fn no_violation_when_using_conditional_headers() -> anyhow::Result<()> {
         let rule = ClientCacheRespect;
         let store = StateStore::new(300);
         let client = make_client();
@@ -98,13 +99,13 @@ mod tests {
 
         // First, record a response with ETag
         let mut resp_headers = HeaderMap::new();
-        resp_headers.insert("etag", "\"abc123\"".parse().unwrap());
+        resp_headers.insert("etag", "\"abc123\"".parse()?);
         store.record_transaction(&client, resource, 200, &resp_headers);
 
         // Second request with If-None-Match
         let mut req_headers = HeaderMap::new();
-        req_headers.insert("if-none-match", "\"abc123\"".parse().unwrap());
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        req_headers.insert("if-none-match", "\"abc123\"".parse()?);
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
         let violation = rule.check_request(
             &client,
             resource,
@@ -115,10 +116,11 @@ mod tests {
         );
 
         assert!(violation.is_none());
+        Ok(())
     }
 
     #[test]
-    fn violation_when_missing_conditional_headers() {
+    fn violation_when_missing_conditional_headers() -> anyhow::Result<()> {
         let rule = ClientCacheRespect;
         let store = StateStore::new(300);
         let client = make_client();
@@ -126,12 +128,12 @@ mod tests {
 
         // First, record a response with ETag
         let mut resp_headers = HeaderMap::new();
-        resp_headers.insert("etag", "\"abc123\"".parse().unwrap());
+        resp_headers.insert("etag", "\"abc123\"".parse()?);
         store.record_transaction(&client, resource, 200, &resp_headers);
 
         // Second request WITHOUT conditional headers
         let req_headers = HeaderMap::new();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
         let violation = rule.check_request(
             &client,
             resource,
@@ -142,14 +144,15 @@ mod tests {
         );
 
         assert!(violation.is_some());
-        let v = violation.unwrap();
+        let v = violation.ok_or_else(|| anyhow::anyhow!("expected violation"))?;
         assert_eq!(v.rule, "client_cache_respect");
         assert_eq!(v.severity, "warn");
         assert!(v.message.contains("conditional headers"));
+        Ok(())
     }
 
     #[test]
-    fn no_violation_when_previous_response_had_no_validators() {
+    fn no_violation_when_previous_response_had_no_validators() -> anyhow::Result<()> {
         let rule = ClientCacheRespect;
         let store = StateStore::new(300);
         let client = make_client();
@@ -162,7 +165,7 @@ mod tests {
         // Second request without conditional headers should be fine
         // since server didn't provide validators
         let req_headers = HeaderMap::new();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse().unwrap());
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
         let violation = rule.check_request(
             &client,
             resource,
@@ -173,5 +176,6 @@ mod tests {
         );
 
         assert!(violation.is_none());
+        Ok(())
     }
 }

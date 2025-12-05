@@ -9,7 +9,7 @@ use tokio::fs;
 use uuid::Uuid;
 
 #[tokio::test]
-async fn test_captures_seed_enabled() {
+async fn test_captures_seed_enabled() -> anyhow::Result<()> {
     // Create a temporary captures file with sample data
     let tmp_dir = std::env::temp_dir();
     let captures_file = tmp_dir.join(format!("test_seed_{}.jsonl", Uuid::new_v4()));
@@ -17,9 +17,7 @@ async fn test_captures_seed_enabled() {
 
     // Write a sample capture record
     let capture_data = r#"{"id":"test-1","timestamp":"2024-01-01T00:00:00Z","method":"GET","uri":"http://example.com/test","status":200,"duration_ms":100,"request_headers":{"user-agent":"test-client"},"response_headers":{"etag":"\"abc123\"","cache-control":"max-age=3600"},"violations":[]}"#;
-    fs::write(&captures_file, capture_data)
-        .await
-        .expect("write captures file");
+    fs::write(&captures_file, capture_data).await?;
 
     // Create a config with captures_seed enabled
     let config_toml = format!(
@@ -34,32 +32,29 @@ enabled = false
 
 [rules]
 "#,
-        captures_file.to_str().unwrap()
+        captures_file
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("captures path not utf8"))?
     );
-    fs::write(&config_file, config_toml)
-        .await
-        .expect("write config file");
+    fs::write(&config_file, config_toml).await?;
 
     // Load the config
-    let cfg = lint_http::config::Config::load_from_path(&config_file)
-        .await
-        .expect("load config");
+    let cfg = lint_http::config::Config::load_from_path(&config_file).await?;
     let cfg = Arc::new(cfg);
 
     // Verify config loaded correctly
     assert!(cfg.general.captures_seed);
-    assert_eq!(
-        cfg.general.captures,
-        captures_file.to_str().unwrap().to_string()
-    );
+    let captures_s = captures_file
+        .to_str()
+        .ok_or_else(|| anyhow::anyhow!("captures path not utf8"))?
+        .to_string();
+    assert_eq!(cfg.general.captures, captures_s);
 
     // Create state store and seed it
     let state = Arc::new(lint_http::state::StateStore::new(cfg.general.ttl_seconds));
 
     // Manually seed from the captures file (simulating what run_proxy does)
-    let records = lint_http::capture::load_captures(&cfg.general.captures)
-        .await
-        .expect("load captures");
+    let records = lint_http::capture::load_captures(&cfg.general.captures).await?;
     assert_eq!(records.len(), 1);
 
     for record in &records {
@@ -72,21 +67,21 @@ enabled = false
         "test-client".to_string(),
     );
 
-    let prev = state.get_previous(&client, "http://example.com/test");
-    assert!(prev.is_some(), "State should contain seeded transaction");
-
-    let prev = prev.unwrap();
+    let prev = state
+        .get_previous(&client, "http://example.com/test")
+        .ok_or_else(|| anyhow::anyhow!("State should contain seeded transaction"))?;
     assert_eq!(prev.status, 200);
     assert_eq!(prev.etag, Some("\"abc123\"".to_string()));
     assert_eq!(prev.cache_control, Some("max-age=3600".to_string()));
 
     // Cleanup
-    let _ = fs::remove_file(&captures_file).await;
-    let _ = fs::remove_file(&config_file).await;
+    fs::remove_file(&captures_file).await?;
+    fs::remove_file(&config_file).await?;
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_captures_seed_disabled() {
+async fn test_captures_seed_disabled() -> anyhow::Result<()> {
     // Create temporary files
     let tmp_dir = std::env::temp_dir();
     let captures_file = tmp_dir.join(format!("test_seed_disabled_{}.jsonl", Uuid::new_v4()));
@@ -94,9 +89,7 @@ async fn test_captures_seed_disabled() {
 
     // Write a sample capture record
     let capture_data = r#"{"id":"test-2","timestamp":"2024-01-01T00:00:00Z","method":"GET","uri":"http://example.com/test2","status":200,"duration_ms":100,"request_headers":{"user-agent":"test-client-2"},"response_headers":{"etag":"\"xyz789\""},"violations":[]}"#;
-    fs::write(&captures_file, capture_data)
-        .await
-        .expect("write captures file");
+    fs::write(&captures_file, capture_data).await?;
 
     // Create a config with captures_seed disabled (default)
     let config_toml = format!(
@@ -111,16 +104,14 @@ enabled = false
 
 [rules]
 "#,
-        captures_file.to_str().unwrap()
+        captures_file
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("captures path not utf8"))?
     );
-    fs::write(&config_file, config_toml)
-        .await
-        .expect("write config file");
+    fs::write(&config_file, config_toml).await?;
 
     // Load the config
-    let cfg = lint_http::config::Config::load_from_path(&config_file)
-        .await
-        .expect("load config");
+    let cfg = lint_http::config::Config::load_from_path(&config_file).await?;
 
     // Verify captures_seed is false
     assert!(!cfg.general.captures_seed);
@@ -141,12 +132,13 @@ enabled = false
     );
 
     // Cleanup
-    let _ = fs::remove_file(&captures_file).await;
-    let _ = fs::remove_file(&config_file).await;
+    fs::remove_file(&captures_file).await?;
+    fs::remove_file(&config_file).await?;
+    Ok(())
 }
 
 #[tokio::test]
-async fn test_captures_seed_with_nonexistent_file() {
+async fn test_captures_seed_with_nonexistent_file() -> anyhow::Result<()> {
     // Create a config pointing to a non-existent captures file
     let tmp_dir = std::env::temp_dir();
     let captures_file = tmp_dir.join(format!("nonexistent_{}.jsonl", Uuid::new_v4()));
@@ -164,20 +156,16 @@ enabled = false
 
 [rules]
 "#,
-        captures_file.to_str().unwrap()
+        captures_file
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("captures path not utf8"))?
     );
-    fs::write(&config_file, config_toml)
-        .await
-        .expect("write config file");
+    fs::write(&config_file, config_toml).await?;
 
-    let cfg = lint_http::config::Config::load_from_path(&config_file)
-        .await
-        .expect("load config");
+    let cfg = lint_http::config::Config::load_from_path(&config_file).await?;
 
     // load_captures should return empty vector, not error
-    let records = lint_http::capture::load_captures(&cfg.general.captures)
-        .await
-        .expect("load_captures should succeed even with missing file");
+    let records = lint_http::capture::load_captures(&cfg.general.captures).await?;
 
     assert_eq!(
         records.len(),
@@ -186,5 +174,6 @@ enabled = false
     );
 
     // Cleanup
-    let _ = fs::remove_file(&config_file).await;
+    fs::remove_file(&config_file).await?;
+    Ok(())
 }

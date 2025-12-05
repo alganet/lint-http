@@ -73,7 +73,7 @@ mod tests {
     }
 
     #[test]
-    fn check_request_violation_low_efficiency() {
+    fn check_request_violation_low_efficiency() -> anyhow::Result<()> {
         let rule = ConnectionEfficiency;
         let (client, state) = make_test_context();
         let method = hyper::Method::GET;
@@ -82,18 +82,19 @@ mod tests {
         // Simulate 6 connections with 1 request each (Efficiency = 1.0)
         for i in 0..6 {
             let conn = crate::connection::ConnectionMetadata::new(
-                format!("127.0.0.1:{}", 12345 + i).parse().unwrap(),
+                format!("127.0.0.1:{}", 12345 + i).parse()?,
             );
             state.record_connection(&client, &conn);
             state.record_transaction(&client, "http://test.com", 200, &headers);
         }
-
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12351".parse().unwrap());
+        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12351".parse()?);
         let violation =
             rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
 
         assert!(violation.is_some());
-        assert_eq!(violation.unwrap().rule, "connection_efficiency");
+        let v = violation.ok_or_else(|| anyhow::anyhow!("expected violation"))?;
+        assert_eq!(v.rule, "connection_efficiency");
+        Ok(())
     }
 
     #[test]
