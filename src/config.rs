@@ -67,7 +67,7 @@ pub struct Config {
     pub general: GeneralConfig,
 
     #[serde(default)]
-    pub rules: HashMap<String, bool>,
+    pub rules: HashMap<String, toml::Value>,
 
     pub tls: TlsConfig,
 }
@@ -79,15 +79,26 @@ impl Config {
     /// TOML format:
     /// \[rules\]
     /// rule-name = true
+    /// rule-name-2 = { paths = ["/logout", "/signout"] }
     pub async fn load_from_path<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Self> {
         let path_ref = path.as_ref();
         let s = tokio::fs::read_to_string(path_ref).await?;
         let cfg: Self = toml::from_str(&s)?;
+
+        // Validate all enabled rules' configurations
+        crate::rules::validate_rules(&cfg)?;
+
         Ok(cfg)
     }
 
+    /// Returns true if the rule is enabled (not explicitly set to false).
     pub fn is_enabled(&self, rule: &str) -> bool {
-        self.rules.get(rule).copied().unwrap_or(true)
+        !matches!(self.rules.get(rule), Some(toml::Value::Boolean(false)))
+    }
+
+    /// Gets the configuration value for a rule.
+    pub fn get_rule_config(&self, rule: &str) -> Option<&toml::Value> {
+        self.rules.get(rule)
     }
 }
 
@@ -127,16 +138,144 @@ enabled = false
         fs::remove_file(&tmp_toml).await?;
         Ok(())
     }
+
+    #[tokio::test]
+    async fn load_rule_with_config_value() -> anyhow::Result<()> {
+        let tmp_toml =
+            std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
+        let toml = r#"[rules]
+some_rule = { paths = ["/logout", "/signout"] }
+
+[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+"#;
+        fs::write(&tmp_toml, toml).await?;
+        let cfg = Config::load_from_path(&tmp_toml).await?;
+        assert!(cfg.is_enabled("some_rule"));
+        let config = cfg.get_rule_config("some_rule");
+        assert!(config.is_some());
+        fs::remove_file(&tmp_toml).await?;
+        Ok(())
+    }
+
+    #[test]
+    fn rule_disabled_with_false() {
+        let mut cfg = Config::default();
+        cfg.rules
+            .insert("test_rule".to_string(), toml::Value::Boolean(false));
+        assert!(!cfg.is_enabled("test_rule"));
+    }
+
+    #[test]
+    fn rule_enabled_with_config_value() {
+        let mut cfg = Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert(
+            "paths".to_string(),
+            toml::Value::Array(vec![toml::Value::String("/logout".to_string())]),
+        );
+        cfg.rules
+            .insert("test_rule".to_string(), toml::Value::Table(table));
+        assert!(cfg.is_enabled("test_rule"));
+    }
 }
 
 #[cfg(test)]
 mod error_tests {
     use super::*;
+    use tokio::fs;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn load_missing_file_errors() {
         let p = std::env::temp_dir().join("lint-http_cfg_missing_does_not_exist.toml");
         let res = Config::load_from_path(&p).await;
         assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn load_invalid_rule_config_errors() -> anyhow::Result<()> {
+        let tmp_toml =
+            std::env::temp_dir().join(format!("lint-http_cfg_invalid_{}.toml", Uuid::new_v4()));
+        let toml = r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.server_clear_site_data]
+paths = []  # Invalid: empty array
+"#;
+        fs::write(&tmp_toml, toml).await?;
+        let res = Config::load_from_path(&tmp_toml).await;
+
+        // Should error during validation
+        assert!(res.is_err());
+        let err_msg = res.unwrap_err().to_string();
+        assert!(err_msg.contains("server_clear_site_data"));
+        assert!(err_msg.contains("cannot be empty"));
+
+        fs::remove_file(&tmp_toml).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn load_non_string_paths_errors() -> anyhow::Result<()> {
+        let tmp_toml =
+            std::env::temp_dir().join(format!("lint-http_cfg_invalid_{}.toml", Uuid::new_v4()));
+        let toml = r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.server_clear_site_data]
+paths = ["/logout", 42, "/signout"]  # Invalid: contains non-string
+"#;
+        fs::write(&tmp_toml, toml).await?;
+        let res = Config::load_from_path(&tmp_toml).await;
+
+        // Should error during validation
+        assert!(res.is_err());
+        let err_msg = res.unwrap_err().to_string();
+        assert!(err_msg.contains("server_clear_site_data"));
+        assert!(err_msg.contains("not a string"));
+
+        fs::remove_file(&tmp_toml).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn load_missing_paths_field_errors() -> anyhow::Result<()> {
+        let tmp_toml =
+            std::env::temp_dir().join(format!("lint-http_cfg_invalid_{}.toml", Uuid::new_v4()));
+        let toml = r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.server_clear_site_data]
+# Missing "paths" field entirely
+other_field = "value"
+"#;
+        fs::write(&tmp_toml, toml).await?;
+        let res = Config::load_from_path(&tmp_toml).await;
+
+        // Should error during validation
+        assert!(res.is_err());
+        let err_msg = res.unwrap_err().to_string();
+        assert!(err_msg.contains("server_clear_site_data"));
+        assert!(err_msg.contains("'paths' field"));
+
+        fs::remove_file(&tmp_toml).await?;
+        Ok(())
     }
 }

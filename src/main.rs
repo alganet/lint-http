@@ -82,4 +82,32 @@ enabled = false
         fs::remove_file(&tmp).await?;
         Ok(())
     }
+
+    #[tokio::test]
+    async fn main_rejects_invalid_rule_config_before_proxy_starts() -> anyhow::Result<()> {
+        let tmp =
+            std::env::temp_dir().join(format!("lint_main_cli_cfg_invalid_{}.toml", Uuid::new_v4()));
+        let toml = r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.server_clear_site_data]
+paths = []  # Invalid: empty paths array
+"#;
+        fs::write(&tmp, toml).await?;
+
+        // Config load should fail during validation, before any proxy starts
+        let result = config::Config::load_from_path(&tmp).await;
+
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("server_clear_site_data"));
+        assert!(err_msg.contains("cannot be empty"));
+
+        fs::remove_file(&tmp).await?;
+        Ok(())
+    }
 }

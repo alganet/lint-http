@@ -22,6 +22,7 @@ impl Rule for ServerXContentTypeOptions {
         headers: &HeaderMap,
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
+        _config: &crate::config::Config,
     ) -> Option<Violation> {
         if (200..300).contains(&status) && !headers.contains_key("x-content-type-options") {
             Some(Violation {
@@ -48,8 +49,15 @@ mod tests {
         let status = 200;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let violation =
-            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            status,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_some());
         assert_eq!(
             violation.map(|v| v.message),
@@ -66,8 +74,15 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("x-content-type-options", "nosniff".parse()?);
         let conn = make_test_conn();
-        let violation =
-            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            status,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
         Ok(())
     }
@@ -79,8 +94,15 @@ mod tests {
         let status = 404;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let violation =
-            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            status,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
     }
 
@@ -91,8 +113,15 @@ mod tests {
         let status = 101;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let violation =
-            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            status,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
     }
 }

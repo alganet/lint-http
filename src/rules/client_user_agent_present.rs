@@ -22,6 +22,7 @@ impl Rule for ClientUserAgentPresent {
         headers: &HeaderMap,
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
+        _config: &crate::config::Config,
     ) -> Option<Violation> {
         if !headers.contains_key("user-agent") {
             Some(Violation {
@@ -48,8 +49,15 @@ mod tests {
         let method = hyper::Method::GET;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let violation =
-            rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
+        let violation = rule.check_request(
+            &client,
+            "http://test.com",
+            &method,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_some());
         assert_eq!(
             violation.map(|v| v.message),
@@ -66,8 +74,15 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("user-agent", "curl/7.68.0".parse()?);
         let conn = make_test_conn();
-        let violation =
-            rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
+        let violation = rule.check_request(
+            &client,
+            "http://test.com",
+            &method,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
         Ok(())
     }

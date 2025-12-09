@@ -65,7 +65,11 @@ suppress_headers = []             # Headers to suppress from server responses
 
 ### Lint Rules Configuration (Optional)
 
-The `[rules]` section allows you to enable or disable specific lint rules. If a rule is omitted, it defaults to `true` (enabled).
+The `[rules]` section allows you to enable, disable, or configure specific lint rules. If a rule is omitted, it defaults to `true` (enabled).
+
+#### Simple Boolean Toggle
+
+Most rules can be enabled or disabled with a boolean value:
 
 ```toml
 [rules]
@@ -79,6 +83,27 @@ connection_efficiency = true
 server_cache_control_present = true
 server_etag_or_last_modified = true
 server_x_content_type_options = true
+
+# Disable a specific rule
+server_response_405_allow = false
 ```
 
-See [Rules Documentation](rules.md) for details on each rule.
+#### Configurable Rules
+
+Some rules support additional configuration options beyond simple enable/disable. Use TOML tables to configure these rules:
+
+```toml
+# Configure server_clear_site_data with custom logout paths
+[rules.server_clear_site_data]
+paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
+```
+
+When a rule has configuration options, it's automatically enabled unless explicitly set to `false`:
+
+```toml
+[rules]
+# This completely disables the rule, ignoring any configuration
+server_clear_site_data = false
+```
+
+See [Rules Documentation](rules.md) for details on each rule and their configuration options.

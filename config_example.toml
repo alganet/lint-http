@@ -26,3 +26,9 @@ connection_efficiency = true
 server_cache_control_present = true
 server_etag_or_last_modified = true
 server_x_content_type_options = true
+server_response_405_allow = true
+server_charset_specification = true
+
+# Configurable rule example - specify custom logout paths
+[rules.server_clear_site_data]
+paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]

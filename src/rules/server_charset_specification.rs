@@ -22,6 +22,7 @@ impl Rule for ServerCharsetSpecification {
         headers: &HeaderMap,
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
+        _config: &crate::config::Config,
     ) -> Option<Violation> {
         if let Some(content_type) = headers.get(hyper::header::CONTENT_TYPE) {
             if let Ok(ct_str) = content_type.to_str() {
@@ -59,8 +60,15 @@ mod tests {
             "text/html; charset=utf-8".parse()?,
         );
 
-        let violation =
-            rule.check_response(&client, "http://test.com", 200, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            200,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
         Ok(())
     }
@@ -76,8 +84,15 @@ mod tests {
             "text/html;charset=utf-8".parse()?,
         );
 
-        let violation =
-            rule.check_response(&client, "http://test.com", 200, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            200,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
         Ok(())
     }
@@ -93,8 +108,15 @@ mod tests {
             "TEXT/HTML;CHARSET=UTF-8".parse()?,
         );
 
-        let violation =
-            rule.check_response(&client, "http://test.com", 200, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            200,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
         Ok(())
     }
@@ -107,8 +129,15 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(hyper::header::CONTENT_TYPE, "text/html".parse()?);
 
-        let violation =
-            rule.check_response(&client, "http://test.com", 200, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            200,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_some());
         assert_eq!(
             violation.map(|v| v.message),
@@ -125,8 +154,15 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(hyper::header::CONTENT_TYPE, "application/json".parse()?);
 
-        let violation =
-            rule.check_response(&client, "http://test.com", 200, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            200,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
         Ok(())
     }
@@ -138,8 +174,15 @@ mod tests {
         let conn = make_test_conn();
         let headers = HeaderMap::new();
 
-        let violation =
-            rule.check_response(&client, "http://test.com", 200, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            200,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
         Ok(())
     }

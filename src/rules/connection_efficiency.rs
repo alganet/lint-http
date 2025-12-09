@@ -29,6 +29,7 @@ impl Rule for ConnectionEfficiency {
         _headers: &HeaderMap,
         _conn: &crate::connection::ConnectionMetadata,
         state: &StateStore,
+        _config: &crate::config::Config,
     ) -> Option<Violation> {
         let count = state.get_connection_count(client);
 
@@ -67,8 +68,15 @@ mod tests {
         let conn = make_test_conn();
 
         // First request, no history
-        let violation =
-            rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
+        let violation = rule.check_request(
+            &client,
+            "http://test.com",
+            &method,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
     }
 
@@ -88,8 +96,15 @@ mod tests {
             state.record_transaction(&client, "http://test.com", 200, &headers);
         }
         let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12351".parse()?);
-        let violation =
-            rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
+        let violation = rule.check_request(
+            &client,
+            "http://test.com",
+            &method,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
 
         assert!(violation.is_some());
         let v = violation.ok_or_else(|| anyhow::anyhow!("expected violation"))?;
@@ -111,8 +126,15 @@ mod tests {
             state.record_transaction(&client, "http://test.com", 200, &headers);
         }
 
-        let violation =
-            rule.check_request(&client, "http://test.com", &method, &headers, &conn, &state);
+        let violation = rule.check_request(
+            &client,
+            "http://test.com",
+            &method,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
     }
 }

@@ -22,6 +22,7 @@ impl Rule for ServerEtagOrLastModified {
         headers: &HeaderMap,
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
+        _config: &crate::config::Config,
     ) -> Option<Violation> {
         if status == 200 && !headers.contains_key("etag") && !headers.contains_key("last-modified")
         {
@@ -49,8 +50,15 @@ mod tests {
         let status = 200;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let violation =
-            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            status,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_some());
         assert_eq!(
             violation.map(|v| v.message),
@@ -67,8 +75,15 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("etag", "\"12345\"".parse()?);
         let conn = make_test_conn();
-        let violation =
-            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            status,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
         Ok(())
     }
@@ -81,8 +96,15 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT".parse()?);
         let conn = make_test_conn();
-        let violation =
-            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            status,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
         Ok(())
     }
@@ -94,8 +116,15 @@ mod tests {
         let status = 404;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let violation =
-            rule.check_response(&client, "http://test.com", status, &headers, &conn, &state);
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            status,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
         assert!(violation.is_none());
     }
 }
