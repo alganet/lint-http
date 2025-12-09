@@ -22,6 +22,7 @@ impl Rule for ClientCacheRespect {
         headers: &HeaderMap,
         _conn: &crate::connection::ConnectionMetadata,
         state: &StateStore,
+        _config: &crate::config::Config,
     ) -> Option<Violation> {
         // Check if we have a previous response for this client+resource
         let previous = state.get_previous(client, resource)?;
@@ -77,6 +78,7 @@ mod tests {
 
         let headers = HeaderMap::new();
         let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
+        let cfg = crate::config::Config::default();
         let violation = rule.check_request(
             &client,
             resource,
@@ -84,6 +86,7 @@ mod tests {
             &headers,
             &conn,
             &store,
+            &cfg,
         );
 
         assert!(violation.is_none());
@@ -106,6 +109,7 @@ mod tests {
         let mut req_headers = HeaderMap::new();
         req_headers.insert("if-none-match", "\"abc123\"".parse()?);
         let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
+        let cfg = crate::config::Config::default();
         let violation = rule.check_request(
             &client,
             resource,
@@ -113,6 +117,7 @@ mod tests {
             &req_headers,
             &conn,
             &store,
+            &cfg,
         );
 
         assert!(violation.is_none());
@@ -134,6 +139,7 @@ mod tests {
         // Second request WITHOUT conditional headers
         let req_headers = HeaderMap::new();
         let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
+        let cfg = crate::config::Config::default();
         let violation = rule.check_request(
             &client,
             resource,
@@ -141,6 +147,7 @@ mod tests {
             &req_headers,
             &conn,
             &store,
+            &cfg,
         );
 
         assert!(violation.is_some());
@@ -166,6 +173,7 @@ mod tests {
         // since server didn't provide validators
         let req_headers = HeaderMap::new();
         let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
+        let cfg = crate::config::Config::default();
         let violation = rule.check_request(
             &client,
             resource,
@@ -173,6 +181,7 @@ mod tests {
             &req_headers,
             &conn,
             &store,
+            &cfg,
         );
 
         assert!(violation.is_none());

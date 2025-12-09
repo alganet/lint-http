@@ -29,7 +29,9 @@ pub fn lint_response(
 
     for rule in crate::rules::RULES {
         if cfg.is_enabled(rule.id()) {
-            if let Some(v) = rule.check_response(client, resource, status, headers, conn, state) {
+            if let Some(v) =
+                rule.check_response(client, resource, status, headers, conn, state, cfg)
+            {
                 out.push(v);
             }
         }
@@ -51,7 +53,8 @@ pub fn lint_request(
 
     for rule in crate::rules::RULES {
         if cfg.is_enabled(rule.id()) {
-            if let Some(v) = rule.check_request(client, resource, method, headers, conn, state) {
+            if let Some(v) = rule.check_request(client, resource, method, headers, conn, state, cfg)
+            {
                 out.push(v);
             }
         }
@@ -113,8 +116,14 @@ mod tests {
         let client = make_test_client();
         let state = crate::state::StateStore::new(300);
         let mut rules = std::collections::HashMap::new();
-        rules.insert("server_cache_control_present".to_string(), false);
-        rules.insert("server_etag_or_last_modified".to_string(), false);
+        rules.insert(
+            "server_cache_control_present".to_string(),
+            toml::Value::Boolean(false),
+        );
+        rules.insert(
+            "server_etag_or_last_modified".to_string(),
+            toml::Value::Boolean(false),
+        );
         let cfg = Config {
             rules,
             tls: crate::config::TlsConfig::default(),

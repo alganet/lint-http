@@ -20,6 +20,11 @@ pub fn make_test_context() -> (ClientIdentifier, StateStore) {
     (make_test_client(), StateStore::new(300))
 }
 
+/// Create a test config with default values
+pub fn make_test_config() -> crate::config::Config {
+    crate::config::Config::default()
+}
+
 /// Create a test connection metadata with standard test address
 pub fn make_test_conn() -> crate::connection::ConnectionMetadata {
     crate::connection::ConnectionMetadata::new(SocketAddr::new(
