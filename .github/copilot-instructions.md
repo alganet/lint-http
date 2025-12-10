@@ -108,3 +108,10 @@ enabled = true
 ```
 
 Check rule status: `cfg.is_enabled("rule_id")` returns `true` only when there is a `[rules.<rule_id>]` table containing `enabled = true`.
+
+### Configurable Rules
+
+- Configurable rules should not rely on hardcoded defaults. If a rule requires configuration, it must be provided via a `[rules.<rule_id>]` table in TOML and include the necessary keys (numeric values, arrays, etc.).
+- During `validate_config`, a rule should parse and validate the provided TOML values. If required keys are missing or invalid types are present, `validate_config` must return an error to fail startup validation.
+- For runtime use, cache parsed rule configuration using `crate::rules::config_cache::RuleConfigCache<T>`. In your `check_request` / `check_response`, retrieve the cached config with `get_or_init` and panic with a clear message if parsing fails at runtime (this matches how other rules use defensive assertions).
+- Include explicit tests to validate `validate_config` behavior and runtime behavior with valid configuration. Tests should also include invalid config and missing config failure cases for `validate_config`.

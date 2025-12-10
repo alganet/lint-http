@@ -14,16 +14,16 @@ Establishing a TCP connection (and TLS handshake) is expensive. Clients should u
 ## Specifications
 - [RFC 7230, Section 6.3: Persistence](https://tools.ietf.org/html/rfc7230#section-6.3)
 
-## Examples
+## Configuration
 
-### ✅ Good Behavior
-- Client opens 1 connection.
-- Client sends 50 requests over that single connection.
-- Efficiency: 50 requests / 1 connection = 50.0.
+This rule is disabled by default. To enable and configure it, add a table under `[rules]` in your TOML config:
 
-### ❌ Bad Behavior
-- Client opens 50 separate connections.
-- Client sends 1 request over each connection.
-- Efficiency: 50 requests / 50 connections = 1.0.
+```toml
+[rules.connection_efficiency]
+enabled = true
+min_connections = 5
+min_reuse_ratio = 1.1
+```
 
-**Note:** This rule typically triggers after a minimum threshold of connections (e.g., > 5) to avoid false positives during initial startup.
+- `min_connections` (integer, default: 5): Minimum number of unique connections observed for a client before the rule evaluates efficiency.
+- `min_reuse_ratio` (float, default: 1.1): The minimum requests-per-connection ratio considered acceptable. Values below this indicate poor connection reuse.
