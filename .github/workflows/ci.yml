@@ -77,8 +77,8 @@ jobs:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       
-      - name: Run clippy
-        run: cargo clippy --all-features --all-targets -- -D warnings
+      - name: Run lint
+        run: cargo lint
 
   fmt:
     name: Format
@@ -103,8 +103,8 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
       
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -125,7 +125,7 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       
       - name: Generate coverage
-        run: cargo llvm-cov --all-features --workspace --cobertura --output-path cobertura.xml
+        run: cargo coverage
       
       - name: Upload coverage report
         uses: actions/upload-artifact@v5
