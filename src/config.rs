@@ -77,9 +77,15 @@ impl Config {
 
     /// Load configuration from a TOML file.
     /// TOML format:
-    /// \[rules\]
-    /// rule-name = true
-    /// rule-name-2 = { paths = ["/logout", "/signout"] }
+    /// `[rules]`
+    /// `[[rules.<rule>]]` or `[rules.<rule>]` table with `enabled = true` and additional configuration, e.g.:
+    ///
+    /// [rules.server_cache_control_present]
+    /// enabled = true
+    ///
+    /// [rules.server_clear_site_data]
+    /// enabled = true
+    /// paths = ["/logout", "/signout"]
     pub async fn load_from_path<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Self> {
         let path_ref = path.as_ref();
         let s = tokio::fs::read_to_string(path_ref).await?;
@@ -91,9 +97,17 @@ impl Config {
         Ok(cfg)
     }
 
-    /// Returns true if the rule is enabled (not explicitly set to false).
+    /// Returns true if the rule is enabled.
+    ///
+    /// Rules are disabled by default. A rule is enabled only when there is a
+    /// TOML table under `[rules.<rule>]` that contains `enabled = true`.
     pub fn is_enabled(&self, rule: &str) -> bool {
-        !matches!(self.rules.get(rule), Some(toml::Value::Boolean(false)))
+        match self.rules.get(rule) {
+            Some(toml::Value::Table(table)) => {
+                matches!(table.get("enabled"), Some(toml::Value::Boolean(true)))
+            }
+            _ => false,
+        }
     }
 
     /// Gets the configuration value for a rule.
@@ -107,13 +121,14 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::{disable_rule, enable_rule_with_paths};
     use tokio::fs;
     use uuid::Uuid;
 
     #[test]
-    fn default_is_enabled_true() {
+    fn default_is_enabled_false() {
         let cfg = Config::default();
-        assert!(cfg.is_enabled("some-rule"));
+        assert!(!cfg.is_enabled("some-rule"));
     }
 
     #[tokio::test]
@@ -121,9 +136,10 @@ mod tests {
         let tmp_toml =
             std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
         let toml = r#"[rules]
-server_cache_control_present = true
+    [rules.server_cache_control_present]
+    enabled = true
 
-[general]
+    [general]
 listen = "127.0.0.1:3000"
 captures = "captures.jsonl"
 ttl_seconds = 300
@@ -144,9 +160,11 @@ enabled = false
         let tmp_toml =
             std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
         let toml = r#"[rules]
-some_rule = { paths = ["/logout", "/signout"] }
+    [rules.some_rule]
+    enabled = true
+    paths = ["/logout", "/signout"]
 
-[general]
+    [general]
 listen = "127.0.0.1:3000"
 captures = "captures.jsonl"
 
@@ -165,22 +183,45 @@ enabled = false
     #[test]
     fn rule_disabled_with_false() {
         let mut cfg = Config::default();
-        cfg.rules
-            .insert("test_rule".to_string(), toml::Value::Boolean(false));
+        disable_rule(&mut cfg, "test_rule");
         assert!(!cfg.is_enabled("test_rule"));
     }
 
     #[test]
+    fn rule_disabled_with_table_enabled_false() {
+        let mut cfg = Config::default();
+        disable_rule(&mut cfg, "test_rule_table");
+        assert!(!cfg.is_enabled("test_rule_table"));
+    }
+
+    #[test]
     fn rule_enabled_with_config_value() {
+        let mut cfg = Config::default();
+        enable_rule_with_paths(&mut cfg, "test_rule", &["/logout"]);
+        assert!(cfg.is_enabled("test_rule"));
+    }
+
+    #[test]
+    fn table_without_enabled_is_disabled() {
         let mut cfg = Config::default();
         let mut table = toml::map::Map::new();
         table.insert(
             "paths".to_string(),
             toml::Value::Array(vec![toml::Value::String("/logout".to_string())]),
         );
+        cfg.rules.insert(
+            "test_rule_table_no_enabled".to_string(),
+            toml::Value::Table(table),
+        );
+        assert!(!cfg.is_enabled("test_rule_table_no_enabled"));
+    }
+
+    #[test]
+    fn boolean_true_does_not_enable_rule() {
+        let mut cfg = Config::default();
         cfg.rules
-            .insert("test_rule".to_string(), toml::Value::Table(table));
-        assert!(cfg.is_enabled("test_rule"));
+            .insert("some_rule_bool".to_string(), toml::Value::Boolean(true));
+        assert!(!cfg.is_enabled("some_rule_bool"));
     }
 }
 
@@ -209,6 +250,7 @@ captures = "captures.jsonl"
 enabled = false
 
 [rules.server_clear_site_data]
+enabled = true
 paths = []  # Invalid: empty array
 "#;
         fs::write(&tmp_toml, toml).await?;
@@ -236,6 +278,7 @@ captures = "captures.jsonl"
 enabled = false
 
 [rules.server_clear_site_data]
+enabled = true
 paths = ["/logout", 42, "/signout"]  # Invalid: contains non-string
 "#;
         fs::write(&tmp_toml, toml).await?;
@@ -263,6 +306,7 @@ captures = "captures.jsonl"
 enabled = false
 
 [rules.server_clear_site_data]
+enabled = true
 # Missing "paths" field entirely
 other_field = "value"
 "#;

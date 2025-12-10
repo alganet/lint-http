@@ -80,3 +80,49 @@ pub const RULES: &[&dyn Rule] = &[
     &connection_efficiency::ConnectionEfficiency,
     &server_charset_specification::ServerCharsetSpecification,
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_helpers::{enable_rule, enable_rule_with_paths};
+
+    #[test]
+    fn rule_ids_unique_and_non_empty() {
+        let mut ids = std::collections::HashSet::new();
+        for rule in RULES {
+            let id = rule.id();
+            assert!(!id.is_empty(), "Rule id should not be empty");
+            assert!(ids.insert(id), "Duplicate rule id found: {}", id);
+        }
+    }
+
+    #[test]
+    fn validate_rules_ok_when_enabled_rule_has_valid_config() -> anyhow::Result<()> {
+        let mut cfg = crate::config::Config::default();
+        // server_cache_control_present doesn't require config; enabling should pass
+        enable_rule(&mut cfg, "server_cache_control_present");
+        // server_clear_site_data requires paths; enable with valid paths too
+        enable_rule_with_paths(&mut cfg, "server_clear_site_data", &["/logout"]);
+        assert!(validate_rules(&cfg).is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn validate_rules_errors_on_invalid_rule_config() -> anyhow::Result<()> {
+        let mut cfg = crate::config::Config::default();
+        // Enable server_clear_site_data but with invalid empty paths
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        table.insert("paths".to_string(), toml::Value::Array(vec![]));
+        cfg.rules.insert(
+            "server_clear_site_data".to_string(),
+            toml::Value::Table(table),
+        );
+
+        let res = validate_rules(&cfg);
+        assert!(res.is_err());
+        let msg = res.unwrap_err().to_string();
+        assert!(msg.contains("server_clear_site_data"));
+        Ok(())
+    }
+}

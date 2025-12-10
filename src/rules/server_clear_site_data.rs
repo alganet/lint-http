@@ -14,9 +14,15 @@ pub struct ServerClearSiteData;
 
 /// Parse and validate paths configuration for this rule
 fn parse_paths_config(config: &crate::config::Config) -> anyhow::Result<Vec<String>> {
-    // If no config is provided, use defaults
+    // Require a configuration table for this rule. If none is provided, return an error
+    // since this rule is not enabled by default and configuration is required to enable it.
     let Some(rule_config) = config.get_rule_config("server_clear_site_data") else {
-        return Ok(vec!["/logout".to_string(), "/signout".to_string()]);
+        return Err(anyhow::anyhow!(
+            r#"rule 'server_clear_site_data' requires configuration to be enabled. Example:
+[rules.server_clear_site_data]
+enabled = true
+paths = ["/logout"]"#
+        ));
     };
 
     // If config is provided, it must be a table with a "paths" array
@@ -88,10 +94,16 @@ impl Rule for ServerClearSiteData {
             return None;
         }
 
-        // Get configured paths from cache
+        // Get configured paths from cache. This should always succeed because validation
+        // happens at startup and the rule is only called when enabled. The unwrap_or_else
+        // with panic serves as a defensive assertion.
         let paths = CACHED_PATHS.get_or_init(|| {
-            parse_paths_config(config)
-                .unwrap_or_else(|_| vec!["/logout".to_string(), "/signout".to_string()])
+            parse_paths_config(config).unwrap_or_else(|e| {
+                panic!(
+                    "FATAL: invalid or missing configuration for rule 'server_clear_site_data' at runtime: {}",
+                    e
+                )
+            })
         });
 
         // Check if the current resource path matches any configured path
@@ -155,7 +167,10 @@ fn extract_path_from_resource(resource: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
+    use crate::test_helpers::{
+        enable_rule_with_paths, make_test_config_with_enabled_paths_rules, make_test_conn,
+        make_test_context,
+    };
     use hyper::HeaderMap;
 
     #[test]
@@ -165,7 +180,10 @@ mod tests {
         let status = 200;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let cfg = crate::config::Config::default();
+        let cfg = make_test_config_with_enabled_paths_rules(&[(
+            "server_clear_site_data",
+            &["/logout", "/signout"],
+        )]);
         let violation = rule.check_response(
             &client,
             "http://test.com/logout",
@@ -192,7 +210,10 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("clear-site-data", "\"*\"".parse()?);
         let conn = make_test_conn();
-        let cfg = crate::config::Config::default();
+        let cfg = make_test_config_with_enabled_paths_rules(&[(
+            "server_clear_site_data",
+            &["/logout", "/signout"],
+        )]);
         let violation = rule.check_response(
             &client,
             "http://test.com/logout",
@@ -213,7 +234,8 @@ mod tests {
         let status = 200;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let cfg = crate::config::Config::default();
+        let cfg =
+            make_test_config_with_enabled_paths_rules(&[("server_clear_site_data", &["/logout"])]);
         let violation = rule.check_response(
             &client,
             "http://test.com/api/data",
@@ -235,19 +257,10 @@ mod tests {
         let conn = make_test_conn();
 
         // Configure custom paths
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert(
-            "paths".to_string(),
-            toml::Value::Array(vec![
-                toml::Value::String("/custom/logout".to_string()),
-                toml::Value::String("/auth/signout".to_string()),
-            ]),
-        );
-        cfg.rules.insert(
-            "server_clear_site_data".to_string(),
-            toml::Value::Table(table),
-        );
+        let cfg = make_test_config_with_enabled_paths_rules(&[(
+            "server_clear_site_data",
+            &["/custom/logout", "/auth/signout"],
+        )]);
 
         let violation = rule.check_response(
             &client,
@@ -269,7 +282,8 @@ mod tests {
         let status = 200;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let cfg = crate::config::Config::default();
+        let cfg =
+            make_test_config_with_enabled_paths_rules(&[("server_clear_site_data", &["/signout"])]);
         let violation = rule.check_response(
             &client,
             "http://test.com/signout",
@@ -290,7 +304,8 @@ mod tests {
         let status = 404;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let cfg = crate::config::Config::default();
+        let cfg =
+            make_test_config_with_enabled_paths_rules(&[("server_clear_site_data", &["/logout"])]);
         let violation = rule.check_response(
             &client,
             "http://test.com/logout",
@@ -310,7 +325,8 @@ mod tests {
         let status = 200;
         let headers = HeaderMap::new();
         let conn = make_test_conn();
-        let cfg = crate::config::Config::default();
+        let mut cfg = crate::config::Config::default();
+        enable_rule_with_paths(&mut cfg, "server_clear_site_data", &["/logout"]);
         let violation = rule.check_response(
             &client,
             "http://test.com/logout?redirect=/home",
@@ -347,10 +363,10 @@ mod tests {
     }
 
     #[test]
-    fn validate_config_with_no_config_uses_defaults() -> anyhow::Result<()> {
+    fn validate_config_rejects_missing_config() -> anyhow::Result<()> {
         let rule = ServerClearSiteData;
         let cfg = crate::config::Config::default();
-        assert!(rule.validate_config(&cfg).is_ok());
+        assert!(rule.validate_config(&cfg).is_err());
         Ok(())
     }
 
@@ -369,6 +385,21 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Configuration must be a table"));
+        Ok(())
+    }
+
+    #[test]
+    fn validate_config_rejects_boolean_enable_without_table() -> anyhow::Result<()> {
+        let rule = ServerClearSiteData;
+        let mut cfg = crate::config::Config::default();
+        // User set the rule to true but didn't provide a table with 'paths'
+        cfg.rules.insert(
+            "server_clear_site_data".to_string(),
+            toml::Value::Boolean(true),
+        );
+
+        let result = rule.validate_config(&cfg);
+        assert!(result.is_err());
         Ok(())
     }
 

@@ -101,10 +101,10 @@ Shared test utilities are in `src/test_helpers.rs` (only compiled in test cfg).
 
 ## Configuration
 
-Rules default to enabled. Disable via TOML:
+Rules default to disabled. Enable via TOML only by adding a rule table with `enabled = true`:
 ```toml
-[rules]
-server_cache_control_present = false
+[rules.server_cache_control_present]
+enabled = true
 ```
 
-Check rule status: `cfg.is_enabled("rule_id")` returns `true` if not explicitly disabled.
+Check rule status: `cfg.is_enabled("rule_id")` returns `true` only when there is a `[rules.<rule_id>]` table containing `enabled = true`.

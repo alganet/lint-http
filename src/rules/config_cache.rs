@@ -171,4 +171,19 @@ mod tests {
         assert_eq!(cache1.get_or_init(|| "wrong".to_string()), "cache1");
         assert_eq!(cache2.get_or_init(|| "wrong".to_string()), "cache2");
     }
+
+    #[test]
+    fn cache_key_uniqueness() {
+        let cache1 = RuleConfigCache::<i32>::new();
+        let cache2 = RuleConfigCache::<i32>::new();
+
+        assert_ne!(cache1.key(), cache2.key());
+    }
+
+    #[test]
+    fn default_works_same_as_new() {
+        let cache = RuleConfigCache::<i32>::default();
+        let value = cache.get_or_init(|| 7);
+        assert_eq!(value, 7);
+    }
 }

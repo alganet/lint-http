@@ -65,45 +65,58 @@ suppress_headers = []             # Headers to suppress from server responses
 
 ### Lint Rules Configuration (Optional)
 
-The `[rules]` section allows you to enable, disable, or configure specific lint rules. If a rule is omitted, it defaults to `true` (enabled).
+The `[rules]` section allows you to enable, disable, or configure specific lint rules. If a rule is omitted, it defaults to `false` (disabled).
 
-#### Simple Boolean Toggle
+#### Enabling Rules
 
-Most rules can be enabled or disabled with a boolean value:
+Rules must be enabled via a TOML table with `enabled = true`. Example:
 
 ```toml
-[rules]
 # Client Rules
-client_accept_encoding_present = true
-client_user_agent_present = true
-client_cache_respect = true
-connection_efficiency = true
+[rules.client_accept_encoding_present]
+enabled = true
+
+[rules.client_user_agent_present]
+enabled = true
+
+[rules.client_cache_respect]
+enabled = true
+
+[rules.connection_efficiency]
+enabled = true
 
 # Server Rules
-server_cache_control_present = true
-server_etag_or_last_modified = true
-server_x_content_type_options = true
+[rules.server_cache_control_present]
+enabled = true
+
+[rules.server_etag_or_last_modified]
+enabled = true
+
+[rules.server_x_content_type_options]
+enabled = true
 
 # Disable a specific rule
-server_response_405_allow = false
+[rules.server_response_405_allow]
+enabled = false
 ```
 
 #### Configurable Rules
 
-Some rules support additional configuration options beyond simple enable/disable. Use TOML tables to configure these rules:
+Some rules support additional configuration options beyond simple enable/disable. Use TOML tables to configure these rules.
 
 ```toml
 # Configure server_clear_site_data with custom logout paths
 [rules.server_clear_site_data]
+enabled = true
 paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
 ```
 
-When a rule has configuration options, it's automatically enabled unless explicitly set to `false`:
+Note: rule configuration is validated upon starting `lint-http`.
 
 ```toml
-[rules]
+[rules.server_clear_site_data]
+enabled = false
 # This completely disables the rule, ignoring any configuration
-server_clear_site_data = false
 ```
 
 See [Rules Documentation](rules.md) for details on each rule and their configuration options.

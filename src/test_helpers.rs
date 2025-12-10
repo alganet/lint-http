@@ -32,3 +32,53 @@ pub fn make_test_conn() -> crate::connection::ConnectionMetadata {
         12345,
     ))
 }
+
+/// Enable a rule via `[rules.<rule>]` table with `enabled = true`.
+pub fn enable_rule(cfg: &mut crate::config::Config, rule: &str) {
+    let mut table = toml::map::Map::new();
+    table.insert("enabled".to_string(), toml::Value::Boolean(true));
+    cfg.rules
+        .insert(rule.to_string(), toml::Value::Table(table));
+}
+
+/// Enable a rule with a `paths` array under the rule table and `enabled = true`.
+pub fn enable_rule_with_paths(cfg: &mut crate::config::Config, rule: &str, paths: &[&str]) {
+    let mut table = toml::map::Map::new();
+    table.insert("enabled".to_string(), toml::Value::Boolean(true));
+    let arr = paths
+        .iter()
+        .map(|p| toml::Value::String(p.to_string()))
+        .collect::<Vec<_>>();
+    table.insert("paths".to_string(), toml::Value::Array(arr));
+    cfg.rules
+        .insert(rule.to_string(), toml::Value::Table(table));
+}
+
+/// Disable a rule via `[rules.<rule>]` table with `enabled = false`.
+pub fn disable_rule(cfg: &mut crate::config::Config, rule: &str) {
+    let mut table = toml::map::Map::new();
+    table.insert("enabled".to_string(), toml::Value::Boolean(false));
+    cfg.rules
+        .insert(rule.to_string(), toml::Value::Table(table));
+}
+
+/// Create a test config and enable a list of rules (table with `enabled = true`)
+pub fn make_test_config_with_enabled_rules(rules: &[&str]) -> crate::config::Config {
+    let mut cfg = make_test_config();
+    for r in rules {
+        enable_rule(&mut cfg, r);
+    }
+    cfg
+}
+
+/// Create a test config and enable rules with corresponding `paths` entries.
+/// `entries` is an array of tuples: (rule_name, &[paths])
+pub fn make_test_config_with_enabled_paths_rules(
+    entries: &[(&str, &[&str])],
+) -> crate::config::Config {
+    let mut cfg = make_test_config();
+    for (r, p) in entries {
+        enable_rule_with_paths(&mut cfg, r, p);
+    }
+    cfg
+}

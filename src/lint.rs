@@ -67,14 +67,19 @@ pub fn lint_request(
 mod tests {
     use super::*;
     use crate::config::Config;
-    use crate::test_helpers::{make_test_client, make_test_conn};
+    use crate::test_helpers::{
+        disable_rule, make_test_client, make_test_config_with_enabled_rules, make_test_conn,
+    };
 
     #[test]
-    fn lint_response_rules_emit_by_default() {
+    fn lint_response_rules_emit_when_enabled() {
         let client = make_test_client();
         let state = crate::state::StateStore::new(300);
         let headers = HeaderMap::new();
-        let cfg = Config::default();
+        let cfg = make_test_config_with_enabled_rules(&[
+            "server_cache_control_present",
+            "server_etag_or_last_modified",
+        ]);
         let conn = make_test_conn();
         let v = lint_response(
             &client,
@@ -85,17 +90,19 @@ mod tests {
             &cfg,
             &state,
         );
-        // Should at least recommend Cache-Control and ETag/Last-Modified
         assert!(v.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
     }
 
     #[test]
-    fn lint_request_rules_emit_by_default() {
+    fn lint_request_rules_emit_when_enabled() {
         let client = make_test_client();
         let state = crate::state::StateStore::new(300);
         let headers = HeaderMap::new();
-        let cfg = Config::default();
+        let cfg = make_test_config_with_enabled_rules(&[
+            "client_user_agent_present",
+            "client_accept_encoding_present",
+        ]);
         let method = hyper::Method::GET;
         let conn = make_test_conn();
         let v = lint_request(
@@ -115,20 +122,11 @@ mod tests {
     fn rule_toggles_disable_rules() {
         let client = make_test_client();
         let state = crate::state::StateStore::new(300);
-        let mut rules = std::collections::HashMap::new();
-        rules.insert(
-            "server_cache_control_present".to_string(),
-            toml::Value::Boolean(false),
-        );
-        rules.insert(
-            "server_etag_or_last_modified".to_string(),
-            toml::Value::Boolean(false),
-        );
-        let cfg = Config {
-            rules,
-            tls: crate::config::TlsConfig::default(),
-            general: crate::config::GeneralConfig::default(),
-        };
+        // Enable rules explicitly, then disable them to ensure toggle behavior works
+        let cfg_enabled = make_test_config_with_enabled_rules(&[
+            "server_cache_control_present",
+            "server_etag_or_last_modified",
+        ]);
         let headers = HeaderMap::new();
         let conn = make_test_conn();
         let v = lint_response(
@@ -137,10 +135,25 @@ mod tests {
             200,
             &headers,
             &conn,
-            &cfg,
+            &cfg_enabled,
             &state,
         );
-        assert!(!v.iter().any(|x| x.rule == "server_cache_control_present"));
-        assert!(!v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
+        assert!(v.iter().any(|x| x.rule == "server_cache_control_present"));
+        assert!(v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
+        // If we disable these rules (or don't enable them), they should not produce violations
+        let mut cfg_disabled = Config::default();
+        disable_rule(&mut cfg_disabled, "server_cache_control_present");
+        disable_rule(&mut cfg_disabled, "server_etag_or_last_modified");
+        let v2 = lint_response(
+            &client,
+            "http://test.com",
+            200,
+            &headers,
+            &conn,
+            &cfg_disabled,
+            &state,
+        );
+        assert!(!v2.iter().any(|x| x.rule == "server_cache_control_present"));
+        assert!(!v2.iter().any(|x| x.rule == "server_etag_or_last_modified"));
     }
 }
