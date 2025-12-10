@@ -94,6 +94,7 @@ enabled = true
 
 [rules.server_x_content_type_options]
 enabled = true
+content_types = ["text/html", "application/javascript", "application/json"]
 
 # Disable a specific rule
 [rules.server_response_405_allow]
