@@ -15,20 +15,36 @@ ca_key_path = "ca.key"
 passthrough_domains = ["example.com"]
 suppress_headers = ["X-Sensitive-Header"]
 
-[rules]
+
 # Client Rules
-client_accept_encoding_present = true
-client_user_agent_present = true
-client_cache_respect = true
-connection_efficiency = true
+[rules.client_accept_encoding_present]
+enabled = true
+
+[rules.client_user_agent_present]
+enabled = true
+
+[rules.client_cache_respect]
+enabled = true
+
+[rules.connection_efficiency]
+enabled = true
 
 # Server Rules
-server_cache_control_present = true
-server_etag_or_last_modified = true
-server_x_content_type_options = true
-server_response_405_allow = true
-server_charset_specification = true
+[rules.server_cache_control_present]
+enabled = true
 
-# Configurable rule example - specify custom logout paths
+[rules.server_etag_or_last_modified]
+enabled = true
+
+[rules.server_x_content_type_options]
+enabled = true
+
+[rules.server_response_405_allow]
+enabled = true
+
+[rules.server_charset_specification]
+enabled = true
+
 [rules.server_clear_site_data]
+enabled = true
 paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]

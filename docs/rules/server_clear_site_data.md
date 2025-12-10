@@ -25,28 +25,14 @@ The `Clear-Site-Data` header is a standard way to instruct the browser to clear 
 
 This rule is **configurable** and allows you to specify which paths should be considered logout endpoints.
 
-### Default Configuration
+### Configuration
 
-If not configured, the rule checks these default paths:
-- `/logout`
-- `/signout`
-
-### Custom Configuration
-
-You can configure custom paths in your `config.toml`:
+This rule is **configurable** and must be explicitly configured to be enabled. Add a `[rules.server_clear_site_data]` table with a `paths` array to enable it:
 
 ```toml
 [rules.server_clear_site_data]
+enabled = true
 paths = ["/logout", "/signout", "/auth/logout", "/api/logout"]
-```
-
-### Disabling the Rule
-
-To disable this rule completely:
-
-```toml
-[rules]
-server_clear_site_data = false
 ```
 
 ## Violation Example

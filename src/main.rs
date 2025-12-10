@@ -54,16 +54,17 @@ mod tests {
     async fn main_cli_config_loads_toml() -> anyhow::Result<()> {
         let tmp = std::env::temp_dir().join(format!("lint_main_cli_cfg_{}.toml", Uuid::new_v4()));
         let toml = r#"[rules]
-cache-control-present = false
+    [rules.server_cache_control_present]
+    enabled = false
 
-[general]
-listen = "127.0.0.1:3000"
-captures = "captures.jsonl"
-ttl_seconds = 300
+    [general]
+    listen = "127.0.0.1:3000"
+    captures = "captures.jsonl"
+    ttl_seconds = 300
 
-[tls]
-enabled = false
-"#;
+    [tls]
+    enabled = false
+    "#;
         fs::write(&tmp, toml).await?;
 
         let args = Args {
@@ -75,7 +76,7 @@ enabled = false
 
         let cfg = config::Config::load_from_path(&args.config).await?;
 
-        assert!(!cfg.is_enabled("cache-control-present"));
+        assert!(!cfg.is_enabled("server_cache_control_present"));
         // check defaults
         assert_eq!(cfg.general.listen, "127.0.0.1:3000");
 
@@ -94,8 +95,9 @@ captures = "captures.jsonl"
 [tls]
 enabled = false
 
-[rules.server_clear_site_data]
-paths = []  # Invalid: empty paths array
+ [rules.server_clear_site_data]
+ enabled = true
+ paths = []  # Invalid: empty paths array
 "#;
         fs::write(&tmp, toml).await?;
 
