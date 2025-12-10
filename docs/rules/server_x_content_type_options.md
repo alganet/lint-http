@@ -29,3 +29,15 @@ HTTP/1.1 200 OK
 Content-Type: text/javascript
 # Missing X-Content-Type-Options header
 ```
+
+## Configuration
+
+This rule should only be applied to responses with specific `Content-Type` values. Configure which content types should be checked under `[rules.server_x_content_type_options]` with a `content_types` array of MIME types:
+
+```toml
+[rules.server_x_content_type_options]
+enabled = true
+content_types = ["text/html", "application/javascript", "application/json"]
+```
+
+Only responses whose `Content-Type` header (ignoring any media type parameters like `; charset=UTF-8`) matches one of the configured values will be checked. If `content_types` is omitted or invalid, the rule's `validate_config` will fail at startup.
