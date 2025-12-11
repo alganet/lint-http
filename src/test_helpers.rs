@@ -5,6 +5,8 @@
 //! Shared test utilities to reduce duplication across test modules.
 
 use crate::state::{ClientIdentifier, StateStore};
+use hyper::header::{HeaderName, HeaderValue};
+use hyper::HeaderMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 /// Create a test client identifier with standard test values
@@ -31,6 +33,17 @@ pub fn make_test_conn() -> crate::connection::ConnectionMetadata {
         IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
         12345,
     ))
+}
+
+/// Create a HeaderMap from a slice of (key, value) pairs for use in tests
+pub fn make_headers_from_pairs(pairs: &[(&str, &str)]) -> HeaderMap {
+    let mut hm = HeaderMap::new();
+    for (k, v) in pairs {
+        let name = k.parse::<HeaderName>().expect("invalid header name");
+        let value = v.parse::<HeaderValue>().expect("invalid header value");
+        hm.insert(name, value);
+    }
+    hm
 }
 
 /// Enable a rule via `[rules.<rule>]` table with `enabled = true`.
@@ -80,5 +93,29 @@ pub fn make_test_config_with_enabled_paths_rules(
     for (r, p) in entries {
         enable_rule_with_paths(&mut cfg, r, p);
     }
+    cfg
+}
+/// Create a test config enabling `server_x_content_type_options` for given content types.
+///
+/// # Arguments
+///
+/// * `content_types` - Slice of content type strings to enable for the rule.
+///
+/// # Returns
+///
+/// A `Config` with the `server_x_content_type_options` rule enabled and its `content_types` set.
+pub fn make_test_config_with_content_types(content_types: &[&str]) -> crate::config::Config {
+    let mut cfg = crate::config::Config::default();
+    let mut table = toml::map::Map::new();
+    table.insert("enabled".to_string(), toml::Value::Boolean(true));
+    let arr = content_types
+        .iter()
+        .map(|p| toml::Value::String(p.to_string()))
+        .collect::<Vec<_>>();
+    table.insert("content_types".to_string(), toml::Value::Array(arr));
+    cfg.rules.insert(
+        "server_x_content_type_options".to_string(),
+        toml::Value::Table(table),
+    );
     cfg
 }

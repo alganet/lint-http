@@ -147,6 +147,7 @@ mod tests {
     use super::*;
     use crate::test_helpers::{enable_rule, make_test_conn, make_test_context};
     use hyper::HeaderMap;
+    use rstest::rstest;
 
     #[test]
     fn check_request_no_violation_initially() {
@@ -179,27 +180,45 @@ mod tests {
         assert!(violation.is_none());
     }
 
-    #[test]
-    fn check_request_violation_low_efficiency() -> anyhow::Result<()> {
+    #[rstest]
+    #[case(6, 1, 5, 1.1, true)]
+    #[case(1, 10, 5, 1.1, false)]
+    #[case(6, 1, 10, 1.1, false)]
+    #[case(6, 1, 5, 2.0, true)]
+    fn check_request_efficiency_scenarios(
+        #[case] connections: usize,
+        #[case] requests_per_connection: usize,
+        #[case] min_connections: i64,
+        #[case] min_reuse_ratio: f64,
+        #[case] expect_violation: bool,
+    ) -> anyhow::Result<()> {
         let rule = ConnectionEfficiency;
         let (client, state) = make_test_context();
         let method = hyper::Method::GET;
         let headers = HeaderMap::new();
 
-        // Simulate 6 connections with 1 request each (Efficiency = 1.0)
-        for i in 0..6 {
+        // Simulate connections and transactions using a pattern specified by case
+        for i in 0..connections {
             let conn = crate::connection::ConnectionMetadata::new(
                 format!("127.0.0.1:{}", 12345 + i).parse()?,
             );
             state.record_connection(&client, &conn);
-            state.record_transaction(&client, "http://test.com", 200, &headers);
+            for _ in 0..requests_per_connection {
+                state.record_transaction(&client, "http://test.com", 200, &headers);
+            }
         }
         let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12351".parse()?);
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("min_connections".to_string(), toml::Value::Integer(5));
-        table.insert("min_reuse_ratio".to_string(), toml::Value::Float(1.1));
+        table.insert(
+            "min_connections".to_string(),
+            toml::Value::Integer(min_connections),
+        );
+        table.insert(
+            "min_reuse_ratio".to_string(),
+            toml::Value::Float(min_reuse_ratio),
+        );
         cfg.rules.insert(
             "connection_efficiency".to_string(),
             toml::Value::Table(table),
@@ -215,129 +234,14 @@ mod tests {
             &cfg,
         );
 
-        assert!(violation.is_some());
-        let v = violation.ok_or_else(|| anyhow::anyhow!("expected violation"))?;
-        assert_eq!(v.rule, "connection_efficiency");
-        Ok(())
-    }
-
-    #[test]
-    fn check_request_no_violation_high_efficiency() {
-        let rule = ConnectionEfficiency;
-        let (client, state) = make_test_context();
-        let method = hyper::Method::GET;
-        let headers = HeaderMap::new();
-
-        // Simulate 1 connection with 10 requests (Efficiency = 10.0)
-        let conn = make_test_conn();
-        state.record_connection(&client, &conn);
-        for _ in 0..10 {
-            state.record_transaction(&client, "http://test.com", 200, &headers);
+        if expect_violation {
+            assert!(violation.is_some());
+            let v = violation.ok_or_else(|| anyhow::anyhow!("expected violation"))?;
+            assert_eq!(v.rule, "connection_efficiency");
+        } else {
+            assert!(violation.is_none());
         }
 
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("min_connections".to_string(), toml::Value::Integer(5));
-        table.insert("min_reuse_ratio".to_string(), toml::Value::Float(1.1));
-        cfg.rules.insert(
-            "connection_efficiency".to_string(),
-            toml::Value::Table(table),
-        );
-
-        let violation = rule.check_request(
-            &client,
-            "http://test.com",
-            &method,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
-        assert!(violation.is_none());
-    }
-
-    #[test]
-    fn check_request_custom_min_connections_no_violation() -> anyhow::Result<()> {
-        let rule = ConnectionEfficiency;
-        let (client, state) = make_test_context();
-        let method = hyper::Method::GET;
-        let headers = HeaderMap::new();
-
-        // Simulate 6 connections with 1 request each (Efficiency = 1.0)
-        for i in 0..6 {
-            let conn = crate::connection::ConnectionMetadata::new(
-                format!("127.0.0.1:{}", 12345 + i).parse()?,
-            );
-            state.record_connection(&client, &conn);
-            state.record_transaction(&client, "http://test.com", 200, &headers);
-        }
-
-        // Config: require 10 connections before checking
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("min_connections".to_string(), toml::Value::Integer(10));
-        table.insert("min_reuse_ratio".to_string(), toml::Value::Float(1.1));
-        cfg.rules.insert(
-            "connection_efficiency".to_string(),
-            toml::Value::Table(table),
-        );
-
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12351".parse()?);
-        let violation = rule.check_request(
-            &client,
-            "http://test.com",
-            &method,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
-
-        assert!(violation.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn check_request_custom_min_reuse_ratio_violation() -> anyhow::Result<()> {
-        let rule = ConnectionEfficiency;
-        let (client, state) = make_test_context();
-        let method = hyper::Method::GET;
-        let headers = HeaderMap::new();
-
-        // Simulate 6 connections with 1 request each (Efficiency = 1.0)
-        for i in 0..6 {
-            let conn = crate::connection::ConnectionMetadata::new(
-                format!("127.0.0.1:{}", 12345 + i).parse()?,
-            );
-            state.record_connection(&client, &conn);
-            state.record_transaction(&client, "http://test.com", 200, &headers);
-        }
-
-        // Config: set min_reuse_ratio very high so efficiency is flagged
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("min_reuse_ratio".to_string(), toml::Value::Float(2.0));
-        table.insert("min_connections".to_string(), toml::Value::Integer(5));
-        cfg.rules.insert(
-            "connection_efficiency".to_string(),
-            toml::Value::Table(table),
-        );
-
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12351".parse()?);
-        let violation = rule.check_request(
-            &client,
-            "http://test.com",
-            &method,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
-
-        assert!(violation.is_some());
         Ok(())
     }
 

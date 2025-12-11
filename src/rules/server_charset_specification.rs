@@ -46,19 +46,33 @@ impl Rule for ServerCharsetSpecification {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
-    use hyper::HeaderMap;
+    use crate::test_helpers::{make_headers_from_pairs, make_test_conn, make_test_context};
+    use rstest::rstest;
 
-    #[test]
-    fn check_response_no_violation_with_charset() -> anyhow::Result<()> {
+    #[rstest]
+    #[case("text/html; charset=utf-8", false, None)]
+    #[case("text/html;charset=utf-8", false, None)]
+    #[case("TEXT/HTML;CHARSET=UTF-8", false, None)]
+    #[case(
+        "text/html",
+        true,
+        Some("Text-based Content-Type header missing charset parameter.")
+    )]
+    #[case("application/json", false, None)]
+    #[case("", false, None)]
+    fn check_response_cases(
+        #[case] content_type: &str,
+        #[case] expect_violation: bool,
+        #[case] expected_message: Option<&str>,
+    ) -> anyhow::Result<()> {
         let rule = ServerCharsetSpecification;
         let (client, state) = make_test_context();
         let conn = make_test_conn();
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            hyper::header::CONTENT_TYPE,
-            "text/html; charset=utf-8".parse()?,
-        );
+        let headers = if content_type.is_empty() {
+            make_headers_from_pairs(&[])
+        } else {
+            make_headers_from_pairs(&[("content-type", content_type)])
+        };
 
         let violation = rule.check_response(
             &client,
@@ -69,121 +83,16 @@ mod tests {
             &state,
             &crate::config::Config::default(),
         );
-        assert!(violation.is_none());
-        Ok(())
-    }
 
-    #[test]
-    fn check_response_no_violation_with_charset_nospace() -> anyhow::Result<()> {
-        let rule = ServerCharsetSpecification;
-        let (client, state) = make_test_context();
-        let conn = make_test_conn();
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            hyper::header::CONTENT_TYPE,
-            "text/html;charset=utf-8".parse()?,
-        );
-
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
-            200,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
-        assert!(violation.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn check_response_no_violation_with_charset_case_insensitive() -> anyhow::Result<()> {
-        let rule = ServerCharsetSpecification;
-        let (client, state) = make_test_context();
-        let conn = make_test_conn();
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            hyper::header::CONTENT_TYPE,
-            "TEXT/HTML;CHARSET=UTF-8".parse()?,
-        );
-
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
-            200,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
-        assert!(violation.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn check_response_violation_missing_charset() -> anyhow::Result<()> {
-        let rule = ServerCharsetSpecification;
-        let (client, state) = make_test_context();
-        let conn = make_test_conn();
-        let mut headers = HeaderMap::new();
-        headers.insert(hyper::header::CONTENT_TYPE, "text/html".parse()?);
-
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
-            200,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
-        assert!(violation.is_some());
-        assert_eq!(
-            violation.map(|v| v.message),
-            Some("Text-based Content-Type header missing charset parameter.".to_string())
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn check_response_no_violation_non_text() -> anyhow::Result<()> {
-        let rule = ServerCharsetSpecification;
-        let (client, state) = make_test_context();
-        let conn = make_test_conn();
-        let mut headers = HeaderMap::new();
-        headers.insert(hyper::header::CONTENT_TYPE, "application/json".parse()?);
-
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
-            200,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
-        assert!(violation.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn check_response_no_violation_no_content_type() -> anyhow::Result<()> {
-        let rule = ServerCharsetSpecification;
-        let (client, state) = make_test_context();
-        let conn = make_test_conn();
-        let headers = HeaderMap::new();
-
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
-            200,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
-        assert!(violation.is_none());
+        if expect_violation {
+            assert!(violation.is_some());
+            assert_eq!(
+                violation.map(|v| v.message),
+                expected_message.map(|s| s.to_string())
+            );
+        } else {
+            assert!(violation.is_none());
+        }
         Ok(())
     }
 }

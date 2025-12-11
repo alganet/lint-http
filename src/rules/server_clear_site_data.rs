@@ -168,323 +168,160 @@ fn extract_path_from_resource(resource: &str) -> String {
 mod tests {
     use super::*;
     use crate::test_helpers::{
-        enable_rule_with_paths, make_test_config_with_enabled_paths_rules, make_test_conn,
+        make_headers_from_pairs, make_test_config_with_enabled_paths_rules, make_test_conn,
         make_test_context,
     };
-    use hyper::HeaderMap;
+    use rstest::rstest;
 
-    #[test]
-    fn check_response_logout_missing_header() -> anyhow::Result<()> {
+    #[rstest]
+    #[case("/logout", vec![], vec!["/logout", "/signout"], 200, true, Some("Clear-Site-Data"))]
+    #[case("/logout", vec![("clear-site-data","\"*\"")], vec!["/logout", "/signout"], 200, false, None)]
+    #[case("/api/data", vec![], vec!["/logout"], 200, false, None)]
+    #[case("/custom/logout", vec![], vec!["/custom/logout", "/auth/signout"], 200, true, Some("Clear-Site-Data"))]
+    #[case("/signout", vec![], vec!["/signout"], 200, true, Some("Clear-Site-Data"))]
+    #[case("/logout", vec![], vec!["/logout"], 404, false, None)]
+    #[case("/logout?redirect=/home", vec![], vec!["/logout"], 200, true, Some("Clear-Site-Data"))]
+    fn check_response_cases(
+        #[case] resource_path: &str,
+        #[case] header_pairs: Vec<(&str, &str)>,
+        #[case] config_paths: Vec<&str>,
+        #[case] status: u16,
+        #[case] expect_violation: bool,
+        #[case] expected_message_contains: Option<&str>,
+    ) -> anyhow::Result<()> {
         let rule = ServerClearSiteData;
         let (client, state) = make_test_context();
-        let status = 200;
-        let headers = HeaderMap::new();
-        let conn = make_test_conn();
-        let cfg = make_test_config_with_enabled_paths_rules(&[(
-            "server_clear_site_data",
-            &["/logout", "/signout"],
-        )]);
-        let violation = rule.check_response(
-            &client,
-            "http://test.com/logout",
-            status,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
-        let Some(v) = violation else {
-            panic!("Expected violation but got None");
-        };
-        assert_eq!(v.rule, "server_clear_site_data");
-        assert_eq!(v.severity, "warn");
-        assert!(v.message.contains("Clear-Site-Data"));
-        Ok(())
-    }
-
-    #[test]
-    fn check_response_logout_present_header() -> anyhow::Result<()> {
-        let rule = ServerClearSiteData;
-        let (client, state) = make_test_context();
-        let status = 200;
-        let mut headers = HeaderMap::new();
-        headers.insert("clear-site-data", "\"*\"".parse()?);
-        let conn = make_test_conn();
-        let cfg = make_test_config_with_enabled_paths_rules(&[(
-            "server_clear_site_data",
-            &["/logout", "/signout"],
-        )]);
-        let violation = rule.check_response(
-            &client,
-            "http://test.com/logout",
-            status,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
-        assert!(violation.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn check_response_non_logout_path() {
-        let rule = ServerClearSiteData;
-        let (client, state) = make_test_context();
-        let status = 200;
-        let headers = HeaderMap::new();
+        let headers = make_headers_from_pairs(&header_pairs);
         let conn = make_test_conn();
         let cfg =
-            make_test_config_with_enabled_paths_rules(&[("server_clear_site_data", &["/logout"])]);
+            make_test_config_with_enabled_paths_rules(&[("server_clear_site_data", &config_paths)]);
         let violation = rule.check_response(
             &client,
-            "http://test.com/api/data",
+            &format!("http://test.com{}", resource_path),
             status,
             &headers,
             &conn,
             &state,
             &cfg,
         );
-        assert!(violation.is_none());
-    }
 
-    #[test]
-    fn check_response_custom_configured_path() -> anyhow::Result<()> {
-        let rule = ServerClearSiteData;
-        let (client, state) = make_test_context();
-        let status = 200;
-        let headers = HeaderMap::new();
-        let conn = make_test_conn();
-
-        // Configure custom paths
-        let cfg = make_test_config_with_enabled_paths_rules(&[(
-            "server_clear_site_data",
-            &["/custom/logout", "/auth/signout"],
-        )]);
-
-        let violation = rule.check_response(
-            &client,
-            "http://test.com/custom/logout",
-            status,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
-        assert!(violation.is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn check_response_default_signout_path() -> anyhow::Result<()> {
-        let rule = ServerClearSiteData;
-        let (client, state) = make_test_context();
-        let status = 200;
-        let headers = HeaderMap::new();
-        let conn = make_test_conn();
-        let cfg =
-            make_test_config_with_enabled_paths_rules(&[("server_clear_site_data", &["/signout"])]);
-        let violation = rule.check_response(
-            &client,
-            "http://test.com/signout",
-            status,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
-        assert!(violation.is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn check_response_error_status_ignored() {
-        let rule = ServerClearSiteData;
-        let (client, state) = make_test_context();
-        let status = 404;
-        let headers = HeaderMap::new();
-        let conn = make_test_conn();
-        let cfg =
-            make_test_config_with_enabled_paths_rules(&[("server_clear_site_data", &["/logout"])]);
-        let violation = rule.check_response(
-            &client,
-            "http://test.com/logout",
-            status,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
-        assert!(violation.is_none());
-    }
-
-    #[test]
-    fn check_response_logout_with_query_params() -> anyhow::Result<()> {
-        let rule = ServerClearSiteData;
-        let (client, state) = make_test_context();
-        let status = 200;
-        let headers = HeaderMap::new();
-        let conn = make_test_conn();
-        let mut cfg = crate::config::Config::default();
-        enable_rule_with_paths(&mut cfg, "server_clear_site_data", &["/logout"]);
-        let violation = rule.check_response(
-            &client,
-            "http://test.com/logout?redirect=/home",
-            status,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
-        assert!(violation.is_some());
+        if expect_violation {
+            let Some(v) = violation else {
+                panic!("Expected violation but got None");
+            };
+            assert_eq!(v.rule, "server_clear_site_data");
+            assert_eq!(v.severity, "warn");
+            if let Some(msg) = expected_message_contains {
+                assert!(v.message.contains(msg));
+            }
+        } else {
+            assert!(violation.is_none());
+        }
         Ok(())
     }
 
     // Configuration validation tests
-    #[test]
-    fn validate_config_with_valid_paths() -> anyhow::Result<()> {
+    #[rstest]
+    #[case("valid", true, None)]
+    #[case("missing_config", false, Some("requires configuration"))]
+    #[case("non_table", false, Some("Configuration must be a table"))]
+    #[case("boolean_enable", false, None)]
+    #[case("missing_paths", false, Some("must contain 'paths' field"))]
+    #[case("non_array", false, Some("must be an array of strings"))]
+    #[case("empty_array", false, Some("cannot be empty"))]
+    #[case("non_string_item", false, Some("not a string"))]
+    fn validate_config_cases(
+        #[case] scenario: &str,
+        #[case] valid: bool,
+        #[case] expected_substring: Option<&str>,
+    ) -> anyhow::Result<()> {
         let rule = ServerClearSiteData;
         let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert(
-            "paths".to_string(),
-            toml::Value::Array(vec![
-                toml::Value::String("/logout".to_string()),
-                toml::Value::String("/signout".to_string()),
-            ]),
-        );
-        cfg.rules.insert(
-            "server_clear_site_data".to_string(),
-            toml::Value::Table(table),
-        );
 
-        assert!(rule.validate_config(&cfg).is_ok());
-        Ok(())
-    }
+        match scenario {
+            "valid" => {
+                let mut table = toml::map::Map::new();
+                table.insert(
+                    "paths".to_string(),
+                    toml::Value::Array(vec![
+                        toml::Value::String("/logout".to_string()),
+                        toml::Value::String("/signout".to_string()),
+                    ]),
+                );
+                cfg.rules.insert(
+                    "server_clear_site_data".to_string(),
+                    toml::Value::Table(table),
+                );
+            }
+            "missing_config" => {
+                // keep default config (no rule table)
+            }
+            "non_table" => {
+                cfg.rules.insert(
+                    "server_clear_site_data".to_string(),
+                    toml::Value::String("/logout".to_string()),
+                );
+            }
+            "boolean_enable" => {
+                cfg.rules.insert(
+                    "server_clear_site_data".to_string(),
+                    toml::Value::Boolean(true),
+                );
+            }
+            "missing_paths" => {
+                let table = toml::map::Map::new(); // Empty table, no "paths" field
+                cfg.rules.insert(
+                    "server_clear_site_data".to_string(),
+                    toml::Value::Table(table),
+                );
+            }
+            "non_array" => {
+                let mut table = toml::map::Map::new();
+                table.insert(
+                    "paths".to_string(),
+                    toml::Value::String("/logout".to_string()),
+                );
+                cfg.rules.insert(
+                    "server_clear_site_data".to_string(),
+                    toml::Value::Table(table),
+                );
+            }
+            "empty_array" => {
+                let mut table = toml::map::Map::new();
+                table.insert("paths".to_string(), toml::Value::Array(vec![]));
+                cfg.rules.insert(
+                    "server_clear_site_data".to_string(),
+                    toml::Value::Table(table),
+                );
+            }
+            "non_string_item" => {
+                let mut table = toml::map::Map::new();
+                table.insert(
+                    "paths".to_string(),
+                    toml::Value::Array(vec![
+                        toml::Value::String("/logout".to_string()),
+                        toml::Value::Integer(42), // Invalid: not a string
+                        toml::Value::String("/signout".to_string()),
+                    ]),
+                );
+                cfg.rules.insert(
+                    "server_clear_site_data".to_string(),
+                    toml::Value::Table(table),
+                );
+            }
+            _ => panic!("unknown scenario"),
+        }
 
-    #[test]
-    fn validate_config_rejects_missing_config() -> anyhow::Result<()> {
-        let rule = ServerClearSiteData;
-        let cfg = crate::config::Config::default();
-        assert!(rule.validate_config(&cfg).is_err());
-        Ok(())
-    }
+        let res = rule.validate_config(&cfg);
+        if valid {
+            assert!(res.is_ok());
+        } else {
+            assert!(res.is_err());
+            if let Some(sub) = expected_substring {
+                assert!(res.unwrap_err().to_string().contains(sub));
+            }
+        }
 
-    #[test]
-    fn validate_config_rejects_non_table() -> anyhow::Result<()> {
-        let rule = ServerClearSiteData;
-        let mut cfg = crate::config::Config::default();
-        cfg.rules.insert(
-            "server_clear_site_data".to_string(),
-            toml::Value::String("/logout".to_string()),
-        );
-
-        let result = rule.validate_config(&cfg);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Configuration must be a table"));
-        Ok(())
-    }
-
-    #[test]
-    fn validate_config_rejects_boolean_enable_without_table() -> anyhow::Result<()> {
-        let rule = ServerClearSiteData;
-        let mut cfg = crate::config::Config::default();
-        // User set the rule to true but didn't provide a table with 'paths'
-        cfg.rules.insert(
-            "server_clear_site_data".to_string(),
-            toml::Value::Boolean(true),
-        );
-
-        let result = rule.validate_config(&cfg);
-        assert!(result.is_err());
-        Ok(())
-    }
-
-    #[test]
-    fn validate_config_rejects_missing_paths_field() -> anyhow::Result<()> {
-        let rule = ServerClearSiteData;
-        let mut cfg = crate::config::Config::default();
-        let table = toml::map::Map::new(); // Empty table, no "paths" field
-        cfg.rules.insert(
-            "server_clear_site_data".to_string(),
-            toml::Value::Table(table),
-        );
-
-        let result = rule.validate_config(&cfg);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("must contain 'paths' field"));
-        Ok(())
-    }
-
-    #[test]
-    fn validate_config_rejects_non_array_paths() -> anyhow::Result<()> {
-        let rule = ServerClearSiteData;
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert(
-            "paths".to_string(),
-            toml::Value::String("/logout".to_string()),
-        );
-        cfg.rules.insert(
-            "server_clear_site_data".to_string(),
-            toml::Value::Table(table),
-        );
-
-        let result = rule.validate_config(&cfg);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("must be an array of strings"));
-        Ok(())
-    }
-
-    #[test]
-    fn validate_config_rejects_empty_paths_array() -> anyhow::Result<()> {
-        let rule = ServerClearSiteData;
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("paths".to_string(), toml::Value::Array(vec![]));
-        cfg.rules.insert(
-            "server_clear_site_data".to_string(),
-            toml::Value::Table(table),
-        );
-
-        let result = rule.validate_config(&cfg);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("cannot be empty"));
-        Ok(())
-    }
-
-    #[test]
-    fn validate_config_rejects_non_string_path_items() -> anyhow::Result<()> {
-        let rule = ServerClearSiteData;
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert(
-            "paths".to_string(),
-            toml::Value::Array(vec![
-                toml::Value::String("/logout".to_string()),
-                toml::Value::Integer(42), // Invalid: not a string
-                toml::Value::String("/signout".to_string()),
-            ]),
-        );
-        cfg.rules.insert(
-            "server_clear_site_data".to_string(),
-            toml::Value::Table(table),
-        );
-
-        let result = rule.validate_config(&cfg);
-        assert!(result.is_err());
-        let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("not a string"));
-        assert!(err_msg.contains("index 1"));
         Ok(())
     }
 }

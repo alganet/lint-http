@@ -44,4 +44,5 @@ http-body-util = "0.1"
 
 [dev-dependencies]
 wiremock = "0.6"
+rstest = "0.26.1"
 
