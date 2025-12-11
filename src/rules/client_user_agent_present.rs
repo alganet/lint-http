@@ -39,15 +39,21 @@ impl Rule for ClientUserAgentPresent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
-    use hyper::HeaderMap;
+    use crate::test_helpers::{make_headers_from_pairs, make_test_conn, make_test_context};
+    use rstest::rstest;
 
-    #[test]
-    fn check_request_missing_user_agent() -> anyhow::Result<()> {
+    #[rstest]
+    #[case(vec![], true, Some("Request missing User-Agent header"))]
+    #[case(vec![("user-agent", "curl/7.68.0")], false, None)]
+    fn check_request_cases(
+        #[case] header_pairs: Vec<(&str, &str)>,
+        #[case] expect_violation: bool,
+        #[case] expected_message: Option<&str>,
+    ) -> anyhow::Result<()> {
         let rule = ClientUserAgentPresent;
         let (client, state) = make_test_context();
         let method = hyper::Method::GET;
-        let headers = HeaderMap::new();
+        let headers = make_headers_from_pairs(&header_pairs);
         let conn = make_test_conn();
         let violation = rule.check_request(
             &client,
@@ -58,32 +64,16 @@ mod tests {
             &state,
             &crate::config::Config::default(),
         );
-        assert!(violation.is_some());
-        assert_eq!(
-            violation.map(|v| v.message),
-            Some("Request missing User-Agent header".to_string())
-        );
-        Ok(())
-    }
 
-    #[test]
-    fn check_request_has_user_agent() -> anyhow::Result<()> {
-        let rule = ClientUserAgentPresent;
-        let (client, state) = make_test_context();
-        let method = hyper::Method::GET;
-        let mut headers = HeaderMap::new();
-        headers.insert("user-agent", "curl/7.68.0".parse()?);
-        let conn = make_test_conn();
-        let violation = rule.check_request(
-            &client,
-            "http://test.com",
-            &method,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
-        assert!(violation.is_none());
+        if expect_violation {
+            assert!(violation.is_some());
+            assert_eq!(
+                violation.map(|v| v.message),
+                expected_message.map(|s| s.to_string())
+            );
+        } else {
+            assert!(violation.is_none());
+        }
         Ok(())
     }
 }

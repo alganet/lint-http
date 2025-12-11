@@ -102,28 +102,32 @@ impl Rule for ServerXContentTypeOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{enable_rule, make_test_conn, make_test_context};
-    use hyper::HeaderMap;
+    use crate::test_helpers::{
+        enable_rule, make_headers_from_pairs, make_test_config_with_content_types, make_test_conn,
+        make_test_context,
+    };
+    use rstest::rstest;
 
-    #[test]
-    fn check_response_200_missing_header() -> anyhow::Result<()> {
+    #[rstest]
+    #[case(200, vec![("content-type", "text/html")], vec!["text/html"], true, Some("Missing X-Content-Type-Options: nosniff header"))]
+    #[case(200, vec![("content-type", "text/javascript"), ("x-content-type-options", "nosniff")], vec!["text/javascript"], false, None)]
+    #[case(404, vec![("content-type", "text/html")], vec!["text/html"], false, None)]
+    #[case(101, vec![("content-type", "text/html")], vec!["text/html"], false, None)]
+    #[case(200, vec![("content-type", "image/png")], vec!["text/html"], false, None)]
+    #[case(200, vec![("content-type", "text/html; charset=utf-8")], vec!["text/html"], true, Some("Missing X-Content-Type-Options: nosniff header"))]
+    fn check_response_cases(
+        #[case] status: u16,
+        #[case] header_pairs: Vec<(&str, &str)>,
+        #[case] content_types: Vec<&str>,
+        #[case] expect_violation: bool,
+        #[case] expected_message: Option<&str>,
+    ) -> anyhow::Result<()> {
         let rule = ServerXContentTypeOptions;
         let (client, state) = make_test_context();
-        let status = 200;
-        let mut headers = HeaderMap::new();
-        headers.insert("content-type", "text/html".parse()?);
+        let headers = make_headers_from_pairs(&header_pairs);
         let conn = make_test_conn();
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert(
-            "content_types".to_string(),
-            toml::Value::Array(vec![toml::Value::String("text/html".to_string())]),
-        );
-        cfg.rules.insert(
-            "server_x_content_type_options".to_string(),
-            toml::Value::Table(table),
-        );
+        let cfg = make_test_config_with_content_types(&content_types);
+
         let violation = rule.check_response(
             &client,
             "http://test.com",
@@ -133,233 +137,102 @@ mod tests {
             &state,
             &cfg,
         );
-        assert!(violation.is_some());
-        assert_eq!(
-            violation.map(|v| v.message),
-            Some("Missing X-Content-Type-Options: nosniff header".to_string())
-        );
+
+        if expect_violation {
+            assert!(violation.is_some());
+            assert_eq!(
+                violation.map(|v| v.message),
+                expected_message.map(|s| s.to_string())
+            );
+        } else {
+            assert!(violation.is_none());
+        }
         Ok(())
     }
 
-    #[test]
-    fn check_response_200_present_header() -> anyhow::Result<()> {
+    #[rstest]
+    #[case("missing_table", true, None)]
+    #[case("missing_field", true, None)]
+    #[case("non_array", true, None)]
+    #[case("non_string_item", true, Some("not a string"))]
+    #[case("empty_array", true, Some("cannot be empty"))]
+    #[case("valid", false, None)]
+    fn validate_config_cases(
+        #[case] scenario: &str,
+        #[case] expect_error: bool,
+        #[case] expected_substring: Option<&str>,
+    ) -> anyhow::Result<()> {
         let rule = ServerXContentTypeOptions;
-        let (client, state) = make_test_context();
-        let status = 200;
-        let mut headers = HeaderMap::new();
-        headers.insert("content-type", "text/javascript".parse()?);
-        headers.insert("x-content-type-options", "nosniff".parse()?);
-        let conn = make_test_conn();
         let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert(
-            "content_types".to_string(),
-            toml::Value::Array(vec![toml::Value::String("text/javascript".to_string())]),
-        );
-        cfg.rules.insert(
-            "server_x_content_type_options".to_string(),
-            toml::Value::Table(table),
-        );
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
-            status,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
-        assert!(violation.is_none());
-        Ok(())
-    }
 
-    #[test]
-    fn check_response_404_missing_header() {
-        let rule = ServerXContentTypeOptions;
-        let (client, state) = make_test_context();
-        let status = 404;
-        let mut headers = HeaderMap::new();
-        headers.insert("content-type", "text/html".parse().unwrap());
-        let conn = make_test_conn();
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert(
-            "content_types".to_string(),
-            toml::Value::Array(vec![toml::Value::String("text/html".to_string())]),
-        );
-        cfg.rules.insert(
-            "server_x_content_type_options".to_string(),
-            toml::Value::Table(table),
-        );
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
-            status,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
-        assert!(violation.is_none());
-    }
+        match scenario {
+            "missing_table" => {
+                // No rule table at all
+            }
+            "missing_field" => {
+                enable_rule(&mut cfg, "server_x_content_type_options");
+            }
+            "non_array" => {
+                let mut table = toml::map::Map::new();
+                table.insert("enabled".to_string(), toml::Value::Boolean(true));
+                table.insert(
+                    "content_types".to_string(),
+                    toml::Value::String("text/html".to_string()),
+                );
+                cfg.rules.insert(
+                    "server_x_content_type_options".to_string(),
+                    toml::Value::Table(table),
+                );
+            }
+            "non_string_item" => {
+                let mut table = toml::map::Map::new();
+                table.insert("enabled".to_string(), toml::Value::Boolean(true));
+                table.insert(
+                    "content_types".to_string(),
+                    toml::Value::Array(vec![toml::Value::Integer(5)]),
+                );
+                cfg.rules.insert(
+                    "server_x_content_type_options".to_string(),
+                    toml::Value::Table(table),
+                );
+            }
+            "empty_array" => {
+                let mut table = toml::map::Map::new();
+                table.insert("enabled".to_string(), toml::Value::Boolean(true));
+                table.insert("content_types".to_string(), toml::Value::Array(vec![]));
+                cfg.rules.insert(
+                    "server_x_content_type_options".to_string(),
+                    toml::Value::Table(table),
+                );
+            }
+            "valid" => {
+                let mut table = toml::map::Map::new();
+                table.insert("enabled".to_string(), toml::Value::Boolean(true));
+                table.insert(
+                    "content_types".to_string(),
+                    toml::Value::Array(vec![toml::Value::String("text/html".to_string())]),
+                );
+                cfg.rules.insert(
+                    "server_x_content_type_options".to_string(),
+                    toml::Value::Table(table),
+                );
+            }
+            _ => panic!("unknown scenario"),
+        }
 
-    #[test]
-    fn check_response_101_missing_header() {
-        let rule = ServerXContentTypeOptions;
-        let (client, state) = make_test_context();
-        let status = 101;
-        let mut headers = HeaderMap::new();
-        headers.insert("content-type", "text/html".parse().unwrap());
-        let conn = make_test_conn();
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert(
-            "content_types".to_string(),
-            toml::Value::Array(vec![toml::Value::String("text/html".to_string())]),
-        );
-        cfg.rules.insert(
-            "server_x_content_type_options".to_string(),
-            toml::Value::Table(table),
-        );
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
-            status,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
-        assert!(violation.is_none());
-    }
-
-    #[test]
-    fn check_response_non_matching_content_type() -> anyhow::Result<()> {
-        let rule = ServerXContentTypeOptions;
-        let (client, state) = make_test_context();
-        let status = 200;
-        let mut headers = HeaderMap::new();
-        headers.insert("content-type", "image/png".parse()?);
-        let conn = make_test_conn();
-
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert(
-            "content_types".to_string(),
-            toml::Value::Array(vec![toml::Value::String("text/html".to_string())]),
-        );
-        cfg.rules.insert(
-            "server_x_content_type_options".to_string(),
-            toml::Value::Table(table),
-        );
-
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
-            status,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
-        assert!(violation.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn validate_config_missing_table_errors() {
-        let rule = ServerXContentTypeOptions;
-        let cfg = crate::config::Config::default();
         let res = rule.validate_config(&cfg);
-        assert!(res.is_err());
-    }
-
-    #[test]
-    fn validate_config_missing_content_types_field_errors() {
-        let rule = ServerXContentTypeOptions;
-        let mut cfg = crate::config::Config::default();
-        enable_rule(&mut cfg, "server_x_content_type_options");
-        let res = rule.validate_config(&cfg);
-        assert!(res.is_err());
-    }
-
-    #[test]
-    fn validate_config_non_array_errors() {
-        let rule = ServerXContentTypeOptions;
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert(
-            "content_types".to_string(),
-            toml::Value::String("text/html".to_string()),
-        );
-        cfg.rules.insert(
-            "server_x_content_type_options".to_string(),
-            toml::Value::Table(table),
-        );
-        let res = rule.validate_config(&cfg);
-        assert!(res.is_err());
-    }
-
-    #[test]
-    fn validate_config_non_string_items_errors() {
-        let rule = ServerXContentTypeOptions;
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert(
-            "content_types".to_string(),
-            toml::Value::Array(vec![toml::Value::Integer(5)]),
-        );
-        cfg.rules.insert(
-            "server_x_content_type_options".to_string(),
-            toml::Value::Table(table),
-        );
-        let res = rule.validate_config(&cfg);
-        assert!(res.is_err());
-    }
-
-    #[test]
-    fn validate_config_empty_array_errors() {
-        let rule = ServerXContentTypeOptions;
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("content_types".to_string(), toml::Value::Array(vec![]));
-        cfg.rules.insert(
-            "server_x_content_type_options".to_string(),
-            toml::Value::Table(table),
-        );
-        let res = rule.validate_config(&cfg);
-        assert!(res.is_err());
-    }
-
-    #[test]
-    fn validate_config_valid_config_ok() -> anyhow::Result<()> {
-        let rule = ServerXContentTypeOptions;
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert(
-            "content_types".to_string(),
-            toml::Value::Array(vec![toml::Value::String("text/html".to_string())]),
-        );
-        cfg.rules.insert(
-            "server_x_content_type_options".to_string(),
-            toml::Value::Table(table),
-        );
-
-        rule.validate_config(&cfg)?;
-
-        // Assert that the cached content types were set and lowercased
-        let cached = CACHED_CONTENT_TYPES
-            .get_or_init(|| panic!("the cache should have been initialized in validate_config"));
-        assert_eq!(cached, vec!["text/html".to_string()]);
-
+        if expect_error {
+            assert!(res.is_err());
+            if let Some(sub) = expected_substring {
+                assert!(res.unwrap_err().to_string().contains(sub));
+            }
+        } else {
+            res?;
+            let cached = CACHED_CONTENT_TYPES.get_or_init(|| {
+                panic!("the cache should have been initialized in validate_config")
+            });
+            assert_eq!(cached, vec!["text/html".to_string()]);
+        }
         Ok(())
     }
 

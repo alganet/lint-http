@@ -60,6 +60,8 @@ impl Rule for ClientCacheRespect {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::make_headers_from_pairs;
+    use rstest::rstest;
     use std::net::{IpAddr, Ipv4Addr};
 
     fn make_client() -> ClientIdentifier {
@@ -69,45 +71,28 @@ mod tests {
         )
     }
 
-    #[test]
-    fn no_violation_on_first_request() -> anyhow::Result<()> {
+    #[rstest]
+    #[case(None, vec![], false)]
+    #[case(Some(vec![("etag", "\"abc123\"")]), vec![("if-none-match","\"abc123\"")], false)]
+    #[case(Some(vec![("etag", "\"abc123\"")]), vec![], true)]
+    #[case(Some(vec![]), vec![], false)]
+    fn check_request_cases(
+        #[case] prev_resp_headers: Option<Vec<(&str, &str)>>,
+        #[case] req_headers_pairs: Vec<(&str, &str)>,
+        #[case] expect_violation: bool,
+    ) -> anyhow::Result<()> {
         let rule = ClientCacheRespect;
         let store = StateStore::new(300);
         let client = make_client();
         let resource = "http://example.com/api/data";
 
-        let headers = HeaderMap::new();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
-        let cfg = crate::config::Config::default();
-        let violation = rule.check_request(
-            &client,
-            resource,
-            &hyper::Method::GET,
-            &headers,
-            &conn,
-            &store,
-            &cfg,
-        );
+        // Record previous response if provided
+        if let Some(pairs) = prev_resp_headers {
+            let resp_headers = make_headers_from_pairs(&pairs);
+            store.record_transaction(&client, resource, 200, &resp_headers);
+        }
 
-        assert!(violation.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn no_violation_when_using_conditional_headers() -> anyhow::Result<()> {
-        let rule = ClientCacheRespect;
-        let store = StateStore::new(300);
-        let client = make_client();
-        let resource = "http://example.com/api/data";
-
-        // First, record a response with ETag
-        let mut resp_headers = HeaderMap::new();
-        resp_headers.insert("etag", "\"abc123\"".parse()?);
-        store.record_transaction(&client, resource, 200, &resp_headers);
-
-        // Second request with If-None-Match
-        let mut req_headers = HeaderMap::new();
-        req_headers.insert("if-none-match", "\"abc123\"".parse()?);
+        let req_headers = make_headers_from_pairs(&req_headers_pairs);
         let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
         let cfg = crate::config::Config::default();
         let violation = rule.check_request(
@@ -120,71 +105,16 @@ mod tests {
             &cfg,
         );
 
-        assert!(violation.is_none());
-        Ok(())
-    }
+        if expect_violation {
+            assert!(violation.is_some());
+            let v = violation.ok_or_else(|| anyhow::anyhow!("expected violation"))?;
+            assert_eq!(v.rule, "client_cache_respect");
+            assert_eq!(v.severity, "warn");
+            assert!(v.message.contains("conditional headers"));
+        } else {
+            assert!(violation.is_none());
+        }
 
-    #[test]
-    fn violation_when_missing_conditional_headers() -> anyhow::Result<()> {
-        let rule = ClientCacheRespect;
-        let store = StateStore::new(300);
-        let client = make_client();
-        let resource = "http://example.com/api/data";
-
-        // First, record a response with ETag
-        let mut resp_headers = HeaderMap::new();
-        resp_headers.insert("etag", "\"abc123\"".parse()?);
-        store.record_transaction(&client, resource, 200, &resp_headers);
-
-        // Second request WITHOUT conditional headers
-        let req_headers = HeaderMap::new();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
-        let cfg = crate::config::Config::default();
-        let violation = rule.check_request(
-            &client,
-            resource,
-            &hyper::Method::GET,
-            &req_headers,
-            &conn,
-            &store,
-            &cfg,
-        );
-
-        assert!(violation.is_some());
-        let v = violation.ok_or_else(|| anyhow::anyhow!("expected violation"))?;
-        assert_eq!(v.rule, "client_cache_respect");
-        assert_eq!(v.severity, "warn");
-        assert!(v.message.contains("conditional headers"));
-        Ok(())
-    }
-
-    #[test]
-    fn no_violation_when_previous_response_had_no_validators() -> anyhow::Result<()> {
-        let rule = ClientCacheRespect;
-        let store = StateStore::new(300);
-        let client = make_client();
-        let resource = "http://example.com/api/data";
-
-        // First, record a response WITHOUT validators
-        let resp_headers = HeaderMap::new();
-        store.record_transaction(&client, resource, 200, &resp_headers);
-
-        // Second request without conditional headers should be fine
-        // since server didn't provide validators
-        let req_headers = HeaderMap::new();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
-        let cfg = crate::config::Config::default();
-        let violation = rule.check_request(
-            &client,
-            resource,
-            &hyper::Method::GET,
-            &req_headers,
-            &conn,
-            &store,
-            &cfg,
-        );
-
-        assert!(violation.is_none());
         Ok(())
     }
 }

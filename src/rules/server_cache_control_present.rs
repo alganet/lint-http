@@ -39,15 +39,25 @@ impl Rule for ServerCacheControlPresent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
-    use hyper::HeaderMap;
+    use crate::test_helpers::{make_headers_from_pairs, make_test_conn, make_test_context};
+    use rstest::rstest;
 
-    #[test]
-    fn check_response_200_missing_header() -> anyhow::Result<()> {
+    #[rstest]
+    #[case(200, None, true, Some("Response 200 without Cache-Control header"))]
+    #[case(200, Some(("cache-control", "no-cache")), false, None)]
+    #[case(404, None, false, None)]
+    fn check_response_cases(
+        #[case] status: u16,
+        #[case] header: Option<(&str, &str)>,
+        #[case] expect_violation: bool,
+        #[case] expected_message: Option<&str>,
+    ) -> anyhow::Result<()> {
         let rule = ServerCacheControlPresent;
         let (client, state) = make_test_context();
-        let status = 200;
-        let headers = HeaderMap::new();
+        let headers = match header {
+            Some((k, v)) => make_headers_from_pairs(&[(k, v)]),
+            None => make_headers_from_pairs(&[]),
+        };
         let conn = make_test_conn();
         let violation = rule.check_response(
             &client,
@@ -58,51 +68,16 @@ mod tests {
             &state,
             &crate::config::Config::default(),
         );
-        assert!(violation.is_some());
-        assert_eq!(
-            violation.map(|v| v.message),
-            Some("Response 200 without Cache-Control header".to_string())
-        );
+
+        if expect_violation {
+            assert!(violation.is_some());
+            assert_eq!(
+                violation.map(|v| v.message),
+                expected_message.map(|s| s.to_string())
+            );
+        } else {
+            assert!(violation.is_none());
+        }
         Ok(())
-    }
-
-    #[test]
-    fn check_response_200_present_header() -> anyhow::Result<()> {
-        let rule = ServerCacheControlPresent;
-        let (client, state) = make_test_context();
-        let status = 200;
-        let mut headers = HeaderMap::new();
-        headers.insert("cache-control", "no-cache".parse()?);
-        let conn = make_test_conn();
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
-            status,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
-        assert!(violation.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn check_response_404_missing_header() {
-        let rule = ServerCacheControlPresent;
-        let (client, state) = make_test_context();
-        let status = 404;
-        let headers = HeaderMap::new();
-        let conn = make_test_conn();
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
-            status,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
-        assert!(violation.is_none());
     }
 }
