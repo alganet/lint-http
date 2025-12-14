@@ -12,7 +12,7 @@ This rule analyzes the ratio of requests per connection to detect inefficient co
 Establishing a TCP connection (and TLS handshake) is expensive. Clients should use persistent connections (`Connection: keep-alive`) to send multiple requests over a single connection. This rule triggers a warning if a client establishes many connections but performs very few requests per connection (e.g., close to 1:1 ratio).
 
 ## Specifications
-- [RFC 7230, Section 6.3: Persistence](https://tools.ietf.org/html/rfc7230#section-6.3)
+- [RFC 7230 §6.3](https://www.rfc-editor.org/rfc/rfc7230.html#section-6.3): Persistence of connections
 
 ## Configuration
 

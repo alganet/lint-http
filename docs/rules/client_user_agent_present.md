@@ -12,7 +12,7 @@ This rule checks if the client sends a `User-Agent` header in the request.
 While not strictly mandatory for all HTTP requests, the `User-Agent` header is highly recommended for identifying the client software, version, and operating system. It helps servers tailor responses and administrators debug issues.
 
 ## Specifications
-- [RFC 7231, Section 5.5.3: User-Agent](https://tools.ietf.org/html/rfc7231#section-5.5.3)
+- [RFC 7231 §5.5.3](https://www.rfc-editor.org/rfc/rfc7231.html#section-5.5.3): User-Agent header
 
 ## Examples
 

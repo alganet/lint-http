@@ -12,7 +12,7 @@ This rule checks if the client sends an `Accept-Encoding` header in the request.
 Modern HTTP clients should support compression (gzip, brotli, etc.) to reduce bandwidth usage and improve performance. Omitting this header usually implies the client does not support compression, or it was manually disabled.
 
 ## Specifications
-- [RFC 7231, Section 5.3.4: Accept-Encoding](https://tools.ietf.org/html/rfc7231#section-5.3.4)
+- [RFC 7231 §5.3.4](https://www.rfc-editor.org/rfc/rfc7231.html#section-5.3.4): Accept-Encoding header
 
 ## Examples
 

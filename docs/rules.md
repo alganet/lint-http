@@ -8,12 +8,16 @@ SPDX-License-Identifier: ISC
 
 `lint-http` includes several built-in rules to check for HTTP best practices.
 
+## Connection Rules
+
+- [connection_efficiency](rules/connection_efficiency.md) - Tracks requests per connection and warns about inefficient connection reuse.
+
 ## Client Rules
 
 - [client_accept_encoding_present](rules/client_accept_encoding_present.md) - Checks if `Accept-Encoding` header is present.
 - [client_user_agent_present](rules/client_user_agent_present.md) - Checks if `User-Agent` header is present.
 - [client_cache_respect](rules/client_cache_respect.md) - Verifies clients send conditional headers when re-requesting cached resources.
-- [connection_efficiency](rules/connection_efficiency.md) - Tracks requests per connection and warns about inefficient connection reuse.
+- [client_host_header_present](rules/client_host_header_present.md) - Checks that requests include the mandatory `Host` header.
 
 ## Server Rules
 
@@ -23,3 +27,8 @@ SPDX-License-Identifier: ISC
 - [server_response_405_allow](rules/server_response_405_allow.md) - Checks `Allow` header is present on `405` responses.
 - [server_charset_specification](rules/server_charset_specification.md) - Checks text-based `Content-Type` headers include charset parameter.
 - [server_clear_site_data](rules/server_clear_site_data.md) - Checks logout endpoints include `Clear-Site-Data` header (configurable paths).
+- [server_content_type_present](rules/server_content_type_present.md) - Ensure responses that likely contain a body include `Content-Type`.
+
+## Message Rules
+
+- [message_content_length_vs_transfer_encoding](rules/message_content_length_vs_transfer_encoding.md) - Flags messages that include both `Content-Length` and `Transfer-Encoding`.
