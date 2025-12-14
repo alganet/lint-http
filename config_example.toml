@@ -51,3 +51,13 @@ enabled = true
 [rules.server_clear_site_data]
 enabled = true
 paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
+
+# Correctness rules examples
+[rules.client_host_header_present]
+enabled = true
+
+[rules.server_content_type_present]
+enabled = true
+
+[rules.message_content_length_vs_transfer_encoding]
+enabled = true

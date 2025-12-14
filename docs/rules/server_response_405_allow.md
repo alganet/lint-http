@@ -12,7 +12,7 @@ This rule checks if `405 Method Not Allowed` responses include an `Allow` header
 The `Allow` header is required in `405` responses to indicate the set of methods supported by the resource, so clients can discover what operations are permitted.
 
 ## Specifications
-- [RFC 7231, Section 7.4.1: Allow](https://tools.ietf.org/html/rfc7231#section-7.4.1)
+- [RFC 7231 §7.4.1](https://www.rfc-editor.org/rfc/rfc7231.html#section-7.4.1): Allow header
 
 ## Examples
 
