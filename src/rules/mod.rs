@@ -117,6 +117,7 @@ pub mod client_host_header_present;
 pub mod client_user_agent_present;
 pub mod config_cache;
 pub mod connection_efficiency;
+pub mod connection_upgrade_requires_upgrade_header;
 pub mod message_content_length_non_negative;
 pub mod message_content_length_vs_transfer_encoding;
 pub mod server_cache_control_present;
@@ -143,6 +144,7 @@ pub const RULES: &[&dyn Rule] = &[
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
     &message_content_length_non_negative::MessageContentLengthNonNegative,
     &server_content_type_present::ServerContentTypePresent,
+    &connection_upgrade_requires_upgrade_header::ConnectionUpgradeRequiresUpgradeHeader,
     &connection_efficiency::ConnectionEfficiency,
     &server_charset_specification::ServerCharsetSpecification,
 ];
