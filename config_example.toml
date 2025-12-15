@@ -75,6 +75,10 @@ severity = "info"
 enabled = true
 severity = "warn"
 
+[rules.client_request_method_token_uppercase]
+enabled = true
+severity = "warn"
+
 [rules.server_content_type_present]
 enabled = true
 severity = "warn"

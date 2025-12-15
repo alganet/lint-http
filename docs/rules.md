@@ -20,6 +20,7 @@ SPDX-License-Identifier: ISC
 - [client_cache_respect](rules/client_cache_respect.md) - Verifies clients send conditional headers when re-requesting cached resources.
 - [client_host_header_present](rules/client_host_header_present.md) - Checks that requests include the mandatory `Host` header.
 - [client_host_header_port_numeric](rules/client_host_header_port_numeric.md) - If `Host` includes a port, it must be numeric and in the range 1–65535.
+- [client_request_method_token_uppercase](rules/client_request_method_token_uppercase.md) - Method token should be uppercase and composed of valid token characters.
 
 ## Server Rules
 
