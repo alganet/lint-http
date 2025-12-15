@@ -33,7 +33,7 @@ impl Rule for ServerCharsetSpecification {
                 {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: "warn".into(),
+                        severity: crate::rules::get_rule_severity(_config, self.id()),
                         message: "Text-based Content-Type header missing charset parameter.".into(),
                     });
                 }

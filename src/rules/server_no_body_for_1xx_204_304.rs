@@ -34,7 +34,7 @@ impl Rule for ServerNoBodyFor1xx204304 {
         if headers.contains_key("transfer-encoding") {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: "error".into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
                 message: format!(
                     "Response {} must not have a message body (Transfer-Encoding present)",
                     status
@@ -49,7 +49,7 @@ impl Rule for ServerNoBodyFor1xx204304 {
                     if n > 0 {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: "error".into(),
+                            severity: crate::rules::get_rule_severity(_config, self.id()),
                             message: format!(
                                 "Response {} must not have a message body (Content-Length {} > 0)",
                                 status, n
@@ -88,6 +88,18 @@ mod tests {
         let (client, state) = make_test_context();
         let headers = make_headers_from_pairs(&header_pairs);
         let conn = make_test_conn();
+        // Provide an explicit config with severity set to 'error' so tests assert correctly
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        table.insert(
+            "severity".to_string(),
+            toml::Value::String("error".to_string()),
+        );
+        cfg.rules.insert(
+            "server_no_body_for_1xx_204_304".to_string(),
+            toml::Value::Table(table),
+        );
         let violation = rule.check_response(
             &client,
             "http://test.com",
@@ -95,14 +107,14 @@ mod tests {
             &headers,
             &conn,
             &state,
-            &crate::config::Config::default(),
+            &cfg,
         );
 
         if expect_violation {
             assert!(violation.is_some());
             let v = violation.unwrap();
             assert_eq!(v.rule, "server_no_body_for_1xx_204_304");
-            assert_eq!(v.severity, "error");
+            assert_eq!(v.severity, crate::lint::Severity::Error);
             if let Some(substr) = expected_contains {
                 assert!(v.message.contains(substr));
             }

@@ -218,7 +218,7 @@ mod tests {
 
         let violations = vec![crate::lint::Violation {
             rule: "r1".into(),
-            severity: "warn".into(),
+            severity: crate::lint::Severity::Warn,
             message: "m".into(),
         }];
 
@@ -236,6 +236,8 @@ mod tests {
         assert_eq!(v["uri"].as_str(), Some("http://example/"));
         assert_eq!(v["status"].as_u64(), Some(200));
         assert!(v["request_headers"].get("x-test").is_some());
+        // Ensure severity serialized as lowercase string
+        assert_eq!(v["violations"][0]["severity"].as_str(), Some("warn"));
 
         fs::remove_file(&tmp).await?;
         Ok(())

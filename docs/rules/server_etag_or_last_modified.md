@@ -16,9 +16,18 @@ These headers act as validators, allowing clients to perform conditional request
 - [RFC 7232 §2.2](https://www.rfc-editor.org/rfc/rfc7232.html#section-2.2): Last-Modified header
 - [RFC 7232 §2.3](https://www.rfc-editor.org/rfc/rfc7232.html#section-2.3): ETag header
 
+## Configuration
+
+```toml
+[rules.server_etag_or_last_modified]
+enabled = true
+severity = "info"
+```
+
 ## Examples
 
 ### ✅ Good Response (ETag)
+
 ```http
 HTTP/1.1 200 OK
 Content-Type: image/png
@@ -26,6 +35,7 @@ ETag: "33a64df551425fcc55e4d42a148795d9f25f89d4"
 ```
 
 ### ✅ Good Response (Last-Modified)
+
 ```http
 HTTP/1.1 200 OK
 Content-Type: text/html

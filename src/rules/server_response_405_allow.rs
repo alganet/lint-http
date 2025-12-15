@@ -27,7 +27,7 @@ impl Rule for ServerResponse405Allow {
         if status == 405 && !headers.contains_key("allow") {
             Some(Violation {
                 rule: self.id().into(),
-                severity: "warn".into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
                 message: "Response 405 without Allow header".into(),
             })
         } else {

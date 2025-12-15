@@ -27,7 +27,7 @@ impl Rule for ServerCacheControlPresent {
         if status == 200 && !headers.contains_key("cache-control") {
             Some(Violation {
                 rule: self.id().into(),
-                severity: "warn".into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
                 message: "Response 200 without Cache-Control header".into(),
             })
         } else {

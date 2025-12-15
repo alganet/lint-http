@@ -56,6 +56,7 @@ mod tests {
         let toml = r#"[rules]
     [rules.server_cache_control_present]
     enabled = false
+    severity = "warn"
 
     [general]
     listen = "127.0.0.1:3000"
@@ -97,6 +98,7 @@ enabled = false
 
  [rules.server_clear_site_data]
  enabled = true
+ severity = "warn"
  paths = []  # Invalid: empty paths array
 "#;
         fs::write(&tmp, toml).await?;

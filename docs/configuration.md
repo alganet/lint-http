@@ -63,9 +63,17 @@ suppress_headers = []             # Headers to suppress from server responses
 - **passthrough_domains**: A list of domains (e.g., `["bank.com"]`) that should not be intercepted. Traffic to these domains will be tunneled opaque.
 - **suppress_headers**: A list of response headers to remove before sending to the client (e.g., `["Strict-Transport-Security"]` to prevent HSTS issues during testing).
 
-### Lint Rules Configuration (Optional)
+### Lint Rules Configuration
 
 The `[rules]` section allows you to enable, disable, or configure specific lint rules. If a rule is omitted, it defaults to `false` (disabled).
+
+Severity: Each rule table must include a `severity` key. Allowed values are `"info"`, `"warn"`, and `"error"`. When present, this value is used in emitted `Violation` records and in captures. Example:
+
+```toml
+[rules.server_cache_control_present]
+enabled = true
+severity = "warn"
+```
 
 #### Enabling Rules
 
@@ -75,30 +83,7 @@ Rules must be enabled via a TOML table with `enabled = true`. Example:
 # Client Rules
 [rules.client_accept_encoding_present]
 enabled = true
-
-[rules.client_user_agent_present]
-enabled = true
-
-[rules.client_cache_respect]
-enabled = true
-
-[rules.connection_efficiency]
-enabled = true
-
-# Server Rules
-[rules.server_cache_control_present]
-enabled = true
-
-[rules.server_etag_or_last_modified]
-enabled = true
-
-[rules.server_x_content_type_options]
-enabled = true
-content_types = ["text/html", "application/javascript", "application/json"]
-
-# Disable a specific rule
-[rules.server_response_405_allow]
-enabled = false
+severity = "info"
 ```
 
 #### Configurable Rules
@@ -110,14 +95,6 @@ Some rules support additional configuration options beyond simple enable/disable
 [rules.server_clear_site_data]
 enabled = true
 paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
-```
-
-Note: rule configuration is validated upon starting `lint-http`.
-
-```toml
-[rules.server_clear_site_data]
-enabled = false
-# This completely disables the rule, ignoring any configuration
 ```
 
 See [Rules Documentation](rules.md) for details on each rule and their configuration options.

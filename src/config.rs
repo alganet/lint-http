@@ -138,6 +138,7 @@ mod tests {
         let toml = r#"[rules]
     [rules.server_cache_control_present]
     enabled = true
+    severity = "warn"
 
     [general]
 listen = "127.0.0.1:3000"
@@ -162,6 +163,7 @@ enabled = false
         let toml = r#"[rules]
     [rules.some_rule]
     enabled = true
+    severity = "warn"
     paths = ["/logout", "/signout"]
 
     [general]
@@ -250,6 +252,7 @@ enabled = false
 
 [rules.server_clear_site_data]
 enabled = true
+severity = "warn"
 paths = []  # Invalid: empty array
 "#,
         "server_clear_site_data",
@@ -265,6 +268,7 @@ enabled = false
 
 [rules.server_clear_site_data]
 enabled = true
+severity = "warn"
 paths = ["/logout", 42, "/signout"]  # Invalid: contains non-string
 "#,
         "server_clear_site_data",
@@ -280,11 +284,42 @@ enabled = false
 
 [rules.server_clear_site_data]
 enabled = true
+severity = "warn"
 # Missing "paths" field entirely
 other_field = "value"
 "#,
         "server_clear_site_data",
         "'paths' field"
+    )]
+    #[case(
+        r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.some_rule]
+enabled = true
+# Missing severity key
+"#,
+        "some_rule",
+        "Missing required 'severity'"
+    )]
+    #[case(
+        r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.some_rule]
+enabled = true
+severity = "critical"
+"#,
+        "some_rule",
+        "must be one of"
     )]
     #[tokio::test]
     async fn load_invalid_rule_config_cases(

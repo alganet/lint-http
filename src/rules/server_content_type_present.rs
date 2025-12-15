@@ -54,7 +54,7 @@ impl Rule for ServerContentTypePresent {
         if likely_has_body {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: "warn".into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
                 message: "Response likely has body but is missing Content-Type header".into(),
             });
         }

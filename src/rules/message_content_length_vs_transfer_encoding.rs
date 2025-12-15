@@ -27,7 +27,7 @@ impl Rule for MessageContentLengthVsTransferEncoding {
         if headers.contains_key("content-length") && headers.contains_key("transfer-encoding") {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: "warn".into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
                 message: "Both Content-Length and Transfer-Encoding present".into(),
             });
         }
@@ -47,7 +47,7 @@ impl Rule for MessageContentLengthVsTransferEncoding {
         if headers.contains_key("content-length") && headers.contains_key("transfer-encoding") {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: "warn".into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
                 message: "Both Content-Length and Transfer-Encoding present".into(),
             });
         }

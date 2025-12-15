@@ -7,12 +7,22 @@ SPDX-License-Identifier: ISC
 # Client Accept-Encoding Present
 
 ## Description
+
 This rule checks if the client sends an `Accept-Encoding` header in the request.
 
 Modern HTTP clients should support compression (gzip, brotli, etc.) to reduce bandwidth usage and improve performance. Omitting this header usually implies the client does not support compression, or it was manually disabled.
 
 ## Specifications
+
 - [RFC 7231 §5.3.4](https://www.rfc-editor.org/rfc/rfc7231.html#section-5.3.4): Accept-Encoding header
+
+## Configuration
+
+```toml
+[rules.client_accept_encoding_present]
+enabled = true
+severity = "info"
+```
 
 ## Examples
 
