@@ -71,7 +71,7 @@ paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
 enabled = true
 severity = "info"
 
-[rules.client_host_header_port_numeric]
+[rules.client_host_header_syntax]
 enabled = true
 severity = "warn"
 

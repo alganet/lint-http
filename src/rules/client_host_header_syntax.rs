@@ -6,12 +6,13 @@ use crate::lint::Violation;
 use crate::rules::Rule;
 use crate::state::{ClientIdentifier, StateStore};
 use hyper::{HeaderMap, Method};
+use std::net::IpAddr;
 
-pub struct ClientHostHeaderPortNumeric;
+pub struct ClientHostHeaderSyntax;
 
-impl Rule for ClientHostHeaderPortNumeric {
+impl Rule for ClientHostHeaderSyntax {
     fn id(&self) -> &'static str {
-        "client_host_header_port_numeric"
+        "client_host_header_syntax"
     }
 
     fn check_request(
@@ -36,7 +37,16 @@ impl Rule for ClientHostHeaderPortNumeric {
             }
         };
 
-        // IPv6 literal in brackets: [::1]:port
+        // Host header MUST NOT include userinfo (user:pass@). Detect this first.
+        if s.contains('@') {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
+                message: "Host header MUST NOT include userinfo (user:pass@)".into(),
+            });
+        }
+
+        // Bracketed IPv6 literal: [::1]:port or [::1]
         if let Some(rest) = s.strip_prefix('[') {
             if let Some(end_idx) = rest.find(']') {
                 let after = &rest[end_idx + 1..];
@@ -49,17 +59,35 @@ impl Rule for ClientHostHeaderPortNumeric {
             return None;
         }
 
-        // Non-bracketed form. If it contains multiple ':' assume it's an IPv6 without brackets and skip.
+        // Non-bracketed form. If it contains multiple ':' it may be an unbracketed IPv6 address.
+        // Detect the pattern where an unbracketed IPv6 literal is followed by :<digits> indicating
+        // a port (e.g., `fe80::1:80`) — that's a violation because IPv6+port must be bracketed.
         let colon_count = s.chars().filter(|&c| c == ':').count();
         if colon_count == 0 {
             return None;
         }
+
         if colon_count > 1 {
-            // Skip to avoid false positives on unbracketed IPv6 addresses.
+            if let Some(idx) = s.rfind(':') {
+                let (maybe_host, port_part) = s.split_at(idx);
+                let port = &port_part[1..];
+                if !port.is_empty() && port.chars().all(|c| c.is_ascii_digit()) {
+                    if let Ok(ip) = maybe_host.parse::<IpAddr>() {
+                        if matches!(ip, IpAddr::V6(_)) {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: crate::rules::get_rule_severity(_config, self.id()),
+                                message: "IPv6 literal with port must be bracketed in Host header"
+                                    .into(),
+                            });
+                        }
+                    }
+                }
+            }
             return None;
         }
 
-        // Single colon — interpret as host:port
+        // Single colon — interpret as host:port and validate the port
         if let Some(idx) = s.rfind(':') {
             let port = &s[idx + 1..];
             return self.validate_port(port, _config);
@@ -69,7 +97,7 @@ impl Rule for ClientHostHeaderPortNumeric {
     }
 }
 
-impl ClientHostHeaderPortNumeric {
+impl ClientHostHeaderSyntax {
     fn validate_port(&self, port: &str, cfg: &crate::config::Config) -> Option<Violation> {
         if port.is_empty() {
             return Some(Violation {
@@ -122,12 +150,18 @@ mod tests {
     #[case(vec![("host", "[::1]")], false)]
     #[case(vec![("host", "[::1]:-1")], true)]
     #[case(vec![("host", "fe80::1")], false)]
-    #[case(vec![("host", "fe80::1:80")], false)]
+    #[case(vec![("host", "fe80::1:80")], true)]
+    #[case(vec![("host", "fe80::abcd:8080")], true)]
+    #[case(vec![("host", "1.2.3.4:80")], false)]
+    #[case(vec![("host", "fe80::1:")], false)]
+    #[case(vec![("host", "user:pass@example.com")], true)]
+    #[case(vec![("host", "user@example.com:80")], true)]
+    #[case(vec![("host", "user:pass@[::1]:80")], true)]
     fn check_request_cases(
         #[case] header_pairs: Vec<(&str, &str)>,
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
-        let rule = ClientHostHeaderPortNumeric;
+        let rule = ClientHostHeaderSyntax;
         let (client, state) = make_test_context();
         let method = hyper::Method::GET;
         let headers = make_headers_from_pairs(&header_pairs);
