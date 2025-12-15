@@ -1,0 +1,114 @@
+// SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+
+// SPDX-License-Identifier: ISC
+
+use crate::lint::Violation;
+use crate::rules::Rule;
+use crate::state::{ClientIdentifier, StateStore};
+use hyper::HeaderMap;
+
+pub struct ServerNoBodyFor1xx204304;
+
+impl Rule for ServerNoBodyFor1xx204304 {
+    fn id(&self) -> &'static str {
+        "server_no_body_for_1xx_204_304"
+    }
+
+    fn check_response(
+        &self,
+        _client: &ClientIdentifier,
+        _resource: &str,
+        status: u16,
+        headers: &HeaderMap,
+        _conn: &crate::connection::ConnectionMetadata,
+        _state: &StateStore,
+        _config: &crate::config::Config,
+    ) -> Option<Violation> {
+        // Rules apply to 1xx, 204 and 304
+        let is_no_body_status = (100..200).contains(&status) || status == 204 || status == 304;
+        if !is_no_body_status {
+            return None;
+        }
+
+        // If Transfer-Encoding present, that's indicative of a body
+        if headers.contains_key("transfer-encoding") {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: "error".into(),
+                message: format!(
+                    "Response {} must not have a message body (Transfer-Encoding present)",
+                    status
+                ),
+            });
+        }
+
+        // If Content-Length present and greater than zero, that's indicative of a body
+        if let Some(cl) = headers.get("content-length") {
+            if let Ok(s) = cl.to_str() {
+                if let Ok(n) = s.trim().parse::<usize>() {
+                    if n > 0 {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: "error".into(),
+                            message: format!(
+                                "Response {} must not have a message body (Content-Length {} > 0)",
+                                status, n
+                            ),
+                        });
+                    }
+                }
+            }
+        }
+
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_helpers::{make_headers_from_pairs, make_test_conn, make_test_context};
+    use rstest::rstest;
+
+    #[rstest]
+    #[case(204, vec![("content-length", "10")], true, Some("Content-Length"))]
+    #[case(204, vec![("content-length", "0")], false, None)]
+    #[case(204, vec![("transfer-encoding", "chunked")], true, Some("Transfer-Encoding"))]
+    #[case(200, vec![("content-length", "10")], false, None)]
+    #[case(100, vec![("transfer-encoding", "chunked")], true, Some("Transfer-Encoding"))]
+    #[case(304, vec![("content-length", "10")], true, Some("Content-Length"))]
+    #[case(304, vec![], false, None)]
+    fn check_response_cases(
+        #[case] status: u16,
+        #[case] header_pairs: Vec<(&str, &str)>,
+        #[case] expect_violation: bool,
+        #[case] expected_contains: Option<&str>,
+    ) -> anyhow::Result<()> {
+        let rule = ServerNoBodyFor1xx204304;
+        let (client, state) = make_test_context();
+        let headers = make_headers_from_pairs(&header_pairs);
+        let conn = make_test_conn();
+        let violation = rule.check_response(
+            &client,
+            "http://test.com",
+            status,
+            &headers,
+            &conn,
+            &state,
+            &crate::config::Config::default(),
+        );
+
+        if expect_violation {
+            assert!(violation.is_some());
+            let v = violation.unwrap();
+            assert_eq!(v.rule, "server_no_body_for_1xx_204_304");
+            assert_eq!(v.severity, "error");
+            if let Some(substr) = expected_contains {
+                assert!(v.message.contains(substr));
+            }
+        } else {
+            assert!(violation.is_none());
+        }
+        Ok(())
+    }
+}

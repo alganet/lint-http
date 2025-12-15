@@ -61,3 +61,6 @@ enabled = true
 
 [rules.message_content_length_vs_transfer_encoding]
 enabled = true
+
+[rules.server_no_body_for_1xx_204_304]
+enabled = true
