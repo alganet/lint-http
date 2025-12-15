@@ -18,6 +18,7 @@ SPDX-License-Identifier: ISC
 - [client_user_agent_present](rules/client_user_agent_present.md) - Checks if `User-Agent` header is present.
 - [client_cache_respect](rules/client_cache_respect.md) - Verifies clients send conditional headers when re-requesting cached resources.
 - [client_host_header_present](rules/client_host_header_present.md) - Checks that requests include the mandatory `Host` header.
+- [client_host_header_port_numeric](rules/client_host_header_port_numeric.md) - If `Host` includes a port, it must be numeric and in the range 1–65535.
 
 ## Server Rules
 
