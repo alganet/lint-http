@@ -19,48 +19,62 @@ suppress_headers = ["X-Sensitive-Header"]
 # Client Rules
 [rules.client_accept_encoding_present]
 enabled = true
+severity = "info"
 
 [rules.client_user_agent_present]
 enabled = true
+severity = "info"
 
 [rules.client_cache_respect]
 enabled = true
+severity = "warn"
 
 [rules.connection_efficiency]
 enabled = true
+severity = "warn"
 min_connections = 5
 min_reuse_ratio = 1.1
 
 # Server Rules
 [rules.server_cache_control_present]
 enabled = true
+severity = "warn"
 
 [rules.server_etag_or_last_modified]
 enabled = true
+severity = "info"
 
 [rules.server_x_content_type_options]
 enabled = true
+severity = "warn"
 content_types = ["text/html", "application/javascript", "application/json"]
 
 [rules.server_response_405_allow]
 enabled = true
+severity = "warn"
 
 [rules.server_charset_specification]
 enabled = true
+severity = "warn"
 
 [rules.server_clear_site_data]
 enabled = true
+severity = "warn"
 paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
 
 # Correctness rules examples
 [rules.client_host_header_present]
 enabled = true
+severity = "info"
 
 [rules.server_content_type_present]
 enabled = true
+severity = "warn"
 
 [rules.message_content_length_vs_transfer_encoding]
 enabled = true
+severity = "warn"
 
 [rules.server_no_body_for_1xx_204_304]
 enabled = true
+severity = "error"

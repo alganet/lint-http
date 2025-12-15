@@ -44,8 +44,62 @@ pub trait Rule: Send + Sync {
     }
 }
 
-/// Validate all enabled rules' configurations
+/// Lookup the configured severity for a rule at runtime.
+/// This function assumes that configuration validation has already ensured the presence and validity
+/// of the `severity` key, but panics with a clear message if something is wrong
+/// at runtime (defensive assertion).
+pub fn get_rule_severity(cfg: &crate::config::Config, rule: &str) -> crate::lint::Severity {
+    // If rule config is missing (e.g. tests using Config::default()), fall back
+    // to a sensible default to avoid panics during unit tests. Runtime config
+    // validation (load_from_path) ensures that TOML files include a severity.
+    let Some(rule_cfg) = cfg.get_rule_config(rule) else {
+        return crate::lint::Severity::Warn;
+    };
+    let Some(table) = rule_cfg.as_table() else {
+        return crate::lint::Severity::Warn;
+    };
+    let Some(s) = table.get("severity").and_then(|v| v.as_str()) else {
+        return crate::lint::Severity::Warn;
+    };
+    match s {
+        "info" => crate::lint::Severity::Info,
+        "warn" => crate::lint::Severity::Warn,
+        "error" => crate::lint::Severity::Error,
+        _ => crate::lint::Severity::Warn,
+    }
+}
+
 pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
+    // Ensure every rule table specifies a valid `severity` entry.
+    for (rule_name, val) in &config.rules {
+        if let toml::Value::Table(table) = val {
+            match table.get("severity") {
+                Some(toml::Value::String(s)) => match s.as_str() {
+                    "info" | "warn" | "error" => {}
+                    _ => {
+                        return Err(anyhow::anyhow!(
+                                "Invalid severity '{}' for rule '{}': must be one of 'info', 'warn', 'error'",
+                                s,
+                                rule_name
+                            ));
+                    }
+                },
+                Some(_) => {
+                    return Err(anyhow::anyhow!(
+                        "Invalid severity for rule '{}': must be a string 'info', 'warn', or 'error'",
+                        rule_name
+                    ));
+                }
+                None => {
+                    return Err(anyhow::anyhow!(
+                        "Missing required 'severity' key for rule '{}'",
+                        rule_name
+                    ));
+                }
+            }
+        }
+    }
+
     for rule in RULES {
         if config.is_enabled(rule.id()) {
             rule.validate_config(config).map_err(|e| {

@@ -129,7 +129,7 @@ impl Rule for ConnectionEfficiency {
                 if efficiency < cfg.min_reuse_ratio {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: "warn".into(),
+                        severity: crate::rules::get_rule_severity(_config, self.id()),
                         message: format!(
                             "Low connection efficiency ({:.2} reqs/conn). Client is not reusing connections (Keep-Alive).",
                             efficiency

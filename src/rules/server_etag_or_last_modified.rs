@@ -28,7 +28,7 @@ impl Rule for ServerEtagOrLastModified {
         {
             Some(Violation {
                 rule: self.id().into(),
-                severity: "info".into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
                 message: "Response 200 without ETag or Last-Modified validator".into(),
             })
         } else {

@@ -115,7 +115,7 @@ impl Rule for ServerClearSiteData {
         if is_logout_path && !headers.contains_key("clear-site-data") {
             Some(Violation {
                 rule: self.id().into(),
-                severity: "warn".into(),
+                severity: crate::rules::get_rule_severity(config, self.id()),
                 message: format!(
                     "Logout endpoint '{}' should include Clear-Site-Data header to properly clear client-side storage",
                     resource_path
@@ -210,7 +210,7 @@ mod tests {
                 panic!("Expected violation but got None");
             };
             assert_eq!(v.rule, "server_clear_site_data");
-            assert_eq!(v.severity, "warn");
+            assert_eq!(v.severity, crate::lint::Severity::Warn);
             if let Some(msg) = expected_message_contains {
                 assert!(v.message.contains(msg));
             }

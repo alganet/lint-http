@@ -50,6 +50,12 @@ pub fn make_headers_from_pairs(pairs: &[(&str, &str)]) -> HeaderMap {
 pub fn enable_rule(cfg: &mut crate::config::Config, rule: &str) {
     let mut table = toml::map::Map::new();
     table.insert("enabled".to_string(), toml::Value::Boolean(true));
+    // Tests that enable rules by helper should insert a default severity to
+    // reduce churn (tests not concerned with severity specifics).
+    table.insert(
+        "severity".to_string(),
+        toml::Value::String("warn".to_string()),
+    );
     cfg.rules
         .insert(rule.to_string(), toml::Value::Table(table));
 }
@@ -58,6 +64,11 @@ pub fn enable_rule(cfg: &mut crate::config::Config, rule: &str) {
 pub fn enable_rule_with_paths(cfg: &mut crate::config::Config, rule: &str, paths: &[&str]) {
     let mut table = toml::map::Map::new();
     table.insert("enabled".to_string(), toml::Value::Boolean(true));
+    // Default severity for test helpers
+    table.insert(
+        "severity".to_string(),
+        toml::Value::String("warn".to_string()),
+    );
     let arr = paths
         .iter()
         .map(|p| toml::Value::String(p.to_string()))
@@ -71,6 +82,11 @@ pub fn enable_rule_with_paths(cfg: &mut crate::config::Config, rule: &str, paths
 pub fn disable_rule(cfg: &mut crate::config::Config, rule: &str) {
     let mut table = toml::map::Map::new();
     table.insert("enabled".to_string(), toml::Value::Boolean(false));
+    // Include a severity key even when disabling to match new mandatory config requirement
+    table.insert(
+        "severity".to_string(),
+        toml::Value::String("warn".to_string()),
+    );
     cfg.rules
         .insert(rule.to_string(), toml::Value::Table(table));
 }
@@ -108,6 +124,11 @@ pub fn make_test_config_with_content_types(content_types: &[&str]) -> crate::con
     let mut cfg = crate::config::Config::default();
     let mut table = toml::map::Map::new();
     table.insert("enabled".to_string(), toml::Value::Boolean(true));
+    // Default severity for test helpers
+    table.insert(
+        "severity".to_string(),
+        toml::Value::String("warn".to_string()),
+    );
     let arr = content_types
         .iter()
         .map(|p| toml::Value::String(p.to_string()))

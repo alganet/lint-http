@@ -27,7 +27,7 @@ impl Rule for ClientAcceptEncodingPresent {
         if !headers.contains_key("accept-encoding") {
             Some(Violation {
                 rule: self.id().into(),
-                severity: "info".into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
                 message: "Request missing Accept-Encoding header".into(),
             })
         } else {

@@ -28,8 +28,7 @@ SPDX-License-Identifier: ISC
 - [server_charset_specification](rules/server_charset_specification.md) - Checks text-based `Content-Type` headers include charset parameter.
 - [server_clear_site_data](rules/server_clear_site_data.md) - Checks logout endpoints include `Clear-Site-Data` header (configurable paths).
 - [server_no_body_for_1xx_204_304](rules/server_no_body_for_1xx_204_304.md) - Flags responses with status 1xx, 204, or 304 that appear to include a message body.
-- [server_content_type_present](rules/server_content_type_present.md) - Ensure responses that
-likely contain a body include `Content-Type`.
+- [server_content_type_present](rules/server_content_type_present.md) - Ensure responses that likely contain a body include `Content-Type`.
 
 ## Message Rules
 

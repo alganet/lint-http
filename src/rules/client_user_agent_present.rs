@@ -27,7 +27,7 @@ impl Rule for ClientUserAgentPresent {
         if !headers.contains_key("user-agent") {
             Some(Violation {
                 rule: self.id().into(),
-                severity: "info".into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
                 message: "Request missing User-Agent header".into(),
             })
         } else {

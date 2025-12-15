@@ -84,7 +84,7 @@ impl Rule for ServerXContentTypeOptions {
             {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: "warn".into(),
+                    severity: crate::rules::get_rule_severity(_config, self.id()),
                     message: "Missing X-Content-Type-Options: nosniff header".into(),
                 });
             }

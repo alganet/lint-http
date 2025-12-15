@@ -6,48 +6,27 @@ SPDX-License-Identifier: ISC
 
 # server_clear_site_data
 
-**Severity**: warn
-
 ## Description
 
-This rule checks that logout/signout endpoints include the `Clear-Site-Data` header to properly clear client-side storage (cookies, cache, storage) when a user logs out.
+Checks that configured logout paths include a `Clear-Site-Data` header so client-side storage (cookies, cache, storage) is cleared on logout.
 
-## Why It Matters
+## Specifications
 
-When a user logs out, it's important to clear all client-side data to prevent:
-- Session token leakage if the device is shared
-- Sensitive cached data remaining accessible
-- Potential security vulnerabilities from stale authentication data
-
-The `Clear-Site-Data` header is a standard way to instruct the browser to clear various types of data.
+- [MDN: Clear-Site-Data](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Clear-Site-Data)
+- [W3C Clear Site Data Specification](https://www.w3.org/TR/clear-site-data/)
 
 ## Configuration
-
-This rule is **configurable** and allows you to specify which paths should be considered logout endpoints.
-
-### Configuration
-
-This rule is **configurable** and must be explicitly configured to be enabled. Add a `[rules.server_clear_site_data]` table with a `paths` array to enable it:
 
 ```toml
 [rules.server_clear_site_data]
 enabled = true
+severity = "warn"
 paths = ["/logout", "/signout", "/auth/logout", "/api/logout"]
 ```
 
-## Violation Example
+## Examples
 
-```http
-POST /logout HTTP/1.1
-Host: example.com
-
-HTTP/1.1 200 OK
-Content-Type: application/json
-```
-
-This will trigger a violation because the logout endpoint doesn't include the `Clear-Site-Data` header.
-
-## Compliant Example
+### ✅ Good Response
 
 ```http
 POST /logout HTTP/1.1
@@ -58,7 +37,7 @@ Content-Type: application/json
 Clear-Site-Data: "*"
 ```
 
-or more specifically:
+### ❌ Bad Response
 
 ```http
 POST /logout HTTP/1.1
@@ -66,21 +45,4 @@ Host: example.com
 
 HTTP/1.1 200 OK
 Content-Type: application/json
-Clear-Site-Data: "cache", "cookies", "storage"
 ```
-
-## Best Practices
-
-1. **Use `"*"` for complete cleanup**: `Clear-Site-Data: "*"` clears all types of data
-2. **Be specific if needed**: You can target specific data types: `"cache"`, `"cookies"`, `"storage"`, `"executionContexts"`
-3. **Consider all logout paths**: Configure all paths where users can log out (web UI, API endpoints, etc.)
-4. **Test thoroughly**: Some browsers have varying support for this header
-
-## References
-
-- [MDN: Clear-Site-Data](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Clear-Site-Data)
-- [W3C Clear Site Data Specification](https://www.w3.org/TR/clear-site-data/)
-
-## Rule Category
-
-Server Response Header

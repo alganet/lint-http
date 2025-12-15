@@ -10,10 +10,10 @@ This document outlines the standards and workflows for contributing to `lint-htt
 
 ## Workflow
 
-1.  **Fork & Branch**: Create a feature branch from `main`.
-2.  **Implement**: Write code and tests.
-3.  **Verify**: Run the full QA suite.
-4.  **PR**: Submit a Pull Request with a clear description.
+1. **Fork & Branch**: Create a feature branch from `main`.
+2. **Implement**: Write code and tests.
+3. **Verify**: Run the full QA suite.
+4. **PR**: Submit a Pull Request with a clear description.
 
 ## Quality Assurance
 

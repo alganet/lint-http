@@ -27,7 +27,7 @@ impl Rule for ClientHostHeaderPresent {
         if !headers.contains_key("host") {
             Some(Violation {
                 rule: self.id().into(),
-                severity: "info".into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
                 message: "Request missing Host header".into(),
             })
         } else {

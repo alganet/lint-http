@@ -42,7 +42,7 @@ impl Rule for ClientCacheRespect {
         if !has_if_none_match && !has_if_modified_since {
             Some(Violation {
                 rule: self.id().into(),
-                severity: "warn".into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
                 message: format!(
                     "Client re-requesting resource without conditional headers. \
                      Server provided validators (ETag: {}, Last-Modified: {}) but client \
@@ -109,7 +109,7 @@ mod tests {
             assert!(violation.is_some());
             let v = violation.ok_or_else(|| anyhow::anyhow!("expected violation"))?;
             assert_eq!(v.rule, "client_cache_respect");
-            assert_eq!(v.severity, "warn");
+            assert_eq!(v.severity, crate::lint::Severity::Warn);
             assert!(v.message.contains("conditional headers"));
         } else {
             assert!(violation.is_none());

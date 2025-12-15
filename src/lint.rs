@@ -12,8 +12,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Violation {
     pub rule: String,
-    pub severity: String,
+    pub severity: Severity,
     pub message: String,
+}
+
+/// Severity level for a rule violation.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Severity {
+    Info,
+    Warn,
+    Error,
 }
 
 pub fn lint_response(
