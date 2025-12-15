@@ -68,6 +68,7 @@ pub mod server_charset_specification;
 pub mod server_clear_site_data;
 pub mod server_content_type_present;
 pub mod server_etag_or_last_modified;
+pub mod server_no_body_for_1xx_204_304;
 pub mod server_response_405_allow;
 pub mod server_x_content_type_options;
 
@@ -77,6 +78,7 @@ pub const RULES: &[&dyn Rule] = &[
     &server_x_content_type_options::ServerXContentTypeOptions,
     &server_response_405_allow::ServerResponse405Allow,
     &server_clear_site_data::ServerClearSiteData,
+    &server_no_body_for_1xx_204_304::ServerNoBodyFor1xx204304,
     &client_user_agent_present::ClientUserAgentPresent,
     &client_accept_encoding_present::ClientAcceptEncodingPresent,
     &client_cache_respect::ClientCacheRespect,
@@ -110,6 +112,23 @@ mod tests {
         // server_clear_site_data requires paths; enable with valid paths too
         enable_rule_with_paths(&mut cfg, "server_clear_site_data", &["/logout"]);
         assert!(validate_rules(&cfg).is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn config_example_includes_all_rules() -> anyhow::Result<()> {
+        let s = std::fs::read_to_string("config_example.toml")?;
+
+        for rule in RULES {
+            let id = rule.id();
+            let marker = format!("[rules.{}]", id);
+            assert!(
+                s.contains(&marker),
+                "config_example.toml missing example for rule '{}'",
+                id
+            );
+        }
+
         Ok(())
     }
 
