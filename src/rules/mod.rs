@@ -112,6 +112,7 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
 
 pub mod client_accept_encoding_present;
 pub mod client_cache_respect;
+pub mod client_host_header_port_numeric;
 pub mod client_host_header_present;
 pub mod client_user_agent_present;
 pub mod config_cache;
@@ -138,6 +139,7 @@ pub const RULES: &[&dyn Rule] = &[
     &client_accept_encoding_present::ClientAcceptEncodingPresent,
     &client_cache_respect::ClientCacheRespect,
     &client_host_header_present::ClientHostHeaderPresent,
+    &client_host_header_port_numeric::ClientHostHeaderPortNumeric,
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
     &message_content_length_non_negative::MessageContentLengthNonNegative,
     &server_content_type_present::ServerContentTypePresent,
