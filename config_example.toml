@@ -35,6 +35,10 @@ severity = "warn"
 min_connections = 5
 min_reuse_ratio = 1.1
 
+[rules.connection_upgrade_requires_upgrade_header]
+enabled = true
+severity = "warn"
+
 # Server Rules
 [rules.server_cache_control_present]
 enabled = true
