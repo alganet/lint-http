@@ -99,6 +99,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_connection_header_tokens_valid]
+enabled = true
+severity = "warn"
+
 [rules.server_no_body_for_1xx_204_304]
 enabled = true
 severity = "error"

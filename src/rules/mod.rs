@@ -114,6 +114,7 @@ pub mod client_host_header_syntax;
 pub mod client_request_method_token_uppercase;
 pub mod client_user_agent_present;
 pub mod connection_efficiency;
+pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
 pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
@@ -145,6 +146,7 @@ pub const RULES: &[&dyn Rule] = &[
     &message_content_length::MessageContentLength,
     &message_header_field_names_token::MessageHeaderFieldNamesToken,
     &message_transfer_encoding_chunked_final::MessageTransferEncodingChunkedFinal,
+    &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &server_content_type_present::ServerContentTypePresent,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &connection_efficiency::ConnectionEfficiency,
