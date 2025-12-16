@@ -11,7 +11,7 @@ SPDX-License-Identifier: ISC
 ## Connection Rules
 
 - [connection_efficiency](rules/connection_efficiency.md) - Tracks requests per connection and warns about inefficient connection reuse.
-- [connection_upgrade_requires_upgrade_header](rules/connection_upgrade_requires_upgrade_header.md) - If `Connection` includes `upgrade`, `Upgrade` header MUST be present.
+- [message_connection_upgrade](rules/message_connection_upgrade.md) - If `Connection` includes `upgrade`, `Upgrade` header MUST be present.
 
 ## Client Rules
 

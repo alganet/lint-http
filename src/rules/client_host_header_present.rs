@@ -4,8 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::{ClientIdentifier, StateStore};
-use hyper::{HeaderMap, Method};
+use crate::state::StateStore;
 
 pub struct ClientHostHeaderPresent;
 
@@ -14,17 +13,18 @@ impl Rule for ClientHostHeaderPresent {
         "client_host_header_present"
     }
 
-    fn check_request(
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Client
+    }
+
+    fn check_transaction(
         &self,
-        _client: &ClientIdentifier,
-        _resource: &str,
-        _method: &Method,
-        headers: &HeaderMap,
+        _tx: &crate::http_transaction::HttpTransaction,
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
-        if !headers.contains_key("host") {
+        if !_tx.request.headers.contains_key("host") {
             Some(Violation {
                 rule: self.id().into(),
                 severity: crate::rules::get_rule_severity(_config, self.id()),
@@ -39,7 +39,7 @@ impl Rule for ClientHostHeaderPresent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_headers_from_pairs, make_test_conn, make_test_context};
+    use crate::test_helpers::{make_test_conn, make_test_context};
     use rstest::rstest;
 
     #[rstest]
@@ -51,19 +51,13 @@ mod tests {
         #[case] expected_message: Option<&str>,
     ) -> anyhow::Result<()> {
         let rule = ClientHostHeaderPresent;
-        let (client, state) = make_test_context();
-        let method = hyper::Method::GET;
-        let headers = make_headers_from_pairs(&header_pairs);
+        let (_client, state) = make_test_context();
         let conn = make_test_conn();
-        let violation = rule.check_request(
-            &client,
-            "http://test.com",
-            &method,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
+        use crate::test_helpers::make_test_transaction;
+        let mut tx = make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
+        let violation =
+            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());

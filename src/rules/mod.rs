@@ -3,8 +3,18 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::state::{ClientIdentifier, StateStore};
-use hyper::{HeaderMap, Method};
+use crate::state::StateStore;
+
+/// The `Rule` trait defines a single hook that runs on the canonical
+/// `HttpTransaction`. All rules must implement `check_transaction`.
+/// Scope of a rule: whether it applies to client-only traffic (requests),
+/// server-only traffic (responses), or both (full transactions).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum RuleScope {
+    Client,
+    Server,
+    Both,
+}
 
 pub trait Rule: Send + Sync {
     fn id(&self) -> &'static str;
@@ -15,36 +25,23 @@ pub trait Rule: Send + Sync {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn check_request(
-        &self,
-        _client: &ClientIdentifier,
-        _resource: &str,
-        _method: &Method,
-        _headers: &HeaderMap,
-        _conn: &crate::connection::ConnectionMetadata,
-        _state: &StateStore,
-        _config: &crate::config::Config,
-    ) -> Option<Violation> {
-        None
+    /// The scope where the rule should be executed. Default is `Both` for
+    /// backward compatibility; rules may override for better precision.
+    fn scope(&self) -> RuleScope {
+        RuleScope::Both
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn check_response(
+    /// Evaluate an entire `HttpTransaction` and return an optional violation.
+    fn check_transaction(
         &self,
-        _client: &ClientIdentifier,
-        _resource: &str,
-        _status: u16,
-        _headers: &HeaderMap,
+        _tx: &crate::http_transaction::HttpTransaction,
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
-    ) -> Option<Violation> {
-        None
-    }
+    ) -> Option<Violation>;
 }
 
-/// Lookup the configured severity for a rule at runtime.
+/// Lookup the configured severity for a rule at runtime,
 /// This function assumes that configuration validation has already ensured the presence and validity
 /// of the `severity` key, but panics with a clear message if something is wrong
 /// at runtime (defensive assertion).
@@ -118,7 +115,7 @@ pub mod client_request_method_token_uppercase;
 pub mod client_user_agent_present;
 pub mod config_cache;
 pub mod connection_efficiency;
-pub mod connection_upgrade_requires_upgrade_header;
+pub mod message_connection_upgrade;
 pub mod message_content_length_non_negative;
 pub mod message_content_length_vs_transfer_encoding;
 pub mod server_cache_control_present;
@@ -146,7 +143,7 @@ pub const RULES: &[&dyn Rule] = &[
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
     &message_content_length_non_negative::MessageContentLengthNonNegative,
     &server_content_type_present::ServerContentTypePresent,
-    &connection_upgrade_requires_upgrade_header::ConnectionUpgradeRequiresUpgradeHeader,
+    &message_connection_upgrade::MessageConnectionUpgrade,
     &connection_efficiency::ConnectionEfficiency,
     &server_charset_specification::ServerCharsetSpecification,
 ];

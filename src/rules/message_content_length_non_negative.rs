@@ -4,8 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::{ClientIdentifier, StateStore};
-use hyper::{HeaderMap, Method};
+use crate::state::StateStore;
 
 pub struct MessageContentLengthNonNegative;
 
@@ -14,41 +13,30 @@ impl Rule for MessageContentLengthNonNegative {
         "message_content_length_non_negative"
     }
 
-    fn check_request(
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn check_transaction(
         &self,
-        _client: &ClientIdentifier,
-        _resource: &str,
-        _method: &Method,
-        headers: &HeaderMap,
+        tx: &crate::http_transaction::HttpTransaction,
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
-        self.check_content_length_headers(headers, _config)
-    }
-
-    fn check_response(
-        &self,
-        _client: &ClientIdentifier,
-        _resource: &str,
-        _status: u16,
-        headers: &HeaderMap,
-        _conn: &crate::connection::ConnectionMetadata,
-        _state: &StateStore,
-        _config: &crate::config::Config,
-    ) -> Option<Violation> {
-        self.check_content_length_headers(headers, _config)
-    }
-}
-
-impl MessageContentLengthNonNegative {
-    fn check_content_length_headers(
-        &self,
-        headers: &HeaderMap,
-        _config: &crate::config::Config,
-    ) -> Option<Violation> {
-        for val in headers.get_all("content-length").iter() {
-            if let Ok(s) = val.to_str() {
+        // Check request headers
+        for (k, v) in tx.request.headers.iter() {
+            if k.as_str().eq_ignore_ascii_case("content-length") {
+                let s = match v.to_str() {
+                    Ok(s) => s,
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: crate::rules::get_rule_severity(_config, self.id()),
+                            message: "Invalid Content-Length value (non-UTF8)".into(),
+                        })
+                    }
+                };
                 let t = s.trim();
                 if t.is_empty() || !t.chars().all(|c| c.is_ascii_digit()) {
                     return Some(Violation {
@@ -57,14 +45,35 @@ impl MessageContentLengthNonNegative {
                         message: format!("Invalid Content-Length value: '{}'", s),
                     });
                 }
-            } else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: crate::rules::get_rule_severity(_config, self.id()),
-                    message: "Invalid Content-Length header encoding".into(),
-                });
             }
         }
+
+        // Check response headers if present
+        if let Some(resp) = &tx.response {
+            for (k, v) in resp.headers.iter() {
+                if k.as_str().eq_ignore_ascii_case("content-length") {
+                    let s = match v.to_str() {
+                        Ok(s) => s,
+                        Err(_) => {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: crate::rules::get_rule_severity(_config, self.id()),
+                                message: "Invalid Content-Length value (non-UTF8)".into(),
+                            })
+                        }
+                    };
+                    let t = s.trim();
+                    if t.is_empty() || !t.chars().all(|c| c.is_ascii_digit()) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: crate::rules::get_rule_severity(_config, self.id()),
+                            message: format!("Invalid Content-Length value: '{}'", s),
+                        });
+                    }
+                }
+            }
+        }
+
         None
     }
 }
@@ -72,7 +81,7 @@ impl MessageContentLengthNonNegative {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_headers_from_pairs, make_test_conn, make_test_context};
+    use crate::test_helpers::{make_test_conn, make_test_context};
     use rstest::rstest;
 
     #[rstest]
@@ -90,19 +99,14 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageContentLengthNonNegative;
-        let (client, state) = make_test_context();
-        let method = hyper::Method::POST;
-        let headers = make_headers_from_pairs(&header_pairs);
+        let (_client, _state) = make_test_context();
         let conn = make_test_conn();
-        let violation = rule.check_request(
-            &client,
-            "http://test.com",
-            &method,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
+
+        let violation =
+            rule.check_transaction(&tx, &conn, &_state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());
@@ -122,19 +126,18 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageContentLengthNonNegative;
-        let (client, state) = make_test_context();
+        let (_client, _state) = make_test_context();
         let status = 200;
-        let headers = make_headers_from_pairs(&header_pairs);
         let conn = make_test_conn();
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
+            headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
+        });
+
+        let violation =
+            rule.check_transaction(&tx, &conn, &_state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());

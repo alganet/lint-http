@@ -4,7 +4,7 @@
 
 //! HTTP proxy server implementation with request forwarding and capture.
 
-use crate::capture::{CaptureRecordBuilder, CaptureWriter};
+use crate::capture::CaptureWriter;
 use crate::config::Config;
 use crate::lint;
 
@@ -89,7 +89,7 @@ pub async fn run_proxy(
             Ok(records) => {
                 let count = records.len();
                 for record in &records {
-                    state.seed_from_capture(record);
+                    state.seed_from_transaction(record);
                 }
                 info!(count, "seeded state from captures");
             }
@@ -265,6 +265,32 @@ where
     B::Data: Send,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
+    /// Helper function to build and write an HttpTransaction with common pattern
+    #[allow(clippy::too_many_arguments)]
+    async fn build_and_write_transaction(
+        captures: &CaptureWriter,
+        client_id: &crate::state::ClientIdentifier,
+        method: &str,
+        uri_str: &str,
+        req_headers: &hyper::HeaderMap<hyper::header::HeaderValue>,
+        status: u16,
+        response_headers: Option<hyper::HeaderMap<hyper::header::HeaderValue>>,
+        duration_ms: u64,
+    ) -> anyhow::Result<()> {
+        let mut tx = crate::http_transaction::HttpTransaction::new(
+            client_id.clone(),
+            method.to_string(),
+            uri_str.to_string(),
+        );
+        tx.request.headers = req_headers.clone();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status,
+            headers: response_headers.unwrap_or_default(),
+        });
+        tx.timing = crate::http_transaction::TimingInfo { duration_ms };
+        captures.write_transaction(&tx).await?;
+        Ok(())
+    }
     let started = Instant::now();
 
     // Build upstream URI: if incoming URI is absolute, use it; otherwise use Host header
@@ -335,12 +361,17 @@ where
                 });
             // record a failed capture with 500
             let duration = started.elapsed().as_millis() as u64;
-            let _ = captures
-                .write_capture(
-                    CaptureRecordBuilder::new(method.as_str(), &uri_str, 500, &req_headers)
-                        .duration_ms(duration),
-                )
-                .await;
+            let _ = build_and_write_transaction(
+                captures,
+                &client_id,
+                method.as_str(),
+                &uri_str,
+                &req_headers,
+                500,
+                None,
+                duration,
+            )
+            .await;
             return Ok(resp);
         }
     };
@@ -358,12 +389,17 @@ where
                 });
             // record a failed capture with 500
             let duration = started.elapsed().as_millis() as u64;
-            let _ = captures
-                .write_capture(
-                    CaptureRecordBuilder::new(method.as_str(), &uri_str, 500, &req_headers)
-                        .duration_ms(duration),
-                )
-                .await;
+            let _ = build_and_write_transaction(
+                captures,
+                &client_id,
+                method.as_str(),
+                &uri_str,
+                &req_headers,
+                500,
+                None,
+                duration,
+            )
+            .await;
             return Ok(resp);
         }
     };
@@ -379,12 +415,17 @@ where
                 });
             // record capture with error status
             let duration = started.elapsed().as_millis() as u64;
-            let _ = captures
-                .write_capture(
-                    CaptureRecordBuilder::new(method.as_str(), &uri_str, 502, &req_headers)
-                        .duration_ms(duration),
-                )
-                .await;
+            let _ = build_and_write_transaction(
+                captures,
+                &client_id,
+                method.as_str(),
+                &uri_str,
+                &req_headers,
+                502,
+                None,
+                duration,
+            )
+            .await;
             return Ok(resp);
         }
     };
@@ -408,37 +449,41 @@ where
                 });
             // record a failed capture with 500
             let duration = started.elapsed().as_millis() as u64;
-            let _ = captures
-                .write_capture(
-                    CaptureRecordBuilder::new(method.as_str(), &uri_str, 500, &req_headers)
-                        .duration_ms(duration),
-                )
-                .await;
+            let _ = build_and_write_transaction(
+                captures,
+                &client_id,
+                method.as_str(),
+                &uri_str,
+                &req_headers,
+                500,
+                None,
+                duration,
+            )
+            .await;
             return Ok(resp);
         }
     };
 
     let duration = started.elapsed().as_millis() as u64;
 
-    // Evaluate lint rules using config
-    let mut violations = lint::lint_request(
-        &client_id,
-        &uri_str,
-        &method,
-        &req_headers,
-        &conn_metadata,
-        &shared.cfg,
-        &shared.state,
+    // Build canonical transaction for linting and capture
+    let mut tx = crate::http_transaction::HttpTransaction::new(
+        client_id.clone(),
+        method.as_str().to_string(),
+        uri_str.clone(),
     );
-    violations.extend(lint::lint_response(
-        &client_id,
-        &uri_str,
+    tx.request.headers = req_headers.clone();
+    tx.response = Some(crate::http_transaction::ResponseInfo {
         status,
-        &headers,
-        &conn_metadata,
-        &shared.cfg,
-        &shared.state,
-    ));
+        headers: headers.clone(),
+    });
+    tx.timing = crate::http_transaction::TimingInfo {
+        duration_ms: duration,
+    };
+
+    // Evaluate lint rules using config
+    let violations = lint::lint_transaction(&tx, &conn_metadata, &shared.cfg, &shared.state);
+    tx.violations = violations.clone();
 
     // Record transaction in state for future analysis
     shared
@@ -447,14 +492,7 @@ where
     shared.state.record_connection(&client_id, &conn_metadata);
 
     // Write capture (we don't capture bodies in MVP)
-    let _ = captures
-        .write_capture(
-            CaptureRecordBuilder::new(method.as_str(), &uri_str, status, &req_headers)
-                .response_headers(&headers)
-                .duration_ms(duration)
-                .violations(violations.clone()),
-        )
-        .await;
+    let _ = captures.write_transaction(&tx).await;
 
     // Attach a header with lint summary (for demo)
     // Build response from collected bytes, copying headers
@@ -664,7 +702,7 @@ mod tests {
 
         let s = fs::read_to_string(&tmp).await?;
         let v: serde_json::Value = serde_json::from_str(s.trim())?;
-        assert_eq!(v["status"].as_u64(), Some(200));
+        assert_eq!(v["response"]["status"].as_u64(), Some(200));
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())
@@ -718,7 +756,7 @@ mod tests {
 
         let s = fs::read_to_string(&tmp).await?;
         let v: serde_json::Value = serde_json::from_str(s.trim())?;
-        assert_eq!(v["status"].as_u64(), Some(502));
+        assert_eq!(v["response"]["status"].as_u64(), Some(502));
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())
@@ -782,7 +820,7 @@ mod tests {
 
         let s = fs::read_to_string(&tmp).await?;
         let v: serde_json::Value = serde_json::from_str(s.trim())?;
-        assert_eq!(v["status"].as_u64(), Some(200));
+        assert_eq!(v["response"]["status"].as_u64(), Some(200));
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())
@@ -853,7 +891,7 @@ mod tests {
 
         let s = fs::read_to_string(&tmp).await?;
         let v: serde_json::Value = serde_json::from_str(s.trim())?;
-        assert_eq!(v["status"].as_u64(), Some(200));
+        assert_eq!(v["response"]["status"].as_u64(), Some(200));
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())

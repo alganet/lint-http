@@ -27,12 +27,14 @@ pub mod ca;
 pub mod capture;
 pub mod config;
 pub mod connection;
+pub mod http_transaction;
 pub mod lint;
 pub mod proxy;
 pub mod rules;
+pub mod serde_helpers;
 pub mod state;
 
 #[cfg(test)]
-pub mod test_helpers;
+mod test_helpers;
 
 // Keep library small; main.rs remains the binary entrypoint.

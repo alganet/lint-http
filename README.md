@@ -100,22 +100,27 @@ For a complete list of rules and their explanations, see [docs/rules.md](docs/ru
 
 ## Capture Format
 
-Captures are written as JSONL (JSON Lines) to the specified file:
+Captures are written as JSONL (JSON Lines) to the specified file. Each line contains a full `HttpTransaction` record:
 
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "timestamp": "2025-11-30T10:30:00Z",
-  "method": "GET",
-  "uri": "https://example.com/api/data",
-  "status": 200,
-  "request_headers": {...},
-  "response_headers": {...},
-  "duration_ms": 145,
+  "client": { "ip": "127.0.0.1", "user_agent": "test-client" },
+  "request": {
+    "method": "GET",
+    "uri": "https://example.com/api/data",
+    "headers": { ... }
+  },
+  "response": {
+    "status": 200,
+    "headers": { ... }
+  },
+  "timing": { "duration_ms": 145 },
   "violations": [
     {
       "rule": "server_cache_control_present",
-      "severity": "warning",
+      "severity": "warn",
       "message": "Response is missing Cache-Control header"
     }
   ]

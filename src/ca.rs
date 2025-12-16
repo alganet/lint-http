@@ -25,8 +25,6 @@ pub struct CertificateAuthority {
     cache: Arc<RwLock<HashMap<String, Arc<rustls::sign::CertifiedKey>>>>,
 }
 
-// rcgen::Certificate is Send + Sync.
-
 impl CertificateAuthority {
     /// Loads the CA from the specified paths, or generates a new one if they don't exist.
     pub async fn load_or_generate(cert_path: &Path, key_path: &Path) -> Result<Arc<Self>> {

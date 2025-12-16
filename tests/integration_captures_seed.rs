@@ -15,9 +15,33 @@ async fn test_captures_seed_enabled() -> anyhow::Result<()> {
     let captures_file = tmp_dir.join(format!("test_seed_{}.jsonl", Uuid::new_v4()));
     let config_file = tmp_dir.join(format!("test_config_{}.toml", Uuid::new_v4()));
 
-    // Write a sample capture record
-    let capture_data = r#"{"id":"test-1","timestamp":"2024-01-01T00:00:00Z","method":"GET","uri":"http://example.com/test","status":200,"duration_ms":100,"request_headers":{"user-agent":"test-client"},"response_headers":{"etag":"\"abc123\"","cache-control":"max-age=3600"},"violations":[]}"#;
-    fs::write(&captures_file, capture_data).await?;
+    // Construct a minimal transaction record (do not use internal test helpers)
+    use lint_http::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
+
+    let client = lint_http::state::ClientIdentifier::new(
+        std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
+        "test-client".to_string(),
+    );
+    let mut tx = HttpTransaction::new(
+        client,
+        "GET".to_string(),
+        "http://example.com/test".to_string(),
+    );
+    tx.request
+        .headers
+        .insert("user-agent", "test-client".parse()?);
+    tx.timing = TimingInfo { duration_ms: 100 };
+
+    // Add response headers that seed logic expects
+    let mut resp_headers = hyper::HeaderMap::new();
+    resp_headers.insert("etag", "\"abc123\"".parse()?);
+    resp_headers.insert("cache-control", "max-age=3600".parse()?);
+    tx.response = Some(ResponseInfo {
+        status: 200,
+        headers: resp_headers,
+    });
+
+    fs::write(&captures_file, serde_json::to_string(&tx)?).await?;
 
     // Create a config with captures_seed enabled
     let config_toml = format!(
@@ -58,7 +82,7 @@ enabled = false
     assert_eq!(records.len(), 1);
 
     for record in &records {
-        state.seed_from_capture(record);
+        state.seed_from_transaction(record);
     }
 
     // Verify state was seeded
@@ -87,9 +111,32 @@ async fn test_captures_seed_disabled() -> anyhow::Result<()> {
     let captures_file = tmp_dir.join(format!("test_seed_disabled_{}.jsonl", Uuid::new_v4()));
     let config_file = tmp_dir.join(format!("test_config_disabled_{}.toml", Uuid::new_v4()));
 
-    // Write a sample capture record
-    let capture_data = r#"{"id":"test-2","timestamp":"2024-01-01T00:00:00Z","method":"GET","uri":"http://example.com/test2","status":200,"duration_ms":100,"request_headers":{"user-agent":"test-client-2"},"response_headers":{"etag":"\"xyz789\""},"violations":[]}"#;
-    fs::write(&captures_file, capture_data).await?;
+    // Construct a minimal transaction record without using internal test helpers
+    use lint_http::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
+
+    let client = lint_http::state::ClientIdentifier::new(
+        std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
+        "test-client-2".to_string(),
+    );
+    let mut tx = HttpTransaction::new(
+        client,
+        "GET".to_string(),
+        "http://example.com/test2".to_string(),
+    );
+    tx.request
+        .headers
+        .insert("user-agent", "test-client-2".parse()?);
+    tx.timing = TimingInfo { duration_ms: 100 };
+
+    // Add a response header for completeness
+    let mut resp_headers = hyper::HeaderMap::new();
+    resp_headers.insert("etag", "\"xyz789\"".parse()?);
+    tx.response = Some(ResponseInfo {
+        status: 200,
+        headers: resp_headers,
+    });
+
+    fs::write(&captures_file, serde_json::to_string(&tx)?).await?;
 
     // Create a config with captures_seed disabled (default)
     let config_toml = format!(

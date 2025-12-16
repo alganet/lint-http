@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# Connection Upgrade Requires Upgrade Header
+# Message: Connection Upgrade
 
 ## Description
 
@@ -19,7 +19,7 @@ Missing the `Upgrade` header while advertising `upgrade` in `Connection` can cau
 ## Configuration
 
 ```toml
-[rules.connection_upgrade_requires_upgrade_header]
+[rules.message_connection_upgrade]
 enabled = true
 severity = "warn"
 ```
