@@ -26,43 +26,21 @@ impl Rule for ClientRequestMethodTokenUppercase {
     ) -> Option<Violation> {
         let m = tx.request.method.as_str();
 
-        // Validate token characters per RFC token (tchar). Allowed: !#$%&'*+-.^_`|~ digits letters
-        let allowed = |c: char| {
-            c.is_ascii_alphanumeric()
-                || matches!(
-                    c,
-                    '!' | '#'
-                        | '$'
-                        | '%'
-                        | '&'
-                        | '\''
-                        | '*'
-                        | '+'
-                        | '-'
-                        | '.'
-                        | '^'
-                        | '_'
-                        | '`'
-                        | '|'
-                        | '~'
-                )
-        };
+        // Validate token characters per RFC token (tchar) and uppercase requirement using shared helpers
+        if let Some(c) = crate::token::find_invalid_token_char(m) {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
+                message: format!("Method token contains invalid character: '{}'", c),
+            });
+        }
 
-        for c in m.chars() {
-            if !allowed(c) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: crate::rules::get_rule_severity(_config, self.id()),
-                    message: format!("Method token contains invalid character: '{}'", c),
-                });
-            }
-            if c.is_ascii_alphabetic() && c.is_ascii_lowercase() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: crate::rules::get_rule_severity(_config, self.id()),
-                    message: "Method token should be uppercase".into(),
-                });
-            }
+        if crate::token::find_first_lowercase(m).is_some() {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
+                message: "Method token should be uppercase".into(),
+            });
         }
         None
     }
