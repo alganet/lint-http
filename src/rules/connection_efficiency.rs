@@ -5,8 +5,7 @@
 use crate::lint::Violation;
 use crate::rules::config_cache::RuleConfigCache;
 use crate::rules::Rule;
-use crate::state::{ClientIdentifier, StateStore};
-use hyper::{HeaderMap, Method};
+use crate::state::StateStore;
 
 /// Cached runtime configuration for the rule
 static CACHED_CFG: RuleConfigCache<ConnectionEfficiencyConfig> = RuleConfigCache::new();
@@ -95,22 +94,24 @@ impl Rule for ConnectionEfficiency {
         "connection_efficiency"
     }
 
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Client
+    }
+
     fn validate_config(&self, config: &crate::config::Config) -> anyhow::Result<()> {
         let parsed = parse_connection_efficiency_config(config)?;
         CACHED_CFG.set(parsed);
         Ok(())
     }
 
-    fn check_request(
+    fn check_transaction(
         &self,
-        client: &ClientIdentifier,
-        _resource: &str,
-        _method: &Method,
-        _headers: &HeaderMap,
+        tx: &crate::http_transaction::HttpTransaction,
         _conn: &crate::connection::ConnectionMetadata,
         state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
+        let client = &tx.client;
         let count = state.get_connection_count(client);
 
         let cfg = CACHED_CFG.get_or_init(|| {
@@ -153,8 +154,6 @@ mod tests {
     fn check_request_no_violation_initially() {
         let rule = ConnectionEfficiency;
         let (client, state) = make_test_context();
-        let method = hyper::Method::GET;
-        let headers = HeaderMap::new();
         let conn = make_test_conn();
 
         // First request, no history
@@ -168,15 +167,10 @@ mod tests {
             toml::Value::Table(table),
         );
 
-        let violation = rule.check_request(
-            &client,
-            "http://test.com",
-            &method,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
+        use crate::test_helpers::make_test_transaction;
+        let mut tx = make_test_transaction();
+        tx.client = client.clone();
+        let violation = rule.check_transaction(&tx, &conn, &state, &cfg);
         assert!(violation.is_none());
     }
 
@@ -194,8 +188,7 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ConnectionEfficiency;
         let (client, state) = make_test_context();
-        let method = hyper::Method::GET;
-        let headers = HeaderMap::new();
+        let _headers = HeaderMap::new();
 
         // Simulate connections and transactions using a pattern specified by case
         for i in 0..connections {
@@ -204,7 +197,7 @@ mod tests {
             );
             state.record_connection(&client, &conn);
             for _ in 0..requests_per_connection {
-                state.record_transaction(&client, "http://test.com", 200, &headers);
+                state.record_transaction(&client, "http://test.com", 200, &_headers);
             }
         }
         let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12351".parse()?);
@@ -224,15 +217,9 @@ mod tests {
             toml::Value::Table(table),
         );
 
-        let violation = rule.check_request(
-            &client,
-            "http://test.com",
-            &method,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = client.clone();
+        let violation = rule.check_transaction(&tx, &conn, &state, &cfg);
 
         if expect_violation {
             assert!(violation.is_some());
@@ -387,23 +374,15 @@ mod tests {
         // When the rule is enabled but missing numeric fields, check_request should panic
         let rule = ConnectionEfficiency;
         let (client, state) = make_test_context();
-        let method = hyper::Method::GET;
-        let headers = HeaderMap::new();
         let conn = make_test_conn();
 
         let mut cfg = crate::config::Config::default();
         enable_rule(&mut cfg, "connection_efficiency");
 
         let res = std::panic::catch_unwind(|| {
-            let _ = rule.check_request(
-                &client,
-                "http://test.com",
-                &method,
-                &headers,
-                &conn,
-                &state,
-                &cfg,
-            );
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.client = client.clone();
+            let _ = rule.check_transaction(&tx, &conn, &state, &cfg);
         });
         assert!(res.is_err());
     }
@@ -412,7 +391,6 @@ mod tests {
     fn check_request_min_connections_one_trigger() -> anyhow::Result<()> {
         let rule = ConnectionEfficiency;
         let (client, state) = make_test_context();
-        let method = hyper::Method::GET;
         let headers = HeaderMap::new();
 
         // Simulate 2 connections with 1 request each (Efficiency = 1.0)
@@ -436,15 +414,9 @@ mod tests {
         );
 
         let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12351".parse()?);
-        let violation = rule.check_request(
-            &client,
-            "http://test.com",
-            &method,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = client.clone();
+        let violation = rule.check_transaction(&tx, &conn, &state, &cfg);
 
         assert!(violation.is_some());
         Ok(())

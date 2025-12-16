@@ -82,7 +82,7 @@ impl<T: Clone + Send + Sync + 'static> RuleConfigCache<T> {
     }
 
     /// Get the cached value, or initialize it with the provided function.
-    /// Should be called during check_request/check_response.
+    /// Should be called during `validate_config` and retrieved during `check_transaction`.
     #[cfg(not(test))]
     pub fn get_or_init<F>(&self, f: F) -> &T
     where

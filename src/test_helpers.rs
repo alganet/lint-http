@@ -10,6 +10,7 @@ use hyper::HeaderMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 /// Create a test client identifier with standard test values
+#[cfg(test)]
 pub fn make_test_client() -> ClientIdentifier {
     ClientIdentifier::new(
         IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
@@ -18,16 +19,13 @@ pub fn make_test_client() -> ClientIdentifier {
 }
 
 /// Create a test client and state store for rule testing
+#[cfg(test)]
 pub fn make_test_context() -> (ClientIdentifier, StateStore) {
     (make_test_client(), StateStore::new(300))
 }
 
-/// Create a test config with default values
-pub fn make_test_config() -> crate::config::Config {
-    crate::config::Config::default()
-}
-
 /// Create a test connection metadata with standard test address
+#[cfg(test)]
 pub fn make_test_conn() -> crate::connection::ConnectionMetadata {
     crate::connection::ConnectionMetadata::new(SocketAddr::new(
         IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
@@ -36,6 +34,7 @@ pub fn make_test_conn() -> crate::connection::ConnectionMetadata {
 }
 
 /// Create a HeaderMap from a slice of (key, value) pairs for use in tests
+#[cfg(test)]
 pub fn make_headers_from_pairs(pairs: &[(&str, &str)]) -> HeaderMap {
     let mut hm = HeaderMap::new();
     for (k, v) in pairs {
@@ -47,6 +46,7 @@ pub fn make_headers_from_pairs(pairs: &[(&str, &str)]) -> HeaderMap {
 }
 
 /// Enable a rule via `[rules.<rule>]` table with `enabled = true`.
+#[cfg(test)]
 pub fn enable_rule(cfg: &mut crate::config::Config, rule: &str) {
     let mut table = toml::map::Map::new();
     table.insert("enabled".to_string(), toml::Value::Boolean(true));
@@ -61,6 +61,7 @@ pub fn enable_rule(cfg: &mut crate::config::Config, rule: &str) {
 }
 
 /// Enable a rule with a `paths` array under the rule table and `enabled = true`.
+#[cfg(test)]
 pub fn enable_rule_with_paths(cfg: &mut crate::config::Config, rule: &str, paths: &[&str]) {
     let mut table = toml::map::Map::new();
     table.insert("enabled".to_string(), toml::Value::Boolean(true));
@@ -79,6 +80,7 @@ pub fn enable_rule_with_paths(cfg: &mut crate::config::Config, rule: &str, paths
 }
 
 /// Disable a rule via `[rules.<rule>]` table with `enabled = false`.
+#[cfg(test)]
 pub fn disable_rule(cfg: &mut crate::config::Config, rule: &str) {
     let mut table = toml::map::Map::new();
     table.insert("enabled".to_string(), toml::Value::Boolean(false));
@@ -92,8 +94,9 @@ pub fn disable_rule(cfg: &mut crate::config::Config, rule: &str) {
 }
 
 /// Create a test config and enable a list of rules (table with `enabled = true`)
+#[cfg(test)]
 pub fn make_test_config_with_enabled_rules(rules: &[&str]) -> crate::config::Config {
-    let mut cfg = make_test_config();
+    let mut cfg = crate::config::Config::default();
     for r in rules {
         enable_rule(&mut cfg, r);
     }
@@ -102,10 +105,11 @@ pub fn make_test_config_with_enabled_rules(rules: &[&str]) -> crate::config::Con
 
 /// Create a test config and enable rules with corresponding `paths` entries.
 /// `entries` is an array of tuples: (rule_name, &[paths])
+#[cfg(test)]
 pub fn make_test_config_with_enabled_paths_rules(
     entries: &[(&str, &[&str])],
 ) -> crate::config::Config {
-    let mut cfg = make_test_config();
+    let mut cfg = crate::config::Config::default();
     for (r, p) in entries {
         enable_rule_with_paths(&mut cfg, r, p);
     }
@@ -120,6 +124,7 @@ pub fn make_test_config_with_enabled_paths_rules(
 /// # Returns
 ///
 /// A `Config` with the `server_x_content_type_options` rule enabled and its `content_types` set.
+#[cfg(test)]
 pub fn make_test_config_with_content_types(content_types: &[&str]) -> crate::config::Config {
     let mut cfg = crate::config::Config::default();
     let mut table = toml::map::Map::new();
@@ -139,4 +144,61 @@ pub fn make_test_config_with_content_types(content_types: &[&str]) -> crate::con
         toml::Value::Table(table),
     );
     cfg
+}
+
+/// Create a minimal `HttpTransaction` for tests.
+#[cfg(test)]
+pub fn make_test_transaction() -> crate::http_transaction::HttpTransaction {
+    use crate::http_transaction::{HttpTransaction, TimingInfo};
+
+    let mut tx = HttpTransaction::new(
+        make_test_client(),
+        "GET".to_string(),
+        "http://example/".to_string(),
+    );
+    let mut hm = HeaderMap::new();
+    hm.insert("user-agent", HeaderValue::from_static("test-agent"));
+    tx.request.headers = hm;
+    tx.timing = TimingInfo { duration_ms: 5 };
+    tx
+}
+
+/// Create a `HttpTransaction` with a response and provided headers for tests.
+#[cfg(test)]
+pub fn make_test_transaction_with_response(
+    status: u16,
+    resp_headers: &[(&str, &str)],
+) -> crate::http_transaction::HttpTransaction {
+    use crate::http_transaction::ResponseInfo;
+
+    let mut tx = make_test_transaction();
+    let headers = make_headers_from_pairs(resp_headers);
+    tx.response = Some(ResponseInfo { status, headers });
+    tx
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_make_test_transaction_basic() {
+        let tx = make_test_transaction();
+        assert_eq!(tx.request.method, "GET");
+        assert_eq!(tx.request.uri, "http://example/");
+        assert_eq!(
+            tx.request
+                .headers
+                .get("user-agent")
+                .and_then(|v| v.to_str().ok()),
+            Some("test-agent")
+        );
+    }
+
+    #[test]
+    fn test_make_test_transaction_with_response_basic() {
+        let tx = make_test_transaction_with_response(200, &[("etag", "\"abc\"")]);
+        assert!(tx.response.is_some());
+        assert_eq!(tx.response.unwrap().status, 200);
+    }
 }

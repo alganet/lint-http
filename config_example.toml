@@ -35,7 +35,7 @@ severity = "warn"
 min_connections = 5
 min_reuse_ratio = 1.1
 
-[rules.connection_upgrade_requires_upgrade_header]
+[rules.message_connection_upgrade]
 enabled = true
 severity = "warn"
 

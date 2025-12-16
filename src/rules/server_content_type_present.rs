@@ -4,8 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::{ClientIdentifier, StateStore};
-use hyper::HeaderMap;
+use crate::state::StateStore;
 
 pub struct ServerContentTypePresent;
 
@@ -14,34 +13,40 @@ impl Rule for ServerContentTypePresent {
         "server_content_type_present"
     }
 
-    fn check_response(
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Server
+    }
+
+    fn check_transaction(
         &self,
-        _client: &ClientIdentifier,
-        _resource: &str,
-        status: u16,
-        headers: &HeaderMap,
+        tx: &crate::http_transaction::HttpTransaction,
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
+        let Some(resp) = &tx.response else {
+            return None;
+        };
+
         // Per RFCs, no body is allowed for 1xx, 204, 304 responses
+        let status = resp.status;
         if (100..200).contains(&status) || status == 204 || status == 304 {
             return None;
         }
 
-        if headers.contains_key("content-type") {
+        if resp.headers.contains_key("content-type") {
             return None;
         }
 
         // If response likely contains a body, require Content-Type.
-        let has_nonzero_content_length = headers
+        let has_nonzero_content_length = resp
+            .headers
             .get("content-length")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse::<usize>().ok())
+            .and_then(|v| v.to_str().ok().and_then(|s| s.parse::<usize>().ok()))
             .map(|n| n > 0)
             .unwrap_or(false);
 
-        let has_transfer_encoding = headers.contains_key("transfer-encoding");
+        let has_transfer_encoding = resp.headers.contains_key("transfer-encoding");
 
         // There is likely a body if any of the following holds:
         // - non-zero Content-Length
@@ -49,7 +54,7 @@ impl Rule for ServerContentTypePresent {
         // - 2xx status and neither Content-Length nor Transfer-Encoding is present
         let likely_has_body = has_nonzero_content_length
             || has_transfer_encoding
-            || ((200..300).contains(&status) && !headers.contains_key("content-length"));
+            || ((200..300).contains(&status) && !resp.headers.contains_key("content-length"));
 
         if likely_has_body {
             return Some(Violation {
@@ -66,7 +71,7 @@ impl Rule for ServerContentTypePresent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_headers_from_pairs, make_test_conn, make_test_context};
+    use crate::test_helpers::{make_test_conn, make_test_context};
     use rstest::rstest;
 
     #[rstest]
@@ -89,19 +94,17 @@ mod tests {
         #[case] expected_message: Option<&str>,
     ) -> anyhow::Result<()> {
         let rule = ServerContentTypePresent;
-        let (client, state) = make_test_context();
-        let headers = make_headers_from_pairs(&header_pairs);
+        let (_client, _state) = make_test_context();
         let conn = make_test_conn();
 
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
+            headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
+        });
+
+        let violation =
+            rule.check_transaction(&tx, &conn, &_state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());

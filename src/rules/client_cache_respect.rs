@@ -4,8 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::{ClientIdentifier, StateStore};
-use hyper::HeaderMap;
+use crate::state::StateStore;
 
 pub struct ClientCacheRespect;
 
@@ -14,16 +13,20 @@ impl Rule for ClientCacheRespect {
         "client_cache_respect"
     }
 
-    fn check_request(
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Client
+    }
+
+    fn check_transaction(
         &self,
-        client: &ClientIdentifier,
-        resource: &str,
-        _method: &hyper::Method,
-        headers: &HeaderMap,
+        tx: &crate::http_transaction::HttpTransaction,
         _conn: &crate::connection::ConnectionMetadata,
         state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
+        let client = &tx.client;
+        let resource = &tx.request.uri;
+
         // Check if we have a previous response for this client+resource
         let previous = state.get_previous(client, resource)?;
 
@@ -36,8 +39,8 @@ impl Rule for ClientCacheRespect {
         }
 
         // Check if client is using conditional headers
-        let has_if_none_match = headers.contains_key("if-none-match");
-        let has_if_modified_since = headers.contains_key("if-modified-since");
+        let has_if_none_match = tx.request.headers.contains_key("if-none-match");
+        let has_if_modified_since = tx.request.headers.contains_key("if-modified-since");
 
         if !has_if_none_match && !has_if_modified_since {
             Some(Violation {
@@ -60,6 +63,7 @@ impl Rule for ClientCacheRespect {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::ClientIdentifier;
     use crate::test_helpers::make_headers_from_pairs;
     use rstest::rstest;
     use std::net::{IpAddr, Ipv4Addr};
@@ -92,18 +96,16 @@ mod tests {
             store.record_transaction(&client, resource, 200, &resp_headers);
         }
 
-        let req_headers = make_headers_from_pairs(&req_headers_pairs);
+        // build request headers from pairs when needed (assigned later into transaction)
         let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
         let cfg = crate::config::Config::default();
-        let violation = rule.check_request(
-            &client,
-            resource,
-            &hyper::Method::GET,
-            &req_headers,
-            &conn,
-            &store,
-            &cfg,
-        );
+        use crate::test_helpers::make_test_transaction;
+        let mut tx = make_test_transaction();
+        tx.client = client.clone();
+        tx.request.uri = resource.to_string();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(req_headers_pairs.as_slice());
+        let violation = rule.check_transaction(&tx, &conn, &store, &cfg);
 
         if expect_violation {
             assert!(violation.is_some());

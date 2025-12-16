@@ -5,8 +5,7 @@
 use crate::lint::Violation;
 use crate::rules::config_cache::RuleConfigCache;
 use crate::rules::Rule;
-use crate::state::{ClientIdentifier, StateStore};
-use hyper::HeaderMap;
+use crate::state::StateStore;
 
 static CACHED_PATHS: RuleConfigCache<Vec<String>> = RuleConfigCache::new();
 
@@ -72,6 +71,10 @@ impl Rule for ServerClearSiteData {
         "server_clear_site_data"
     }
 
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Server
+    }
+
     fn validate_config(&self, config: &crate::config::Config) -> anyhow::Result<()> {
         // Parse and cache the config - if it succeeds, config is valid
         let paths = parse_paths_config(config)?;
@@ -79,17 +82,18 @@ impl Rule for ServerClearSiteData {
         Ok(())
     }
 
-    fn check_response(
+    fn check_transaction(
         &self,
-        _client: &ClientIdentifier,
-        resource: &str,
-        status: u16,
-        headers: &HeaderMap,
+        tx: &crate::http_transaction::HttpTransaction,
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         config: &crate::config::Config,
     ) -> Option<Violation> {
         // Only check successful responses
+        let Some(resp) = &tx.response else {
+            return None;
+        };
+        let status = resp.status;
         if !(200..300).contains(&status) {
             return None;
         }
@@ -107,12 +111,12 @@ impl Rule for ServerClearSiteData {
         });
 
         // Check if the current resource path matches any configured path
-        let resource_path = extract_path_from_resource(resource);
+        let resource_path = extract_path_from_resource(&tx.request.uri);
 
         // Check if resource path matches any configured path
         let is_logout_path = paths.contains(&resource_path);
 
-        if is_logout_path && !headers.contains_key("clear-site-data") {
+        if is_logout_path && !resp.headers.contains_key("clear-site-data") {
             Some(Violation {
                 rule: self.id().into(),
                 severity: crate::rules::get_rule_severity(config, self.id()),
@@ -168,8 +172,7 @@ fn extract_path_from_resource(resource: &str) -> String {
 mod tests {
     use super::*;
     use crate::test_helpers::{
-        make_headers_from_pairs, make_test_config_with_enabled_paths_rules, make_test_conn,
-        make_test_context,
+        make_test_config_with_enabled_paths_rules, make_test_conn, make_test_context,
     };
     use rstest::rstest;
 
@@ -190,20 +193,19 @@ mod tests {
         #[case] expected_message_contains: Option<&str>,
     ) -> anyhow::Result<()> {
         let rule = ServerClearSiteData;
-        let (client, state) = make_test_context();
-        let headers = make_headers_from_pairs(&header_pairs);
+        let (_client, state) = make_test_context();
         let conn = make_test_conn();
         let cfg =
             make_test_config_with_enabled_paths_rules(&[("server_clear_site_data", &config_paths)]);
-        let violation = rule.check_response(
-            &client,
-            &format!("http://test.com{}", resource_path),
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.uri = format!("http://test.com{}", resource_path);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
+            headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
+        });
+
+        let violation = rule.check_transaction(&tx, &conn, &state, &cfg);
 
         if expect_violation {
             let Some(v) = violation else {

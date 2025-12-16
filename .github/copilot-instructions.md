@@ -29,7 +29,7 @@ Client → Proxy (proxy.rs) → TLS termination (ca.rs) → Forward to upstream
 - `src/lint.rs` - Orchestrates rule evaluation against requests/responses
 - `src/rules/mod.rs` - Defines `Rule` trait and `RULES` static array
 - `src/state.rs` - Cross-request state tracking (keyed by `ClientIdentifier`: IP + User-Agent)
-- `src/capture.rs` - JSONL output via `CaptureWriter` and `CaptureRecordBuilder`
+- `src/capture.rs` - JSONL output via `CaptureWriter` and `HttpTransaction`
 - `src/config.rs` - TOML config loading with `Config::is_enabled(rule_id)`
 
 ## Development Commands
@@ -61,9 +61,13 @@ impl Rule for MyRuleName {
         "category_my_rule_name"  // Must match filename convention
     }
 
-    fn check_response(/* or check_request */) -> Option<Violation> {
+    fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, conn: &crate::connection::ConnectionMetadata, state: &crate::state::StateStore, config: &crate::config::Config) -> Option<Violation> {
         // Return Some(Violation{...}) on failure, None on pass
     }
+
+    // Declare rule scope explicitly. Prefer setting this to Client/Server when
+    // the rule only inspects requests or responses respectively.
+    fn scope(&self) -> crate::rules::RuleScope { crate::rules::RuleScope::Both }
 }
 ```
 
@@ -113,5 +117,5 @@ Check rule status: `cfg.is_enabled("rule_id")` returns `true` only when there is
 
 - Configurable rules should not rely on hardcoded defaults. If a rule requires configuration, it must be provided via a `[rules.<rule_id>]` table in TOML and include the necessary keys (numeric values, arrays, etc.).
 - During `validate_config`, a rule should parse and validate the provided TOML values. If required keys are missing or invalid types are present, `validate_config` must return an error to fail startup validation.
-- For runtime use, cache parsed rule configuration using `crate::rules::config_cache::RuleConfigCache<T>`. In your `check_request` / `check_response`, retrieve the cached config with `get_or_init` and panic with a clear message if parsing fails at runtime (this matches how other rules use defensive assertions).
+- For runtime use, cache parsed rule configuration using `crate::rules::config_cache::RuleConfigCache<T>`. In your `check_transaction`, retrieve the cached config with `get_or_init` and panic with a clear message if parsing fails at runtime (this matches how other rules use defensive assertions).
 - Include explicit tests to validate `validate_config` behavior and runtime behavior with valid configuration. Tests should also include invalid config and missing config failure cases for `validate_config`.

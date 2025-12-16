@@ -5,8 +5,7 @@
 use crate::lint::Violation;
 use crate::rules::config_cache::RuleConfigCache;
 use crate::rules::Rule;
-use crate::state::{ClientIdentifier, StateStore};
-use hyper::HeaderMap;
+use crate::state::StateStore;
 
 pub struct ServerXContentTypeOptions;
 
@@ -54,12 +53,13 @@ impl Rule for ServerXContentTypeOptions {
         "server_x_content_type_options"
     }
 
-    fn check_response(
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Server
+    }
+
+    fn check_transaction(
         &self,
-        _client: &ClientIdentifier,
-        _resource: &str,
-        status: u16,
-        headers: &HeaderMap,
+        tx: &crate::http_transaction::HttpTransaction,
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
@@ -71,16 +71,21 @@ impl Rule for ServerXContentTypeOptions {
             })
         });
 
+        let Some(resp) = &tx.response else {
+            return None;
+        };
+
         // Get the response's content-type (without parameters)
-        let content_type_header = headers
-            .get("content-type")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.split(';').next().unwrap_or(s).trim().to_ascii_lowercase());
+        let content_type_header = resp.headers.get("content-type").and_then(|hv| {
+            hv.to_str()
+                .ok()
+                .map(|s| s.split(';').next().unwrap_or(s).trim().to_ascii_lowercase())
+        });
 
         if let Some(content_type) = content_type_header {
-            if (200..300).contains(&status)
+            if (200..300).contains(&resp.status)
                 && content_types.contains(&content_type)
-                && !headers.contains_key("x-content-type-options")
+                && !resp.headers.contains_key("x-content-type-options")
             {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -103,8 +108,7 @@ impl Rule for ServerXContentTypeOptions {
 mod tests {
     use super::*;
     use crate::test_helpers::{
-        enable_rule, make_headers_from_pairs, make_test_config_with_content_types, make_test_conn,
-        make_test_context,
+        enable_rule, make_test_config_with_content_types, make_test_conn, make_test_context,
     };
     use rstest::rstest;
 
@@ -123,20 +127,17 @@ mod tests {
         #[case] expected_message: Option<&str>,
     ) -> anyhow::Result<()> {
         let rule = ServerXContentTypeOptions;
-        let (client, state) = make_test_context();
-        let headers = make_headers_from_pairs(&header_pairs);
+        let (_client, _state) = make_test_context();
         let conn = make_test_conn();
         let cfg = make_test_config_with_content_types(&content_types);
 
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
+            headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
+        });
+
+        let violation = rule.check_transaction(&tx, &conn, &_state, &cfg);
 
         if expect_violation {
             assert!(violation.is_some());
@@ -239,10 +240,8 @@ mod tests {
     #[test]
     fn check_response_with_parameters_matches() -> anyhow::Result<()> {
         let rule = ServerXContentTypeOptions;
-        let (client, state) = make_test_context();
+        let (_client, _state) = make_test_context();
         let status = 200;
-        let mut headers = HeaderMap::new();
-        headers.insert("content-type", "text/html; charset=utf-8".parse()?);
         let conn = make_test_conn();
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
@@ -256,15 +255,16 @@ mod tests {
             toml::Value::Table(table),
         );
 
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
-            &headers,
-            &conn,
-            &state,
-            &cfg,
-        );
+            headers: crate::test_helpers::make_headers_from_pairs(&[(
+                "content-type",
+                "text/html; charset=utf-8",
+            )]),
+        });
+
+        let violation = rule.check_transaction(&tx, &conn, &_state, &cfg);
         assert!(violation.is_some());
         Ok(())
     }

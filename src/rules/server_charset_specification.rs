@@ -4,8 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::{ClientIdentifier, StateStore};
-use hyper::HeaderMap;
+use crate::state::StateStore;
 
 pub struct ServerCharsetSpecification;
 
@@ -14,17 +13,21 @@ impl Rule for ServerCharsetSpecification {
         "server_charset_specification"
     }
 
-    fn check_response(
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Server
+    }
+
+    fn check_transaction(
         &self,
-        _client: &ClientIdentifier,
-        _resource: &str,
-        _status: u16,
-        headers: &HeaderMap,
+        tx: &crate::http_transaction::HttpTransaction,
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
-        if let Some(content_type) = headers.get(hyper::header::CONTENT_TYPE) {
+        let Some(resp) = &tx.response else {
+            return None;
+        };
+        if let Some(content_type) = resp.headers.get(hyper::header::CONTENT_TYPE.as_str()) {
             if let Ok(ct_str) = content_type.to_str() {
                 let ct_lower = ct_str.to_lowercase();
                 if ct_lower.starts_with("text/")
@@ -46,7 +49,7 @@ impl Rule for ServerCharsetSpecification {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_headers_from_pairs, make_test_conn, make_test_context};
+    use crate::test_helpers::{make_test_conn, make_test_context};
     use rstest::rstest;
 
     #[rstest]
@@ -66,23 +69,21 @@ mod tests {
         #[case] expected_message: Option<&str>,
     ) -> anyhow::Result<()> {
         let rule = ServerCharsetSpecification;
-        let (client, state) = make_test_context();
+        let (_client, _state) = make_test_context();
         let conn = make_test_conn();
-        let headers = if content_type.is_empty() {
-            make_headers_from_pairs(&[])
-        } else {
-            make_headers_from_pairs(&[("content-type", content_type)])
-        };
+        let mut tx = crate::test_helpers::make_test_transaction();
+        if !content_type.is_empty() {
+            tx.response = Some(crate::http_transaction::ResponseInfo {
+                status: 200,
+                headers: crate::test_helpers::make_headers_from_pairs(&[(
+                    "content-type",
+                    content_type,
+                )]),
+            });
+        }
 
-        let violation = rule.check_response(
-            &client,
-            "http://test.com",
-            200,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
+        let violation =
+            rule.check_transaction(&tx, &conn, &_state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());

@@ -4,8 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::{ClientIdentifier, StateStore};
-use hyper::{HeaderMap, Method};
+use crate::state::StateStore;
 
 pub struct ClientRequestMethodTokenUppercase;
 
@@ -14,17 +13,18 @@ impl Rule for ClientRequestMethodTokenUppercase {
         "client_request_method_token_uppercase"
     }
 
-    fn check_request(
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Client
+    }
+
+    fn check_transaction(
         &self,
-        _client: &ClientIdentifier,
-        _resource: &str,
-        method: &Method,
-        _headers: &HeaderMap,
+        tx: &crate::http_transaction::HttpTransaction,
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
-        let m = method.as_str();
+        let m = tx.request.method.as_str();
 
         // Validate token characters per RFC token (tchar). Allowed: !#$%&'*+-.^_`|~ digits letters
         let allowed = |c: char| {
@@ -72,6 +72,7 @@ impl Rule for ClientRequestMethodTokenUppercase {
 mod tests {
     use super::*;
     use crate::test_helpers::{make_test_conn, make_test_context};
+    use hyper::Method;
     use rstest::rstest;
 
     #[rstest]
@@ -87,7 +88,7 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = ClientRequestMethodTokenUppercase;
-        let (client, state) = make_test_context();
+        let (_client, state) = make_test_context();
         let method_res = Method::from_bytes(method_str.as_bytes());
         if method_res.is_err() {
             // Invalid method token cannot be constructed; treat as violation
@@ -99,23 +100,45 @@ mod tests {
             return Ok(());
         }
         let method = method_res.unwrap();
-        let headers = hyper::HeaderMap::new();
         let conn = make_test_conn();
-        let violation = rule.check_request(
-            &client,
-            "http://test.com",
-            &method,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
+        use crate::test_helpers::make_test_transaction;
+        let mut tx = make_test_transaction();
+        tx.request.method = method.as_str().to_string();
+        let violation =
+            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());
         } else {
             assert!(violation.is_none());
         }
+        Ok(())
+    }
+
+    #[test]
+    fn violation_messages_are_meaningful() -> anyhow::Result<()> {
+        let rule = ClientRequestMethodTokenUppercase;
+        let (_client, state) = make_test_context();
+        let conn = make_test_conn();
+
+        use crate::test_helpers::make_test_transaction;
+
+        // Lowercase method -> should indicate uppercase requirement
+        let mut tx = make_test_transaction();
+        tx.request.method = "get".to_string();
+        let v = rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("uppercase"));
+
+        // Invalid character should be reported with char in message
+        let mut tx2 = make_test_transaction();
+        tx2.request.method = "G@T".to_string();
+        let v2 = rule.check_transaction(&tx2, &conn, &state, &crate::config::Config::default());
+        assert!(v2.is_some());
+        let msg2 = v2.unwrap().message;
+        assert!(msg2.contains("invalid character") && msg2.contains("@"));
+
         Ok(())
     }
 }

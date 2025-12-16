@@ -71,11 +71,35 @@ impl Rule for MyRule {
         "category_my_rule_name"
     }
 
-    fn check_response(/* ... */) -> Option<Violation> {
+    fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, conn: &crate::connection::ConnectionMetadata, state: &crate::state::StateStore, config: &crate::config::Config) -> Option<Violation> {
         // Implementation
     }
 }
 ```
+
+#### Scoping
+
+Rules must declare their intended scope by overriding `scope()` when appropriate. This makes it explicit whether a rule is intended for **requests**, **responses**, or both.
+
+- Use `crate::rules::RuleScope::Client` for request-only checks.
+- Use `crate::rules::RuleScope::Server` for response-only checks.
+- Use `crate::rules::RuleScope::Both` if the rule must evaluate both the request and the response.
+
+Example:
+
+```rust
+impl Rule for ClientHostHeaderPresent {
+    fn id(&self) -> &'static str { "client_host_header_present" }
+    fn scope(&self) -> crate::rules::RuleScope { crate::rules::RuleScope::Client }
+
+    fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, conn: &crate::connection::ConnectionMetadata, state: &crate::state::StateStore, config: &crate::config::Config) -> Option<Violation> {
+        // Check tx.request.headers
+    }
+}
+```
+
+Being explicit prevents accidental evaluation on the wrong side and improves readability during code review.
+
 
 ### 3. Registration
 
@@ -100,5 +124,5 @@ Finally, add a link to your new rule in `docs/rules.md`.
 
 - Do not use hardcoded defaults in rule implementations. If a rule requires configuration, it should require an explicit TOML table under `[rules.<rule_id>]` and parse its numeric/string values from that table.
 - On missing or invalid configuration, `validate_config` must return an `Err(...)` so startup validation fails fast. Do not silently fallback to a default unless this behavior is explicitly documented and desired.
-- Use `crate::rules::config_cache::RuleConfigCache<T>` to cache parsed config in `validate_config` and retrieve it in `check_request` / `check_response` using `get_or_init`.
+- Use `crate::rules::config_cache::RuleConfigCache<T>` to cache parsed config in `validate_config` and retrieve it in `check_transaction` using `get_or_init`.
 - Tests should validate both `validate_config` errors for invalid/missing config and the runtime behavior when valid configs are provided (including edge cases like negative numbers, invalid types, and boundary values).

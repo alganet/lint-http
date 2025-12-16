@@ -4,8 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::{ClientIdentifier, StateStore};
-use hyper::{HeaderMap, Method};
+use crate::state::StateStore;
 
 pub struct ClientAcceptEncodingPresent;
 
@@ -14,20 +13,21 @@ impl Rule for ClientAcceptEncodingPresent {
         "client_accept_encoding_present"
     }
 
-    fn check_request(
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Client
+    }
+
+    fn check_transaction(
         &self,
-        _client: &ClientIdentifier,
-        _resource: &str,
-        _method: &Method,
-        headers: &HeaderMap,
+        tx: &crate::http_transaction::HttpTransaction,
         _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
-        _config: &crate::config::Config,
+        config: &crate::config::Config,
     ) -> Option<Violation> {
-        if !headers.contains_key("accept-encoding") {
+        if !tx.request.headers.contains_key("accept-encoding") {
             Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(_config, self.id()),
+                severity: crate::rules::get_rule_severity(config, self.id()),
                 message: "Request missing Accept-Encoding header".into(),
             })
         } else {
@@ -40,24 +40,15 @@ impl Rule for ClientAcceptEncodingPresent {
 mod tests {
     use super::*;
     use crate::test_helpers::{make_test_conn, make_test_context};
-    use hyper::HeaderMap;
 
     #[test]
     fn check_request_missing_header() -> anyhow::Result<()> {
         let rule = ClientAcceptEncodingPresent;
-        let (client, state) = make_test_context();
-        let method = hyper::Method::GET;
-        let headers = HeaderMap::new();
+        let (_client, state) = make_test_context();
         let conn = make_test_conn();
-        let violation = rule.check_request(
-            &client,
-            "http://test.com",
-            &method,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
+        let tx = crate::test_helpers::make_test_transaction();
+        let violation =
+            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
         assert!(violation.is_some());
         assert_eq!(
             violation.map(|v| v.message),
@@ -69,20 +60,14 @@ mod tests {
     #[test]
     fn check_request_present_header() -> anyhow::Result<()> {
         let rule = ClientAcceptEncodingPresent;
-        let (client, state) = make_test_context();
-        let method = hyper::Method::GET;
-        let mut headers = HeaderMap::new();
-        headers.insert("accept-encoding", "gzip".parse()?);
+        let (_client, state) = make_test_context();
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request
+            .headers
+            .insert("accept-encoding", "gzip".parse()?);
         let conn = make_test_conn();
-        let violation = rule.check_request(
-            &client,
-            "http://test.com",
-            &method,
-            &headers,
-            &conn,
-            &state,
-            &crate::config::Config::default(),
-        );
+        let violation =
+            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
         assert!(violation.is_none());
         Ok(())
     }

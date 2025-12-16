@@ -5,13 +5,14 @@
 //! State management for cross-transaction HTTP analysis.
 
 use hyper::HeaderMap;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 
 /// Identifies a client by IP address and User-Agent string.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ClientIdentifier {
     pub ip: IpAddr,
     pub user_agent: String,
@@ -163,7 +164,7 @@ impl StateStore {
     pub fn record_connection(
         &self,
         client: &ClientIdentifier,
-        _metadata: &crate::connection::ConnectionMetadata,
+        _conn_metadata: &crate::connection::ConnectionMetadata,
     ) {
         if let Ok(mut stats) = self.stats.write() {
             let entry = stats.entry(client.clone()).or_default();
@@ -197,7 +198,7 @@ impl StateStore {
         }
     }
 
-    /// Seed the StateStore from a capture record.
+    /// Seed the StateStore from a transaction record.
     ///
     /// This method populates the state with transaction data from previously captured
     /// HTTP exchanges. It enables:
@@ -207,12 +208,14 @@ impl StateStore {
     /// The client is identified from the request headers (user-agent). Since we don't
     /// have the actual client IP from the capture, we use a localhost IP as a placeholder.
     /// Transactions without response headers are skipped.
-    pub fn seed_from_capture(&self, record: &crate::capture::CaptureRecord) {
+    pub fn seed_from_transaction(&self, tx: &crate::http_transaction::HttpTransaction) {
         // Extract user agent from request headers, default to "unknown"
-        let user_agent = record
-            .request_headers
+        let user_agent = tx
+            .request
+            .headers
             .get("user-agent")
-            .cloned()
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string)
             .unwrap_or_else(|| "unknown".to_string());
 
         // Use localhost IP as placeholder since we don't capture client IPs
@@ -220,20 +223,9 @@ impl StateStore {
         let client = ClientIdentifier::new(client_ip, user_agent);
 
         // Only seed if we have response headers (complete transaction)
-        if let Some(ref resp_headers) = record.response_headers {
-            // Convert HashMap<String, String> to HeaderMap
-            let mut header_map = HeaderMap::new();
-            for (key, value) in resp_headers {
-                if let (Ok(name), Ok(val)) = (
-                    hyper::header::HeaderName::from_bytes(key.as_bytes()),
-                    hyper::header::HeaderValue::from_str(value),
-                ) {
-                    header_map.insert(name, val);
-                }
-            }
-
-            // Record the transaction
-            self.record_transaction(&client, &record.uri, record.status, &header_map);
+        if let Some(ref resp) = tx.response {
+            // Record the transaction using the response header map directly
+            self.record_transaction(&client, &tx.request.uri, resp.status, &resp.headers);
         }
     }
 }
@@ -406,31 +398,28 @@ mod tests {
     }
 
     #[test]
-    fn seed_from_capture_populates_state() -> anyhow::Result<()> {
+    fn seed_from_transaction_populates_state() -> anyhow::Result<()> {
         let store = StateStore::new(300);
 
-        // Create a capture record with response headers
+        // Create a transaction with response headers
         let mut resp_headers = std::collections::HashMap::new();
         resp_headers.insert("etag".to_string(), "\"12345\"".to_string());
         resp_headers.insert("cache-control".to_string(), "max-age=3600".to_string());
 
-        let mut req_headers = std::collections::HashMap::new();
-        req_headers.insert("user-agent".to_string(), "test-client/1.0".to_string());
-
-        let record = crate::capture::CaptureRecord {
-            id: "test-id".to_string(),
-            timestamp: "2024-01-01T00:00:00Z".to_string(),
-            method: "GET".to_string(),
-            uri: "http://example.com/resource".to_string(),
-            status: 200,
-            duration_ms: 100,
-            request_headers: req_headers,
-            response_headers: Some(resp_headers),
-            violations: vec![],
-        };
+        use crate::test_helpers::make_test_transaction_with_response;
+        let mut tx = make_test_transaction_with_response(
+            200,
+            &[("etag", "\"12345\""), ("cache-control", "max-age=3600")],
+        );
+        tx.request
+            .headers
+            .insert("user-agent", "test-client/1.0".parse()?);
+        // Ensure the resource matches the expected URL
+        tx.request.uri = "http://example.com/resource".to_string();
+        tx.timing.duration_ms = 100;
 
         // Seed the state
-        store.seed_from_capture(&record);
+        store.seed_from_transaction(&tx);
 
         // Verify the transaction was recorded
         let client = ClientIdentifier::new(
@@ -448,25 +437,14 @@ mod tests {
     }
 
     #[test]
-    fn seed_from_capture_without_response_headers_does_nothing() {
+    fn seed_from_transaction_without_response_headers_does_nothing() {
         let store = StateStore::new(300);
 
-        let req_headers = std::collections::HashMap::new();
-
-        let record = crate::capture::CaptureRecord {
-            id: "test-id".to_string(),
-            timestamp: "2024-01-01T00:00:00Z".to_string(),
-            method: "GET".to_string(),
-            uri: "http://example.com/resource".to_string(),
-            status: 200,
-            duration_ms: 100,
-            request_headers: req_headers,
-            response_headers: None,
-            violations: vec![],
-        };
+        use crate::test_helpers::make_test_transaction;
+        let tx = make_test_transaction();
 
         // Seed the state (should do nothing since no response headers)
-        store.seed_from_capture(&record);
+        store.seed_from_transaction(&tx);
 
         // Verify nothing was recorded
         let client = ClientIdentifier::new(

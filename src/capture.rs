@@ -4,12 +4,10 @@
 
 //! Request/response capture writing to JSONL format.
 
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
-use uuid::Uuid;
 
 use hyper::header::HeaderMap;
 
@@ -52,10 +50,12 @@ impl CaptureWriter {
         Ok(Self { file })
     }
 
-    /// Write a capture record to the JSONL file
-    pub async fn write_capture(&self, builder: CaptureRecordBuilder<'_>) -> anyhow::Result<()> {
-        let record = builder.build();
-        let line = serde_json::to_string(&record)?;
+    /// Write a transaction to the JSONL file
+    pub async fn write_transaction(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+    ) -> anyhow::Result<()> {
+        let line = serde_json::to_string(tx)?;
         self.file.write_line(&line).await?;
         Ok(())
     }
@@ -63,12 +63,12 @@ impl CaptureWriter {
 
 /// Load capture records from a JSONL file
 ///
-/// Reads the file line-by-line and deserializes each line as a CaptureRecord.
+/// Reads the file line-by-line and deserializes each line as an `HttpTransaction`.
 /// Malformed lines are skipped with a warning logged.
 /// Returns all successfully parsed records.
 pub async fn load_captures<P: AsRef<std::path::Path>>(
     path: P,
-) -> anyhow::Result<Vec<CaptureRecord>> {
+) -> anyhow::Result<Vec<crate::http_transaction::HttpTransaction>> {
     use tokio::io::AsyncBufReadExt;
 
     let path_ref = path.as_ref();
@@ -90,7 +90,7 @@ pub async fn load_captures<P: AsRef<std::path::Path>>(
             continue;
         }
 
-        match serde_json::from_str::<CaptureRecord>(&line) {
+        match serde_json::from_str::<crate::http_transaction::HttpTransaction>(&line) {
             Ok(record) => records.push(record),
             Err(e) => {
                 tracing::warn!(line = line_num, error = %e, "failed to parse capture record, skipping");
@@ -101,66 +101,7 @@ pub async fn load_captures<P: AsRef<std::path::Path>>(
     Ok(records)
 }
 
-/// Builder for creating capture records with optional fields
-pub struct CaptureRecordBuilder<'a> {
-    method: &'a str,
-    uri: &'a str,
-    status: u16,
-    request_headers: &'a HeaderMap,
-    response_headers: Option<&'a HeaderMap>,
-    duration_ms: u64,
-    violations: Vec<crate::lint::Violation>,
-}
-
-impl<'a> CaptureRecordBuilder<'a> {
-    /// Create a new capture record builder with required fields
-    pub fn new(method: &'a str, uri: &'a str, status: u16, request_headers: &'a HeaderMap) -> Self {
-        Self {
-            method,
-            uri,
-            status,
-            request_headers,
-            response_headers: None,
-            duration_ms: 0,
-            violations: Vec::new(),
-        }
-    }
-
-    /// Add response headers to the capture
-    pub fn response_headers(mut self, headers: &'a HeaderMap) -> Self {
-        self.response_headers = Some(headers);
-        self
-    }
-
-    /// Set the request duration in milliseconds
-    pub fn duration_ms(mut self, duration: u64) -> Self {
-        self.duration_ms = duration;
-        self
-    }
-
-    /// Add lint violations to the capture
-    pub fn violations(mut self, violations: Vec<crate::lint::Violation>) -> Self {
-        self.violations = violations;
-        self
-    }
-
-    /// Build the capture record (internal - generates ID and timestamp)
-    fn build(self) -> CaptureRecord {
-        CaptureRecord {
-            id: Uuid::new_v4().to_string(),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-            method: self.method.to_string(),
-            uri: self.uri.to_string(),
-            status: self.status,
-            duration_ms: self.duration_ms,
-            request_headers: headers_to_map(self.request_headers),
-            response_headers: self.response_headers.map(headers_to_map),
-            violations: self.violations,
-        }
-    }
-}
-
-fn headers_to_map(h: &HeaderMap) -> std::collections::HashMap<String, String> {
+pub fn headers_to_map(h: &HeaderMap) -> std::collections::HashMap<String, String> {
     let mut m = std::collections::HashMap::new();
     for (k, v) in h.iter() {
         if let Ok(s) = v.to_str() {
@@ -168,19 +109,6 @@ fn headers_to_map(h: &HeaderMap) -> std::collections::HashMap<String, String> {
         }
     }
     m
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CaptureRecord {
-    pub id: String,
-    pub timestamp: String,
-    pub method: String,
-    pub uri: String,
-    pub status: u16,
-    pub duration_ms: u64,
-    pub request_headers: std::collections::HashMap<String, String>,
-    pub response_headers: Option<std::collections::HashMap<String, String>>,
-    pub violations: Vec<crate::lint::Violation>,
 }
 
 #[cfg(test)]
@@ -204,7 +132,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_capture_writes_jsonl() -> anyhow::Result<()> {
+    async fn write_transaction_writes_jsonl() -> anyhow::Result<()> {
         let tmp = std::env::temp_dir().join(format!("lint_capture_test_{}.jsonl", Uuid::new_v4()));
         let p = tmp
             .to_str()
@@ -222,20 +150,21 @@ mod tests {
             message: "m".into(),
         }];
 
-        // Use builder pattern
-        cw.write_capture(
-            CaptureRecordBuilder::new("GET", "http://example/", 200, &req_headers)
-                .duration_ms(10)
-                .violations(violations),
-        )
-        .await?;
+        // Build a minimal transaction using helper
+        use crate::http_transaction::TimingInfo;
+        use crate::test_helpers::make_test_transaction;
+        let mut tx = make_test_transaction();
+        tx.request.headers = req_headers;
+        tx.timing = TimingInfo { duration_ms: 10 };
+        tx.violations = violations;
+
+        cw.write_transaction(&tx).await?;
 
         let s = fs::read_to_string(&tmp).await?;
         let v: Value = serde_json::from_str(s.trim())?;
-        assert_eq!(v["method"].as_str(), Some("GET"));
-        assert_eq!(v["uri"].as_str(), Some("http://example/"));
-        assert_eq!(v["status"].as_u64(), Some(200));
-        assert!(v["request_headers"].get("x-test").is_some());
+        assert_eq!(v["request"]["method"].as_str(), Some("GET"));
+        assert_eq!(v["request"]["uri"].as_str(), Some("http://example/"));
+        assert!(v["request"]["headers"].get("x-test").is_some());
         // Ensure severity serialized as lowercase string
         assert_eq!(v["violations"][0]["severity"].as_str(), Some("warn"));
 
@@ -251,7 +180,7 @@ mod tests {
             .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
             .to_string();
 
-        // Write some sample capture records
+        // Write some sample transaction records
         let cw = CaptureWriter::new(p.clone()).await?;
 
         let mut req_headers = HeaderMap::new();
@@ -260,21 +189,22 @@ mod tests {
         let mut resp_headers = HeaderMap::new();
         resp_headers.insert("etag", "\"abc123\"".parse()?);
 
-        cw.write_capture(
-            CaptureRecordBuilder::new("GET", "http://example/test", 200, &req_headers)
-                .response_headers(&resp_headers)
-                .duration_ms(100),
-        )
-        .await?;
+        use crate::test_helpers::make_test_transaction_with_response;
+        let mut tx = make_test_transaction_with_response(200, &[("etag", "\"abc123\"")]);
+        tx.request.headers = req_headers;
+        // Ensure URI matches test expectation
+        tx.request.uri = "http://example/test".to_string();
+        tx.timing.duration_ms = 100;
+
+        cw.write_transaction(&tx).await?;
 
         // Load the captures
         let records = load_captures(&tmp).await?;
         assert_eq!(records.len(), 1);
-        assert_eq!(records[0].method, "GET");
-        assert_eq!(records[0].uri, "http://example/test");
-        assert_eq!(records[0].status, 200);
-        assert_eq!(records[0].duration_ms, 100);
-        assert!(records[0].response_headers.is_some());
+        assert_eq!(records[0].request.method, "GET");
+        assert_eq!(records[0].request.uri, "http://example/test");
+        assert_eq!(records[0].timing.duration_ms, 100);
+        assert!(records[0].response.is_some());
 
         fs::remove_file(&tmp).await?;
         Ok(())
@@ -285,18 +215,27 @@ mod tests {
         let tmp =
             std::env::temp_dir().join(format!("lint_malformed_test_{}.jsonl", Uuid::new_v4()));
 
-        // Write a mix of valid and invalid JSON
-        let content = r#"{"id":"1","timestamp":"2024-01-01T00:00:00Z","method":"GET","uri":"http://example/","status":200,"duration_ms":0,"request_headers":{},"response_headers":null,"violations":[]}
-invalid json line
-{"id":"2","timestamp":"2024-01-01T00:00:01Z","method":"POST","uri":"http://example/post","status":201,"duration_ms":50,"request_headers":{},"response_headers":null,"violations":[]}
-"#;
+        // Write a mix of valid and invalid transaction JSON
+        use crate::test_helpers::{make_test_transaction, make_test_transaction_with_response};
+        let mut tx1 = make_test_transaction();
+        let mut tx2 = make_test_transaction_with_response(201, &[("user", "u2")]);
+        // Ensure these transactions reflect the test's expectations
+        tx1.request.uri = "http://example/".to_string();
+        tx2.request.method = "POST".to_string();
+        tx2.request.uri = "http://example/post".to_string();
+
+        let content = format!(
+            "{}\ninvalid json line\n{}\n",
+            serde_json::to_string(&tx1)?,
+            serde_json::to_string(&tx2)?
+        );
         fs::write(&tmp, content).await?;
 
         // Should load only the valid records
         let records = load_captures(&tmp).await?;
         assert_eq!(records.len(), 2);
-        assert_eq!(records[0].id, "1");
-        assert_eq!(records[1].id, "2");
+        assert_eq!(records[0].request.method, "GET");
+        assert_eq!(records[1].request.method, "POST");
 
         fs::remove_file(&tmp).await?;
         Ok(())
