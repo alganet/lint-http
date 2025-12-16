@@ -118,6 +118,7 @@ pub mod message_connection_upgrade;
 pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
 pub mod message_header_field_names_token;
+pub mod message_obs_fold_disallowed;
 pub mod message_transfer_encoding_chunked_final;
 pub mod server_cache_control_present;
 pub mod server_charset_specification;
@@ -145,6 +146,7 @@ pub const RULES: &[&dyn Rule] = &[
     &message_content_length::MessageContentLength,
     &message_header_field_names_token::MessageHeaderFieldNamesToken,
     &message_transfer_encoding_chunked_final::MessageTransferEncodingChunkedFinal,
+    &message_obs_fold_disallowed::MessageObsFoldDisallowed,
     &server_content_type_present::ServerContentTypePresent,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &connection_efficiency::ConnectionEfficiency,
