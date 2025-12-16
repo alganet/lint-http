@@ -115,7 +115,7 @@ pub mod client_request_method_token_uppercase;
 pub mod client_user_agent_present;
 pub mod connection_efficiency;
 pub mod message_connection_upgrade;
-pub mod message_content_length_non_negative;
+pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
 pub mod message_header_field_names_token;
 pub mod server_cache_control_present;
@@ -141,7 +141,7 @@ pub const RULES: &[&dyn Rule] = &[
     &client_host_header_syntax::ClientHostHeaderSyntax,
     &client_request_method_token_uppercase::ClientRequestMethodTokenUppercase,
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
-    &message_content_length_non_negative::MessageContentLengthNonNegative,
+    &message_content_length::MessageContentLength,
     &message_header_field_names_token::MessageHeaderFieldNamesToken,
     &server_content_type_present::ServerContentTypePresent,
     &message_connection_upgrade::MessageConnectionUpgrade,
