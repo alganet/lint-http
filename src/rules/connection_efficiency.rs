@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::config_cache::RuleConfigCache;
 use crate::lint::Violation;
-use crate::rules::config_cache::RuleConfigCache;
 use crate::rules::Rule;
 use crate::state::StateStore;
 
