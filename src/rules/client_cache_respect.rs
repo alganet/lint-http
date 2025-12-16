@@ -28,11 +28,13 @@ impl Rule for ClientCacheRespect {
         let resource = &tx.request.uri;
 
         // Check if we have a previous response for this client+resource
-        let previous = state.get_previous(client, resource)?;
+        let previous_tx = state.get_previous(client, resource)?;
+        let resp = previous_tx.response.as_ref()?;
 
         // If the previous response had validators (ETag or Last-Modified),
         // the client should send conditional headers
-        let has_validators = previous.etag.is_some() || previous.last_modified.is_some();
+        let has_validators =
+            resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
 
         if !has_validators {
             return None;
@@ -50,8 +52,14 @@ impl Rule for ClientCacheRespect {
                     "Client re-requesting resource without conditional headers. \
                      Server provided validators (ETag: {}, Last-Modified: {}) but client \
                      is not using If-None-Match or If-Modified-Since headers.",
-                    previous.etag.as_deref().unwrap_or("none"),
-                    previous.last_modified.as_deref().unwrap_or("none")
+                    resp.headers
+                        .get("etag")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("none"),
+                    resp.headers
+                        .get("last-modified")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("none")
                 ),
             })
         } else {
@@ -64,7 +72,6 @@ impl Rule for ClientCacheRespect {
 mod tests {
     use super::*;
     use crate::state::ClientIdentifier;
-    use crate::test_helpers::make_headers_from_pairs;
     use rstest::rstest;
     use std::net::{IpAddr, Ipv4Addr};
 
@@ -92,8 +99,10 @@ mod tests {
 
         // Record previous response if provided
         if let Some(pairs) = prev_resp_headers {
-            let resp_headers = make_headers_from_pairs(&pairs);
-            store.record_transaction(&client, resource, 200, &resp_headers);
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &pairs);
+            tx.client = client.clone();
+            tx.request.uri = resource.to_string();
+            store.record_transaction(&tx);
         }
 
         // build request headers from pairs when needed (assigned later into transaction)

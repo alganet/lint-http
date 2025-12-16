@@ -486,9 +486,7 @@ where
     tx.violations = violations.clone();
 
     // Record transaction in state for future analysis
-    shared
-        .state
-        .record_transaction(&client_id, &uri_str, status, &headers);
+    shared.state.record_transaction(&tx);
     shared.state.record_connection(&client_id, &conn_metadata);
 
     // Write capture (we don't capture bodies in MVP)
