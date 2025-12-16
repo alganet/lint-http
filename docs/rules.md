@@ -36,4 +36,4 @@ SPDX-License-Identifier: ISC
 ## Message Rules
 
 - [message_content_length_vs_transfer_encoding](rules/message_content_length_vs_transfer_encoding.md) - Flags messages that include both `Content-Length` and `Transfer-Encoding`.
-- [message_content_length_non_negative](rules/message_content_length_non_negative.md) - Ensures `Content-Length` values are non-negative integers.
+- [message_content_length](rules/message_content_length.md) - Validates Content-Length values and multiple Content-Length header consistency.
