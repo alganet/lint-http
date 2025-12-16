@@ -91,12 +91,23 @@ enabled = false
         "test-client".to_string(),
     );
 
-    let prev = state
+    let prev_tx = state
         .get_previous(&client, "http://example.com/test")
         .ok_or_else(|| anyhow::anyhow!("State should contain seeded transaction"))?;
-    assert_eq!(prev.status, 200);
-    assert_eq!(prev.etag, Some("\"abc123\"".to_string()));
-    assert_eq!(prev.cache_control, Some("max-age=3600".to_string()));
+    let resp = prev_tx
+        .response
+        .ok_or_else(|| anyhow::anyhow!("expected response"))?;
+    assert_eq!(resp.status, 200);
+    assert_eq!(
+        resp.headers.get("etag").and_then(|v| v.to_str().ok()),
+        Some("\"abc123\"")
+    );
+    assert_eq!(
+        resp.headers
+            .get("cache-control")
+            .and_then(|v| v.to_str().ok()),
+        Some("max-age=3600")
+    );
 
     // Cleanup
     fs::remove_file(&captures_file).await?;

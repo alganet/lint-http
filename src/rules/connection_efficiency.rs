@@ -147,7 +147,6 @@ impl Rule for ConnectionEfficiency {
 mod tests {
     use super::*;
     use crate::test_helpers::{enable_rule, make_test_conn, make_test_context};
-    use hyper::HeaderMap;
     use rstest::rstest;
 
     #[test]
@@ -188,7 +187,6 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ConnectionEfficiency;
         let (client, state) = make_test_context();
-        let _headers = HeaderMap::new();
 
         // Simulate connections and transactions using a pattern specified by case
         for i in 0..connections {
@@ -197,7 +195,10 @@ mod tests {
             );
             state.record_connection(&client, &conn);
             for _ in 0..requests_per_connection {
-                state.record_transaction(&client, "http://test.com", 200, &_headers);
+                let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+                tx.client = client.clone();
+                tx.request.uri = "http://test.com".to_string();
+                state.record_transaction(&tx);
             }
         }
         let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12351".parse()?);
@@ -391,7 +392,6 @@ mod tests {
     fn check_request_min_connections_one_trigger() -> anyhow::Result<()> {
         let rule = ConnectionEfficiency;
         let (client, state) = make_test_context();
-        let headers = HeaderMap::new();
 
         // Simulate 2 connections with 1 request each (Efficiency = 1.0)
         for i in 0..2 {
@@ -399,7 +399,10 @@ mod tests {
                 format!("127.0.0.1:{}", 12345 + i).parse()?,
             );
             state.record_connection(&client, &conn);
-            state.record_transaction(&client, "http://test.com", 200, &headers);
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.client = client.clone();
+            tx.request.uri = "http://test.com".to_string();
+            state.record_transaction(&tx);
         }
 
         // Config: min_connections = 1, so rule should trigger on 2 connections

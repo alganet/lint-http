@@ -4,7 +4,7 @@
 
 //! State management for cross-transaction HTTP analysis.
 
-use hyper::HeaderMap;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -31,51 +31,6 @@ struct ResourceKey {
     resource: String,
 }
 
-/// Record of a previous HTTP transaction.
-#[derive(Debug, Clone)]
-pub struct TransactionRecord {
-    pub status: u16,
-    pub timestamp: SystemTime,
-    /// Subset of headers relevant for stateful analysis
-    pub etag: Option<String>,
-    pub last_modified: Option<String>,
-    pub cache_control: Option<String>,
-}
-
-impl TransactionRecord {
-    fn from_headers(status: u16, headers: &HeaderMap) -> Self {
-        let etag = headers
-            .get("etag")
-            .and_then(|v| v.to_str().ok())
-            .map(String::from);
-
-        let last_modified = headers
-            .get("last-modified")
-            .and_then(|v| v.to_str().ok())
-            .map(String::from);
-
-        let cache_control = headers
-            .get("cache-control")
-            .and_then(|v| v.to_str().ok())
-            .map(String::from);
-
-        Self {
-            status,
-            timestamp: SystemTime::now(),
-            etag,
-            last_modified,
-            cache_control,
-        }
-    }
-
-    fn is_expired(&self, ttl: Duration) -> bool {
-        self.timestamp
-            .elapsed()
-            .map(|elapsed| elapsed > ttl)
-            .unwrap_or(true)
-    }
-}
-
 #[derive(Debug, Clone)]
 struct ClientStats {
     connection_count: u64,
@@ -95,7 +50,7 @@ impl Default for ClientStats {
 
 /// Thread-safe store for transaction state.
 pub struct StateStore {
-    store: Arc<RwLock<HashMap<ResourceKey, TransactionRecord>>>,
+    store: Arc<RwLock<HashMap<ResourceKey, crate::http_transaction::HttpTransaction>>>,
     stats: Arc<RwLock<HashMap<ClientIdentifier, ClientStats>>>,
     ttl: Duration,
 }
@@ -110,25 +65,18 @@ impl StateStore {
     }
 
     /// Record a transaction for future analysis.
-    pub fn record_transaction(
-        &self,
-        client: &ClientIdentifier,
-        resource: &str,
-        status: u16,
-        headers: &HeaderMap,
-    ) {
+    pub fn record_transaction(&self, tx: &crate::http_transaction::HttpTransaction) {
         let key = ResourceKey {
-            client: client.clone(),
-            resource: resource.to_string(),
+            client: tx.client.clone(),
+            resource: tx.request.uri.clone(),
         };
-        let record = TransactionRecord::from_headers(status, headers);
 
         if let Ok(mut store) = self.store.write() {
-            store.insert(key, record);
+            store.insert(key, tx.clone());
         }
 
         if let Ok(mut stats) = self.stats.write() {
-            let entry = stats.entry(client.clone()).or_default();
+            let entry = stats.entry(tx.client.clone()).or_default();
             entry.request_count += 1;
             entry.last_seen = SystemTime::now();
         }
@@ -139,7 +87,7 @@ impl StateStore {
         &self,
         client: &ClientIdentifier,
         resource: &str,
-    ) -> Option<TransactionRecord> {
+    ) -> Option<crate::http_transaction::HttpTransaction> {
         let key = ResourceKey {
             client: client.clone(),
             resource: resource.to_string(),
@@ -156,7 +104,16 @@ impl StateStore {
     /// Remove expired entries from the store.
     pub fn cleanup_expired(&self) {
         if let Ok(mut store) = self.store.write() {
-            store.retain(|_, record| !record.is_expired(self.ttl));
+            let ttl_chrono = chrono::Duration::from_std(self.ttl)
+                .unwrap_or_else(|_| chrono::Duration::seconds(0));
+            store.retain(|_, tx| {
+                let age = Utc::now().signed_duration_since(tx.timestamp);
+                // If timestamp is in the future (age < 0), treat as expired (remove)
+                if age < chrono::Duration::zero() {
+                    return false;
+                }
+                age <= ttl_chrono
+            });
         }
     }
 
@@ -223,9 +180,11 @@ impl StateStore {
         let client = ClientIdentifier::new(client_ip, user_agent);
 
         // Only seed if we have response headers (complete transaction)
-        if let Some(ref resp) = tx.response {
-            // Record the transaction using the response header map directly
-            self.record_transaction(&client, &tx.request.uri, resp.status, &resp.headers);
+        if tx.response.is_some() {
+            let mut seeded = tx.clone();
+            seeded.client = client;
+            // Preserve captured timestamp and other fields
+            self.record_transaction(&seeded);
         }
     }
 }
@@ -233,6 +192,7 @@ impl StateStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hyper::HeaderMap;
     use std::net::{IpAddr, Ipv4Addr};
     use std::thread;
     use std::time::Duration;
@@ -250,19 +210,33 @@ mod tests {
         let client = make_client();
         let resource = "http://example.com/resource";
 
-        let mut headers = HeaderMap::new();
-        headers.insert("etag", "\"abc123\"".parse()?);
-        headers.insert("cache-control", "max-age=3600".parse()?);
+        use crate::test_helpers::make_test_transaction_with_response;
+        let mut tx = make_test_transaction_with_response(
+            200,
+            &[("etag", "\"abc123\""), ("cache-control", "max-age=3600")],
+        );
+        tx.client = client.clone();
+        tx.request.uri = resource.to_string();
 
-        store.record_transaction(&client, resource, 200, &headers);
+        store.record_transaction(&tx);
 
-        let record = store.get_previous(&client, resource);
-        assert!(record.is_some());
-        let record = record.ok_or_else(|| anyhow::anyhow!("expected record to exist"))?;
-        assert_eq!(record.status, 200);
-        assert_eq!(record.etag, Some("\"abc123\"".to_string()));
-        assert_eq!(record.cache_control, Some("max-age=3600".to_string()));
-        assert_eq!(record.last_modified, None);
+        let prev = store.get_previous(&client, resource);
+        assert!(prev.is_some());
+        let prev = prev.ok_or_else(|| anyhow::anyhow!("expected record to exist"))?;
+        let resp = prev
+            .response
+            .ok_or_else(|| anyhow::anyhow!("expected response"))?;
+        assert_eq!(resp.status, 200);
+        assert_eq!(
+            resp.headers.get("etag").and_then(|v| v.to_str().ok()),
+            Some("\"abc123\"")
+        );
+        assert_eq!(
+            resp.headers
+                .get("cache-control")
+                .and_then(|v| v.to_str().ok()),
+            Some("max-age=3600")
+        );
         Ok(())
     }
 
@@ -279,13 +253,16 @@ mod tests {
         );
         let resource = "http://example.com/resource";
 
-        let mut headers1 = HeaderMap::new();
-        headers1.insert("etag", "\"etag1\"".parse()?);
-        store.record_transaction(&client1, resource, 200, &headers1);
+        use crate::test_helpers::make_test_transaction_with_response;
+        let mut tx1 = make_test_transaction_with_response(200, &[("etag", "\"etag1\"")]);
+        tx1.client = client1.clone();
+        tx1.request.uri = resource.to_string();
+        store.record_transaction(&tx1);
 
-        let mut headers2 = HeaderMap::new();
-        headers2.insert("etag", "\"etag2\"".parse()?);
-        store.record_transaction(&client2, resource, 200, &headers2);
+        let mut tx2 = make_test_transaction_with_response(200, &[("etag", "\"etag2\"")]);
+        tx2.client = client2.clone();
+        tx2.request.uri = resource.to_string();
+        store.record_transaction(&tx2);
 
         let record1 = store
             .get_previous(&client1, resource)
@@ -294,8 +271,22 @@ mod tests {
             .get_previous(&client2, resource)
             .ok_or_else(|| anyhow::anyhow!("expected record2 to exist"))?;
 
-        assert_eq!(record1.etag, Some("\"etag1\"".to_string()));
-        assert_eq!(record2.etag, Some("\"etag2\"".to_string()));
+        assert_eq!(
+            record1
+                .response
+                .as_ref()
+                .and_then(|r| r.headers.get("etag"))
+                .and_then(|v| v.to_str().ok()),
+            Some("\"etag1\"")
+        );
+        assert_eq!(
+            record2
+                .response
+                .as_ref()
+                .and_then(|r| r.headers.get("etag"))
+                .and_then(|v| v.to_str().ok()),
+            Some("\"etag2\"")
+        );
         Ok(())
     }
 
@@ -305,8 +296,10 @@ mod tests {
         let client = make_client();
         let resource = "http://example.com/resource";
 
-        let headers = HeaderMap::new();
-        store.record_transaction(&client, resource, 200, &headers);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.client = client.clone();
+        tx.request.uri = resource.to_string();
+        store.record_transaction(&tx);
 
         // Verify it exists
         assert!(store.get_previous(&client, resource).is_some());
@@ -321,6 +314,36 @@ mod tests {
         assert!(store.get_previous(&client, resource).is_none());
     }
 
+    use rstest::rstest;
+
+    #[rstest]
+    #[case(60, -30, true)]
+    #[case(60, -120, false)]
+    #[case(60, 60, false)]
+    fn cleanup_expiry_cases(
+        #[case] ttl_secs: u64,
+        #[case] offset_secs: i64,
+        #[case] expect_present: bool,
+    ) {
+        let store = StateStore::new(ttl_secs);
+        let client = make_client();
+        let resource = format!("http://example.com/cleanup/{}", offset_secs);
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.client = client.clone();
+        tx.request.uri = resource.clone();
+        tx.timestamp = Utc::now() + chrono::Duration::seconds(offset_secs);
+        store.record_transaction(&tx);
+
+        store.cleanup_expired();
+
+        if expect_present {
+            assert!(store.get_previous(&client, &resource).is_some());
+        } else {
+            assert!(store.get_previous(&client, &resource).is_none());
+        }
+    }
+
     #[test]
     fn concurrent_access_is_safe() -> anyhow::Result<()> {
         let store = Arc::new(StateStore::new(300));
@@ -332,8 +355,14 @@ mod tests {
         let resource1 = resource.to_string();
         let handle1 = thread::spawn(move || {
             for i in 0..100 {
-                let headers = HeaderMap::new();
-                store1.record_transaction(&client1, &resource1, 200 + i, &headers);
+                let mut tx = crate::test_helpers::make_test_transaction();
+                tx.client = client1.clone();
+                tx.request.uri = resource1.clone();
+                tx.response = Some(crate::http_transaction::ResponseInfo {
+                    status: 200 + i,
+                    headers: HeaderMap::new(),
+                });
+                store1.record_transaction(&tx);
             }
         });
 
@@ -377,14 +406,19 @@ mod tests {
         assert_eq!(store.get_connection_efficiency(&client), Some(0.0));
 
         // Record request
-        let headers = HeaderMap::new();
-        store.record_transaction(&client, "http://example.com", 200, &headers);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.client = client.clone();
+        tx.request.uri = "http://example.com".to_string();
+        store.record_transaction(&tx);
 
         // 1 request, 1 connection -> efficiency 1.0
         assert_eq!(store.get_connection_efficiency(&client), Some(1.0));
 
         // Record another request
-        store.record_transaction(&client, "http://example.com", 200, &headers);
+        let mut tx2 = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx2.client = client.clone();
+        tx2.request.uri = "http://example.com".to_string();
+        store.record_transaction(&tx2);
 
         // 2 requests, 1 connection -> efficiency 2.0
         assert_eq!(store.get_connection_efficiency(&client), Some(2.0));
@@ -427,12 +461,23 @@ mod tests {
             "test-client/1.0".to_string(),
         );
 
-        let prev = store
+        let prev_tx = store
             .get_previous(&client, "http://example.com/resource")
             .ok_or_else(|| anyhow::anyhow!("State should contain seeded transaction"))?;
-        assert_eq!(prev.status, 200);
-        assert_eq!(prev.etag, Some("\"12345\"".to_string()));
-        assert_eq!(prev.cache_control, Some("max-age=3600".to_string()));
+        let resp = prev_tx
+            .response
+            .ok_or_else(|| anyhow::anyhow!("expected response"))?;
+        assert_eq!(resp.status, 200);
+        assert_eq!(
+            resp.headers.get("etag").and_then(|v| v.to_str().ok()),
+            Some("\"12345\"")
+        );
+        assert_eq!(
+            resp.headers
+                .get("cache-control")
+                .and_then(|v| v.to_str().ok()),
+            Some("max-age=3600")
+        );
         Ok(())
     }
 
