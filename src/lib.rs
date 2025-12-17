@@ -26,7 +26,6 @@
 pub mod ca;
 pub mod capture;
 pub mod config;
-pub mod config_cache;
 pub mod connection;
 pub mod http_transaction;
 pub mod lint;

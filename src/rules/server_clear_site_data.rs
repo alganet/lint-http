@@ -2,68 +2,10 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::config_cache::RuleConfigCache;
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-static CACHED_PATHS: RuleConfigCache<Vec<String>> = RuleConfigCache::new();
-
 pub struct ServerClearSiteData;
-
-/// Parse and validate paths configuration for this rule
-fn parse_paths_config(config: &crate::config::Config) -> anyhow::Result<Vec<String>> {
-    // Require a configuration table for this rule. If none is provided, return an error
-    // since this rule is not enabled by default and configuration is required to enable it.
-    let Some(rule_config) = config.get_rule_config("server_clear_site_data") else {
-        return Err(anyhow::anyhow!(
-            r#"rule 'server_clear_site_data' requires configuration to be enabled. Example:
-[rules.server_clear_site_data]
-enabled = true
-paths = ["/logout"]"#
-        ));
-    };
-
-    // If config is provided, it must be a table with a "paths" array
-    let table = rule_config.as_table().ok_or_else(|| {
-        anyhow::anyhow!(
-            "Configuration must be a table with 'paths' field, e.g., [rules.server_clear_site_data]\npaths = [\"/logout\"]"
-        )
-    })?;
-
-    // "paths" field is required
-    let paths_value = table.get("paths").ok_or_else(|| {
-        anyhow::anyhow!("Configuration table must contain 'paths' field with array of strings")
-    })?;
-
-    // "paths" must be an array
-    let paths_array = paths_value.as_array().ok_or_else(|| {
-        anyhow::anyhow!(
-            "'paths' field must be an array of strings, e.g., paths = [\"/logout\", \"/signout\"]"
-        )
-    })?;
-
-    // Array must not be empty
-    if paths_array.is_empty() {
-        return Err(anyhow::anyhow!(
-            "'paths' array cannot be empty - provide at least one path or disable the rule"
-        ));
-    }
-
-    // Parse and validate all items
-    let mut paths = Vec::new();
-    for (idx, item) in paths_array.iter().enumerate() {
-        let path = item.as_str().ok_or_else(|| {
-            anyhow::anyhow!(
-                "'paths' array item at index {} is not a string: {:?}",
-                idx,
-                item
-            )
-        })?;
-        paths.push(path.to_string());
-    }
-
-    Ok(paths)
-}
 
 impl Rule for ServerClearSiteData {
     fn id(&self) -> &'static str {
@@ -75,9 +17,48 @@ impl Rule for ServerClearSiteData {
     }
 
     fn validate_config(&self, config: &crate::config::Config) -> anyhow::Result<()> {
-        // Parse and cache the config - if it succeeds, config is valid
-        let paths = parse_paths_config(config)?;
-        CACHED_PATHS.set(paths);
+        // Parse and validate the config at startup (inlined to avoid a helper).
+        let Some(rule_config) = config.get_rule_config("server_clear_site_data") else {
+            return Err(anyhow::anyhow!(
+                r#"rule 'server_clear_site_data' requires configuration to be enabled. Example:
+[rules.server_clear_site_data]
+enabled = true
+paths = ["/logout"]"#
+            ));
+        };
+
+        let table = rule_config.as_table().ok_or_else(|| {
+            anyhow::anyhow!(
+                "Configuration must be a table with 'paths' field, e.g., [rules.server_clear_site_data]\npaths = [\"/logout\"]"
+            )
+        })?;
+
+        let paths_value = table.get("paths").ok_or_else(|| {
+            anyhow::anyhow!("Configuration table must contain 'paths' field with array of strings")
+        })?;
+
+        let paths_array = paths_value.as_array().ok_or_else(|| {
+            anyhow::anyhow!(
+                "'paths' field must be an array of strings, e.g., paths = [\"/logout\", \"/signout\"]"
+            )
+        })?;
+
+        if paths_array.is_empty() {
+            return Err(anyhow::anyhow!(
+                "'paths' array cannot be empty - provide at least one path or disable the rule"
+            ));
+        }
+
+        for (idx, item) in paths_array.iter().enumerate() {
+            item.as_str().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "'paths' array item at index {} is not a string: {:?}",
+                    idx,
+                    item
+                )
+            })?;
+        }
+
         Ok(())
     }
 
@@ -96,17 +77,38 @@ impl Rule for ServerClearSiteData {
             return None;
         }
 
-        // Get configured paths from cache. This should always succeed because validation
-        // happens at startup and the rule is only called when enabled. The unwrap_or_else
-        // with panic serves as a defensive assertion.
-        let paths = CACHED_PATHS.get_or_init(|| {
-            parse_paths_config(config).unwrap_or_else(|e| {
+        let paths = {
+            let Some(rule_config) = config.get_rule_config("server_clear_site_data") else {
+                panic!("FATAL: rule 'server_clear_site_data' requires configuration to be enabled at runtime");
+            };
+
+            let table = rule_config.as_table().unwrap_or_else(|| {
                 panic!(
-                    "FATAL: invalid or missing configuration for rule 'server_clear_site_data' at runtime: {}",
-                    e
-                )
-            })
-        });
+                    "FATAL: configuration for rule 'server_clear_site_data' must be a TOML table"
+                );
+            });
+
+            let value = table.get("paths").unwrap_or_else(|| {
+                panic!("FATAL: 'paths' field is required and must be an array of strings for rule 'server_clear_site_data'");
+            });
+
+            let arr = value.as_array().unwrap_or_else(|| {
+                panic!("FATAL: 'paths' must be an array for rule 'server_clear_site_data'");
+            });
+
+            if arr.is_empty() {
+                panic!("FATAL: 'paths' array cannot be empty for rule 'server_clear_site_data'");
+            }
+
+            let mut out = Vec::new();
+            for (idx, item) in arr.iter().enumerate() {
+                let s = item.as_str().unwrap_or_else(|| {
+                    panic!("FATAL: 'paths' item at index {} is not a string", idx)
+                });
+                out.push(s.to_string());
+            }
+            out
+        };
 
         // Check if the current resource path matches any configured path
         let resource_path = extract_path_from_resource(&tx.request.uri);

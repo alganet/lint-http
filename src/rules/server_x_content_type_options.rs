@@ -2,50 +2,10 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::config_cache::RuleConfigCache;
 use crate::lint::Violation;
 use crate::rules::Rule;
 
 pub struct ServerXContentTypeOptions;
-
-static CACHED_CONTENT_TYPES: RuleConfigCache<Vec<String>> = RuleConfigCache::new();
-
-fn parse_x_content_type_options_config(
-    config: &crate::config::Config,
-) -> anyhow::Result<Vec<String>> {
-    let Some(rule_config) = config.get_rule_config("server_x_content_type_options") else {
-        return Err(anyhow::anyhow!(
-            "rule 'server_x_content_type_options' requires configuration to be enabled. Example:\n[rules.server_x_content_type_options]\nenabled = true\ncontent_types = [\"text/html\", \"application/json\"]"
-        ));
-    };
-
-    let table = rule_config.as_table().ok_or_else(|| {
-        anyhow::anyhow!(
-            "Configuration for rule 'server_x_content_type_options' must be a TOML table with 'content_types' array"
-        )
-    })?;
-
-    let value = table.get("content_types").ok_or_else(|| {
-        anyhow::anyhow!("'content_types' field is required and must be an array of strings")
-    })?;
-
-    let arr = value
-        .as_array()
-        .ok_or_else(|| anyhow::anyhow!("'content_types' must be an array"))?;
-    if arr.is_empty() {
-        return Err(anyhow::anyhow!("'content_types' array cannot be empty"));
-    }
-
-    let mut out = Vec::new();
-    for (idx, item) in arr.iter().enumerate() {
-        let s = item.as_str().ok_or_else(|| {
-            anyhow::anyhow!("'content_types' item at index {} is not a string", idx)
-        })?;
-        out.push(s.to_ascii_lowercase());
-    }
-
-    Ok(out)
-}
 
 impl Rule for ServerXContentTypeOptions {
     fn id(&self) -> &'static str {
@@ -62,12 +22,39 @@ impl Rule for ServerXContentTypeOptions {
         _previous: Option<&crate::http_transaction::HttpTransaction>,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
-        // Only evaluate when status is 2xx and the response Content-Type matches one of the configured types
-        let content_types = CACHED_CONTENT_TYPES.get_or_init(|| {
-            parse_x_content_type_options_config(_config).unwrap_or_else(|e| {
-                panic!("FATAL: invalid or missing configuration for rule 'server_x_content_type_options' at runtime: {}", e);
-            })
-        });
+        let content_types = {
+            let Some(rule_config) = _config.get_rule_config("server_x_content_type_options") else {
+                panic!("FATAL: rule 'server_x_content_type_options' requires configuration to be enabled at runtime");
+            };
+
+            let table = rule_config.as_table().unwrap_or_else(|| {
+                panic!("FATAL: configuration for rule 'server_x_content_type_options' must be a TOML table");
+            });
+
+            let value = table.get("content_types").unwrap_or_else(|| {
+                panic!("FATAL: 'content_types' field is required and must be an array of strings for rule 'server_x_content_type_options'");
+            });
+
+            let arr = value.as_array().unwrap_or_else(|| {
+                panic!("FATAL: 'content_types' must be an array for rule 'server_x_content_type_options'");
+            });
+
+            if arr.is_empty() {
+                panic!("FATAL: 'content_types' array cannot be empty for rule 'server_x_content_type_options'");
+            }
+
+            let mut out = Vec::new();
+            for (idx, item) in arr.iter().enumerate() {
+                let s = item.as_str().unwrap_or_else(|| {
+                    panic!(
+                        "FATAL: 'content_types' item at index {} is not a string",
+                        idx
+                    )
+                });
+                out.push(s.to_ascii_lowercase());
+            }
+            out
+        };
 
         let Some(resp) = &tx.response else {
             return None;
@@ -96,8 +83,35 @@ impl Rule for ServerXContentTypeOptions {
     }
 
     fn validate_config(&self, config: &crate::config::Config) -> anyhow::Result<()> {
-        let parsed = parse_x_content_type_options_config(config)?;
-        CACHED_CONTENT_TYPES.set(parsed);
+        let Some(rule_config) = config.get_rule_config("server_x_content_type_options") else {
+            return Err(anyhow::anyhow!(
+                "rule 'server_x_content_type_options' requires configuration to be enabled. Example:\n[rules.server_x_content_type_options]\nenabled = true\ncontent_types = [\"text/html\", \"application/json\"]"
+            ));
+        };
+
+        let table = rule_config.as_table().ok_or_else(|| {
+            anyhow::anyhow!(
+                "Configuration for rule 'server_x_content_type_options' must be a TOML table with 'content_types' array"
+            )
+        })?;
+
+        let value = table.get("content_types").ok_or_else(|| {
+            anyhow::anyhow!("'content_types' field is required and must be an array of strings")
+        })?;
+
+        let arr = value
+            .as_array()
+            .ok_or_else(|| anyhow::anyhow!("'content_types' must be an array"))?;
+        if arr.is_empty() {
+            return Err(anyhow::anyhow!("'content_types' array cannot be empty"));
+        }
+
+        for (idx, item) in arr.iter().enumerate() {
+            item.as_str().ok_or_else(|| {
+                anyhow::anyhow!("'content_types' item at index {} is not a string", idx)
+            })?;
+        }
+
         Ok(())
     }
 }
@@ -224,10 +238,25 @@ mod tests {
             }
         } else {
             res?;
-            let cached = CACHED_CONTENT_TYPES.get_or_init(|| {
-                panic!("the cache should have been initialized in validate_config")
-            });
-            assert_eq!(cached, vec!["text/html".to_string()]);
+            let parsed = {
+                let Some(rule_config) = cfg.get_rule_config("server_x_content_type_options") else {
+                    panic!("test setup error: rule table missing");
+                };
+                let table = rule_config.as_table().expect("expected table");
+                let arr = table
+                    .get("content_types")
+                    .expect("missing content_types")
+                    .as_array()
+                    .expect("content_types must be an array");
+                arr.iter()
+                    .map(|v| {
+                        v.as_str()
+                            .expect("content_types items must be strings")
+                            .to_ascii_lowercase()
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(parsed, vec!["text/html".to_string()]);
         }
         Ok(())
     }
