@@ -8,6 +8,8 @@ use crate::rules::Rule;
 pub struct ClientRequestMethodTokenUppercase;
 
 impl Rule for ClientRequestMethodTokenUppercase {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "client_request_method_token_uppercase"
     }
@@ -20,7 +22,7 @@ impl Rule for ClientRequestMethodTokenUppercase {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        _config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         let m = tx.request.method.as_str();
 
@@ -28,7 +30,7 @@ impl Rule for ClientRequestMethodTokenUppercase {
         if let Some(c) = crate::token::find_invalid_token_char(m) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(_config, self.id()),
+                severity: config.severity,
                 message: format!("Method token contains invalid character: '{}'", c),
             });
         }
@@ -36,7 +38,7 @@ impl Rule for ClientRequestMethodTokenUppercase {
         if crate::token::find_first_lowercase(m).is_some() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(_config, self.id()),
+                severity: config.severity,
                 message: "Method token should be uppercase".into(),
             });
         }
@@ -79,7 +81,8 @@ mod tests {
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
         tx.request.method = method.as_str().to_string();
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
 
         if expect_violation {
             assert!(violation.is_some());
@@ -99,7 +102,7 @@ mod tests {
         let mut tx = make_test_transaction();
         tx.request.method = "get".to_string();
 
-        let v = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("uppercase"));
@@ -107,7 +110,7 @@ mod tests {
         // Invalid character should be reported with char in message
         let mut tx2 = make_test_transaction();
         tx2.request.method = "G@T".to_string();
-        let v2 = rule.check_transaction(&tx2, None, &crate::config::Config::default());
+        let v2 = rule.check_transaction(&tx2, None, &crate::test_helpers::make_test_rule_config());
         assert!(v2.is_some());
         let msg2 = v2.unwrap().message;
         assert!(msg2.contains("invalid character") && msg2.contains("@"));

@@ -9,6 +9,8 @@ use std::net::IpAddr;
 pub struct ClientHostHeader;
 
 impl Rule for ClientHostHeader {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "client_host_header"
     }
@@ -19,23 +21,23 @@ impl Rule for ClientHostHeader {
 
     fn check_transaction(
         &self,
-        _tx: &crate::http_transaction::HttpTransaction,
+        tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        _config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
-        let host_values = _tx.request.headers.get_all("host");
+        let host_values = tx.request.headers.get_all("host");
         let host_count = host_values.iter().count();
         if host_count == 0 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(_config, self.id()),
+                severity: config.severity,
                 message: "Request missing Host header".into(),
             });
         }
         if host_count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(_config, self.id()),
+                severity: config.severity,
                 message: "Multiple Host header fields present".into(),
             });
         }
@@ -45,7 +47,7 @@ impl Rule for ClientHostHeader {
             Err(_) => {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: crate::rules::get_rule_severity(_config, self.id()),
+                    severity: config.severity,
                     message: "Host header is not valid UTF-8".into(),
                 });
             }
@@ -55,7 +57,7 @@ impl Rule for ClientHostHeader {
         if s.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(_config, self.id()),
+                severity: config.severity,
                 message: "Host header is empty".into(),
             });
         }
@@ -64,7 +66,7 @@ impl Rule for ClientHostHeader {
         if s.contains('@') {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(_config, self.id()),
+                severity: config.severity,
                 message: "Host header MUST NOT include userinfo (user:pass@)".into(),
             });
         }
@@ -74,14 +76,14 @@ impl Rule for ClientHostHeader {
             if let Some(end_idx) = rest.find(']') {
                 let after = &rest[end_idx + 1..];
                 if let Some(port) = after.strip_prefix(':') {
-                    return self.validate_port(port, _config);
+                    return self.validate_port(port, config);
                 }
                 return None;
             }
             // malformed bracketed host — flag as violation
             return Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(_config, self.id()),
+                severity: config.severity,
                 message: "Malformed bracketed IPv6 literal in Host header".into(),
             });
         }
@@ -103,7 +105,7 @@ impl Rule for ClientHostHeader {
                         if matches!(ip, IpAddr::V6(_)) {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: crate::rules::get_rule_severity(_config, self.id()),
+                                severity: config.severity,
                                 message: "IPv6 literal with port must be bracketed in Host header"
                                     .into(),
                             });
@@ -117,7 +119,7 @@ impl Rule for ClientHostHeader {
         // Single colon — interpret as host:port and validate the port
         if let Some(idx) = s.rfind(':') {
             let port = &s[idx + 1..];
-            return self.validate_port(port, _config);
+            return self.validate_port(port, config);
         }
 
         None
@@ -125,18 +127,22 @@ impl Rule for ClientHostHeader {
 }
 
 impl ClientHostHeader {
-    fn validate_port(&self, port: &str, cfg: &crate::config::Config) -> Option<Violation> {
+    fn validate_port(
+        &self,
+        port: &str,
+        rule_config: &crate::rules::RuleConfig,
+    ) -> Option<Violation> {
         if port.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(cfg, self.id()),
+                severity: rule_config.severity,
                 message: "Host header includes empty port".into(),
             });
         }
         if !port.chars().all(|c| c.is_ascii_digit()) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(cfg, self.id()),
+                severity: rule_config.severity,
                 message: format!("Host header port is not numeric: '{}'", port),
             });
         }
@@ -144,14 +150,14 @@ impl ClientHostHeader {
             if n == 0 || n > 65535 {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: crate::rules::get_rule_severity(cfg, self.id()),
+                    severity: rule_config.severity,
                     message: format!("Host header port out of range: {}", n),
                 });
             }
         } else {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(cfg, self.id()),
+                severity: rule_config.severity,
                 message: format!("Host header port is invalid: '{}'", port),
             });
         }
@@ -197,7 +203,8 @@ mod tests {
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
 
         if expect_violation {
             assert!(violation.is_some());
@@ -219,7 +226,8 @@ mod tests {
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
         hm.append("host", HeaderValue::from_static("other.example.com"));
         tx.request.headers = hm;
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(violation.is_some());
         assert_eq!(
             violation.map(|v| v.message),

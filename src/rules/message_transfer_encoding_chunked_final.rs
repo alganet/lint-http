@@ -8,6 +8,8 @@ use crate::rules::Rule;
 pub struct MessageTransferEncodingChunkedFinal;
 
 impl Rule for MessageTransferEncodingChunkedFinal {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "message_transfer_encoding_chunked_final"
     }
@@ -20,7 +22,7 @@ impl Rule for MessageTransferEncodingChunkedFinal {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        _config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
             let mut codings: Vec<String> = Vec::new();
@@ -46,11 +48,11 @@ impl Rule for MessageTransferEncodingChunkedFinal {
                 if pos != codings.len() - 1 {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: crate::rules::get_rule_severity(_config, self.id()),
+                        severity: config.severity,
                         message: format!(
-                            "Transfer-Encoding 'chunked' must be the final coding: codings found '{}'",
-                            codings.join(", ")
-                        ),
+                        "Transfer-Encoding 'chunked' must be the final coding: codings found '{}'",
+                        codings.join(", ")
+                    ),
                     });
                 }
             }
@@ -104,7 +106,7 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {
             assert!(v.is_some(), "request '{}' expected violation", value);
         } else {
@@ -122,7 +124,7 @@ mod tests {
         // Ensure there is no Transfer-Encoding header
         tx.request.headers = hyper::HeaderMap::new();
 
-        let v = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(v.is_none());
         Ok(())
     }
@@ -149,7 +151,7 @@ mod tests {
             headers: hm,
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {
             assert!(v.is_some(), "response '{}' expected violation", value);
         } else {
@@ -176,7 +178,7 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(v.is_some());
         Ok(())
     }

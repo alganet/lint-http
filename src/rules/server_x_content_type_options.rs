@@ -2,18 +2,23 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::config_cache::RuleConfigCache;
 use crate::lint::Violation;
 use crate::rules::Rule;
 
 pub struct ServerXContentTypeOptions;
 
-static CACHED_CONTENT_TYPES: RuleConfigCache<Vec<String>> = RuleConfigCache::new();
+#[derive(Debug, Clone)]
+pub struct XContentTypeOptionsConfig {
+    pub enabled: bool,
+    pub severity: crate::lint::Severity,
+    pub content_types: Vec<String>,
+}
 
 fn parse_x_content_type_options_config(
     config: &crate::config::Config,
-) -> anyhow::Result<Vec<String>> {
-    let Some(rule_config) = config.get_rule_config("server_x_content_type_options") else {
+    rule_id: &str,
+) -> anyhow::Result<XContentTypeOptionsConfig> {
+    let Some(rule_config) = config.get_rule_config(rule_id) else {
         return Err(anyhow::anyhow!(
             "rule 'server_x_content_type_options' requires configuration to be enabled. Example:\n[rules.server_x_content_type_options]\nenabled = true\ncontent_types = [\"text/html\", \"application/json\"]"
         ));
@@ -36,18 +41,27 @@ fn parse_x_content_type_options_config(
         return Err(anyhow::anyhow!("'content_types' array cannot be empty"));
     }
 
-    let mut out = Vec::new();
+    let mut content_types = Vec::new();
     for (idx, item) in arr.iter().enumerate() {
         let s = item.as_str().ok_or_else(|| {
             anyhow::anyhow!("'content_types' item at index {} is not a string", idx)
         })?;
-        out.push(s.to_ascii_lowercase());
+        content_types.push(s.to_ascii_lowercase());
     }
 
-    Ok(out)
+    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
+    let enabled = crate::rules::get_rule_enabled_required(config, rule_id)?;
+
+    Ok(XContentTypeOptionsConfig {
+        enabled,
+        content_types,
+        severity,
+    })
 }
 
 impl Rule for ServerXContentTypeOptions {
+    type Config = XContentTypeOptionsConfig;
+
     fn id(&self) -> &'static str {
         "server_x_content_type_options"
     }
@@ -56,19 +70,20 @@ impl Rule for ServerXContentTypeOptions {
         crate::rules::RuleScope::Server
     }
 
+    fn validate_and_box(
+        &self,
+        config: &crate::config::Config,
+    ) -> anyhow::Result<std::sync::Arc<dyn std::any::Any + Send + Sync>> {
+        let parsed = parse_x_content_type_options_config(config, self.id())?;
+        Ok(std::sync::Arc::new(parsed))
+    }
+
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        _config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
-        // Only evaluate when status is 2xx and the response Content-Type matches one of the configured types
-        let content_types = CACHED_CONTENT_TYPES.get_or_init(|| {
-            parse_x_content_type_options_config(_config).unwrap_or_else(|e| {
-                panic!("FATAL: invalid or missing configuration for rule 'server_x_content_type_options' at runtime: {}", e);
-            })
-        });
-
         let Some(resp) = &tx.response else {
             return None;
         };
@@ -82,30 +97,24 @@ impl Rule for ServerXContentTypeOptions {
 
         if let Some(content_type) = content_type_header {
             if (200..300).contains(&resp.status)
-                && content_types.contains(&content_type)
+                && config.content_types.contains(&content_type)
                 && !resp.headers.contains_key("x-content-type-options")
             {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: crate::rules::get_rule_severity(_config, self.id()),
+                    severity: config.severity,
                     message: "Missing X-Content-Type-Options: nosniff header".into(),
                 });
             }
         }
         None
     }
-
-    fn validate_config(&self, config: &crate::config::Config) -> anyhow::Result<()> {
-        let parsed = parse_x_content_type_options_config(config)?;
-        CACHED_CONTENT_TYPES.set(parsed);
-        Ok(())
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{enable_rule, make_test_config_with_content_types};
+    use crate::test_helpers::enable_rule;
     use rstest::rstest;
 
     #[rstest]
@@ -124,7 +133,11 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ServerXContentTypeOptions;
 
-        let cfg = make_test_config_with_content_types(&content_types);
+        let config = super::XContentTypeOptionsConfig {
+            enabled: true,
+            content_types: content_types.iter().map(|s| s.to_string()).collect(),
+            severity: crate::lint::Severity::Warn,
+        };
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
@@ -132,7 +145,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
         });
 
-        let violation = rule.check_transaction(&tx, None, &cfg);
+        let violation = rule.check_transaction(&tx, None, &config);
 
         if expect_violation {
             assert!(violation.is_some());
@@ -205,6 +218,10 @@ mod tests {
                 let mut table = toml::map::Map::new();
                 table.insert("enabled".to_string(), toml::Value::Boolean(true));
                 table.insert(
+                    "severity".to_string(),
+                    toml::Value::String("warn".to_string()),
+                );
+                table.insert(
                     "content_types".to_string(),
                     toml::Value::Array(vec![toml::Value::String("text/html".to_string())]),
                 );
@@ -216,18 +233,18 @@ mod tests {
             _ => panic!("unknown scenario"),
         }
 
-        let res = rule.validate_config(&cfg);
+        let res = rule.validate_and_box(&cfg);
         if expect_error {
             assert!(res.is_err());
             if let Some(sub) = expected_substring {
                 assert!(res.unwrap_err().to_string().contains(sub));
             }
         } else {
-            res?;
-            let cached = CACHED_CONTENT_TYPES.get_or_init(|| {
-                panic!("the cache should have been initialized in validate_config")
-            });
-            assert_eq!(cached, vec!["text/html".to_string()]);
+            let boxed = res?;
+            let parsed = boxed
+                .downcast::<super::XContentTypeOptionsConfig>()
+                .unwrap();
+            assert_eq!(parsed.content_types, vec!["text/html".to_string()]);
         }
         Ok(())
     }
@@ -249,6 +266,12 @@ mod tests {
             toml::Value::Table(table),
         );
 
+        let config = super::XContentTypeOptionsConfig {
+            enabled: true,
+            content_types: vec!["text/html".to_string()],
+            severity: crate::lint::Severity::Warn,
+        };
+
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
@@ -258,7 +281,7 @@ mod tests {
             )]),
         });
 
-        let violation = rule.check_transaction(&tx, None, &cfg);
+        let violation = rule.check_transaction(&tx, None, &config);
         assert!(violation.is_some());
         Ok(())
     }

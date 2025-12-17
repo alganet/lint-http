@@ -63,7 +63,7 @@ enabled = false
     fs::write(&config_file, config_toml).await?;
 
     // Load the config
-    let cfg = lint_http::config::Config::load_from_path(&config_file).await?;
+    let (cfg, _engine) = lint_http::config::Config::load_from_path(&config_file).await?;
     let cfg = Arc::new(cfg);
 
     // Verify config loaded correctly
@@ -169,7 +169,7 @@ enabled = false
     fs::write(&config_file, config_toml).await?;
 
     // Load the config
-    let cfg = lint_http::config::Config::load_from_path(&config_file).await?;
+    let (cfg, _engine) = lint_http::config::Config::load_from_path(&config_file).await?;
 
     // Verify captures_seed is false
     assert!(!cfg.general.captures_seed);
@@ -220,7 +220,7 @@ enabled = false
     );
     fs::write(&config_file, config_toml).await?;
 
-    let cfg = lint_http::config::Config::load_from_path(&config_file).await?;
+    let (cfg, _engine) = lint_http::config::Config::load_from_path(&config_file).await?;
 
     // load_captures should return empty vector, not error
     let records = lint_http::capture::load_captures(&cfg.general.captures).await?;

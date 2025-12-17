@@ -22,13 +22,14 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     let args = Args::parse();
 
-    let cfg = config::Config::load_from_path(&args.config).await?;
+    let (cfg, engine) = config::Config::load_from_path(&args.config).await?;
     let cfg = std::sync::Arc::new(cfg);
+    let engine = std::sync::Arc::new(engine);
 
     let addr: SocketAddr = cfg.general.listen.parse()?;
     let capture_writer = capture::CaptureWriter::new(cfg.general.captures.clone()).await?;
 
-    let server = proxy::run_proxy(addr, capture_writer, cfg.clone());
+    let server = proxy::run_proxy(addr, capture_writer, cfg.clone(), engine.clone());
 
     tokio::select! {
         res = server => {
@@ -75,7 +76,7 @@ mod tests {
                 .to_string(),
         };
 
-        let cfg = config::Config::load_from_path(&args.config).await?;
+        let (cfg, _engine) = config::Config::load_from_path(&args.config).await?;
 
         assert!(!cfg.is_enabled("server_cache_control_present"));
         // check defaults

@@ -50,12 +50,14 @@ struct Shared {
     cfg: Arc<Config>,
     state: Arc<crate::state::StateStore>,
     ca: Option<Arc<CertificateAuthority>>,
+    engine: Arc<crate::rules::RuleConfigEngine>,
 }
 
 pub async fn run_proxy(
     listen: SocketAddr,
     captures: CaptureWriter,
     cfg: Arc<Config>,
+    engine: Arc<crate::rules::RuleConfigEngine>,
 ) -> anyhow::Result<()> {
     let https = HttpsConnectorBuilder::new()
         .with_native_roots()?
@@ -116,6 +118,7 @@ pub async fn run_proxy(
         cfg,
         state,
         ca,
+        engine,
     });
 
     // Use a manual TcpListener accept loop to preserve the remote address and
@@ -482,7 +485,7 @@ where
     };
 
     // Evaluate lint rules using config
-    let violations = lint::lint_transaction(&tx, &shared.cfg, &shared.state);
+    let violations = lint::lint_transaction(&tx, &shared.cfg, &shared.state, &shared.engine);
     tx.violations = violations.clone();
 
     // Record transaction in state for future analysis
@@ -647,6 +650,7 @@ mod tests {
             "server_cache_control_present",
             "server_etag_or_last_modified",
         ]);
+        let engine = crate::test_helpers::make_test_engine(&cfg_inner);
         let cfg = StdArc::new(cfg_inner);
         let https = HttpsConnectorBuilder::new()
             .with_native_roots()?
@@ -663,6 +667,7 @@ mod tests {
             cfg,
             state,
             ca: None,
+            engine: StdArc::new(engine),
         });
 
         let uri: Uri = mock.uri().parse()?;
@@ -722,6 +727,7 @@ mod tests {
             cfg,
             state,
             ca: None,
+            engine: StdArc::new(crate::rules::RuleConfigEngine::new()),
         });
 
         // Use a port that is (likely) closed to provoke a client error
@@ -784,6 +790,7 @@ mod tests {
             cfg,
             state,
             ca: None,
+            engine: StdArc::new(crate::rules::RuleConfigEngine::new()),
         });
 
         // Build a relative URI and set Host header so proxy builds absolute URI from Host
@@ -854,6 +861,7 @@ mod tests {
             cfg,
             state,
             ca: None,
+            engine: StdArc::new(crate::rules::RuleConfigEngine::new()),
         });
 
         let uri: Uri = format!("{}/ok", mock.uri()).parse()?;
@@ -905,9 +913,10 @@ mod tests {
             .to_string();
         let cw = CaptureWriter::new(p.clone()).await?;
         let cfg = StdArc::new(crate::config::Config::default());
+        let engine = StdArc::new(crate::rules::RuleConfigEngine::new());
 
         // run_proxy should return an error since the port is already in use
-        let res = run_proxy(addr, cw, cfg).await;
+        let res = run_proxy(addr, cw, cfg, engine).await;
         assert!(res.is_err());
 
         let _ = fs::remove_file(&tmp).await;
@@ -926,10 +935,11 @@ mod tests {
         let cw = CaptureWriter::new(p.clone()).await?;
 
         let cfg = StdArc::new(crate::config::Config::default());
+        let engine = StdArc::new(crate::rules::RuleConfigEngine::new());
         let addr: std::net::SocketAddr = "127.0.0.1:0".parse()?;
 
         let task = tokio::spawn(async move {
-            let _ = run_proxy(addr, cw, cfg).await;
+            let _ = run_proxy(addr, cw, cfg, engine).await;
         });
 
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -975,6 +985,7 @@ mod tests {
             cfg,
             state,
             ca: Some(ca),
+            engine: StdArc::new(crate::rules::RuleConfigEngine::new()),
         });
 
         let req = Request::builder()
@@ -1036,6 +1047,7 @@ mod tests {
             cfg,
             state,
             ca: None, // No CA because TLS is disabled
+            engine: StdArc::new(crate::rules::RuleConfigEngine::new()),
         });
 
         // Try to use CONNECT method
@@ -1091,6 +1103,7 @@ mod tests {
             cfg,
             state,
             ca: None, // TLS disabled
+            engine: StdArc::new(crate::rules::RuleConfigEngine::new()),
         });
 
         let req = Request::builder()
@@ -1153,6 +1166,7 @@ mod tests {
             cfg,
             state,
             ca: None,
+            engine: StdArc::new(crate::rules::RuleConfigEngine::new()),
         });
 
         let uri: Uri = format!("{}/hop", mock.uri()).parse()?;
@@ -1207,6 +1221,7 @@ mod tests {
             cfg,
             state,
             ca: None,
+            engine: StdArc::new(crate::rules::RuleConfigEngine::new()),
         });
 
         let req = Request::builder()
@@ -1267,6 +1282,7 @@ mod tests {
             cfg,
             state,
             ca: Some(ca),
+            engine: StdArc::new(crate::rules::RuleConfigEngine::new()),
         });
 
         // CONNECT with TLS enabled should return empty 200 response immediately
@@ -1334,6 +1350,7 @@ mod tests {
             cfg,
             state,
             ca: None,
+            engine: StdArc::new(crate::rules::RuleConfigEngine::new()),
         });
 
         let req = Request::builder()

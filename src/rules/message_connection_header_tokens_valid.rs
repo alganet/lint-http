@@ -8,6 +8,8 @@ use crate::rules::Rule;
 pub struct MessageConnectionHeaderTokensValid;
 
 impl Rule for MessageConnectionHeaderTokensValid {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "message_connection_header_tokens_valid"
     }
@@ -20,7 +22,7 @@ impl Rule for MessageConnectionHeaderTokensValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        _config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
             for hv in headers.get_all(hyper::header::CONNECTION).iter() {
@@ -33,7 +35,7 @@ impl Rule for MessageConnectionHeaderTokensValid {
                     if token.is_empty() {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: crate::rules::get_rule_severity(_config, self.id()),
+                            severity: config.severity,
                             message: "Empty token in Connection header".into(),
                         });
                     }
@@ -44,7 +46,7 @@ impl Rule for MessageConnectionHeaderTokensValid {
                     if hyper::header::HeaderName::from_bytes(token.as_bytes()).is_err() {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: crate::rules::get_rule_severity(_config, self.id()),
+                            severity: config.severity,
                             message: format!("Invalid token in Connection header: '{}'", token),
                         });
                     }
@@ -98,7 +100,7 @@ mod tests {
         }
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {
             assert!(v.is_some(), "case '{}' expected violation", value);
         } else {
@@ -132,7 +134,7 @@ mod tests {
             headers: hm,
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {
             assert!(v.is_some(), "case '{}' expected violation", value);
         } else {
@@ -155,7 +157,7 @@ mod tests {
         tx.request.headers = hm;
 
         assert!(rule
-            .check_transaction(&tx, None, &crate::config::Config::default())
+            .check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config())
             .is_none());
         Ok(())
     }
@@ -175,7 +177,7 @@ mod tests {
 
         // Should report a violation due to invalid 'a/b' token
         assert!(rule
-            .check_transaction(&tx, None, &crate::config::Config::default())
+            .check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config())
             .is_some());
         Ok(())
     }
@@ -188,7 +190,7 @@ mod tests {
         tx.request.headers = hyper::HeaderMap::new();
 
         assert!(rule
-            .check_transaction(&tx, None, &crate::config::Config::default())
+            .check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config())
             .is_none());
         Ok(())
     }

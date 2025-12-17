@@ -3,6 +3,25 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
+use std::any::Any;
+use std::collections::HashMap;
+use std::sync::Arc;
+
+/// Standard configuration for rules
+/// Used as the Config type for non-configurable rules.
+#[derive(Debug, Clone)]
+pub struct RuleConfig {
+    pub enabled: bool,
+    pub severity: crate::lint::Severity,
+}
+
+/// Parse severity from config for a given rule.
+/// Returns RuleConfig with parsed severity. Fails if severity is not explicitly configured.
+pub fn parse_rule_config(cfg: &crate::config::Config, rule_id: &str) -> anyhow::Result<RuleConfig> {
+    let severity = get_rule_severity_required(cfg, rule_id)?;
+    let enabled = get_rule_enabled_required(cfg, rule_id)?;
+    Ok(RuleConfig { enabled, severity })
+}
 
 /// The `Rule` trait defines a single hook that runs on the canonical
 /// `HttpTransaction`. All rules must implement `check_transaction`.
@@ -16,12 +35,23 @@ pub enum RuleScope {
 }
 
 pub trait Rule: Send + Sync {
+    /// The type of parsed configuration this rule requires.
+    /// Use `RuleConfig` for rules that only need severity.
+    type Config: Send + Sync + 'static;
+
     fn id(&self) -> &'static str;
 
-    /// Validate the rule's configuration. Called once at startup.
-    /// Returns an error if the configuration is invalid.
-    fn validate_config(&self, _config: &crate::config::Config) -> anyhow::Result<()> {
-        Ok(())
+    /// Validate and parse the rule's configuration. Called once at startup.
+    /// Returns the parsed configuration object or an error if invalid.
+    /// For rules using `RuleConfig`, this method has a default implementation.
+    /// Rules with custom configurations must override this method.
+    fn validate_and_box(
+        &self,
+        config: &crate::config::Config,
+    ) -> anyhow::Result<Arc<dyn Any + Send + Sync>> {
+        // Default implementation for rules using RuleConfig (only severity)
+        let config = parse_rule_config(config, self.id())?;
+        Ok(Arc::new(config))
     }
 
     /// The scope where the rule should be executed. Default is `Both` for
@@ -31,43 +61,189 @@ pub trait Rule: Send + Sync {
     }
 
     /// Evaluate an entire `HttpTransaction` and return an optional violation.
+    /// The `config` parameter contains the validated configuration.
     fn check_transaction(
         &self,
         _tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        _config: &crate::config::Config,
+        _config: &Self::Config,
     ) -> Option<Violation>;
 }
 
-/// Lookup the configured severity for a rule at runtime,
-/// This function assumes that configuration validation has already ensured the presence and validity
-/// of the `severity` key, but panics with a clear message if something is wrong
-/// at runtime (defensive assertion).
-pub fn get_rule_severity(cfg: &crate::config::Config, rule: &str) -> crate::lint::Severity {
-    // If rule config is missing (e.g. tests using Config::default()), fall back
-    // to a sensible default to avoid panics during unit tests. Runtime config
-    // validation (load_from_path) ensures that TOML files include a severity.
-    let Some(rule_cfg) = cfg.get_rule_config(rule) else {
-        return crate::lint::Severity::Warn;
-    };
-    let Some(table) = rule_cfg.as_table() else {
-        return crate::lint::Severity::Warn;
-    };
-    let Some(s) = table.get("severity").and_then(|v| v.as_str()) else {
-        return crate::lint::Severity::Warn;
-    };
-    match s {
-        "info" => crate::lint::Severity::Info,
-        "warn" => crate::lint::Severity::Warn,
-        "error" => crate::lint::Severity::Error,
-        _ => crate::lint::Severity::Warn,
+/// Helper trait to enable type-erased configuration caching.
+/// Automatically implemented for all Rule implementations.
+/// This trait exists to work around the fact that Rule has an associated type
+/// which prevents using dyn Rule directly in RULES array.
+pub trait RuleConfigValidator: Send + Sync {
+    fn id(&self) -> &'static str;
+    fn scope(&self) -> RuleScope;
+    fn validate_and_box(
+        &self,
+        config: &crate::config::Config,
+    ) -> anyhow::Result<Arc<dyn Any + Send + Sync>>;
+
+    fn check_transaction_erased(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        previous: Option<&crate::http_transaction::HttpTransaction>,
+        config: &crate::config::Config,
+        engine: &RuleConfigEngine,
+    ) -> Option<Violation>;
+}
+
+impl<T: Rule> RuleConfigValidator for T {
+    fn id(&self) -> &'static str {
+        <Self as Rule>::id(self)
+    }
+
+    fn scope(&self) -> RuleScope {
+        <Self as Rule>::scope(self)
+    }
+
+    fn validate_and_box(
+        &self,
+        config: &crate::config::Config,
+    ) -> anyhow::Result<Arc<dyn Any + Send + Sync>> {
+        <Self as Rule>::validate_and_box(self, config)
+    }
+
+    fn check_transaction_erased(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        previous: Option<&crate::http_transaction::HttpTransaction>,
+        _config: &crate::config::Config,
+        engine: &RuleConfigEngine,
+    ) -> Option<Violation> {
+        let config = engine.get_cached::<T::Config>(self.id());
+        self.check_transaction(tx, previous, &config)
     }
 }
 
-pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
-    // Ensure every rule table specifies a valid `severity` entry.
+/// Engine that caches parsed rule configurations.
+/// Stores type-erased parsed configs in a HashMap keyed by rule ID.
+#[derive(Debug, Default)]
+pub struct RuleConfigEngine {
+    cache: HashMap<&'static str, Arc<dyn Any + Send + Sync>>,
+}
+
+impl RuleConfigEngine {
+    /// Create a new empty config engine.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Validate and cache configurations for all enabled rules.
+    /// Should be called once at startup after loading config.
+    pub fn validate_and_cache_all(&mut self, config: &crate::config::Config) -> anyhow::Result<()> {
+        for rule in RULES {
+            if config.is_enabled(rule.id()) {
+                let boxed = rule.validate_and_box(config).map_err(|e| {
+                    anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
+                })?;
+                self.cache.insert(rule.id(), boxed);
+            }
+        }
+        Ok(())
+    }
+
+    /// Retrieve the cached parsed config for a rule.
+    /// Panics if the rule hasn't been validated/cached - this is a programming error.
+    pub fn get_cached<T: Send + Sync + 'static>(&self, rule_id: &'static str) -> Arc<T> {
+        self.cache
+            .get(rule_id)
+            .and_then(|arc| arc.clone().downcast::<T>().ok())
+            .unwrap_or_else(|| {
+                panic!(
+                    "Rule '{}' config not found in cache. This is a bug - validate_and_cache_all must be called for all enabled rules before linting.",
+                    rule_id
+                )
+            })
+    }
+}
+
+/// Get rule enabled flag, failing if not explicitly configured.
+/// All rules must have an explicit enabled field.
+pub fn get_rule_enabled_required(cfg: &crate::config::Config, rule: &str) -> anyhow::Result<bool> {
+    let Some(rule_cfg) = cfg.get_rule_config(rule) else {
+        return Err(anyhow::anyhow!(
+            "Rule '{}' missing configuration. Add:\n[rules.{}]\nenabled = true\nseverity = \"warn\"",
+            rule, rule
+        ));
+    };
+    let Some(table) = rule_cfg.as_table() else {
+        return Err(anyhow::anyhow!(
+            "Rule '{}' configuration must be a table",
+            rule
+        ));
+    };
+    let Some(enabled) = table.get("enabled").and_then(|v| v.as_bool()) else {
+        return Err(anyhow::anyhow!(
+            "Rule '{}' missing required 'enabled' field. Must be true or false",
+            rule
+        ));
+    };
+    Ok(enabled)
+}
+
+/// Lookup the configured severity for a rule at runtime,
+/// Get rule severity, failing if not explicitly configured.
+/// All enabled rules must have an explicit severity field.
+pub fn get_rule_severity_required(
+    cfg: &crate::config::Config,
+    rule: &str,
+) -> anyhow::Result<crate::lint::Severity> {
+    let Some(rule_cfg) = cfg.get_rule_config(rule) else {
+        return Err(anyhow::anyhow!(
+            "Rule '{}' is enabled but missing configuration. Add:\n[rules.{}]\nenabled = true\nseverity = \"warn\"",
+            rule, rule
+        ));
+    };
+    let Some(table) = rule_cfg.as_table() else {
+        return Err(anyhow::anyhow!(
+            "Rule '{}' configuration must be a table",
+            rule
+        ));
+    };
+    let Some(s) = table.get("severity").and_then(|v| v.as_str()) else {
+        return Err(anyhow::anyhow!(
+            "Rule '{}' missing required 'severity' field. Must be one of: info, warn, error",
+            rule
+        ));
+    };
+    match s {
+        "info" => Ok(crate::lint::Severity::Info),
+        "warn" => Ok(crate::lint::Severity::Warn),
+        "error" => Ok(crate::lint::Severity::Error),
+        _ => Err(anyhow::anyhow!(
+            "Rule '{}' has invalid severity '{}'. Must be one of: info, warn, error",
+            rule,
+            s
+        )),
+    }
+}
+
+pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<RuleConfigEngine> {
+    // Ensure every rule table specifies valid `enabled` and `severity` entries.
     for (rule_name, val) in &config.rules {
         if let toml::Value::Table(table) = val {
+            // Validate `enabled` field - must be present and be a boolean
+            match table.get("enabled") {
+                Some(toml::Value::Boolean(_)) => {}
+                Some(_) => {
+                    return Err(anyhow::anyhow!(
+                        "Invalid 'enabled' for rule '{}': must be a boolean (true or false)",
+                        rule_name
+                    ));
+                }
+                None => {
+                    return Err(anyhow::anyhow!(
+                        "Missing required 'enabled' key for rule '{}'",
+                        rule_name
+                    ));
+                }
+            }
+
+            // Validate `severity` field - must be present and be a valid string
             match table.get("severity") {
                 Some(toml::Value::String(s)) => match s.as_str() {
                     "info" | "warn" | "error" => {}
@@ -95,14 +271,9 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
         }
     }
 
-    for rule in RULES {
-        if config.is_enabled(rule.id()) {
-            rule.validate_config(config).map_err(|e| {
-                anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
-            })?;
-        }
-    }
-    Ok(())
+    let mut engine = RuleConfigEngine::new();
+    engine.validate_and_cache_all(config)?;
+    Ok(engine)
 }
 
 pub mod client_accept_encoding_present;
@@ -125,7 +296,7 @@ pub mod server_no_body_for_1xx_204_304;
 pub mod server_response_405_allow;
 pub mod server_x_content_type_options;
 
-pub const RULES: &[&dyn Rule] = &[
+pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_cache_control_present::ServerCacheControlPresent,
     &server_etag_or_last_modified::ServerEtagOrLastModified,
     &server_x_content_type_options::ServerXContentTypeOptions,
@@ -169,7 +340,7 @@ mod tests {
         enable_rule(&mut cfg, "server_cache_control_present");
         // server_clear_site_data requires paths; enable with valid paths too
         enable_rule_with_paths(&mut cfg, "server_clear_site_data", &["/logout"]);
-        assert!(validate_rules(&cfg).is_ok());
+        let _engine = validate_rules(&cfg)?;
         Ok(())
     }
 

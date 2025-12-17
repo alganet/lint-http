@@ -8,6 +8,8 @@ use crate::rules::Rule;
 pub struct MessageContentLengthVsTransferEncoding;
 
 impl Rule for MessageContentLengthVsTransferEncoding {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "message_content_length_vs_transfer_encoding"
     }
@@ -20,7 +22,7 @@ impl Rule for MessageContentLengthVsTransferEncoding {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         // Check request headers
         if tx.request.headers.contains_key("content-length")
@@ -28,7 +30,7 @@ impl Rule for MessageContentLengthVsTransferEncoding {
         {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(config, self.id()),
+                severity: config.severity,
                 message: "Both Content-Length and Transfer-Encoding present".into(),
             });
         }
@@ -40,7 +42,7 @@ impl Rule for MessageContentLengthVsTransferEncoding {
             {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: crate::rules::get_rule_severity(config, self.id()),
+                    severity: config.severity,
                     message: "Both Content-Length and Transfer-Encoding present".into(),
                 });
             }
@@ -70,7 +72,8 @@ mod tests {
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
 
         if expect_violation {
             assert!(violation.is_some());
@@ -94,7 +97,8 @@ mod tests {
         let status = 200;
         use crate::test_helpers::make_test_transaction_with_response;
         let tx = make_test_transaction_with_response(status, &header_pairs);
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
 
         if expect_violation {
             assert!(violation.is_some());

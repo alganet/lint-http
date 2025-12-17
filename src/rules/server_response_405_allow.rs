@@ -8,6 +8,8 @@ use crate::rules::Rule;
 pub struct ServerResponse405Allow;
 
 impl Rule for ServerResponse405Allow {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "server_response_405_allow"
     }
@@ -20,13 +22,13 @@ impl Rule for ServerResponse405Allow {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        _config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         if let Some(resp) = &tx.response {
             if resp.status == 405 && !resp.headers.contains_key("allow") {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: crate::rules::get_rule_severity(_config, self.id()),
+                    severity: config.severity,
                     message: "Response 405 without Allow header".into(),
                 });
             }
@@ -59,7 +61,8 @@ mod tests {
             None => vec![],
         };
         let tx = make_test_transaction_with_response(status, &header_pairs);
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
 
         if expect_violation {
             assert!(violation.is_some());
