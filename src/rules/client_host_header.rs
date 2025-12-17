@@ -7,11 +7,11 @@ use crate::rules::Rule;
 use crate::state::StateStore;
 use std::net::IpAddr;
 
-pub struct ClientHostHeaderSyntax;
+pub struct ClientHostHeader;
 
-impl Rule for ClientHostHeaderSyntax {
+impl Rule for ClientHostHeader {
     fn id(&self) -> &'static str {
-        "client_host_header_syntax"
+        "client_host_header"
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
@@ -25,7 +25,23 @@ impl Rule for ClientHostHeaderSyntax {
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
-        let hv = _tx.request.headers.get("host")?;
+        let host_values = _tx.request.headers.get_all("host");
+        let host_count = host_values.iter().count();
+        if host_count == 0 {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
+                message: "Request missing Host header".into(),
+            });
+        }
+        if host_count > 1 {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
+                message: "Multiple Host header fields present".into(),
+            });
+        }
+        let hv = host_values.iter().next().unwrap();
         let s = match hv.to_str() {
             Ok(s) => s.trim(),
             Err(_) => {
@@ -36,6 +52,15 @@ impl Rule for ClientHostHeaderSyntax {
                 });
             }
         };
+
+        // Empty Host value is not allowed per RFC 9112
+        if s.is_empty() {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
+                message: "Host header is empty".into(),
+            });
+        }
 
         // Host header MUST NOT include userinfo (user:pass@). Detect this first.
         if s.contains('@') {
@@ -55,8 +80,12 @@ impl Rule for ClientHostHeaderSyntax {
                 }
                 return None;
             }
-            // malformed bracketed host; let other rules handle it
-            return None;
+            // malformed bracketed host — flag as violation
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: crate::rules::get_rule_severity(_config, self.id()),
+                message: "Malformed bracketed IPv6 literal in Host header".into(),
+            });
         }
 
         // Non-bracketed form. If it contains multiple ':' it may be an unbracketed IPv6 address.
@@ -97,7 +126,7 @@ impl Rule for ClientHostHeaderSyntax {
     }
 }
 
-impl ClientHostHeaderSyntax {
+impl ClientHostHeader {
     fn validate_port(&self, port: &str, cfg: &crate::config::Config) -> Option<Violation> {
         if port.is_empty() {
             return Some(Violation {
@@ -139,29 +168,34 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
-    #[case(vec![], false)]
-    #[case(vec![("host", "example.com")], false)]
-    #[case(vec![("host", "example.com:80")], false)]
-    #[case(vec![("host", "example.com:0")], true)]
-    #[case(vec![("host", "example.com:65536")], true)]
-    #[case(vec![("host", "example.com:abc")], true)]
-    #[case(vec![("host", "example.com:")], true)]
-    #[case(vec![("host", "[::1]:443")], false)]
-    #[case(vec![("host", "[::1]")], false)]
-    #[case(vec![("host", "[::1]:-1")], true)]
-    #[case(vec![("host", "fe80::1")], false)]
-    #[case(vec![("host", "fe80::1:80")], true)]
-    #[case(vec![("host", "fe80::abcd:8080")], true)]
-    #[case(vec![("host", "1.2.3.4:80")], false)]
-    #[case(vec![("host", "fe80::1:")], false)]
-    #[case(vec![("host", "user:pass@example.com")], true)]
-    #[case(vec![("host", "user@example.com:80")], true)]
-    #[case(vec![("host", "user:pass@[::1]:80")], true)]
+    #[case(vec![], true, Some("Request missing Host header"))]
+    #[case(vec![("host", "example.com")], false, None)]
+    #[case(vec![("host", "example.com:80")], false, None)]
+    #[case(vec![("host", "   ")], true, Some("Host header is empty"))]
+    #[case(vec![("host", "  example.com  ")], false, None)]
+    #[case(vec![("host", "")], true, Some("Host header is empty"))]
+    #[case(vec![("host", "example.com:0")], true, None)]
+    #[case(vec![("host", "example.com:65536")], true, None)]
+    #[case(vec![("host", "example.com:abc")], true, None)]
+    #[case(vec![("host", "example.com:")], true, None)]
+    #[case(vec![("host", "[::1]:443")], false, None)]
+    #[case(vec![("host", "[::1]")], false, None)]
+    #[case(vec![("host", "[::1]:-1")], true, None)]
+    #[case(vec![("host", "fe80::1")], false, None)]
+    #[case(vec![("host", "fe80::1:80")], true, None)]
+    #[case(vec![("host", "fe80::abcd:8080")], true, None)]
+    #[case(vec![("host", "1.2.3.4:80")], false, None)]
+    #[case(vec![("host", "fe80::1:")], false, None)]
+    #[case(vec![("host", "user:pass@example.com")], true, None)]
+    #[case(vec![("host", "user@example.com:80")], true, None)]
+    #[case(vec![("host", "user:pass@[::1]:80")], true, None)]
+    #[case(vec![("host", "[::1")], true, Some("Malformed bracketed IPv6 literal in Host header"))]
     fn check_request_cases(
         #[case] header_pairs: Vec<(&str, &str)>,
         #[case] expect_violation: bool,
+        #[case] expected_message: Option<&str>,
     ) -> anyhow::Result<()> {
-        let rule = ClientHostHeaderSyntax;
+        let rule = ClientHostHeader;
         let (_client, state) = make_test_context();
         let conn = make_test_conn();
         use crate::test_helpers::make_test_transaction;
@@ -172,9 +206,33 @@ mod tests {
 
         if expect_violation {
             assert!(violation.is_some());
+            if let Some(m) = expected_message {
+                assert_eq!(violation.map(|v| v.message), Some(m.to_string()));
+            }
         } else {
             assert!(violation.is_none());
         }
+        Ok(())
+    }
+
+    #[test]
+    fn multiple_host_headers_produced_violation() -> anyhow::Result<()> {
+        let rule = ClientHostHeader;
+        let (_client, state) = make_test_context();
+        let conn = make_test_conn();
+        use crate::test_helpers::make_test_transaction;
+        use hyper::header::HeaderValue;
+        let mut tx = make_test_transaction();
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
+        hm.append("host", HeaderValue::from_static("other.example.com"));
+        tx.request.headers = hm;
+        let violation =
+            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        assert!(violation.is_some());
+        assert_eq!(
+            violation.map(|v| v.message),
+            Some("Multiple Host header fields present".to_string())
+        );
         Ok(())
     }
 }
