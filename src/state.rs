@@ -93,17 +93,9 @@ impl StateStore {
     }
 
     /// Seed the StateStore from a transaction record.
-    ///
-    /// This method populates the state with transaction data from previously captured
-    /// HTTP exchanges. It enables:
-    /// - Continuing analysis from previous proxy sessions
-    /// - Setting up elaborate testing scenarios with mocked previous states
-    ///
-    /// The client is identified from the request headers (user-agent). Since we don't
-    /// have the actual client IP from the capture, we use a localhost IP as a placeholder.
-    /// Transactions without response headers are skipped.
+    /// Extracts user-agent from headers and uses localhost IP as placeholder.
+    /// Skips transactions without responses.
     pub fn seed_from_transaction(&self, tx: &crate::http_transaction::HttpTransaction) {
-        // Extract user agent from request headers, default to "unknown"
         let user_agent = tx
             .request
             .headers
@@ -112,15 +104,12 @@ impl StateStore {
             .map(str::to_string)
             .unwrap_or_else(|| "unknown".to_string());
 
-        // Use localhost IP as placeholder since we don't capture client IPs
         let client_ip = std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1));
         let client = ClientIdentifier::new(client_ip, user_agent);
 
-        // Only seed if we have response headers (complete transaction)
         if tx.response.is_some() {
             let mut seeded = tx.clone();
             seeded.client = client;
-            // Preserve captured timestamp and other fields
             self.record_transaction(&seeded);
         }
     }

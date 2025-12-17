@@ -28,7 +28,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::time::Instant;
 use tracing::{error, info, trace};
-// Convenience alias for the boxed service future used by service_fn
+
 type ServiceFuture =
     Pin<Box<dyn Future<Output = Result<Response<BoxBody<Bytes, Infallible>>, Infallible>> + Send>>;
 
@@ -173,12 +173,7 @@ where
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     if req.method() == Method::CONNECT {
-        trace!("handle_request: CONNECT received for {}", req.uri());
         if shared.ca.is_some() {
-            trace!(
-                "handle_request: CA is present, spawning upgrade task for {}",
-                req.uri()
-            );
             let uri = req.uri().clone();
             let shared = shared.clone();
             let conn_metadata = conn_metadata.clone();
@@ -186,14 +181,11 @@ where
             tokio::task::spawn(async move {
                 match hyper::upgrade::on(req).await {
                     Ok(upgraded) => {
-                        trace!("handle_request: upgrade succeeded for {}", uri);
                         if let Err(e) = handle_connect(upgraded, uri, shared, conn_metadata).await {
                             error!("connect error: {}", e);
                         }
                     }
-                    Err(e) => {
-                        error!("upgrade error for {}: {}", uri, e)
-                    }
+                    Err(e) => error!("upgrade error for {}: {}", uri, e),
                 }
             });
             return Ok(Response::new(Full::new(Bytes::new()).boxed()));
@@ -268,7 +260,6 @@ where
     B::Data: Send,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    /// Helper function to build and write an HttpTransaction with common pattern
     #[allow(clippy::too_many_arguments)]
     async fn build_and_write_transaction(
         captures: &CaptureWriter,
@@ -296,11 +287,9 @@ where
     }
     let started = Instant::now();
 
-    // Build upstream URI: if incoming URI is absolute, use it; otherwise use Host header
     let uri = if req.uri().scheme().is_some() {
         req.uri().clone()
     } else {
-        // build from Host header
         let host = req
             .headers()
             .get(hyper::header::HOST)
@@ -316,9 +305,7 @@ where
             .unwrap_or_else(|_| Uri::from_static("http://localhost/"))
     };
 
-    // Build upstream request
     let mut builder = Request::builder().method(req.method()).uri(uri.clone());
-    // copy headers
     for (name, value) in req.headers().iter() {
         if !shared
             .cfg
@@ -331,13 +318,10 @@ where
         }
     }
 
-    // capture method/uri/headers before moving request
     let method = req.method().clone();
     let uri_str = req.uri().to_string();
     let req_headers = req.headers().clone();
 
-    // Extract client identifier
-    // Use the captured remote address from connection metadata
     let client_ip = conn_metadata.remote_addr.ip();
     let user_agent = req_headers
         .get("user-agent")
@@ -347,13 +331,11 @@ where
     let client_id = crate::state::ClientIdentifier::new(client_ip, user_agent);
 
     let body = req.into_body();
-    // capture references for error handling
     let captures = &shared.captures;
 
     let body_bytes = match body.collect().await {
         Ok(collected) => collected.to_bytes(),
         Err(e) => {
-            // `B::Error` may not implement Debug; convert to boxed Error for display
             let boxed: Box<dyn std::error::Error + Send + Sync> = e.into();
             error!("failed to collect request body: {}", boxed);
             let resp = Response::builder()
@@ -362,7 +344,6 @@ where
                 .unwrap_or_else(|_| {
                     Response::new(Full::new(Bytes::from("request body collect error")).boxed())
                 });
-            // record a failed capture with 500
             let duration = started.elapsed().as_millis() as u64;
             let _ = build_and_write_transaction(
                 captures,
@@ -416,7 +397,6 @@ where
                 .unwrap_or_else(|_| {
                     Response::new(Full::new(Bytes::from("upstream error")).boxed())
                 });
-            // record capture with error status
             let duration = started.elapsed().as_millis() as u64;
             let _ = build_and_write_transaction(
                 captures,
@@ -450,7 +430,6 @@ where
                 .unwrap_or_else(|_| {
                     Response::new(Full::new(Bytes::from("upstream error")).boxed())
                 });
-            // record a failed capture with 500
             let duration = started.elapsed().as_millis() as u64;
             let _ = build_and_write_transaction(
                 captures,
@@ -469,7 +448,6 @@ where
 
     let duration = started.elapsed().as_millis() as u64;
 
-    // Build canonical transaction for linting and capture
     let mut tx = crate::http_transaction::HttpTransaction::new(
         client_id.clone(),
         method.as_str().to_string(),
@@ -484,20 +462,14 @@ where
         duration_ms: duration,
     };
 
-    // Evaluate lint rules using config
     let violations = lint::lint_transaction(&tx, &shared.cfg, &shared.state, &shared.engine);
     tx.violations = violations.clone();
 
-    // Record transaction in state for future analysis
     shared.state.record_transaction(&tx);
-
-    // Write capture (we don't capture bodies in MVP)
     let _ = captures.write_transaction(&tx).await;
 
-    // Attach a header with lint summary (for demo)
-    // Build response from collected bytes, copying headers
-    let mut resp_builder = Response::builder().status(status); // RFC 7230 Section 6.1: Hop-by-hop headers must not be forwarded by proxies.
-                                                               // Standard hop-by-hop headers
+    let mut resp_builder = Response::builder().status(status);
+    // RFC 7230 Section 6.1: Hop-by-hop headers must not be forwarded by proxies.
     static HOP_BY_HOP_HEADERS: &[&str] = &[
         "connection",
         "keep-alive",
@@ -508,7 +480,6 @@ where
         "transfer-encoding",
         "upgrade",
     ];
-    // Collect additional hop-by-hop headers listed in the Connection header
     let mut connection_hop_headers = std::collections::HashSet::new();
     if let Some(conn_val) = headers.get(hyper::header::CONNECTION) {
         if let Ok(conn_str) = conn_val.to_str() {

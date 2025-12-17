@@ -26,7 +26,6 @@
 pub mod ca;
 pub mod capture;
 pub mod config;
-pub mod config_cache;
 pub mod connection;
 pub mod http_transaction;
 pub mod lint;
@@ -45,7 +44,6 @@ pub use test_helpers::{
     make_test_transaction, make_test_transaction_with_response,
 };
 
-// Public utilities for integration tests and internal testing
 pub fn make_temp_captures_path(prefix: &str) -> std::path::PathBuf {
     std::env::temp_dir().join(format!("{}_{}.jsonl", prefix, uuid::Uuid::new_v4()))
 }
@@ -53,5 +51,3 @@ pub fn make_temp_captures_path(prefix: &str) -> std::path::PathBuf {
 pub fn make_temp_config_path(prefix: &str) -> std::path::PathBuf {
     std::env::temp_dir().join(format!("{}_{}.toml", prefix, uuid::Uuid::new_v4()))
 }
-
-// Keep library small; main.rs remains the binary entrypoint.

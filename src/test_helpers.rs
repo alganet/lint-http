@@ -2,14 +2,13 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! Shared test utilities to reduce duplication across test modules.
+//! Test utilities.
 
 use crate::state::ClientIdentifier;
 use hyper::header::{HeaderName, HeaderValue};
 use hyper::HeaderMap;
 use std::net::{IpAddr, Ipv4Addr};
 
-/// Create a test client identifier with standard test values
 #[cfg(test)]
 pub fn make_test_client() -> ClientIdentifier {
     ClientIdentifier::new(
@@ -18,7 +17,6 @@ pub fn make_test_client() -> ClientIdentifier {
     )
 }
 
-/// Create a HeaderMap from a slice of (key, value) pairs for use in tests
 #[cfg(test)]
 pub fn make_headers_from_pairs(pairs: &[(&str, &str)]) -> HeaderMap {
     let mut hm = HeaderMap::new();
@@ -30,7 +28,6 @@ pub fn make_headers_from_pairs(pairs: &[(&str, &str)]) -> HeaderMap {
     hm
 }
 
-/// Insert a rule config into the config rules table with severity and enabled status.
 #[cfg(test)]
 fn insert_rule_config(
     cfg: &mut crate::config::Config,
@@ -55,25 +52,21 @@ fn insert_rule_config(
         .insert(rule.to_string(), toml::Value::Table(table));
 }
 
-/// Enable a rule via `[rules.<rule>]` table with `enabled = true`.
 #[cfg(test)]
 pub fn enable_rule(cfg: &mut crate::config::Config, rule: &str) {
     insert_rule_config(cfg, rule, true, None);
 }
 
-/// Enable a rule with a `paths` array under the rule table and `enabled = true`.
 #[cfg(test)]
 pub fn enable_rule_with_paths(cfg: &mut crate::config::Config, rule: &str, paths: &[&str]) {
     insert_rule_config(cfg, rule, true, Some(paths));
 }
 
-/// Disable a rule via `[rules.<rule>]` table with `enabled = false`.
 #[cfg(test)]
 pub fn disable_rule(cfg: &mut crate::config::Config, rule: &str) {
     insert_rule_config(cfg, rule, false, None);
 }
 
-/// Create a test config and enable a list of rules (table with `enabled = true`)
 #[cfg(test)]
 pub fn make_test_config_with_enabled_rules(rules: &[&str]) -> crate::config::Config {
     let mut cfg = crate::config::Config::default();
@@ -83,14 +76,11 @@ pub fn make_test_config_with_enabled_rules(rules: &[&str]) -> crate::config::Con
     cfg
 }
 
-/// Create a RuleConfigEngine for testing by validating the given config.
-/// This is useful for tests that need to call check_transaction with parsed configs.
 #[cfg(test)]
 pub fn make_test_engine(cfg: &crate::config::Config) -> crate::rules::RuleConfigEngine {
     crate::rules::validate_rules(cfg).expect("test config should be valid")
 }
 
-/// Create a minimal `HttpTransaction` for tests.
 #[cfg(test)]
 pub fn make_test_transaction() -> crate::http_transaction::HttpTransaction {
     use crate::http_transaction::{HttpTransaction, TimingInfo};
@@ -107,7 +97,6 @@ pub fn make_test_transaction() -> crate::http_transaction::HttpTransaction {
     tx
 }
 
-/// Create a `HttpTransaction` with a response and provided headers for tests.
 #[cfg(test)]
 pub fn make_test_transaction_with_response(
     status: u16,
@@ -121,8 +110,6 @@ pub fn make_test_transaction_with_response(
     tx
 }
 
-/// Create a RuleConfig for testing with explicit severity.
-/// Default to Warn severity for tests not focused on severity behavior.
 #[cfg(test)]
 pub fn make_test_rule_config() -> crate::rules::RuleConfig {
     crate::rules::RuleConfig {

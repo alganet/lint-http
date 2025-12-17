@@ -9,8 +9,6 @@ use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 
-use hyper::header::HeaderMap;
-
 #[derive(Clone)]
 pub struct CaptureWriter {
     file: ArcFile,
@@ -61,11 +59,7 @@ impl CaptureWriter {
     }
 }
 
-/// Load capture records from a JSONL file
-///
-/// Reads the file line-by-line and deserializes each line as an `HttpTransaction`.
-/// Malformed lines are skipped with a warning logged.
-/// Returns all successfully parsed records.
+/// Load capture records from a JSONL file. Skips malformed lines with warnings.
 pub async fn load_captures<P: AsRef<std::path::Path>>(
     path: P,
 ) -> anyhow::Result<Vec<crate::http_transaction::HttpTransaction>> {
@@ -73,7 +67,6 @@ pub async fn load_captures<P: AsRef<std::path::Path>>(
 
     let path_ref = path.as_ref();
 
-    // If file doesn't exist, return empty vector
     if !tokio::fs::try_exists(path_ref).await.unwrap_or(false) {
         return Ok(Vec::new());
     }
@@ -101,16 +94,6 @@ pub async fn load_captures<P: AsRef<std::path::Path>>(
     Ok(records)
 }
 
-pub fn headers_to_map(h: &HeaderMap) -> std::collections::HashMap<String, String> {
-    let mut m = std::collections::HashMap::new();
-    for (k, v) in h.iter() {
-        if let Ok(s) = v.to_str() {
-            m.insert(k.as_str().to_string(), s.to_string());
-        }
-    }
-    m
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,18 +101,6 @@ mod tests {
     use serde_json::Value;
     use tokio::fs;
     use uuid::Uuid;
-
-    #[test]
-    fn headers_to_map_basic() -> anyhow::Result<()> {
-        let mut hm = HeaderMap::new();
-        hm.insert("content-type", "text/plain".parse()?);
-        let m = headers_to_map(&hm);
-        assert_eq!(
-            m.get("content-type").map(|s| s.as_str()),
-            Some("text/plain")
-        );
-        Ok(())
-    }
 
     #[tokio::test]
     async fn write_transaction_writes_jsonl() -> anyhow::Result<()> {
