@@ -71,7 +71,7 @@ impl Rule for MyRule {
         "category_my_rule_name"
     }
 
-    fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, conn: &crate::connection::ConnectionMetadata, state: &crate::state::StateStore, config: &crate::config::Config) -> Option<Violation> {
+    fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, state: &crate::state::StateStore, config: &crate::config::Config) -> Option<Violation> {
         // Implementation
     }
 }
@@ -92,8 +92,8 @@ impl Rule for ClientHostHeader {
     fn id(&self) -> &'static str { "client_host_header" }
     fn scope(&self) -> crate::rules::RuleScope { crate::rules::RuleScope::Client }
 
-    fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, conn: &crate::connection::ConnectionMetadata, state: &crate::state::StateStore, config: &crate::config::Config) -> Option<Violation> {
-        // Check tx.request.headers
+    fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, state: &crate::state::StateStore, config: &crate::config::Config) -> Option<Violation> {
+        // Check tx
     }
 }
 ```

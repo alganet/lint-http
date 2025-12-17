@@ -20,7 +20,6 @@ impl Rule for MessageContentLength {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -111,7 +110,7 @@ impl Rule for MessageContentLength {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
+    use crate::test_helpers::make_test_context;
     use hyper::header::HeaderValue;
     use rstest::rstest;
 
@@ -130,14 +129,13 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageContentLength;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = hyper::HeaderMap::new();
         hm.insert(hyper::header::CONTENT_LENGTH, HeaderValue::from_str(value)?);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, &state, &crate::config::Config::default());
         if expect_violation {
             assert!(v.is_some(), "value '{}' expected violation", value);
         } else {
@@ -161,7 +159,6 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageContentLength;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = hyper::HeaderMap::new();
@@ -171,7 +168,7 @@ mod tests {
             headers: hm,
         });
 
-        let v = rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, &state, &crate::config::Config::default());
         if expect_violation {
             assert!(v.is_some(), "response value '{}' expected violation", value);
         } else {
@@ -194,7 +191,6 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageContentLength;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         // request
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -204,7 +200,7 @@ mod tests {
         }
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, &state, &crate::config::Config::default());
         if expect_violation {
             assert!(
                 v.is_some(),
@@ -230,7 +226,7 @@ mod tests {
             headers: hm2,
         });
 
-        let v2 = rule.check_transaction(&tx2, &conn, &state, &crate::config::Config::default());
+        let v2 = rule.check_transaction(&tx2, &state, &crate::config::Config::default());
         if expect_violation {
             assert!(
                 v2.is_some(),

@@ -20,7 +20,6 @@ impl Rule for ServerEtagOrLastModified {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -46,21 +45,19 @@ impl Rule for ServerEtagOrLastModified {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
+    use crate::test_helpers::make_test_context;
 
     #[test]
     fn check_response_200_missing_headers() -> anyhow::Result<()> {
         let rule = ServerEtagOrLastModified;
         let (_client, _state) = make_test_context();
         let status = 200;
-        let conn = make_test_conn();
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
         });
-        let violation =
-            rule.check_transaction(&tx, &conn, &_state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &_state, &crate::config::Config::default());
         assert!(violation.is_some());
         assert_eq!(
             violation.map(|v| v.message),
@@ -74,14 +71,13 @@ mod tests {
         let rule = ServerEtagOrLastModified;
         let (_client, _state) = make_test_context();
         let status = 200;
-        let conn = make_test_conn();
+
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
             headers: crate::test_helpers::make_headers_from_pairs(&[("etag", "\"12345\"")]),
         });
-        let violation =
-            rule.check_transaction(&tx, &conn, &_state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &_state, &crate::config::Config::default());
         assert!(violation.is_none());
         Ok(())
     }
@@ -91,7 +87,6 @@ mod tests {
         let rule = ServerEtagOrLastModified;
         let (_client, _state) = make_test_context();
         let status = 200;
-        let conn = make_test_conn();
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
@@ -100,8 +95,7 @@ mod tests {
                 "Wed, 21 Oct 2015 07:28:00 GMT",
             )]),
         });
-        let violation =
-            rule.check_transaction(&tx, &conn, &_state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &_state, &crate::config::Config::default());
         assert!(violation.is_none());
         Ok(())
     }
@@ -111,14 +105,12 @@ mod tests {
         let rule = ServerEtagOrLastModified;
         let (_client, _state) = make_test_context();
         let status = 404;
-        let conn = make_test_conn();
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
         });
-        let violation =
-            rule.check_transaction(&tx, &conn, &_state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &_state, &crate::config::Config::default());
         assert!(violation.is_none());
     }
 }

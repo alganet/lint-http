@@ -20,7 +20,6 @@ impl Rule for MessageHeaderFieldNamesToken {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -64,7 +63,7 @@ impl Rule for MessageHeaderFieldNamesToken {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
+    use crate::test_helpers::make_test_context;
     use hyper::header::HeaderName;
     use rstest::rstest;
 
@@ -80,7 +79,6 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageHeaderFieldNamesToken;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         // If header name cannot be parsed into HeaderName, treat as violation (invalid header)
         for (k, _) in &header_pairs {
@@ -97,8 +95,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
 
-        let violation =
-            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());
@@ -117,7 +114,6 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageHeaderFieldNamesToken;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         for (k, _) in &header_pairs {
             if HeaderName::from_bytes(k.as_bytes()).is_err() {
@@ -133,8 +129,7 @@ mod tests {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, header_pairs.as_slice());
 
-        let violation =
-            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());

@@ -20,7 +20,6 @@ impl Rule for MessageContentLengthVsTransferEncoding {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -55,7 +54,7 @@ impl Rule for MessageContentLengthVsTransferEncoding {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
+    use crate::test_helpers::make_test_context;
     use rstest::rstest;
 
     #[rstest]
@@ -69,12 +68,10 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageContentLengthVsTransferEncoding;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
-        let violation =
-            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());
@@ -96,11 +93,9 @@ mod tests {
         let rule = MessageContentLengthVsTransferEncoding;
         let (_client, state) = make_test_context();
         let status = 200;
-        let conn = make_test_conn();
         use crate::test_helpers::make_test_transaction_with_response;
         let tx = make_test_transaction_with_response(status, &header_pairs);
-        let violation =
-            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());

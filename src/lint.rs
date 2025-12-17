@@ -27,7 +27,6 @@ pub enum Severity {
 /// Lint an entire `HttpTransaction`.
 pub fn lint_transaction(
     tx: &crate::http_transaction::HttpTransaction,
-    conn: &crate::connection::ConnectionMetadata,
     cfg: &Config,
     state: &crate::state::StateStore,
 ) -> Vec<Violation> {
@@ -35,7 +34,7 @@ pub fn lint_transaction(
 
     for rule in crate::rules::RULES {
         if cfg.is_enabled(rule.id()) {
-            if let Some(v) = rule.check_transaction(tx, conn, state, cfg) {
+            if let Some(v) = rule.check_transaction(tx, state, cfg) {
                 out.push(v);
             }
         }
@@ -48,7 +47,7 @@ pub fn lint_transaction(
 mod tests {
     use super::*;
     use crate::config::Config;
-    use crate::test_helpers::{disable_rule, make_test_config_with_enabled_rules, make_test_conn};
+    use crate::test_helpers::{disable_rule, make_test_config_with_enabled_rules};
 
     #[test]
     fn lint_response_rules_emit_when_enabled() {
@@ -57,11 +56,9 @@ mod tests {
             "server_cache_control_present",
             "server_etag_or_last_modified",
         ]);
-        let conn = make_test_conn();
-
         // Create a transaction with just response data for server rules
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let v = lint_transaction(&tx, &conn, &cfg, &state);
+        let v = lint_transaction(&tx, &cfg, &state);
 
         assert!(v.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
@@ -74,8 +71,6 @@ mod tests {
             "client_user_agent_present",
             "client_accept_encoding_present",
         ]);
-        let conn = make_test_conn();
-
         // Create a transaction without user-agent header to trigger the rule
         use crate::http_transaction::{HttpTransaction, TimingInfo};
         let mut tx = HttpTransaction::new(
@@ -86,7 +81,7 @@ mod tests {
         tx.timing = TimingInfo { duration_ms: 5 };
         // Note: intentionally not adding user-agent header to trigger the rule
 
-        let v = lint_transaction(&tx, &conn, &cfg, &state);
+        let v = lint_transaction(&tx, &cfg, &state);
 
         assert!(v.iter().any(|x| x.rule == "client_user_agent_present"));
         assert!(v.iter().any(|x| x.rule == "client_accept_encoding_present"));
@@ -100,10 +95,8 @@ mod tests {
             "server_cache_control_present",
             "server_etag_or_last_modified",
         ]);
-        let conn = make_test_conn();
-
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let v = lint_transaction(&tx, &conn, &cfg_enabled, &state);
+        let v = lint_transaction(&tx, &cfg_enabled, &state);
         assert!(v.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
 
@@ -111,7 +104,7 @@ mod tests {
         let mut cfg_disabled = Config::default();
         disable_rule(&mut cfg_disabled, "server_cache_control_present");
         disable_rule(&mut cfg_disabled, "server_etag_or_last_modified");
-        let v2 = lint_transaction(&tx, &conn, &cfg_disabled, &state);
+        let v2 = lint_transaction(&tx, &cfg_disabled, &state);
         assert!(!v2.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(!v2.iter().any(|x| x.rule == "server_etag_or_last_modified"));
     }
@@ -123,8 +116,6 @@ mod tests {
             "client_user_agent_present",
             "server_cache_control_present",
         ]);
-        let conn = make_test_conn();
-
         // Build a transaction without user-agent header to trigger client rule
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
@@ -139,7 +130,7 @@ mod tests {
             headers: hyper::HeaderMap::new(), // No cache-control to trigger server rule
         });
 
-        let violations = lint_transaction(&tx, &conn, &cfg, &state);
+        let violations = lint_transaction(&tx, &cfg, &state);
 
         // Should find at least one violation (either client or server rule)
         assert!(!violations.is_empty());

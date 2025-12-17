@@ -118,11 +118,7 @@ impl StateStore {
     }
 
     /// Record a new connection establishment.
-    pub fn record_connection(
-        &self,
-        client: &ClientIdentifier,
-        _conn_metadata: &crate::connection::ConnectionMetadata,
-    ) {
+    pub fn record_connection(&self, client: &ClientIdentifier) {
         if let Ok(mut stats) = self.stats.write() {
             let entry = stats.entry(client.clone()).or_default();
             entry.connection_count += 1;
@@ -392,14 +388,13 @@ mod tests {
     fn track_connection_efficiency() -> anyhow::Result<()> {
         let store = StateStore::new(300);
         let client = make_client();
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
 
         // Initial state
         assert_eq!(store.get_connection_count(&client), 0);
         assert!(store.get_connection_efficiency(&client).is_none());
 
         // Record connection
-        store.record_connection(&client, &conn);
+        store.record_connection(&client);
         assert_eq!(store.get_connection_count(&client), 1);
 
         // 0 requests, 1 connection -> efficiency 0.0
@@ -424,7 +419,7 @@ mod tests {
         assert_eq!(store.get_connection_efficiency(&client), Some(2.0));
 
         // Record another connection
-        store.record_connection(&client, &conn);
+        store.record_connection(&client);
 
         // 2 requests, 2 connections -> efficiency 1.0
         assert_eq!(store.get_connection_efficiency(&client), Some(1.0));

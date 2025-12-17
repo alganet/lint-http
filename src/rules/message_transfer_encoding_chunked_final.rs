@@ -20,7 +20,6 @@ impl Rule for MessageTransferEncodingChunkedFinal {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -79,7 +78,7 @@ impl Rule for MessageTransferEncodingChunkedFinal {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
+    use crate::test_helpers::make_test_context;
     use hyper::header::HeaderValue;
     use rstest::rstest;
 
@@ -98,7 +97,6 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageTransferEncodingChunkedFinal;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = hyper::HeaderMap::new();
@@ -108,7 +106,7 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, &state, &crate::config::Config::default());
         if expect_violation {
             assert!(v.is_some(), "request '{}' expected violation", value);
         } else {
@@ -122,13 +120,12 @@ mod tests {
     fn request_no_transfer_encoding_header_returns_none() -> anyhow::Result<()> {
         let rule = MessageTransferEncodingChunkedFinal;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         let mut tx = crate::test_helpers::make_test_transaction();
         // Ensure there is no Transfer-Encoding header
         tx.request.headers = hyper::HeaderMap::new();
 
-        let v = rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, &state, &crate::config::Config::default());
         assert!(v.is_none());
         Ok(())
     }
@@ -144,7 +141,6 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageTransferEncodingChunkedFinal;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = hyper::HeaderMap::new();
@@ -157,7 +153,7 @@ mod tests {
             headers: hm,
         });
 
-        let v = rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, &state, &crate::config::Config::default());
         if expect_violation {
             assert!(v.is_some(), "response '{}' expected violation", value);
         } else {
@@ -171,7 +167,6 @@ mod tests {
     fn multiple_header_fields_ordering_is_preserved() -> anyhow::Result<()> {
         let rule = MessageTransferEncodingChunkedFinal;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         // Two header fields: first 'chunked', second 'gzip' -> should violate
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -186,7 +181,7 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, &state, &crate::config::Config::default());
         assert!(v.is_some());
         Ok(())
     }

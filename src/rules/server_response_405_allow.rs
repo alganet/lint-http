@@ -20,7 +20,6 @@ impl Rule for ServerResponse405Allow {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -40,7 +39,7 @@ impl Rule for ServerResponse405Allow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
+    use crate::test_helpers::make_test_context;
     use rstest::rstest;
 
     #[rstest]
@@ -56,15 +55,13 @@ mod tests {
         let rule = ServerResponse405Allow;
         let (_client, state) = make_test_context();
 
-        let conn = make_test_conn();
         use crate::test_helpers::make_test_transaction_with_response;
         let header_pairs: Vec<(&str, &str)> = match header {
             Some((k, v)) => vec![(k, v)],
             None => vec![],
         };
         let tx = make_test_transaction_with_response(status, &header_pairs);
-        let violation =
-            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());

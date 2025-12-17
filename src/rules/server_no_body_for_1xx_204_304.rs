@@ -20,7 +20,6 @@ impl Rule for ServerNoBodyFor1xx204304 {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -73,7 +72,7 @@ impl Rule for ServerNoBodyFor1xx204304 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
+    use crate::test_helpers::make_test_context;
     use rstest::rstest;
 
     #[rstest]
@@ -92,7 +91,6 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ServerNoBodyFor1xx204304;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
         // Provide an explicit config with severity set to 'error' so tests assert correctly
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
@@ -112,7 +110,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
         });
 
-        let violation = rule.check_transaction(&tx, &conn, &state, &cfg);
+        let violation = rule.check_transaction(&tx, &state, &cfg);
 
         if expect_violation {
             assert!(violation.is_some());

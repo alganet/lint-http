@@ -60,7 +60,6 @@ impl Rule for ServerXContentTypeOptions {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -108,7 +107,7 @@ impl Rule for ServerXContentTypeOptions {
 mod tests {
     use super::*;
     use crate::test_helpers::{
-        enable_rule, make_test_config_with_content_types, make_test_conn, make_test_context,
+        enable_rule, make_test_config_with_content_types, make_test_context,
     };
     use rstest::rstest;
 
@@ -128,7 +127,6 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ServerXContentTypeOptions;
         let (_client, _state) = make_test_context();
-        let conn = make_test_conn();
         let cfg = make_test_config_with_content_types(&content_types);
 
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -137,7 +135,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
         });
 
-        let violation = rule.check_transaction(&tx, &conn, &_state, &cfg);
+        let violation = rule.check_transaction(&tx, &_state, &cfg);
 
         if expect_violation {
             assert!(violation.is_some());
@@ -242,7 +240,6 @@ mod tests {
         let rule = ServerXContentTypeOptions;
         let (_client, _state) = make_test_context();
         let status = 200;
-        let conn = make_test_conn();
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
@@ -264,7 +261,7 @@ mod tests {
             )]),
         });
 
-        let violation = rule.check_transaction(&tx, &conn, &_state, &cfg);
+        let violation = rule.check_transaction(&tx, &_state, &cfg);
         assert!(violation.is_some());
         Ok(())
     }

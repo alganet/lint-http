@@ -482,12 +482,12 @@ where
     };
 
     // Evaluate lint rules using config
-    let violations = lint::lint_transaction(&tx, &conn_metadata, &shared.cfg, &shared.state);
+    let violations = lint::lint_transaction(&tx, &shared.cfg, &shared.state);
     tx.violations = violations.clone();
 
     // Record transaction in state for future analysis
     shared.state.record_transaction(&tx);
-    shared.state.record_connection(&client_id, &conn_metadata);
+    shared.state.record_connection(&client_id);
 
     // Write capture (we don't capture bodies in MVP)
     let _ = captures.write_transaction(&tx).await;
