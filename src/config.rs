@@ -36,7 +36,7 @@ fn default_captures() -> String {
     "captures.jsonl".to_string()
 }
 
-fn default_captures_seed() -> bool {
+const fn default_captures_seed() -> bool {
     false
 }
 
@@ -73,19 +73,7 @@ pub struct Config {
 }
 
 impl Config {
-    // keep other methods on Config
-
     /// Load configuration from a TOML file and return the config along with the rule engine.
-    /// TOML format:
-    /// `[rules]`
-    /// `[[rules.<rule>]]` or `[rules.<rule>]` table with `enabled = true` and additional configuration, e.g.:
-    ///
-    /// [rules.server_cache_control_present]
-    /// enabled = true
-    ///
-    /// [rules.server_clear_site_data]
-    /// enabled = true
-    /// paths = ["/logout", "/signout"]
     pub async fn load_from_path<P: AsRef<std::path::Path>>(
         path: P,
     ) -> anyhow::Result<(Self, crate::rules::RuleConfigEngine)> {
@@ -117,8 +105,6 @@ impl Config {
         self.rules.get(rule)
     }
 }
-
-// Default impl derived
 
 #[cfg(test)]
 mod tests {

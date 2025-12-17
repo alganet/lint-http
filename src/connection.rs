@@ -5,7 +5,6 @@
 //! Connection metadata definitions.
 
 use std::net::SocketAddr;
-use std::time::Instant;
 use uuid::Uuid;
 
 /// Metadata associated with an underlying TCP connection.
@@ -13,7 +12,6 @@ use uuid::Uuid;
 pub struct ConnectionMetadata {
     pub id: Uuid,
     pub remote_addr: SocketAddr,
-    pub established: Instant,
 }
 
 impl ConnectionMetadata {
@@ -21,7 +19,6 @@ impl ConnectionMetadata {
         Self {
             id: Uuid::new_v4(),
             remote_addr,
-            established: Instant::now(),
         }
     }
 }

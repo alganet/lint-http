@@ -79,7 +79,6 @@ mod tests {
         let (cfg, _engine) = config::Config::load_from_path(&args.config).await?;
 
         assert!(!cfg.is_enabled("server_cache_control_present"));
-        // check defaults
         assert_eq!(cfg.general.listen, "127.0.0.1:3000");
 
         fs::remove_file(&tmp).await?;

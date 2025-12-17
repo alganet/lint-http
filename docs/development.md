@@ -124,5 +124,4 @@ Finally, add a link to your new rule in `docs/rules.md`.
 
 - Do not use hardcoded defaults in rule implementations. If a rule requires configuration, it should require an explicit TOML table under `[rules.<rule_id>]` and parse its numeric/string values from that table.
 - On missing or invalid configuration, `validate_config` must return an `Err(...)` so startup validation fails fast. Do not silently fallback to a default unless this behavior is explicitly documented and desired.
-- Use `crate::rules::config_cache::RuleConfigCache<T>` to cache parsed config in `validate_config` and retrieve it in `check_transaction` using `get_or_init`.
 - Tests should validate both `validate_config` errors for invalid/missing config and the runtime behavior when valid configs are provided (including edge cases like negative numbers, invalid types, and boundary values).
