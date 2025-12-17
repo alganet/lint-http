@@ -29,12 +29,6 @@ severity = "info"
 enabled = true
 severity = "warn"
 
-[rules.connection_efficiency]
-enabled = true
-severity = "warn"
-min_connections = 5
-min_reuse_ratio = 1.1
-
 [rules.message_connection_upgrade]
 enabled = true
 severity = "warn"
