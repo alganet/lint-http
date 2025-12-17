@@ -4,7 +4,6 @@
 
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::StateStore;
 
 pub struct ClientAcceptEncodingPresent;
 
@@ -20,7 +19,7 @@ impl Rule for ClientAcceptEncodingPresent {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _state: &StateStore,
+        _previous: Option<&crate::http_transaction::HttpTransaction>,
         config: &crate::config::Config,
     ) -> Option<Violation> {
         if !tx.request.headers.contains_key("accept-encoding") {
@@ -38,14 +37,12 @@ impl Rule for ClientAcceptEncodingPresent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::make_test_context;
 
     #[test]
     fn check_request_missing_header() -> anyhow::Result<()> {
         let rule = ClientAcceptEncodingPresent;
-        let (_client, state) = make_test_context();
         let tx = crate::test_helpers::make_test_transaction();
-        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
         assert!(violation.is_some());
         assert_eq!(
             violation.map(|v| v.message),
@@ -57,12 +54,11 @@ mod tests {
     #[test]
     fn check_request_present_header() -> anyhow::Result<()> {
         let rule = ClientAcceptEncodingPresent;
-        let (_client, state) = make_test_context();
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request
             .headers
             .insert("accept-encoding", "gzip".parse()?);
-        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
         assert!(violation.is_none());
         Ok(())
     }

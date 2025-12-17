@@ -4,7 +4,6 @@
 
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::StateStore;
 
 pub struct ServerNoBodyFor1xx204304;
 
@@ -20,7 +19,7 @@ impl Rule for ServerNoBodyFor1xx204304 {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _state: &StateStore,
+        _previous: Option<&crate::http_transaction::HttpTransaction>,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
         let Some(resp) = &tx.response else {
@@ -72,7 +71,7 @@ impl Rule for ServerNoBodyFor1xx204304 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::make_test_context;
+
     use rstest::rstest;
 
     #[rstest]
@@ -90,7 +89,7 @@ mod tests {
         #[case] expected_contains: Option<&str>,
     ) -> anyhow::Result<()> {
         let rule = ServerNoBodyFor1xx204304;
-        let (_client, state) = make_test_context();
+
         // Provide an explicit config with severity set to 'error' so tests assert correctly
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
@@ -110,7 +109,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
         });
 
-        let violation = rule.check_transaction(&tx, &state, &cfg);
+        let violation = rule.check_transaction(&tx, None, &cfg);
 
         if expect_violation {
             assert!(violation.is_some());

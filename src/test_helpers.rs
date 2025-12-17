@@ -4,7 +4,7 @@
 
 //! Shared test utilities to reduce duplication across test modules.
 
-use crate::state::{ClientIdentifier, StateStore};
+use crate::state::ClientIdentifier;
 use hyper::header::{HeaderName, HeaderValue};
 use hyper::HeaderMap;
 use std::net::{IpAddr, Ipv4Addr};
@@ -16,12 +16,6 @@ pub fn make_test_client() -> ClientIdentifier {
         IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
         "test-agent".to_string(),
     )
-}
-
-/// Create a test client and state store for rule testing
-#[cfg(test)]
-pub fn make_test_context() -> (ClientIdentifier, StateStore) {
-    (make_test_client(), StateStore::new(300))
 }
 
 /// Create a HeaderMap from a slice of (key, value) pairs for use in tests

@@ -4,7 +4,6 @@
 
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::StateStore;
 use std::net::IpAddr;
 
 pub struct ClientHostHeader;
@@ -21,7 +20,7 @@ impl Rule for ClientHostHeader {
     fn check_transaction(
         &self,
         _tx: &crate::http_transaction::HttpTransaction,
-        _state: &StateStore,
+        _previous: Option<&crate::http_transaction::HttpTransaction>,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
         let host_values = _tx.request.headers.get_all("host");
@@ -163,7 +162,7 @@ impl ClientHostHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::make_test_context;
+
     use rstest::rstest;
 
     #[rstest]
@@ -195,11 +194,10 @@ mod tests {
         #[case] expected_message: Option<&str>,
     ) -> anyhow::Result<()> {
         let rule = ClientHostHeader;
-        let (_client, state) = make_test_context();
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
-        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());
@@ -215,14 +213,13 @@ mod tests {
     #[test]
     fn multiple_host_headers_produced_violation() -> anyhow::Result<()> {
         let rule = ClientHostHeader;
-        let (_client, state) = make_test_context();
         use crate::test_helpers::make_test_transaction;
         use hyper::header::HeaderValue;
         let mut tx = make_test_transaction();
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
         hm.append("host", HeaderValue::from_static("other.example.com"));
         tx.request.headers = hm;
-        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
         assert!(violation.is_some());
         assert_eq!(
             violation.map(|v| v.message),

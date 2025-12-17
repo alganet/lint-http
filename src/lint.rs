@@ -32,9 +32,12 @@ pub fn lint_transaction(
 ) -> Vec<Violation> {
     let mut out = Vec::new();
 
+    // Compute previous transaction (if any) for this client+resource and keep it alive
+    let previous = state.get_previous(&tx.client, &tx.request.uri);
+
     for rule in crate::rules::RULES {
         if cfg.is_enabled(rule.id()) {
-            if let Some(v) = rule.check_transaction(tx, state, cfg) {
+            if let Some(v) = rule.check_transaction(tx, previous.as_ref(), cfg) {
                 out.push(v);
             }
         }

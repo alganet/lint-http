@@ -4,7 +4,6 @@
 
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::StateStore;
 
 pub struct ClientCacheRespect;
 
@@ -20,14 +19,11 @@ impl Rule for ClientCacheRespect {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        state: &StateStore,
+        previous: Option<&crate::http_transaction::HttpTransaction>,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
-        let client = &tx.client;
-        let resource = &tx.request.uri;
-
-        // Check if we have a previous response for this client+resource
-        let previous_tx = state.get_previous(client, resource)?;
+        // Use the previous transaction passed by the linter (if any)
+        let previous_tx = previous?;
         let resp = previous_tx.response.as_ref()?;
 
         // If the previous response had validators (ETag or Last-Modified),
@@ -71,6 +67,7 @@ impl Rule for ClientCacheRespect {
 mod tests {
     use super::*;
     use crate::state::ClientIdentifier;
+    use crate::state::StateStore;
     use rstest::rstest;
     use std::net::{IpAddr, Ipv4Addr};
 
@@ -112,7 +109,8 @@ mod tests {
         tx.request.uri = resource.to_string();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(req_headers_pairs.as_slice());
-        let violation = rule.check_transaction(&tx, &store, &cfg);
+        let previous = store.get_previous(&client, resource);
+        let violation = rule.check_transaction(&tx, previous.as_ref(), &cfg);
 
         if expect_violation {
             assert!(violation.is_some());

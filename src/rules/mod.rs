@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::state::StateStore;
 
 /// The `Rule` trait defines a single hook that runs on the canonical
 /// `HttpTransaction`. All rules must implement `check_transaction`.
@@ -35,7 +34,7 @@ pub trait Rule: Send + Sync {
     fn check_transaction(
         &self,
         _tx: &crate::http_transaction::HttpTransaction,
-        _state: &StateStore,
+        _previous: Option<&crate::http_transaction::HttpTransaction>,
         _config: &crate::config::Config,
     ) -> Option<Violation>;
 }
