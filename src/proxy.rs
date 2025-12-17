@@ -528,22 +528,9 @@ where
         }
         resp_builder = resp_builder.header(name, value);
     }
-    let mut resp = resp_builder
+    let resp = resp_builder
         .body(Full::new(resp_body_bytes.clone()).boxed())
         .unwrap_or_else(|_| Response::new(Full::new(resp_body_bytes.clone()).boxed()));
-    if !violations.is_empty() {
-        let s = violations
-            .iter()
-            .map(|v| v.rule.clone())
-            .collect::<Vec<_>>()
-            .join(",");
-        if let Ok(hv) = hyper::header::HeaderValue::from_str(&s) {
-            resp.headers_mut().insert(
-                hyper::header::HeaderName::from_static("x-lint-violations"),
-                hv,
-            );
-        }
-    }
 
     Ok(resp)
 }
@@ -696,11 +683,15 @@ mod tests {
         )
         .await?;
         assert_eq!(resp.status().as_u16(), 200);
-        assert!(resp.headers().get("x-lint-violations").is_some());
 
         let s = fs::read_to_string(&tmp).await?;
         let v: serde_json::Value = serde_json::from_str(s.trim())?;
         assert_eq!(v["response"]["status"].as_u64(), Some(200));
+        // Ensure that violations were captured (non-empty)
+        assert!(v["violations"]
+            .as_array()
+            .map(|a| !a.is_empty())
+            .unwrap_or(false));
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())
@@ -885,11 +876,15 @@ mod tests {
         )
         .await?;
         assert_eq!(resp.status().as_u16(), 200);
-        assert!(resp.headers().get("x-lint-violations").is_none());
 
         let s = fs::read_to_string(&tmp).await?;
         let v: serde_json::Value = serde_json::from_str(s.trim())?;
         assert_eq!(v["response"]["status"].as_u64(), Some(200));
+        // Ensure that there are no violations recorded
+        assert!(v["violations"]
+            .as_array()
+            .map(|a| a.is_empty())
+            .unwrap_or(true));
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())
