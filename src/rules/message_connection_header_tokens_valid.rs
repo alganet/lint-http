@@ -4,7 +4,6 @@
 
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::StateStore;
 
 pub struct MessageConnectionHeaderTokensValid;
 
@@ -20,7 +19,7 @@ impl Rule for MessageConnectionHeaderTokensValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _state: &StateStore,
+        _previous: Option<&crate::http_transaction::HttpTransaction>,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
         let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
@@ -73,7 +72,7 @@ impl Rule for MessageConnectionHeaderTokensValid {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::make_test_context;
+
     use hyper::header::HeaderValue;
     use rstest::rstest;
 
@@ -88,7 +87,6 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageConnectionHeaderTokensValid;
-        let (_client, state) = make_test_context();
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = hyper::HeaderMap::new();
@@ -100,7 +98,7 @@ mod tests {
         }
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, &state, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, None, &crate::config::Config::default());
         if expect_violation {
             assert!(v.is_some(), "case '{}' expected violation", value);
         } else {
@@ -121,7 +119,6 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageConnectionHeaderTokensValid;
-        let (_client, state) = make_test_context();
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = hyper::HeaderMap::new();
@@ -135,7 +132,7 @@ mod tests {
             headers: hm,
         });
 
-        let v = rule.check_transaction(&tx, &state, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, None, &crate::config::Config::default());
         if expect_violation {
             assert!(v.is_some(), "case '{}' expected violation", value);
         } else {
@@ -148,7 +145,6 @@ mod tests {
     #[test]
     fn multiple_tokens_and_spacing() -> anyhow::Result<()> {
         let rule = MessageConnectionHeaderTokensValid;
-        let (_client, state) = make_test_context();
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = hyper::HeaderMap::new();
@@ -159,7 +155,7 @@ mod tests {
         tx.request.headers = hm;
 
         assert!(rule
-            .check_transaction(&tx, &state, &crate::config::Config::default())
+            .check_transaction(&tx, None, &crate::config::Config::default())
             .is_none());
         Ok(())
     }
@@ -167,7 +163,6 @@ mod tests {
     #[test]
     fn multiple_header_fields_validation() -> anyhow::Result<()> {
         let rule = MessageConnectionHeaderTokensValid;
-        let (_client, state) = make_test_context();
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = hyper::HeaderMap::new();
@@ -180,7 +175,7 @@ mod tests {
 
         // Should report a violation due to invalid 'a/b' token
         assert!(rule
-            .check_transaction(&tx, &state, &crate::config::Config::default())
+            .check_transaction(&tx, None, &crate::config::Config::default())
             .is_some());
         Ok(())
     }
@@ -188,13 +183,12 @@ mod tests {
     #[test]
     fn missing_header_returns_none() -> anyhow::Result<()> {
         let rule = MessageConnectionHeaderTokensValid;
-        let (_client, state) = make_test_context();
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = hyper::HeaderMap::new();
 
         assert!(rule
-            .check_transaction(&tx, &state, &crate::config::Config::default())
+            .check_transaction(&tx, None, &crate::config::Config::default())
             .is_none());
         Ok(())
     }

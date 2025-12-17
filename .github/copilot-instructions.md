@@ -61,7 +61,7 @@ impl Rule for MyRuleName {
         "category_my_rule_name"  // Must match filename convention
     }
 
-    fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, conn: &crate::connection::ConnectionMetadata, state: &crate::state::StateStore, config: &crate::config::Config) -> Option<Violation> {
+    fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, previous: Option<&crate::http_transaction::HttpTransaction>, config: &crate::config::Config) -> Option<Violation> {
         // Return Some(Violation{...}) on failure, None on pass
     }
 
@@ -75,7 +75,7 @@ impl Rule for MyRuleName {
 
 4. **Add tests in same file**: Must cover both violation and non-violation cases. Use `test_helpers`:
 ```rust
-use crate::test_helpers::{make_test_client, make_test_context};
+use crate::test_helpers::{make_test_client};
 ```
 
 5. **Document in `docs/rules/<rule_name>.md`** and link from `docs/rules.md`
@@ -98,7 +98,7 @@ All files must start with license header:
 Use `anyhow::Result` for fallible operations. The proxy is development-only, so fail-fast is acceptable.
 
 ### State Management
-`StateStore` tracks transactions per `(ClientIdentifier, resource)` with configurable TTL. Rules can query previous responses via `state.get_previous()` for stateful analysis like cache validation.
+`StateStore` tracks transactions per `(ClientIdentifier, resource)` with configurable TTL. Rules receive an `Option<&HttpTransaction>` representing the previous transaction for the same client+resource when available; use this for stateful analysis like cache validation.
 
 ### Test Helpers Location
 Shared test utilities are in `src/test_helpers.rs` (only compiled in test cfg).

@@ -4,7 +4,6 @@
 
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::StateStore;
 
 pub struct ServerResponse405Allow;
 
@@ -20,7 +19,7 @@ impl Rule for ServerResponse405Allow {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _state: &StateStore,
+        _previous: Option<&crate::http_transaction::HttpTransaction>,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
         if let Some(resp) = &tx.response {
@@ -39,7 +38,7 @@ impl Rule for ServerResponse405Allow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::make_test_context;
+
     use rstest::rstest;
 
     #[rstest]
@@ -53,7 +52,6 @@ mod tests {
         #[case] expected_message: Option<&str>,
     ) -> anyhow::Result<()> {
         let rule = ServerResponse405Allow;
-        let (_client, state) = make_test_context();
 
         use crate::test_helpers::make_test_transaction_with_response;
         let header_pairs: Vec<(&str, &str)> = match header {
@@ -61,7 +59,7 @@ mod tests {
             None => vec![],
         };
         let tx = make_test_transaction_with_response(status, &header_pairs);
-        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());

@@ -5,7 +5,6 @@
 use crate::config_cache::RuleConfigCache;
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::StateStore;
 
 pub struct ServerXContentTypeOptions;
 
@@ -60,7 +59,7 @@ impl Rule for ServerXContentTypeOptions {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _state: &StateStore,
+        _previous: Option<&crate::http_transaction::HttpTransaction>,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
         // Only evaluate when status is 2xx and the response Content-Type matches one of the configured types
@@ -106,9 +105,7 @@ impl Rule for ServerXContentTypeOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{
-        enable_rule, make_test_config_with_content_types, make_test_context,
-    };
+    use crate::test_helpers::{enable_rule, make_test_config_with_content_types};
     use rstest::rstest;
 
     #[rstest]
@@ -126,7 +123,7 @@ mod tests {
         #[case] expected_message: Option<&str>,
     ) -> anyhow::Result<()> {
         let rule = ServerXContentTypeOptions;
-        let (_client, _state) = make_test_context();
+
         let cfg = make_test_config_with_content_types(&content_types);
 
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -135,7 +132,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
         });
 
-        let violation = rule.check_transaction(&tx, &_state, &cfg);
+        let violation = rule.check_transaction(&tx, None, &cfg);
 
         if expect_violation {
             assert!(violation.is_some());
@@ -238,7 +235,7 @@ mod tests {
     #[test]
     fn check_response_with_parameters_matches() -> anyhow::Result<()> {
         let rule = ServerXContentTypeOptions;
-        let (_client, _state) = make_test_context();
+
         let status = 200;
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
@@ -261,7 +258,7 @@ mod tests {
             )]),
         });
 
-        let violation = rule.check_transaction(&tx, &_state, &cfg);
+        let violation = rule.check_transaction(&tx, None, &cfg);
         assert!(violation.is_some());
         Ok(())
     }

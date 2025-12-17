@@ -5,7 +5,6 @@
 use crate::config_cache::RuleConfigCache;
 use crate::lint::Violation;
 use crate::rules::Rule;
-use crate::state::StateStore;
 
 static CACHED_PATHS: RuleConfigCache<Vec<String>> = RuleConfigCache::new();
 
@@ -85,7 +84,7 @@ impl Rule for ServerClearSiteData {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _state: &StateStore,
+        _previous: Option<&crate::http_transaction::HttpTransaction>,
         config: &crate::config::Config,
     ) -> Option<Violation> {
         // Only check successful responses
@@ -170,7 +169,7 @@ fn extract_path_from_resource(resource: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_config_with_enabled_paths_rules, make_test_context};
+    use crate::test_helpers::make_test_config_with_enabled_paths_rules;
     use rstest::rstest;
 
     #[rstest]
@@ -190,7 +189,7 @@ mod tests {
         #[case] expected_message_contains: Option<&str>,
     ) -> anyhow::Result<()> {
         let rule = ServerClearSiteData;
-        let (_client, state) = make_test_context();
+
         let cfg =
             make_test_config_with_enabled_paths_rules(&[("server_clear_site_data", &config_paths)]);
 
@@ -201,7 +200,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
         });
 
-        let violation = rule.check_transaction(&tx, &state, &cfg);
+        let violation = rule.check_transaction(&tx, None, &cfg);
 
         if expect_violation {
             let Some(v) = violation else {
