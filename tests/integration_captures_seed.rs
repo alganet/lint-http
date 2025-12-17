@@ -4,16 +4,15 @@
 
 //! Integration tests for the captures_seed feature
 
+use lint_http::{make_temp_captures_path, make_temp_config_path};
 use std::sync::Arc;
 use tokio::fs;
-use uuid::Uuid;
 
 #[tokio::test]
 async fn test_captures_seed_enabled() -> anyhow::Result<()> {
     // Create a temporary captures file with sample data
-    let tmp_dir = std::env::temp_dir();
-    let captures_file = tmp_dir.join(format!("test_seed_{}.jsonl", Uuid::new_v4()));
-    let config_file = tmp_dir.join(format!("test_config_{}.toml", Uuid::new_v4()));
+    let captures_file = make_temp_captures_path("test_seed");
+    let config_file = make_temp_config_path("test_config");
 
     // Construct a minimal transaction record (do not use internal test helpers)
     use lint_http::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
@@ -118,9 +117,8 @@ enabled = false
 #[tokio::test]
 async fn test_captures_seed_disabled() -> anyhow::Result<()> {
     // Create temporary files
-    let tmp_dir = std::env::temp_dir();
-    let captures_file = tmp_dir.join(format!("test_seed_disabled_{}.jsonl", Uuid::new_v4()));
-    let config_file = tmp_dir.join(format!("test_config_disabled_{}.toml", Uuid::new_v4()));
+    let captures_file = make_temp_captures_path("test_seed_disabled");
+    let config_file = make_temp_config_path("test_config_disabled");
 
     // Construct a minimal transaction record without using internal test helpers
     use lint_http::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
@@ -198,9 +196,8 @@ enabled = false
 #[tokio::test]
 async fn test_captures_seed_with_nonexistent_file() -> anyhow::Result<()> {
     // Create a config pointing to a non-existent captures file
-    let tmp_dir = std::env::temp_dir();
-    let captures_file = tmp_dir.join(format!("nonexistent_{}.jsonl", Uuid::new_v4()));
-    let config_file = tmp_dir.join(format!("test_config_nonexistent_{}.toml", Uuid::new_v4()));
+    let captures_file = make_temp_captures_path("nonexistent");
+    let config_file = make_temp_config_path("test_config_nonexistent");
 
     let config_toml = format!(
         r#"[general]

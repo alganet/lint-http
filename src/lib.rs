@@ -38,5 +38,20 @@ pub mod token;
 
 #[cfg(test)]
 mod test_helpers;
+#[cfg(test)]
+pub use test_helpers::{
+    disable_rule, enable_rule, enable_rule_with_paths, make_headers_from_pairs, make_test_client,
+    make_test_config_with_enabled_rules, make_test_engine, make_test_rule_config,
+    make_test_transaction, make_test_transaction_with_response,
+};
+
+// Public utilities for integration tests and internal testing
+pub fn make_temp_captures_path(prefix: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("{}_{}.jsonl", prefix, uuid::Uuid::new_v4()))
+}
+
+pub fn make_temp_config_path(prefix: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("{}_{}.toml", prefix, uuid::Uuid::new_v4()))
+}
 
 // Keep library small; main.rs remains the binary entrypoint.

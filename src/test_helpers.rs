@@ -30,52 +30,47 @@ pub fn make_headers_from_pairs(pairs: &[(&str, &str)]) -> HeaderMap {
     hm
 }
 
-/// Enable a rule via `[rules.<rule>]` table with `enabled = true`.
+/// Insert a rule config into the config rules table with severity and enabled status.
 #[cfg(test)]
-pub fn enable_rule(cfg: &mut crate::config::Config, rule: &str) {
+fn insert_rule_config(
+    cfg: &mut crate::config::Config,
+    rule: &str,
+    enabled: bool,
+    paths: Option<&[&str]>,
+) {
     let mut table = toml::map::Map::new();
-    table.insert("enabled".to_string(), toml::Value::Boolean(true));
-    // Tests that enable rules by helper should insert a default severity to
-    // reduce churn (tests not concerned with severity specifics).
+    table.insert("enabled".to_string(), toml::Value::Boolean(enabled));
     table.insert(
         "severity".to_string(),
         toml::Value::String("warn".to_string()),
     );
+    if let Some(path_list) = paths {
+        let arr = path_list
+            .iter()
+            .map(|p| toml::Value::String(p.to_string()))
+            .collect::<Vec<_>>();
+        table.insert("paths".to_string(), toml::Value::Array(arr));
+    }
     cfg.rules
         .insert(rule.to_string(), toml::Value::Table(table));
+}
+
+/// Enable a rule via `[rules.<rule>]` table with `enabled = true`.
+#[cfg(test)]
+pub fn enable_rule(cfg: &mut crate::config::Config, rule: &str) {
+    insert_rule_config(cfg, rule, true, None);
 }
 
 /// Enable a rule with a `paths` array under the rule table and `enabled = true`.
 #[cfg(test)]
 pub fn enable_rule_with_paths(cfg: &mut crate::config::Config, rule: &str, paths: &[&str]) {
-    let mut table = toml::map::Map::new();
-    table.insert("enabled".to_string(), toml::Value::Boolean(true));
-    // Default severity for test helpers
-    table.insert(
-        "severity".to_string(),
-        toml::Value::String("warn".to_string()),
-    );
-    let arr = paths
-        .iter()
-        .map(|p| toml::Value::String(p.to_string()))
-        .collect::<Vec<_>>();
-    table.insert("paths".to_string(), toml::Value::Array(arr));
-    cfg.rules
-        .insert(rule.to_string(), toml::Value::Table(table));
+    insert_rule_config(cfg, rule, true, Some(paths));
 }
 
 /// Disable a rule via `[rules.<rule>]` table with `enabled = false`.
 #[cfg(test)]
 pub fn disable_rule(cfg: &mut crate::config::Config, rule: &str) {
-    let mut table = toml::map::Map::new();
-    table.insert("enabled".to_string(), toml::Value::Boolean(false));
-    // Include a severity key even when disabling to match new mandatory config requirement
-    table.insert(
-        "severity".to_string(),
-        toml::Value::String("warn".to_string()),
-    );
-    cfg.rules
-        .insert(rule.to_string(), toml::Value::Table(table));
+    insert_rule_config(cfg, rule, false, None);
 }
 
 /// Create a test config and enable a list of rules (table with `enabled = true`)
