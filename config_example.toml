@@ -67,11 +67,7 @@ severity = "warn"
 paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
 
 # Correctness rules examples
-[rules.client_host_header_present]
-enabled = true
-severity = "info"
-
-[rules.client_host_header_syntax]
+[rules.client_host_header]
 enabled = true
 severity = "warn"
 

@@ -18,8 +18,7 @@ SPDX-License-Identifier: ISC
 - [client_accept_encoding_present](rules/client_accept_encoding_present.md) - Checks if `Accept-Encoding` header is present.
 - [client_user_agent_present](rules/client_user_agent_present.md) - Checks if `User-Agent` header is present.
 - [client_cache_respect](rules/client_cache_respect.md) - Verifies clients send conditional headers when re-requesting cached resources.
-- [client_host_header_present](rules/client_host_header_present.md) - Checks that requests include the mandatory `Host` header.
-- [client_host_header_syntax](rules/client_host_header_syntax.md) - Validates `Host` header syntax: numeric port (1–65535), IPv6 literals must be bracketed when a port is present, and userinfo is not permitted.
+- [client_host_header](rules/client_host_header.md) - Ensures `Host` header is present and valid: presence, port numeric/range, IPv6 bracket rules, and no userinfo.
 - [client_request_method_token_uppercase](rules/client_request_method_token_uppercase.md) - Method token should be uppercase and composed of valid token characters.
 
 ## Server Rules

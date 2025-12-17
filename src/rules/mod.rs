@@ -109,8 +109,7 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
 
 pub mod client_accept_encoding_present;
 pub mod client_cache_respect;
-pub mod client_host_header_present;
-pub mod client_host_header_syntax;
+pub mod client_host_header;
 pub mod client_request_method_token_uppercase;
 pub mod client_user_agent_present;
 pub mod connection_efficiency;
@@ -139,8 +138,7 @@ pub const RULES: &[&dyn Rule] = &[
     &client_user_agent_present::ClientUserAgentPresent,
     &client_accept_encoding_present::ClientAcceptEncodingPresent,
     &client_cache_respect::ClientCacheRespect,
-    &client_host_header_present::ClientHostHeaderPresent,
-    &client_host_header_syntax::ClientHostHeaderSyntax,
+    &client_host_header::ClientHostHeader,
     &client_request_method_token_uppercase::ClientRequestMethodTokenUppercase,
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
     &message_content_length::MessageContentLength,
