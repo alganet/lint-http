@@ -8,6 +8,8 @@ use crate::rules::Rule;
 pub struct MessageHeaderFieldNamesToken;
 
 impl Rule for MessageHeaderFieldNamesToken {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "message_header_field_names_token"
     }
@@ -20,7 +22,7 @@ impl Rule for MessageHeaderFieldNamesToken {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        _config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         // token characters per RFC token (tchar) - use shared helper
         // Check request headers
@@ -28,7 +30,7 @@ impl Rule for MessageHeaderFieldNamesToken {
             if let Some(c) = crate::token::find_invalid_token_char(k.as_str()) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: crate::rules::get_rule_severity(_config, self.id()),
+                    severity: config.severity,
                     message: format!(
                         "Header field-name '{}' contains invalid character: '{}'",
                         k.as_str(),
@@ -44,7 +46,7 @@ impl Rule for MessageHeaderFieldNamesToken {
                 if let Some(c) = crate::token::find_invalid_token_char(k.as_str()) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: crate::rules::get_rule_severity(_config, self.id()),
+                        severity: config.severity,
                         message: format!(
                             "Header field-name '{}' contains invalid character: '{}'",
                             k.as_str(),
@@ -93,7 +95,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
 
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
 
         if expect_violation {
             assert!(violation.is_some());
@@ -126,7 +129,8 @@ mod tests {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, header_pairs.as_slice());
 
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
 
         if expect_violation {
             assert!(violation.is_some());

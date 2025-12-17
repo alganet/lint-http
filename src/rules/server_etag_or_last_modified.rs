@@ -8,6 +8,8 @@ use crate::rules::Rule;
 pub struct ServerEtagOrLastModified;
 
 impl Rule for ServerEtagOrLastModified {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "server_etag_or_last_modified"
     }
@@ -20,7 +22,7 @@ impl Rule for ServerEtagOrLastModified {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         let Some(resp) = &tx.response else {
             return None;
@@ -32,7 +34,7 @@ impl Rule for ServerEtagOrLastModified {
         {
             Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(config, self.id()),
+                severity: config.severity,
                 message: "Response 200 without ETag or Last-Modified validator".into(),
             })
         } else {
@@ -55,7 +57,8 @@ mod tests {
             status,
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
         });
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(violation.is_some());
         assert_eq!(
             violation.map(|v| v.message),
@@ -75,7 +78,8 @@ mod tests {
             status,
             headers: crate::test_helpers::make_headers_from_pairs(&[("etag", "\"12345\"")]),
         });
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(violation.is_none());
         Ok(())
     }
@@ -93,7 +97,8 @@ mod tests {
                 "Wed, 21 Oct 2015 07:28:00 GMT",
             )]),
         });
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(violation.is_none());
         Ok(())
     }
@@ -108,7 +113,8 @@ mod tests {
             status,
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
         });
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(violation.is_none());
     }
 }

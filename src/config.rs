@@ -75,7 +75,7 @@ pub struct Config {
 impl Config {
     // keep other methods on Config
 
-    /// Load configuration from a TOML file.
+    /// Load configuration from a TOML file and return the config along with the rule engine.
     /// TOML format:
     /// `[rules]`
     /// `[[rules.<rule>]]` or `[rules.<rule>]` table with `enabled = true` and additional configuration, e.g.:
@@ -86,15 +86,17 @@ impl Config {
     /// [rules.server_clear_site_data]
     /// enabled = true
     /// paths = ["/logout", "/signout"]
-    pub async fn load_from_path<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Self> {
+    pub async fn load_from_path<P: AsRef<std::path::Path>>(
+        path: P,
+    ) -> anyhow::Result<(Self, crate::rules::RuleConfigEngine)> {
         let path_ref = path.as_ref();
         let s = tokio::fs::read_to_string(path_ref).await?;
         let cfg: Self = toml::from_str(&s)?;
 
-        // Validate all enabled rules' configurations
-        crate::rules::validate_rules(&cfg)?;
+        // Validate all enabled rules' configurations and get the engine
+        let engine = crate::rules::validate_rules(&cfg)?;
 
-        Ok(cfg)
+        Ok((cfg, engine))
     }
 
     /// Returns true if the rule is enabled.
@@ -150,7 +152,7 @@ captures_seed = false
 enabled = false
 "#;
         fs::write(&tmp_toml, toml).await?;
-        let cfg = Config::load_from_path(&tmp_toml).await?;
+        let (cfg, _engine) = Config::load_from_path(&tmp_toml).await?;
         assert!(cfg.is_enabled("server_cache_control_present"));
         fs::remove_file(&tmp_toml).await?;
         Ok(())
@@ -174,7 +176,7 @@ captures = "captures.jsonl"
 enabled = false
 "#;
         fs::write(&tmp_toml, toml).await?;
-        let cfg = Config::load_from_path(&tmp_toml).await?;
+        let (cfg, _engine) = Config::load_from_path(&tmp_toml).await?;
         assert!(cfg.is_enabled("some_rule"));
         let config = cfg.get_rule_config("some_rule");
         assert!(config.is_some());
@@ -320,6 +322,35 @@ severity = "critical"
 "#,
         "some_rule",
         "must be one of"
+    )]
+    #[case(
+        r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.some_rule]
+severity = "warn"
+"#,
+        "some_rule",
+        "Missing required 'enabled'"
+    )]
+    #[case(
+        r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.some_rule]
+enabled = "true"
+severity = "warn"
+"#,
+        "some_rule",
+        "Invalid 'enabled' for rule"
     )]
     #[tokio::test]
     async fn load_invalid_rule_config_cases(

@@ -8,6 +8,8 @@ use crate::rules::Rule;
 pub struct MessageContentLength;
 
 impl Rule for MessageContentLength {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "message_content_length"
     }
@@ -20,7 +22,7 @@ impl Rule for MessageContentLength {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        _config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         // Helper checks a HeaderMap for Content-Length problems
         let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
@@ -43,7 +45,7 @@ impl Rule for MessageContentLength {
                     Err(_) => {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: crate::rules::get_rule_severity(_config, self.id()),
+                            severity: config.severity,
                             message: "Invalid Content-Length value (non-UTF8)".into(),
                         })
                     }
@@ -53,7 +55,7 @@ impl Rule for MessageContentLength {
                 if t.is_empty() || !t.chars().all(|c| c.is_ascii_digit()) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: crate::rules::get_rule_severity(_config, self.id()),
+                        severity: config.severity,
                         message: format!("Invalid Content-Length value: '{}'", s),
                     });
                 }
@@ -63,7 +65,7 @@ impl Rule for MessageContentLength {
                     Err(_) => {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: crate::rules::get_rule_severity(_config, self.id()),
+                            severity: config.severity,
                             message: format!("Content-Length value too large: '{}'", s),
                         })
                     }
@@ -77,11 +79,11 @@ impl Rule for MessageContentLength {
                     if n.is_none() || first.is_none() || n != &first {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: crate::rules::get_rule_severity(_config, self.id()),
+                            severity: config.severity,
                             message: format!(
-                                "Multiple Content-Length headers with differing values: '{}' vs '{}'",
-                                raw_values[0], raw_values[i]
-                            ),
+                            "Multiple Content-Length headers with differing values: '{}' vs '{}'",
+                            raw_values[0], raw_values[i]
+                        ),
                         });
                     }
                 }
@@ -133,7 +135,7 @@ mod tests {
         hm.insert(hyper::header::CONTENT_LENGTH, HeaderValue::from_str(value)?);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {
             assert!(v.is_some(), "value '{}' expected violation", value);
         } else {
@@ -165,7 +167,7 @@ mod tests {
             headers: hm,
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {
             assert!(v.is_some(), "response value '{}' expected violation", value);
         } else {
@@ -196,7 +198,7 @@ mod tests {
         }
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {
             assert!(
                 v.is_some(),
@@ -222,7 +224,7 @@ mod tests {
             headers: hm2,
         });
 
-        let v2 = rule.check_transaction(&tx2, None, &crate::config::Config::default());
+        let v2 = rule.check_transaction(&tx2, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {
             assert!(
                 v2.is_some(),

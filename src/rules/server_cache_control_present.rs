@@ -8,6 +8,8 @@ use crate::rules::Rule;
 pub struct ServerCacheControlPresent;
 
 impl Rule for ServerCacheControlPresent {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "server_cache_control_present"
     }
@@ -20,13 +22,13 @@ impl Rule for ServerCacheControlPresent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        _config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         if let Some(resp) = &tx.response {
             if resp.status == 200 && !resp.headers.contains_key("cache-control") {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: crate::rules::get_rule_severity(_config, self.id()),
+                    severity: config.severity,
                     message: "Response 200 without Cache-Control header".into(),
                 });
             }
@@ -58,7 +60,8 @@ mod tests {
             Some((k, v)) => make_test_transaction_with_response(status, &[(k, v)]),
             None => make_test_transaction_with_response(status, &[]),
         };
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
 
         if expect_violation {
             assert!(violation.is_some());

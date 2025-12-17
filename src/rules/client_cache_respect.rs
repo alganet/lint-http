@@ -8,6 +8,8 @@ use crate::rules::Rule;
 pub struct ClientCacheRespect;
 
 impl Rule for ClientCacheRespect {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "client_cache_respect"
     }
@@ -20,7 +22,7 @@ impl Rule for ClientCacheRespect {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         previous: Option<&crate::http_transaction::HttpTransaction>,
-        _config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         // Use the previous transaction passed by the linter (if any)
         let previous_tx = previous?;
@@ -42,7 +44,7 @@ impl Rule for ClientCacheRespect {
         if !has_if_none_match && !has_if_modified_since {
             Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(_config, self.id()),
+                severity: config.severity,
                 message: format!(
                     "Client re-requesting resource without conditional headers. \
                      Server provided validators (ETag: {}, Last-Modified: {}) but client \
@@ -102,7 +104,6 @@ mod tests {
         }
 
         // build request headers from pairs when needed (assigned later into transaction)
-        let cfg = crate::config::Config::default();
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
         tx.client = client.clone();
@@ -110,7 +111,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(req_headers_pairs.as_slice());
         let previous = store.get_previous(&client, resource);
-        let violation = rule.check_transaction(&tx, previous.as_ref(), &cfg);
+        let violation = rule.check_transaction(
+            &tx,
+            previous.as_ref(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
 
         if expect_violation {
             assert!(violation.is_some());

@@ -8,6 +8,8 @@ use crate::rules::Rule;
 pub struct ServerContentTypePresent;
 
 impl Rule for ServerContentTypePresent {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "server_content_type_present"
     }
@@ -20,7 +22,7 @@ impl Rule for ServerContentTypePresent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        _config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         let Some(resp) = &tx.response else {
             return None;
@@ -57,7 +59,7 @@ impl Rule for ServerContentTypePresent {
         if likely_has_body {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(_config, self.id()),
+                severity: config.severity,
                 message: "Response likely has body but is missing Content-Type header".into(),
             });
         }
@@ -99,7 +101,8 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
         });
 
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
 
         if expect_violation {
             assert!(violation.is_some());

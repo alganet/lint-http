@@ -8,6 +8,8 @@ use crate::rules::Rule;
 pub struct ClientUserAgentPresent;
 
 impl Rule for ClientUserAgentPresent {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "client_user_agent_present"
     }
@@ -20,12 +22,12 @@ impl Rule for ClientUserAgentPresent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         if !tx.request.headers.contains_key("user-agent") {
             Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(config, self.id()),
+                severity: config.severity,
                 message: "Request missing User-Agent header".into(),
             })
         } else {
@@ -53,7 +55,8 @@ mod tests {
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
 
         if expect_violation {
             assert!(violation.is_some());

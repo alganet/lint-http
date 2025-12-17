@@ -2,19 +2,26 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::config_cache::RuleConfigCache;
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-static CACHED_PATHS: RuleConfigCache<Vec<String>> = RuleConfigCache::new();
-
 pub struct ServerClearSiteData;
 
+#[derive(Debug, Clone)]
+pub struct ClearSiteDataConfig {
+    pub enabled: bool,
+    pub severity: crate::lint::Severity,
+    pub paths: Vec<String>,
+}
+
 /// Parse and validate paths configuration for this rule
-fn parse_paths_config(config: &crate::config::Config) -> anyhow::Result<Vec<String>> {
+fn parse_paths_config(
+    config: &crate::config::Config,
+    rule_id: &str,
+) -> anyhow::Result<ClearSiteDataConfig> {
     // Require a configuration table for this rule. If none is provided, return an error
     // since this rule is not enabled by default and configuration is required to enable it.
-    let Some(rule_config) = config.get_rule_config("server_clear_site_data") else {
+    let Some(rule_config) = config.get_rule_config(rule_id) else {
         return Err(anyhow::anyhow!(
             r#"rule 'server_clear_site_data' requires configuration to be enabled. Example:
 [rules.server_clear_site_data]
@@ -62,10 +69,19 @@ paths = ["/logout"]"#
         paths.push(path.to_string());
     }
 
-    Ok(paths)
+    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
+    let enabled = crate::rules::get_rule_enabled_required(config, rule_id)?;
+
+    Ok(ClearSiteDataConfig {
+        enabled,
+        paths,
+        severity,
+    })
 }
 
 impl Rule for ServerClearSiteData {
+    type Config = ClearSiteDataConfig;
+
     fn id(&self) -> &'static str {
         "server_clear_site_data"
     }
@@ -74,18 +90,19 @@ impl Rule for ServerClearSiteData {
         crate::rules::RuleScope::Server
     }
 
-    fn validate_config(&self, config: &crate::config::Config) -> anyhow::Result<()> {
-        // Parse and cache the config - if it succeeds, config is valid
-        let paths = parse_paths_config(config)?;
-        CACHED_PATHS.set(paths);
-        Ok(())
+    fn validate_and_box(
+        &self,
+        config: &crate::config::Config,
+    ) -> anyhow::Result<std::sync::Arc<dyn std::any::Any + Send + Sync>> {
+        let parsed = parse_paths_config(config, self.id())?;
+        Ok(std::sync::Arc::new(parsed))
     }
 
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         // Only check successful responses
         let Some(resp) = &tx.response else {
@@ -96,28 +113,16 @@ impl Rule for ServerClearSiteData {
             return None;
         }
 
-        // Get configured paths from cache. This should always succeed because validation
-        // happens at startup and the rule is only called when enabled. The unwrap_or_else
-        // with panic serves as a defensive assertion.
-        let paths = CACHED_PATHS.get_or_init(|| {
-            parse_paths_config(config).unwrap_or_else(|e| {
-                panic!(
-                    "FATAL: invalid or missing configuration for rule 'server_clear_site_data' at runtime: {}",
-                    e
-                )
-            })
-        });
-
         // Check if the current resource path matches any configured path
         let resource_path = extract_path_from_resource(&tx.request.uri);
 
         // Check if resource path matches any configured path
-        let is_logout_path = paths.contains(&resource_path);
+        let is_logout_path = config.paths.contains(&resource_path);
 
         if is_logout_path && !resp.headers.contains_key("clear-site-data") {
             Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::get_rule_severity(config, self.id()),
+                severity: config.severity,
                 message: format!(
                     "Logout endpoint '{}' should include Clear-Site-Data header to properly clear client-side storage",
                     resource_path
@@ -169,7 +174,6 @@ fn extract_path_from_resource(resource: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::make_test_config_with_enabled_paths_rules;
     use rstest::rstest;
 
     #[rstest]
@@ -190,8 +194,11 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ServerClearSiteData;
 
-        let cfg =
-            make_test_config_with_enabled_paths_rules(&[("server_clear_site_data", &config_paths)]);
+        let config = super::ClearSiteDataConfig {
+            enabled: true,
+            paths: config_paths.iter().map(|s| s.to_string()).collect(),
+            severity: crate::lint::Severity::Warn,
+        };
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.uri = format!("http://test.com{}", resource_path);
@@ -200,7 +207,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
         });
 
-        let violation = rule.check_transaction(&tx, None, &cfg);
+        let violation = rule.check_transaction(&tx, None, &config);
 
         if expect_violation {
             let Some(v) = violation else {
@@ -238,6 +245,11 @@ mod tests {
         match scenario {
             "valid" => {
                 let mut table = toml::map::Map::new();
+                table.insert("enabled".to_string(), toml::Value::Boolean(true));
+                table.insert(
+                    "severity".to_string(),
+                    toml::Value::String("warn".to_string()),
+                );
                 table.insert(
                     "paths".to_string(),
                     toml::Value::Array(vec![
@@ -266,7 +278,8 @@ mod tests {
                 );
             }
             "missing_paths" => {
-                let table = toml::map::Map::new(); // Empty table, no "paths" field
+                let mut table = toml::map::Map::new();
+                table.insert("enabled".to_string(), toml::Value::Boolean(true));
                 cfg.rules.insert(
                     "server_clear_site_data".to_string(),
                     toml::Value::Table(table),
@@ -274,6 +287,7 @@ mod tests {
             }
             "non_array" => {
                 let mut table = toml::map::Map::new();
+                table.insert("enabled".to_string(), toml::Value::Boolean(true));
                 table.insert(
                     "paths".to_string(),
                     toml::Value::String("/logout".to_string()),
@@ -285,6 +299,7 @@ mod tests {
             }
             "empty_array" => {
                 let mut table = toml::map::Map::new();
+                table.insert("enabled".to_string(), toml::Value::Boolean(true));
                 table.insert("paths".to_string(), toml::Value::Array(vec![]));
                 cfg.rules.insert(
                     "server_clear_site_data".to_string(),
@@ -293,6 +308,7 @@ mod tests {
             }
             "non_string_item" => {
                 let mut table = toml::map::Map::new();
+                table.insert("enabled".to_string(), toml::Value::Boolean(true));
                 table.insert(
                     "paths".to_string(),
                     toml::Value::Array(vec![
@@ -309,9 +325,14 @@ mod tests {
             _ => panic!("unknown scenario"),
         }
 
-        let res = rule.validate_config(&cfg);
+        let res = rule.validate_and_box(&cfg);
         if valid {
-            assert!(res.is_ok());
+            let boxed = res?;
+            let parsed = boxed.downcast::<super::ClearSiteDataConfig>().unwrap();
+            assert_eq!(
+                parsed.paths,
+                vec!["/logout".to_string(), "/signout".to_string()]
+            );
         } else {
             assert!(res.is_err());
             if let Some(sub) = expected_substring {

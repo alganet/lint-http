@@ -8,6 +8,8 @@ use crate::rules::Rule;
 pub struct ServerCharsetSpecification;
 
 impl Rule for ServerCharsetSpecification {
+    type Config = crate::rules::RuleConfig;
+
     fn id(&self) -> &'static str {
         "server_charset_specification"
     }
@@ -20,7 +22,7 @@ impl Rule for ServerCharsetSpecification {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _previous: Option<&crate::http_transaction::HttpTransaction>,
-        _config: &crate::config::Config,
+        config: &Self::Config,
     ) -> Option<Violation> {
         let Some(resp) = &tx.response else {
             return None;
@@ -34,7 +36,7 @@ impl Rule for ServerCharsetSpecification {
                 {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: crate::rules::get_rule_severity(_config, self.id()),
+                        severity: config.severity,
                         message: "Text-based Content-Type header missing charset parameter.".into(),
                     });
                 }
@@ -79,7 +81,8 @@ mod tests {
             });
         }
 
-        let violation = rule.check_transaction(&tx, None, &crate::config::Config::default());
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
 
         if expect_violation {
             assert!(violation.is_some());

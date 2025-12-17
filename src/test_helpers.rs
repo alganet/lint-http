@@ -88,47 +88,11 @@ pub fn make_test_config_with_enabled_rules(rules: &[&str]) -> crate::config::Con
     cfg
 }
 
-/// Create a test config and enable rules with corresponding `paths` entries.
-/// `entries` is an array of tuples: (rule_name, &[paths])
+/// Create a RuleConfigEngine for testing by validating the given config.
+/// This is useful for tests that need to call check_transaction with parsed configs.
 #[cfg(test)]
-pub fn make_test_config_with_enabled_paths_rules(
-    entries: &[(&str, &[&str])],
-) -> crate::config::Config {
-    let mut cfg = crate::config::Config::default();
-    for (r, p) in entries {
-        enable_rule_with_paths(&mut cfg, r, p);
-    }
-    cfg
-}
-/// Create a test config enabling `server_x_content_type_options` for given content types.
-///
-/// # Arguments
-///
-/// * `content_types` - Slice of content type strings to enable for the rule.
-///
-/// # Returns
-///
-/// A `Config` with the `server_x_content_type_options` rule enabled and its `content_types` set.
-#[cfg(test)]
-pub fn make_test_config_with_content_types(content_types: &[&str]) -> crate::config::Config {
-    let mut cfg = crate::config::Config::default();
-    let mut table = toml::map::Map::new();
-    table.insert("enabled".to_string(), toml::Value::Boolean(true));
-    // Default severity for test helpers
-    table.insert(
-        "severity".to_string(),
-        toml::Value::String("warn".to_string()),
-    );
-    let arr = content_types
-        .iter()
-        .map(|p| toml::Value::String(p.to_string()))
-        .collect::<Vec<_>>();
-    table.insert("content_types".to_string(), toml::Value::Array(arr));
-    cfg.rules.insert(
-        "server_x_content_type_options".to_string(),
-        toml::Value::Table(table),
-    );
-    cfg
+pub fn make_test_engine(cfg: &crate::config::Config) -> crate::rules::RuleConfigEngine {
+    crate::rules::validate_rules(cfg).expect("test config should be valid")
 }
 
 /// Create a minimal `HttpTransaction` for tests.
@@ -160,6 +124,16 @@ pub fn make_test_transaction_with_response(
     let headers = make_headers_from_pairs(resp_headers);
     tx.response = Some(ResponseInfo { status, headers });
     tx
+}
+
+/// Create a RuleConfig for testing with explicit severity.
+/// Default to Warn severity for tests not focused on severity behavior.
+#[cfg(test)]
+pub fn make_test_rule_config() -> crate::rules::RuleConfig {
+    crate::rules::RuleConfig {
+        enabled: true,
+        severity: crate::lint::Severity::Warn,
+    }
 }
 
 #[cfg(test)]

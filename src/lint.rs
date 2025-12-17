@@ -16,7 +16,7 @@ pub struct Violation {
 }
 
 /// Severity level for a rule violation.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
     Info,
@@ -29,6 +29,7 @@ pub fn lint_transaction(
     tx: &crate::http_transaction::HttpTransaction,
     cfg: &Config,
     state: &crate::state::StateStore,
+    engine: &crate::rules::RuleConfigEngine,
 ) -> Vec<Violation> {
     let mut out = Vec::new();
 
@@ -37,7 +38,7 @@ pub fn lint_transaction(
 
     for rule in crate::rules::RULES {
         if cfg.is_enabled(rule.id()) {
-            if let Some(v) = rule.check_transaction(tx, previous.as_ref(), cfg) {
+            if let Some(v) = rule.check_transaction_erased(tx, previous.as_ref(), cfg, engine) {
                 out.push(v);
             }
         }
@@ -50,7 +51,9 @@ pub fn lint_transaction(
 mod tests {
     use super::*;
     use crate::config::Config;
-    use crate::test_helpers::{disable_rule, make_test_config_with_enabled_rules};
+    use crate::test_helpers::{
+        disable_rule, make_test_config_with_enabled_rules, make_test_engine,
+    };
 
     #[test]
     fn lint_response_rules_emit_when_enabled() {
@@ -59,9 +62,10 @@ mod tests {
             "server_cache_control_present",
             "server_etag_or_last_modified",
         ]);
+        let engine = make_test_engine(&cfg);
         // Create a transaction with just response data for server rules
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let v = lint_transaction(&tx, &cfg, &state);
+        let v = lint_transaction(&tx, &cfg, &state, &engine);
 
         assert!(v.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
@@ -74,6 +78,7 @@ mod tests {
             "client_user_agent_present",
             "client_accept_encoding_present",
         ]);
+        let engine = make_test_engine(&cfg);
         // Create a transaction without user-agent header to trigger the rule
         use crate::http_transaction::{HttpTransaction, TimingInfo};
         let mut tx = HttpTransaction::new(
@@ -84,7 +89,7 @@ mod tests {
         tx.timing = TimingInfo { duration_ms: 5 };
         // Note: intentionally not adding user-agent header to trigger the rule
 
-        let v = lint_transaction(&tx, &cfg, &state);
+        let v = lint_transaction(&tx, &cfg, &state, &engine);
 
         assert!(v.iter().any(|x| x.rule == "client_user_agent_present"));
         assert!(v.iter().any(|x| x.rule == "client_accept_encoding_present"));
@@ -98,8 +103,9 @@ mod tests {
             "server_cache_control_present",
             "server_etag_or_last_modified",
         ]);
+        let engine_enabled = make_test_engine(&cfg_enabled);
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let v = lint_transaction(&tx, &cfg_enabled, &state);
+        let v = lint_transaction(&tx, &cfg_enabled, &state, &engine_enabled);
         assert!(v.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
 
@@ -107,7 +113,8 @@ mod tests {
         let mut cfg_disabled = Config::default();
         disable_rule(&mut cfg_disabled, "server_cache_control_present");
         disable_rule(&mut cfg_disabled, "server_etag_or_last_modified");
-        let v2 = lint_transaction(&tx, &cfg_disabled, &state);
+        let engine_disabled = make_test_engine(&cfg_disabled);
+        let v2 = lint_transaction(&tx, &cfg_disabled, &state, &engine_disabled);
         assert!(!v2.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(!v2.iter().any(|x| x.rule == "server_etag_or_last_modified"));
     }
@@ -119,6 +126,7 @@ mod tests {
             "client_user_agent_present",
             "server_cache_control_present",
         ]);
+        let engine = make_test_engine(&cfg);
         // Build a transaction without user-agent header to trigger client rule
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
@@ -133,7 +141,7 @@ mod tests {
             headers: hyper::HeaderMap::new(), // No cache-control to trigger server rule
         });
 
-        let violations = lint_transaction(&tx, &cfg, &state);
+        let violations = lint_transaction(&tx, &cfg, &state, &engine);
 
         // Should find at least one violation (either client or server rule)
         assert!(!violations.is_empty());
