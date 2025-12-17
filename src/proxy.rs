@@ -487,7 +487,6 @@ where
 
     // Record transaction in state for future analysis
     shared.state.record_transaction(&tx);
-    shared.state.record_connection(&client_id);
 
     // Write capture (we don't capture bodies in MVP)
     let _ = captures.write_transaction(&tx).await;

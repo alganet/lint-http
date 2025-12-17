@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 /// Identifies a client by IP address and User-Agent string.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -31,27 +31,9 @@ struct ResourceKey {
     resource: String,
 }
 
-#[derive(Debug, Clone)]
-struct ClientStats {
-    connection_count: u64,
-    request_count: u64,
-    last_seen: SystemTime,
-}
-
-impl Default for ClientStats {
-    fn default() -> Self {
-        Self {
-            connection_count: 0,
-            request_count: 0,
-            last_seen: SystemTime::UNIX_EPOCH,
-        }
-    }
-}
-
 /// Thread-safe store for transaction state.
 pub struct StateStore {
     store: Arc<RwLock<HashMap<ResourceKey, crate::http_transaction::HttpTransaction>>>,
-    stats: Arc<RwLock<HashMap<ClientIdentifier, ClientStats>>>,
     ttl: Duration,
 }
 
@@ -59,7 +41,6 @@ impl StateStore {
     pub fn new(ttl_seconds: u64) -> Self {
         Self {
             store: Arc::new(RwLock::new(HashMap::new())),
-            stats: Arc::new(RwLock::new(HashMap::new())),
             ttl: Duration::from_secs(ttl_seconds),
         }
     }
@@ -73,12 +54,6 @@ impl StateStore {
 
         if let Ok(mut store) = self.store.write() {
             store.insert(key, tx.clone());
-        }
-
-        if let Ok(mut stats) = self.stats.write() {
-            let entry = stats.entry(tx.client.clone()).or_default();
-            entry.request_count += 1;
-            entry.last_seen = SystemTime::now();
         }
     }
 
@@ -114,40 +89,6 @@ impl StateStore {
                 }
                 age <= ttl_chrono
             });
-        }
-    }
-
-    /// Record a new connection establishment.
-    pub fn record_connection(&self, client: &ClientIdentifier) {
-        if let Ok(mut stats) = self.stats.write() {
-            let entry = stats.entry(client.clone()).or_default();
-            entry.connection_count += 1;
-            entry.last_seen = SystemTime::now();
-        }
-    }
-
-    /// Get connection efficiency stats (requests per connection).
-    pub fn get_connection_efficiency(&self, client: &ClientIdentifier) -> Option<f64> {
-        if let Ok(stats) = self.stats.read() {
-            stats.get(client).map(|s| {
-                if s.connection_count == 0 {
-                    0.0
-                } else {
-                    s.request_count as f64 / s.connection_count as f64
-                }
-            })
-        } else {
-            tracing::warn!("StateStore stats lock poisoned during read");
-            None
-        }
-    }
-
-    /// Get total connection count for a client.
-    pub fn get_connection_count(&self, client: &ClientIdentifier) -> u64 {
-        if let Ok(stats) = self.stats.read() {
-            stats.get(client).map(|s| s.connection_count).unwrap_or(0)
-        } else {
-            0
         }
     }
 
@@ -381,48 +322,6 @@ mod tests {
         // Should complete without panicking
         let record = store.get_previous(&client, resource);
         assert!(record.is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn track_connection_efficiency() -> anyhow::Result<()> {
-        let store = StateStore::new(300);
-        let client = make_client();
-
-        // Initial state
-        assert_eq!(store.get_connection_count(&client), 0);
-        assert!(store.get_connection_efficiency(&client).is_none());
-
-        // Record connection
-        store.record_connection(&client);
-        assert_eq!(store.get_connection_count(&client), 1);
-
-        // 0 requests, 1 connection -> efficiency 0.0
-        assert_eq!(store.get_connection_efficiency(&client), Some(0.0));
-
-        // Record request
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.client = client.clone();
-        tx.request.uri = "http://example.com".to_string();
-        store.record_transaction(&tx);
-
-        // 1 request, 1 connection -> efficiency 1.0
-        assert_eq!(store.get_connection_efficiency(&client), Some(1.0));
-
-        // Record another request
-        let mut tx2 = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx2.client = client.clone();
-        tx2.request.uri = "http://example.com".to_string();
-        store.record_transaction(&tx2);
-
-        // 2 requests, 1 connection -> efficiency 2.0
-        assert_eq!(store.get_connection_efficiency(&client), Some(2.0));
-
-        // Record another connection
-        store.record_connection(&client);
-
-        // 2 requests, 2 connections -> efficiency 1.0
-        assert_eq!(store.get_connection_efficiency(&client), Some(1.0));
         Ok(())
     }
 

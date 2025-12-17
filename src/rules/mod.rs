@@ -111,7 +111,6 @@ pub mod client_cache_respect;
 pub mod client_host_header;
 pub mod client_request_method_token_uppercase;
 pub mod client_user_agent_present;
-pub mod connection_efficiency;
 pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
 pub mod message_content_length;
@@ -146,7 +145,6 @@ pub const RULES: &[&dyn Rule] = &[
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &server_content_type_present::ServerContentTypePresent,
     &message_connection_upgrade::MessageConnectionUpgrade,
-    &connection_efficiency::ConnectionEfficiency,
     &server_charset_specification::ServerCharsetSpecification,
 ];
 
