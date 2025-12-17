@@ -107,7 +107,6 @@ impl Rule for ConnectionEfficiency {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -146,14 +145,13 @@ impl Rule for ConnectionEfficiency {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{enable_rule, make_test_conn, make_test_context};
+    use crate::test_helpers::{enable_rule, make_test_context};
     use rstest::rstest;
 
     #[test]
     fn check_request_no_violation_initially() {
         let rule = ConnectionEfficiency;
         let (client, state) = make_test_context();
-        let conn = make_test_conn();
 
         // First request, no history
         let mut cfg = crate::config::Config::default();
@@ -169,7 +167,7 @@ mod tests {
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
         tx.client = client.clone();
-        let violation = rule.check_transaction(&tx, &conn, &state, &cfg);
+        let violation = rule.check_transaction(&tx, &state, &cfg);
         assert!(violation.is_none());
     }
 
@@ -189,11 +187,8 @@ mod tests {
         let (client, state) = make_test_context();
 
         // Simulate connections and transactions using a pattern specified by case
-        for i in 0..connections {
-            let conn = crate::connection::ConnectionMetadata::new(
-                format!("127.0.0.1:{}", 12345 + i).parse()?,
-            );
-            state.record_connection(&client, &conn);
+        for _i in 0..connections {
+            state.record_connection(&client);
             for _ in 0..requests_per_connection {
                 let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
                 tx.client = client.clone();
@@ -201,7 +196,6 @@ mod tests {
                 state.record_transaction(&tx);
             }
         }
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12351".parse()?);
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
@@ -220,7 +214,7 @@ mod tests {
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.client = client.clone();
-        let violation = rule.check_transaction(&tx, &conn, &state, &cfg);
+        let violation = rule.check_transaction(&tx, &state, &cfg);
 
         if expect_violation {
             assert!(violation.is_some());
@@ -375,7 +369,6 @@ mod tests {
         // When the rule is enabled but missing numeric fields, check_request should panic
         let rule = ConnectionEfficiency;
         let (client, state) = make_test_context();
-        let conn = make_test_conn();
 
         let mut cfg = crate::config::Config::default();
         enable_rule(&mut cfg, "connection_efficiency");
@@ -383,7 +376,7 @@ mod tests {
         let res = std::panic::catch_unwind(|| {
             let mut tx = crate::test_helpers::make_test_transaction();
             tx.client = client.clone();
-            let _ = rule.check_transaction(&tx, &conn, &state, &cfg);
+            let _ = rule.check_transaction(&tx, &state, &cfg);
         });
         assert!(res.is_err());
     }
@@ -394,11 +387,8 @@ mod tests {
         let (client, state) = make_test_context();
 
         // Simulate 2 connections with 1 request each (Efficiency = 1.0)
-        for i in 0..2 {
-            let conn = crate::connection::ConnectionMetadata::new(
-                format!("127.0.0.1:{}", 12345 + i).parse()?,
-            );
-            state.record_connection(&client, &conn);
+        for _i in 0..2 {
+            state.record_connection(&client);
             let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
             tx.client = client.clone();
             tx.request.uri = "http://test.com".to_string();
@@ -416,10 +406,9 @@ mod tests {
             toml::Value::Table(table),
         );
 
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12351".parse()?);
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.client = client.clone();
-        let violation = rule.check_transaction(&tx, &conn, &state, &cfg);
+        let violation = rule.check_transaction(&tx, &state, &cfg);
 
         assert!(violation.is_some());
         Ok(())

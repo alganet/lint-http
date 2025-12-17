@@ -7,7 +7,7 @@
 use crate::state::{ClientIdentifier, StateStore};
 use hyper::header::{HeaderName, HeaderValue};
 use hyper::HeaderMap;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr};
 
 /// Create a test client identifier with standard test values
 #[cfg(test)]
@@ -22,15 +22,6 @@ pub fn make_test_client() -> ClientIdentifier {
 #[cfg(test)]
 pub fn make_test_context() -> (ClientIdentifier, StateStore) {
     (make_test_client(), StateStore::new(300))
-}
-
-/// Create a test connection metadata with standard test address
-#[cfg(test)]
-pub fn make_test_conn() -> crate::connection::ConnectionMetadata {
-    crate::connection::ConnectionMetadata::new(SocketAddr::new(
-        IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
-        12345,
-    ))
 }
 
 /// Create a HeaderMap from a slice of (key, value) pairs for use in tests

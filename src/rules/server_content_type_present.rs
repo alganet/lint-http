@@ -20,7 +20,6 @@ impl Rule for ServerContentTypePresent {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -71,7 +70,7 @@ impl Rule for ServerContentTypePresent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
+    use crate::test_helpers::make_test_context;
     use rstest::rstest;
 
     #[rstest]
@@ -95,7 +94,6 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ServerContentTypePresent;
         let (_client, _state) = make_test_context();
-        let conn = make_test_conn();
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
@@ -103,8 +101,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
         });
 
-        let violation =
-            rule.check_transaction(&tx, &conn, &_state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &_state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());

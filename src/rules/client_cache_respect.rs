@@ -20,7 +20,6 @@ impl Rule for ClientCacheRespect {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -106,7 +105,6 @@ mod tests {
         }
 
         // build request headers from pairs when needed (assigned later into transaction)
-        let conn = crate::connection::ConnectionMetadata::new("127.0.0.1:12345".parse()?);
         let cfg = crate::config::Config::default();
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
@@ -114,7 +112,7 @@ mod tests {
         tx.request.uri = resource.to_string();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(req_headers_pairs.as_slice());
-        let violation = rule.check_transaction(&tx, &conn, &store, &cfg);
+        let violation = rule.check_transaction(&tx, &store, &cfg);
 
         if expect_violation {
             assert!(violation.is_some());

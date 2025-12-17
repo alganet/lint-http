@@ -35,7 +35,6 @@ pub trait Rule: Send + Sync {
     fn check_transaction(
         &self,
         _tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation>;

@@ -20,7 +20,6 @@ impl Rule for ClientAcceptEncodingPresent {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -39,16 +38,14 @@ impl Rule for ClientAcceptEncodingPresent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
+    use crate::test_helpers::make_test_context;
 
     #[test]
     fn check_request_missing_header() -> anyhow::Result<()> {
         let rule = ClientAcceptEncodingPresent;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
         let tx = crate::test_helpers::make_test_transaction();
-        let violation =
-            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
         assert!(violation.is_some());
         assert_eq!(
             violation.map(|v| v.message),
@@ -65,9 +62,7 @@ mod tests {
         tx.request
             .headers
             .insert("accept-encoding", "gzip".parse()?);
-        let conn = make_test_conn();
-        let violation =
-            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
         assert!(violation.is_none());
         Ok(())
     }

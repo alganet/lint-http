@@ -75,7 +75,7 @@ impl Rule for MyRuleName {
 
 4. **Add tests in same file**: Must cover both violation and non-violation cases. Use `test_helpers`:
 ```rust
-use crate::test_helpers::{make_test_client, make_test_conn, make_test_context};
+use crate::test_helpers::{make_test_client, make_test_context};
 ```
 
 5. **Document in `docs/rules/<rule_name>.md`** and link from `docs/rules.md`

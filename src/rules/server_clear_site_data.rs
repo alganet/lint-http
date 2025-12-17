@@ -85,7 +85,6 @@ impl Rule for ServerClearSiteData {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -171,9 +170,7 @@ fn extract_path_from_resource(resource: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{
-        make_test_config_with_enabled_paths_rules, make_test_conn, make_test_context,
-    };
+    use crate::test_helpers::{make_test_config_with_enabled_paths_rules, make_test_context};
     use rstest::rstest;
 
     #[rstest]
@@ -194,7 +191,6 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ServerClearSiteData;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
         let cfg =
             make_test_config_with_enabled_paths_rules(&[("server_clear_site_data", &config_paths)]);
 
@@ -205,7 +201,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
         });
 
-        let violation = rule.check_transaction(&tx, &conn, &state, &cfg);
+        let violation = rule.check_transaction(&tx, &state, &cfg);
 
         if expect_violation {
             let Some(v) = violation else {

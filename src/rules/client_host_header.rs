@@ -21,7 +21,6 @@ impl Rule for ClientHostHeader {
     fn check_transaction(
         &self,
         _tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -164,7 +163,7 @@ impl ClientHostHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
+    use crate::test_helpers::make_test_context;
     use rstest::rstest;
 
     #[rstest]
@@ -197,12 +196,10 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ClientHostHeader;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
-        let violation =
-            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());
@@ -219,15 +216,13 @@ mod tests {
     fn multiple_host_headers_produced_violation() -> anyhow::Result<()> {
         let rule = ClientHostHeader;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
         use crate::test_helpers::make_test_transaction;
         use hyper::header::HeaderValue;
         let mut tx = make_test_transaction();
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
         hm.append("host", HeaderValue::from_static("other.example.com"));
         tx.request.headers = hm;
-        let violation =
-            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
         assert!(violation.is_some());
         assert_eq!(
             violation.map(|v| v.message),

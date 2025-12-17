@@ -20,7 +20,6 @@ impl Rule for MessageConnectionUpgrade {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -71,7 +70,7 @@ fn check_connection_upgrade_map(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
+    use crate::test_helpers::make_test_context;
     use rstest::rstest;
 
     #[rstest]
@@ -89,11 +88,9 @@ mod tests {
         let rule = MessageConnectionUpgrade;
         let (_client, state) = make_test_context();
         use crate::test_helpers::make_test_transaction;
-        let conn = make_test_conn();
         let mut tx = make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
-        let violation =
-            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());
@@ -114,10 +111,8 @@ mod tests {
         let (_client, state) = make_test_context();
         let status = 101; // Switching Protocols
         use crate::test_helpers::make_test_transaction_with_response;
-        let conn = make_test_conn();
         let tx = make_test_transaction_with_response(status, &header_pairs);
-        let violation =
-            rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let violation = rule.check_transaction(&tx, &state, &crate::config::Config::default());
 
         if expect_violation {
             assert!(violation.is_some());

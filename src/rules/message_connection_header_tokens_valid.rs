@@ -20,7 +20,6 @@ impl Rule for MessageConnectionHeaderTokensValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _conn: &crate::connection::ConnectionMetadata,
         _state: &StateStore,
         _config: &crate::config::Config,
     ) -> Option<Violation> {
@@ -74,7 +73,7 @@ impl Rule for MessageConnectionHeaderTokensValid {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_conn, make_test_context};
+    use crate::test_helpers::make_test_context;
     use hyper::header::HeaderValue;
     use rstest::rstest;
 
@@ -90,7 +89,6 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageConnectionHeaderTokensValid;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = hyper::HeaderMap::new();
@@ -102,7 +100,7 @@ mod tests {
         }
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, &state, &crate::config::Config::default());
         if expect_violation {
             assert!(v.is_some(), "case '{}' expected violation", value);
         } else {
@@ -124,7 +122,6 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageConnectionHeaderTokensValid;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = hyper::HeaderMap::new();
@@ -138,7 +135,7 @@ mod tests {
             headers: hm,
         });
 
-        let v = rule.check_transaction(&tx, &conn, &state, &crate::config::Config::default());
+        let v = rule.check_transaction(&tx, &state, &crate::config::Config::default());
         if expect_violation {
             assert!(v.is_some(), "case '{}' expected violation", value);
         } else {
@@ -152,7 +149,6 @@ mod tests {
     fn multiple_tokens_and_spacing() -> anyhow::Result<()> {
         let rule = MessageConnectionHeaderTokensValid;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = hyper::HeaderMap::new();
@@ -163,7 +159,7 @@ mod tests {
         tx.request.headers = hm;
 
         assert!(rule
-            .check_transaction(&tx, &conn, &state, &crate::config::Config::default())
+            .check_transaction(&tx, &state, &crate::config::Config::default())
             .is_none());
         Ok(())
     }
@@ -172,7 +168,6 @@ mod tests {
     fn multiple_header_fields_validation() -> anyhow::Result<()> {
         let rule = MessageConnectionHeaderTokensValid;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = hyper::HeaderMap::new();
@@ -185,7 +180,7 @@ mod tests {
 
         // Should report a violation due to invalid 'a/b' token
         assert!(rule
-            .check_transaction(&tx, &conn, &state, &crate::config::Config::default())
+            .check_transaction(&tx, &state, &crate::config::Config::default())
             .is_some());
         Ok(())
     }
@@ -194,13 +189,12 @@ mod tests {
     fn missing_header_returns_none() -> anyhow::Result<()> {
         let rule = MessageConnectionHeaderTokensValid;
         let (_client, state) = make_test_context();
-        let conn = make_test_conn();
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = hyper::HeaderMap::new();
 
         assert!(rule
-            .check_transaction(&tx, &conn, &state, &crate::config::Config::default())
+            .check_transaction(&tx, &state, &crate::config::Config::default())
             .is_none());
         Ok(())
     }
