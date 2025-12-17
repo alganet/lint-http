@@ -46,75 +46,37 @@ impl Rule for ServerEtagOrLastModified {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn check_response_200_missing_headers() -> anyhow::Result<()> {
+    #[rstest]
+    #[case(200, &[], true)]
+    #[case(200, &[("etag", "\"12345\"")], false)]
+    #[case(200, &[("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")], false)]
+    #[case(404, &[], false)]
+    fn check_response_validation(
+        #[case] status: u16,
+        #[case] headers: &[(&str, &str)],
+        #[case] expect_violation: bool,
+    ) -> anyhow::Result<()> {
         let rule = ServerEtagOrLastModified;
 
-        let status = 200;
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
-            headers: crate::test_helpers::make_headers_from_pairs(&[]),
+            headers: crate::test_helpers::make_headers_from_pairs(headers),
         });
+
         let violation =
             rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
-        assert!(violation.is_some());
-        assert_eq!(
-            violation.map(|v| v.message),
-            Some("Response 200 without ETag or Last-Modified validator".to_string())
-        );
+        if expect_violation {
+            assert!(violation.is_some());
+            assert_eq!(
+                violation.map(|v| v.message),
+                Some("Response 200 without ETag or Last-Modified validator".to_string())
+            );
+        } else {
+            assert!(violation.is_none());
+        }
         Ok(())
-    }
-
-    #[test]
-    fn check_response_200_present_etag() -> anyhow::Result<()> {
-        let rule = ServerEtagOrLastModified;
-
-        let status = 200;
-
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status,
-            headers: crate::test_helpers::make_headers_from_pairs(&[("etag", "\"12345\"")]),
-        });
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
-        assert!(violation.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn check_response_200_present_last_modified() -> anyhow::Result<()> {
-        let rule = ServerEtagOrLastModified;
-
-        let status = 200;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status,
-            headers: crate::test_helpers::make_headers_from_pairs(&[(
-                "last-modified",
-                "Wed, 21 Oct 2015 07:28:00 GMT",
-            )]),
-        });
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
-        assert!(violation.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn check_response_404_missing_headers() {
-        let rule = ServerEtagOrLastModified;
-
-        let status = 404;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status,
-            headers: crate::test_helpers::make_headers_from_pairs(&[]),
-        });
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
-        assert!(violation.is_none());
     }
 }

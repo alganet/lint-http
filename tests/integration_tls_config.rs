@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: ISC
 
 use hyper::Uri;
+use lint_http::make_temp_captures_path;
 use std::sync::Arc;
 use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use uuid::Uuid;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -20,8 +20,7 @@ async fn test_suppress_headers() -> anyhow::Result<()> {
         .mount(&mock)
         .await;
 
-    let tmp_capture =
-        std::env::temp_dir().join(format!("lint_test_suppress_{}.jsonl", Uuid::new_v4()));
+    let tmp_capture = make_temp_captures_path("lint_test_suppress");
     let tmp_capture_str = tmp_capture
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("temp_capture path not utf8"))?
@@ -114,7 +113,7 @@ async fn test_passthrough_domains() -> anyhow::Result<()> {
         }
     });
 
-    let tmp_capture = std::env::temp_dir().join(format!("lint_test_pass_{}.jsonl", Uuid::new_v4()));
+    let tmp_capture = make_temp_captures_path("lint_test_pass");
     let tmp_capture_str = tmp_capture
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("temp_capture path not utf8"))?

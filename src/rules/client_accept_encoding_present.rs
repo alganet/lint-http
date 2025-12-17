@@ -39,31 +39,30 @@ impl Rule for ClientAcceptEncodingPresent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn check_request_missing_header() -> anyhow::Result<()> {
-        let rule = ClientAcceptEncodingPresent;
-        let tx = crate::test_helpers::make_test_transaction();
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
-        assert!(violation.is_some());
-        assert_eq!(
-            violation.map(|v| v.message),
-            Some("Request missing Accept-Encoding header".to_string())
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn check_request_present_header() -> anyhow::Result<()> {
+    #[rstest]
+    #[case(true)]
+    #[case(false)]
+    fn check_request_accept_encoding_header(#[case] header_present: bool) -> anyhow::Result<()> {
         let rule = ClientAcceptEncodingPresent;
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request
-            .headers
-            .insert("accept-encoding", "gzip".parse()?);
+        if header_present {
+            tx.request
+                .headers
+                .insert("accept-encoding", "gzip".parse()?);
+        }
         let violation =
             rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
-        assert!(violation.is_none());
+        if header_present {
+            assert!(violation.is_none());
+        } else {
+            assert!(violation.is_some());
+            assert_eq!(
+                violation.map(|v| v.message),
+                Some("Request missing Accept-Encoding header".to_string())
+            );
+        }
         Ok(())
     }
 }
