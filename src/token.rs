@@ -39,22 +39,34 @@ pub fn find_first_lowercase(s: &str) -> Option<char> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn is_tchar_basic() {
-        assert!(is_tchar('a'));
-        assert!(is_tchar('Z'));
-        assert!(is_tchar('3'));
-        assert!(is_tchar('!'));
-        assert!(!is_tchar(' '));
-        assert!(!is_tchar('\n'));
+    #[rstest]
+    #[case('a', true)]
+    #[case('Z', true)]
+    #[case('3', true)]
+    #[case('!', true)]
+    #[case(' ', false)]
+    #[case('\n', false)]
+    #[case('@', false)]
+    fn test_is_tchar(#[case] c: char, #[case] expected: bool) {
+        assert_eq!(is_tchar(c), expected);
     }
 
-    #[test]
-    fn find_invalid_token_char_and_lowercase() {
-        assert_eq!(find_invalid_token_char("host"), None);
-        assert_eq!(find_invalid_token_char("bad header"), Some(' '));
-        assert_eq!(find_first_lowercase("GET"), None);
-        assert_eq!(find_first_lowercase("gEt"), Some('g'));
+    #[rstest]
+    #[case("host", None)]
+    #[case("bad header", Some(' '))]
+    #[case("G@T", Some('@'))]
+    fn test_find_invalid_token_char(#[case] s: &str, #[case] expected: Option<char>) {
+        assert_eq!(find_invalid_token_char(s), expected);
+    }
+
+    #[rstest]
+    #[case("GET", None)]
+    #[case("gEt", Some('g'))]
+    #[case("get", Some('g'))]
+    #[case("123", None)]
+    fn test_find_first_lowercase(#[case] s: &str, #[case] expected: Option<char>) {
+        assert_eq!(find_first_lowercase(s), expected);
     }
 }

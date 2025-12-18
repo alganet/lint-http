@@ -4,10 +4,8 @@
 
 use clap::Parser;
 use std::net::SocketAddr;
-use tokio::signal;
 
 use lint_http::{capture, config, proxy};
-use tracing::{error, info};
 
 #[derive(Parser, Debug)]
 #[command(name = "lint-http", version)]
@@ -17,10 +15,9 @@ struct Args {
     config: String,
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+/// Simplified application entry point.
+async fn run_app(args: Args) -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
-    let args = Args::parse();
 
     let (cfg, engine) = config::Config::load_from_path(&args.config).await?;
     let cfg = std::sync::Arc::new(cfg);
@@ -29,20 +26,14 @@ async fn main() -> anyhow::Result<()> {
     let addr: SocketAddr = cfg.general.listen.parse()?;
     let capture_writer = capture::CaptureWriter::new(cfg.general.captures.clone()).await?;
 
-    let server = proxy::run_proxy(addr, capture_writer, cfg.clone(), engine.clone());
+    // Start proxy and return its result (no signal handling here).
+    proxy::run_proxy(addr, capture_writer, cfg, engine).await
+}
 
-    tokio::select! {
-        res = server => {
-            if let Err(e) = res {
-                error!(%e, "server error");
-            }
-        }
-        _ = signal::ctrl_c() => {
-            info!("shutting down");
-        }
-    }
-
-    Ok(())
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let args = Args::parse();
+    run_app(args).await
 }
 
 #[cfg(test)]

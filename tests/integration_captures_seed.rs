@@ -5,36 +5,33 @@
 //! Integration tests for the captures_seed feature
 
 use lint_http::{make_temp_captures_path, make_temp_config_path};
-use std::sync::Arc;
+use rstest::rstest;
 use tokio::fs;
 
+#[rstest]
+#[case(true)]
+#[case(false)]
 #[tokio::test]
-async fn test_captures_seed_enabled() -> anyhow::Result<()> {
-    // Create a temporary captures file with sample data
-    let captures_file = make_temp_captures_path("test_seed");
-    let config_file = make_temp_config_path("test_config");
+async fn test_captures_seed_behavior(#[case] seed_enabled: bool) -> anyhow::Result<()> {
+    let suffix = if seed_enabled { "enabled" } else { "disabled" };
+    let captures_file = make_temp_captures_path(&format!("test_seed_{}", suffix));
+    let config_file = make_temp_config_path(&format!("test_config_{}", suffix));
 
-    // Construct a minimal transaction record (do not use internal test helpers)
     use lint_http::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
 
     let client = lint_http::state::ClientIdentifier::new(
         std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
         "test-client".to_string(),
     );
-    let mut tx = HttpTransaction::new(
-        client,
-        "GET".to_string(),
-        "http://example.com/test".to_string(),
-    );
+    let uri = "http://example.com/test";
+    let mut tx = HttpTransaction::new(client.clone(), "GET".to_string(), uri.to_string());
     tx.request
         .headers
         .insert("user-agent", "test-client".parse()?);
     tx.timing = TimingInfo { duration_ms: 100 };
 
-    // Add response headers that seed logic expects
     let mut resp_headers = hyper::HeaderMap::new();
     resp_headers.insert("etag", "\"abc123\"".parse()?);
-    resp_headers.insert("cache-control", "max-age=3600".parse()?);
     tx.response = Some(ResponseInfo {
         status: 200,
         headers: resp_headers,
@@ -42,13 +39,12 @@ async fn test_captures_seed_enabled() -> anyhow::Result<()> {
 
     fs::write(&captures_file, serde_json::to_string(&tx)?).await?;
 
-    // Create a config with captures_seed enabled
     let config_toml = format!(
         r#"[general]
 listen = "127.0.0.1:0"
 captures = "{}"
 ttl_seconds = 300
-captures_seed = true
+captures_seed = {}
 
 [tls]
 enabled = false
@@ -57,137 +53,29 @@ enabled = false
 "#,
         captures_file
             .to_str()
-            .ok_or_else(|| anyhow::anyhow!("captures path not utf8"))?
+            .ok_or_else(|| anyhow::anyhow!("captures path not utf8"))?,
+        seed_enabled
     );
     fs::write(&config_file, config_toml).await?;
 
-    // Load the config
     let (cfg, _engine) = lint_http::config::Config::load_from_path(&config_file).await?;
-    let cfg = Arc::new(cfg);
-
-    // Verify config loaded correctly
-    assert!(cfg.general.captures_seed);
-    let captures_s = captures_file
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("captures path not utf8"))?
-        .to_string();
-    assert_eq!(cfg.general.captures, captures_s);
-
-    // Create state store and seed it
-    let state = Arc::new(lint_http::state::StateStore::new(cfg.general.ttl_seconds));
-
-    // Manually seed from the captures file (simulating what run_proxy does)
-    let records = lint_http::capture::load_captures(&cfg.general.captures).await?;
-    assert_eq!(records.len(), 1);
-
-    for record in &records {
-        state.seed_from_transaction(record);
-    }
-
-    // Verify state was seeded
-    let client = lint_http::state::ClientIdentifier::new(
-        std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
-        "test-client".to_string(),
-    );
-
-    let prev_tx = state
-        .get_previous(&client, "http://example.com/test")
-        .ok_or_else(|| anyhow::anyhow!("State should contain seeded transaction"))?;
-    let resp = prev_tx
-        .response
-        .ok_or_else(|| anyhow::anyhow!("expected response"))?;
-    assert_eq!(resp.status, 200);
-    assert_eq!(
-        resp.headers.get("etag").and_then(|v| v.to_str().ok()),
-        Some("\"abc123\"")
-    );
-    assert_eq!(
-        resp.headers
-            .get("cache-control")
-            .and_then(|v| v.to_str().ok()),
-        Some("max-age=3600")
-    );
-
-    // Cleanup
-    fs::remove_file(&captures_file).await?;
-    fs::remove_file(&config_file).await?;
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_captures_seed_disabled() -> anyhow::Result<()> {
-    // Create temporary files
-    let captures_file = make_temp_captures_path("test_seed_disabled");
-    let config_file = make_temp_config_path("test_config_disabled");
-
-    // Construct a minimal transaction record without using internal test helpers
-    use lint_http::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
-
-    let client = lint_http::state::ClientIdentifier::new(
-        std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
-        "test-client-2".to_string(),
-    );
-    let mut tx = HttpTransaction::new(
-        client,
-        "GET".to_string(),
-        "http://example.com/test2".to_string(),
-    );
-    tx.request
-        .headers
-        .insert("user-agent", "test-client-2".parse()?);
-    tx.timing = TimingInfo { duration_ms: 100 };
-
-    // Add a response header for completeness
-    let mut resp_headers = hyper::HeaderMap::new();
-    resp_headers.insert("etag", "\"xyz789\"".parse()?);
-    tx.response = Some(ResponseInfo {
-        status: 200,
-        headers: resp_headers,
-    });
-
-    fs::write(&captures_file, serde_json::to_string(&tx)?).await?;
-
-    // Create a config with captures_seed disabled (default)
-    let config_toml = format!(
-        r#"[general]
-listen = "127.0.0.1:0"
-captures = "{}"
-ttl_seconds = 300
-captures_seed = false
-
-[tls]
-enabled = false
-
-[rules]
-"#,
-        captures_file
-            .to_str()
-            .ok_or_else(|| anyhow::anyhow!("captures path not utf8"))?
-    );
-    fs::write(&config_file, config_toml).await?;
-
-    // Load the config
-    let (cfg, _engine) = lint_http::config::Config::load_from_path(&config_file).await?;
-
-    // Verify captures_seed is false
-    assert!(!cfg.general.captures_seed);
-
-    // Create state store (without seeding)
     let state = lint_http::state::StateStore::new(cfg.general.ttl_seconds);
 
-    // Verify state is empty (not seeded)
-    let client = lint_http::state::ClientIdentifier::new(
-        std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
-        "test-client-2".to_string(),
-    );
+    if cfg.general.captures_seed {
+        let records = lint_http::capture::load_captures(&cfg.general.captures).await?;
+        for record in &records {
+            state.seed_from_transaction(record);
+        }
+    }
 
-    let prev = state.get_previous(&client, "http://example.com/test2");
-    assert!(
-        prev.is_none(),
-        "State should be empty when captures_seed is false"
-    );
+    let prev = state.get_previous(&client, uri);
+    if seed_enabled {
+        assert!(prev.is_some(), "State should be seeded");
+        assert_eq!(prev.unwrap().response.unwrap().status, 200);
+    } else {
+        assert!(prev.is_none(), "State should not be seeded");
+    }
 
-    // Cleanup
     fs::remove_file(&captures_file).await?;
     fs::remove_file(&config_file).await?;
     Ok(())

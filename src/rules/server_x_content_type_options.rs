@@ -161,6 +161,7 @@ mod tests {
 
     #[rstest]
     #[case("missing_table", true, None)]
+    #[case("non_table", true, Some("must be a TOML table"))]
     #[case("missing_field", true, None)]
     #[case("non_array", true, None)]
     #[case("non_string_item", true, Some("not a string"))]
@@ -177,6 +178,12 @@ mod tests {
         match scenario {
             "missing_table" => {
                 // No rule table at all
+            }
+            "non_table" => {
+                cfg.rules.insert(
+                    "server_x_content_type_options".to_string(),
+                    toml::Value::String("not a table".to_string()),
+                );
             }
             "missing_field" => {
                 enable_rule(&mut cfg, "server_x_content_type_options");
@@ -284,5 +291,18 @@ mod tests {
         let violation = rule.check_transaction(&tx, None, &config);
         assert!(violation.is_some());
         Ok(())
+    }
+
+    #[test]
+    fn check_missing_response() {
+        let rule = ServerXContentTypeOptions;
+        let tx = crate::test_helpers::make_test_transaction();
+        let config = super::XContentTypeOptionsConfig {
+            enabled: true,
+            content_types: vec!["text/html".to_string()],
+            severity: crate::lint::Severity::Warn,
+        };
+        let violation = rule.check_transaction(&tx, None, &config);
+        assert!(violation.is_none());
     }
 }

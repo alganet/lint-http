@@ -130,4 +130,19 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn check_missing_response() {
+        let rule = ServerNoBodyFor1xx204304;
+        let tx = crate::test_helpers::make_test_transaction();
+        let violation = rule.check_transaction(
+            &tx,
+            None,
+            &crate::rules::RuleConfig {
+                enabled: true,
+                severity: crate::lint::Severity::Error,
+            },
+        );
+        assert!(violation.is_none());
+    }
 }

@@ -115,4 +115,13 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn check_missing_response() {
+        let rule = ServerContentTypePresent;
+        let tx = crate::test_helpers::make_test_transaction();
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(violation.is_none());
+    }
 }

@@ -32,6 +32,18 @@ use tracing::{error, info, trace};
 type ServiceFuture =
     Pin<Box<dyn Future<Output = Result<Response<BoxBody<Bytes, Infallible>>, Infallible>> + Send>>;
 
+// RFC 7230 Section 6.1: Hop-by-hop headers must not be forwarded by proxies.
+static HOP_BY_HOP_HEADERS: &[&str] = &[
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+];
+
 #[derive(Debug)]
 struct AlwaysResolves(Arc<CertifiedKey>);
 
@@ -469,34 +481,11 @@ where
     let _ = captures.write_transaction(&tx).await;
 
     let mut resp_builder = Response::builder().status(status);
-    // RFC 7230 Section 6.1: Hop-by-hop headers must not be forwarded by proxies.
-    static HOP_BY_HOP_HEADERS: &[&str] = &[
-        "connection",
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailer",
-        "transfer-encoding",
-        "upgrade",
-    ];
-    let mut connection_hop_headers = std::collections::HashSet::new();
-    if let Some(conn_val) = headers.get(hyper::header::CONNECTION) {
-        if let Ok(conn_str) = conn_val.to_str() {
-            for token in conn_str.split(',') {
-                let trimmed = token.trim().to_ascii_lowercase();
-                if !trimmed.is_empty() {
-                    connection_hop_headers.insert(trimmed);
-                }
-            }
-        }
-    }
+
+    let connection_hop_headers = parse_connection_tokens(headers.get(hyper::header::CONNECTION));
     for (name, value) in headers.iter() {
         let name_str = name.as_str().to_ascii_lowercase();
-        if HOP_BY_HOP_HEADERS.contains(&name_str.as_str()) {
-            continue;
-        }
-        if connection_hop_headers.contains(&name_str) {
+        if is_hop_by_hop_header(&name_str, &connection_hop_headers) {
             continue;
         }
         resp_builder = resp_builder.header(name, value);
@@ -506,6 +495,31 @@ where
         .unwrap_or_else(|_| Response::new(Full::new(resp_body_bytes.clone()).boxed()));
 
     Ok(resp)
+}
+
+// Parse a Connection header value into a lowercased set of tokens
+fn parse_connection_tokens(
+    val: Option<&hyper::header::HeaderValue>,
+) -> std::collections::HashSet<String> {
+    let mut set = std::collections::HashSet::new();
+    if let Some(conn_val) = val {
+        if let Ok(conn_str) = conn_val.to_str() {
+            for token in conn_str.split(',') {
+                let trimmed = token.trim().to_ascii_lowercase();
+                if !trimmed.is_empty() {
+                    set.insert(trimmed);
+                }
+            }
+        }
+    }
+    set
+}
+
+fn is_hop_by_hop_header(
+    name: &str,
+    connection_hop_headers: &std::collections::HashSet<String>,
+) -> bool {
+    connection_hop_headers.contains(name) || HOP_BY_HOP_HEADERS.contains(&name)
 }
 
 async fn handle_connect(
@@ -1160,6 +1174,17 @@ mod tests {
         // 'connection' and 'foo' should be filtered out
         assert!(resp.headers().get("connection").is_none());
         assert!(resp.headers().get("foo").is_none());
+
+        // Also verify that parse_connection_tokens handles various token formats
+        use hyper::header::HeaderValue;
+        let parsed =
+            super::parse_connection_tokens(Some(&HeaderValue::from_static("keep-alive, Foo ,")));
+        assert_eq!(parsed.len(), 2);
+        assert!(parsed.contains("foo"));
+        assert!(
+            super::parse_connection_tokens(Some(&HeaderValue::from_static(" , ,a,b")))
+                .contains("a")
+        );
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())

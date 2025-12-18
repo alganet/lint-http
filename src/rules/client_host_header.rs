@@ -41,7 +41,17 @@ impl Rule for ClientHostHeader {
                 message: "Multiple Host header fields present".into(),
             });
         }
-        let hv = host_values.iter().next().unwrap();
+        let hv = match host_values.iter().next() {
+            Some(h) => h,
+            None => {
+                // Shouldn't occur due to earlier count check, but handle gracefully
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Request missing Host header".into(),
+                });
+            }
+        };
         let s = match hv.to_str() {
             Ok(s) => s.trim(),
             Err(_) => {

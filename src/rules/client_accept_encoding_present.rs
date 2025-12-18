@@ -65,4 +65,10 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn scope_is_client() {
+        let rule = ClientAcceptEncodingPresent;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+    }
 }

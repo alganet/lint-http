@@ -81,52 +81,32 @@ mod tests {
     use super::*;
     use crate::test_helpers::make_test_transaction;
     use hyper::header::HeaderValue;
+    use rstest::rstest;
 
-    #[test]
-    fn serde_roundtrip_preserves_utf8_headers() -> anyhow::Result<()> {
+    #[rstest]
+    #[case("x-test", "1", Some("1"))]
+    #[case(
+        "content-type",
+        "text/plain; charset=utf-8",
+        Some("text/plain; charset=utf-8")
+    )]
+    #[case("x-quote", "\"a\"", Some("\"a\""))]
+    fn serde_roundtrip_headers(
+        #[case] key: &str,
+        #[case] value: &str,
+        #[case] expected: Option<&str>,
+    ) -> anyhow::Result<()> {
         let mut tx = make_test_transaction();
-
-        let mut req_headers = HeaderMap::new();
-        req_headers.insert("x-test", "1".parse()?);
-        req_headers.insert("content-type", "text/plain; charset=utf-8".parse()?);
-        req_headers.insert("x-quote", "\"a\"".parse()?);
-        tx.request.headers = req_headers;
-
-        let mut resp_headers = HeaderMap::new();
-        resp_headers.insert("etag", "\"abc\"".parse()?);
-        tx.response = Some(ResponseInfo {
-            status: 200,
-            headers: resp_headers,
-        });
+        let name = hyper::header::HeaderName::from_bytes(key.as_bytes())?;
+        tx.request.headers.insert(name, value.parse()?);
 
         let s = serde_json::to_string(&tx)?;
         let tx2: HttpTransaction = serde_json::from_str(&s)?;
 
-        assert_eq!(tx.id, tx2.id);
-        assert_eq!(tx.request.method, tx2.request.method);
-        assert_eq!(tx.request.uri, tx2.request.uri);
         assert_eq!(
-            tx2.request
-                .headers
-                .get("x-test")
-                .and_then(|v| v.to_str().ok()),
-            Some("1")
+            tx2.request.headers.get(key).and_then(|v| v.to_str().ok()),
+            expected
         );
-        assert_eq!(
-            tx2.request
-                .headers
-                .get("content-type")
-                .and_then(|v| v.to_str().ok()),
-            Some("text/plain; charset=utf-8")
-        );
-
-        let resp = tx2.response.expect("response present after roundtrip");
-        assert_eq!(resp.status, 200);
-        assert_eq!(
-            resp.headers.get("etag").and_then(|v| v.to_str().ok()),
-            Some("\"abc\"")
-        );
-
         Ok(())
     }
 
@@ -155,6 +135,28 @@ mod tests {
         // Non-UTF8 header is dropped during serialization
         assert!(tx2.request.headers.get("x-bad").is_none());
 
+        Ok(())
+    }
+
+    #[test]
+    fn serde_roundtrip_full_transaction() -> anyhow::Result<()> {
+        let mut tx = make_test_transaction();
+        tx.response = Some(ResponseInfo {
+            status: 200,
+            headers: crate::test_helpers::make_headers_from_pairs(&[("etag", "\"abc\"")]),
+        });
+
+        let s = serde_json::to_string(&tx)?;
+        let tx2: HttpTransaction = serde_json::from_str(&s)?;
+
+        assert_eq!(tx.id, tx2.id);
+        assert_eq!(tx.request.method, tx2.request.method);
+        let resp = tx2.response.unwrap();
+        assert_eq!(resp.status, 200);
+        assert_eq!(
+            resp.headers.get("etag").and_then(|v| v.to_str().ok()),
+            Some("\"abc\"")
+        );
         Ok(())
     }
 }

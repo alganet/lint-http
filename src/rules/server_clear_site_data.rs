@@ -342,4 +342,29 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_extract_path_origin_form() {
+        let path = extract_path_from_resource("/logout?query=1#frag");
+        assert_eq!(path, "/logout");
+    }
+
+    #[test]
+    fn test_extract_path_no_path_after_host() {
+        let path = extract_path_from_resource("http://localhost");
+        assert_eq!(path, "http://localhost");
+    }
+
+    #[test]
+    fn check_missing_response() {
+        let rule = ServerClearSiteData;
+        let tx = crate::test_helpers::make_test_transaction();
+        let config = super::ClearSiteDataConfig {
+            enabled: true,
+            paths: vec!["/logout".to_string()],
+            severity: crate::lint::Severity::Warn,
+        };
+        let violation = rule.check_transaction(&tx, None, &config);
+        assert!(violation.is_none());
+    }
 }

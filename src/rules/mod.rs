@@ -383,4 +383,162 @@ mod tests {
         assert!(msg.contains("server_clear_site_data"));
         Ok(())
     }
+
+    #[test]
+    #[should_panic(expected = "config not found in cache")]
+    fn test_get_cached_missing_panics() {
+        let engine = RuleConfigEngine::new();
+        let _: std::sync::Arc<RuleConfig> = engine.get_cached("nonexistent_rule");
+    }
+
+    #[test]
+    fn test_validate_rules_invalid_severity() {
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        table.insert(
+            "severity".to_string(),
+            toml::Value::String("critical".into()),
+        );
+        cfg.rules
+            .insert("test_rule".into(), toml::Value::Table(table));
+
+        let res = validate_rules(&cfg);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains("Invalid severity"));
+    }
+
+    #[test]
+    fn get_rule_enabled_required_not_table_errors() {
+        let mut cfg = crate::config::Config::default();
+        // Put a non-table value for the rule
+        cfg.rules
+            .insert("test_rule_nt".into(), toml::Value::String("oops".into()));
+
+        let res = get_rule_enabled_required(&cfg, "test_rule_nt");
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains("configuration must be a table"));
+    }
+
+    #[test]
+    fn get_rule_severity_required_missing_or_not_string_errors() {
+        let mut cfg = crate::config::Config::default();
+
+        // Missing severity
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        cfg.rules
+            .insert("test_rule_no_sev".into(), toml::Value::Table(table.clone()));
+
+        let res = get_rule_severity_required(&cfg, "test_rule_no_sev");
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains("missing required 'severity'"));
+
+        // Severity present but not a string
+        let mut table2 = table;
+        table2.insert("severity".to_string(), toml::Value::Integer(1));
+        cfg.rules
+            .insert("test_rule_bad_sev".into(), toml::Value::Table(table2));
+
+        let res2 = get_rule_severity_required(&cfg, "test_rule_bad_sev");
+        assert!(res2.is_err());
+        assert!(res2
+            .unwrap_err()
+            .to_string()
+            .contains("missing required 'severity'"));
+    }
+
+    #[test]
+    fn validate_rules_enabled_not_bool_errors() {
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Integer(1));
+        table.insert("severity".to_string(), toml::Value::String("warn".into()));
+        cfg.rules
+            .insert("r_enabled_bad".into(), toml::Value::Table(table));
+
+        let res = validate_rules(&cfg);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains("Invalid 'enabled'"));
+    }
+
+    #[test]
+    fn validate_rules_missing_enabled_key_errors() {
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("severity".to_string(), toml::Value::String("warn".into()));
+        cfg.rules
+            .insert("r_missing_enabled".into(), toml::Value::Table(table));
+
+        let res = validate_rules(&cfg);
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains("Missing required 'enabled' key"));
+    }
+
+    #[test]
+    fn validate_rules_severity_not_string_errors() {
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        table.insert("severity".to_string(), toml::Value::Integer(1));
+        cfg.rules
+            .insert("r_sev_not_string".into(), toml::Value::Table(table));
+
+        let res = validate_rules(&cfg);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains("must be a string"));
+    }
+
+    #[test]
+    fn validate_rules_missing_severity_key_errors() {
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        cfg.rules
+            .insert("r_missing_sev".into(), toml::Value::Table(table));
+
+        let res = validate_rules(&cfg);
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains("Missing required 'severity' key"));
+    }
+    #[test]
+    fn default_rule_scope_is_both() {
+        struct DummyRule;
+        impl Rule for DummyRule {
+            type Config = RuleConfig;
+
+            fn id(&self) -> &'static str {
+                "dummy_rule"
+            }
+
+            fn check_transaction(
+                &self,
+                _tx: &crate::http_transaction::HttpTransaction,
+                _previous: Option<&crate::http_transaction::HttpTransaction>,
+                _config: &Self::Config,
+            ) -> Option<Violation> {
+                None
+            }
+        }
+
+        let r = DummyRule;
+        // Direct call to default implementation (disambiguate trait method)
+        assert_eq!(crate::rules::Rule::scope(&r), RuleScope::Both);
+
+        // Also verify through the type-erased validator trait
+        let v: &dyn RuleConfigValidator = &r;
+        assert_eq!(v.scope(), RuleScope::Both);
+    }
 }

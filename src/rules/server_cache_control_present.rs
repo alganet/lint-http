@@ -74,4 +74,10 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn scope_is_server() {
+        let rule = ServerCacheControlPresent;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+    }
 }

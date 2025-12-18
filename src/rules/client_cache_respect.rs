@@ -84,6 +84,7 @@ mod tests {
     #[case(None, vec![], false)]
     #[case(Some(vec![("etag", "\"abc123\"")]), vec![("if-none-match","\"abc123\"")], false)]
     #[case(Some(vec![("etag", "\"abc123\"")]), vec![], true)]
+    #[case(Some(vec![("last-modified", "Mon, 01 Jan 2020 00:00:00 GMT")]), vec![], true)]
     #[case(Some(vec![]), vec![], false)]
     fn check_request_cases(
         #[case] prev_resp_headers: Option<Vec<(&str, &str)>>,
@@ -127,6 +128,35 @@ mod tests {
             assert!(violation.is_none());
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn previous_without_response_returns_none() -> anyhow::Result<()> {
+        let rule = ClientCacheRespect;
+        let store = StateStore::new(300);
+        let client = make_client();
+        let resource = "http://example.com/api/no_resp";
+
+        // Record a previous transaction that has no response
+        let mut prev_tx = crate::test_helpers::make_test_transaction();
+        prev_tx.client = client.clone();
+        prev_tx.request.uri = resource.to_string();
+        store.record_transaction(&prev_tx);
+
+        // Build a fresh request transaction
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = client.clone();
+        tx.request.uri = resource.to_string();
+
+        let previous = store.get_previous(&client, resource);
+        let violation = rule.check_transaction(
+            &tx,
+            previous.as_ref(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
+
+        assert!(violation.is_none());
         Ok(())
     }
 }

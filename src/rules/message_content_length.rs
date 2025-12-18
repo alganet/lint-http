@@ -241,4 +241,20 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn check_non_utf8() -> anyhow::Result<()> {
+        let rule = MessageContentLength;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut hm = hyper::HeaderMap::new();
+        // 0xFF is not a valid UTF-8 character
+        let bad_value = HeaderValue::from_bytes(&[0xFF])?;
+        hm.insert(hyper::header::CONTENT_LENGTH, bad_value);
+        tx.request.headers = hm;
+
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("non-UTF8"));
+        Ok(())
+    }
 }
