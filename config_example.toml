@@ -96,3 +96,7 @@ severity = "warn"
 [rules.server_no_body_for_1xx_204_304]
 enabled = true
 severity = "error"
+
+[rules.server_status_code_valid_range]
+enabled = true
+severity = "error"
