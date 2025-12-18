@@ -4,6 +4,6 @@
 
 [alias]
 # Run coverage via cargo-tarpaulin (requires cargo-tarpaulin installed)
-coverage = "tarpaulin --out Xml --skip-clean"
+coverage = "tarpaulin --out Xml --skip-clean --fail-under 90"
 # Run clippy with all features and targets, treating warnings as errors
 lint = "clippy --all-features --all-targets -- -D warnings"

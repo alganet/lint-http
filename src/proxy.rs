@@ -910,6 +910,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn run_proxy_capture_seed_load_error_logs_and_returns_error() -> anyhow::Result<()> {
+        // Bind a socket first to reserve the port so run_proxy will fail after startup
+        let l = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let addr = l.local_addr()?;
+
+        // Create a path that is a directory so load_captures will error when attempting to open it
+        let dir = std::env::temp_dir().join(format!("lint_proxy_seed_dir_{}", Uuid::new_v4()));
+        tokio::fs::create_dir(&dir).await?;
+
+        let tmp = std::env::temp_dir().join(format!(
+            "lint-http_proxy_seed_test_{}.jsonl",
+            Uuid::new_v4()
+        ));
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+        let cw = CaptureWriter::new(p.clone()).await?;
+
+        let mut cfg_inner = crate::config::Config::default();
+        cfg_inner.general.captures_seed = true;
+        cfg_inner.general.captures = dir.to_string_lossy().to_string();
+        let cfg = StdArc::new(cfg_inner);
+        let engine = StdArc::new(crate::rules::RuleConfigEngine::new());
+
+        // run_proxy should still return an error due to port being taken, but during
+        // startup it should attempt to seed captures and hit the Err branch.
+        let res = run_proxy(addr, cw, cfg, engine).await;
+        assert!(res.is_err());
+
+        // Cleanup
+        let _ = fs::remove_file(&tmp).await;
+        tokio::fs::remove_dir(&dir).await?;
+        drop(l);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn run_proxy_starts_and_can_be_aborted() -> anyhow::Result<()> {
         let tmp =
             std::env::temp_dir().join(format!("lint-http_proxy_run_test_{}.jsonl", Uuid::new_v4()));
@@ -1186,8 +1224,73 @@ mod tests {
                 .contains("a")
         );
 
+        // Now ensure a static hop-by-hop header like 'transfer-encoding' is removed
+        Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/hop2"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string("ok")
+                    .insert_header("transfer-encoding", "chunked"),
+            )
+            .mount(&mock)
+            .await;
+
+        let uri2: Uri = format!("{}/hop2", mock.uri()).parse()?;
+        let req2 = Request::builder()
+            .method("GET")
+            .uri(uri2)
+            .body(Full::new(Bytes::new()).boxed())?;
+
+        let conn_metadata2 = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse()?,
+        ));
+        let resp2 = handle_request(
+            req2,
+            shared.clone(),
+            conn_metadata2,
+            hyper::http::uri::Scheme::HTTP,
+        )
+        .await?;
+
+        assert!(resp2.headers().get("transfer-encoding").is_none());
+
         let _ = fs::remove_file(&tmp).await;
         Ok(())
+    }
+
+    #[test]
+    fn hop_by_hop_headers_are_recognized() {
+        use std::collections::HashSet;
+        // Empty set of connection tokens means we rely solely on the static list
+        let set: HashSet<String> = HashSet::new();
+        for &h in HOP_BY_HOP_HEADERS.iter() {
+            assert!(is_hop_by_hop_header(h, &set));
+        }
+        // A non-standard header should not be recognized
+        assert!(!is_hop_by_hop_header("x-not-hop", &set));
+
+        // If the connection header explicitly names a token, it should be recognized
+        let mut conn_set: HashSet<String> = HashSet::new();
+        conn_set.insert("x-not-hop".to_string());
+        assert!(is_hop_by_hop_header("x-not-hop", &conn_set));
+    }
+
+    #[test]
+    fn hop_by_hop_header_constants_have_expected_entries() {
+        // Ensure the static list contains known hop-by-hop headers
+        assert!(HOP_BY_HOP_HEADERS.contains(&"connection"));
+        assert!(HOP_BY_HOP_HEADERS.contains(&"transfer-encoding"));
+        assert!(HOP_BY_HOP_HEADERS.contains(&"upgrade"));
+    }
+
+    #[test]
+    fn parse_connection_tokens_handles_non_utf8() {
+        use hyper::header::HeaderValue;
+        // Construct a header value that is not valid UTF-8
+        let hv = HeaderValue::from_bytes(&[0xffu8]).expect("create header val");
+        let parsed = super::parse_connection_tokens(Some(&hv));
+        // to_str() will fail and we should just return empty set
+        assert!(parsed.is_empty());
     }
 
     #[tokio::test]
@@ -1366,6 +1469,413 @@ mod tests {
         .await?;
 
         assert_eq!(resp.status().as_u16(), 500);
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn handle_request_respects_suppress_headers() -> anyhow::Result<()> {
+        let mock = MockServer::start().await;
+
+        Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock)
+            .await;
+
+        let tmp =
+            std::env::temp_dir().join(format!("lint_proxy_suppress_test_{}.jsonl", Uuid::new_v4()));
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+        let cw = CaptureWriter::new(p.clone()).await?;
+
+        let mut cfg_inner = crate::config::Config::default();
+        cfg_inner.tls.suppress_headers = vec!["user-agent".to_string()];
+        let cfg = StdArc::new(cfg_inner);
+
+        let https = HttpsConnectorBuilder::new()
+            .with_native_roots()?
+            .https_or_http()
+            .enable_http1()
+            .enable_http2()
+            .build();
+        let client: LegacyClient<_, http_body_util::Full<bytes::Bytes>> =
+            LegacyClient::builder(TokioExecutor::new()).build(https);
+        let state = StdArc::new(crate::state::StateStore::new(300));
+        let shared = StdArc::new(Shared {
+            client,
+            captures: cw.clone(),
+            cfg,
+            state,
+            ca: None,
+            engine: StdArc::new(crate::rules::RuleConfigEngine::new()),
+        });
+
+        let uri: Uri = mock.uri().parse()?;
+        let req = Request::builder()
+            .method("GET")
+            .uri(uri)
+            .header("user-agent", "should-be-suppressed")
+            .body(Full::new(Bytes::new()).boxed())?;
+
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse()?,
+        ));
+        let resp = handle_request(
+            req,
+            shared.clone(),
+            conn_metadata,
+            hyper::http::uri::Scheme::HTTP,
+        )
+        .await?;
+        assert_eq!(resp.status().as_u16(), 200);
+
+        // Ensure the upstream mock did not receive the suppressed header
+        let requests = mock
+            .received_requests()
+            .await
+            .expect("expected one request to be received");
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].headers.get("user-agent").is_none());
+
+        let s = fs::read_to_string(&tmp).await?;
+        let v: serde_json::Value = serde_json::from_str(s.trim())?;
+        // The capture still records the original request headers (suppression only affects upstream)
+        assert!(v["request"]["headers"].get("user-agent").is_some());
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn handle_request_various_upstream_responses_exercises_rules() -> anyhow::Result<()> {
+        use crate::test_helpers::make_test_config_with_enabled_rules;
+
+        let mock = MockServer::start().await;
+
+        // 1) 200 with no content-type -> should trigger server_content_type_present
+        Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/no-content-type"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
+            .mount(&mock)
+            .await;
+
+        // 2) 200 with no etag/last-modified -> should trigger server_etag_or_last_modified
+        Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/no-etag"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
+            .mount(&mock)
+            .await;
+
+        // 3) 405 with no Allow -> should trigger server_response_405_allow
+        Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/405-no-allow"))
+            .respond_with(ResponseTemplate::new(405).set_body_string("not allowed"))
+            .mount(&mock)
+            .await;
+
+        let tmp =
+            std::env::temp_dir().join(format!("lint_proxy_var_test_{}.jsonl", Uuid::new_v4()));
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+        let cw = CaptureWriter::new(p.clone()).await?;
+
+        // Enable the specific server rules we want to observe
+        let cfg_inner = make_test_config_with_enabled_rules(&[
+            "server_content_type_present",
+            "server_etag_or_last_modified",
+            "server_response_405_allow",
+        ]);
+        let engine = crate::test_helpers::make_test_engine(&cfg_inner);
+        let cfg = StdArc::new(cfg_inner);
+
+        let https = HttpsConnectorBuilder::new()
+            .with_native_roots()?
+            .https_or_http()
+            .enable_http1()
+            .enable_http2()
+            .build();
+        let client: LegacyClient<_, http_body_util::Full<bytes::Bytes>> =
+            LegacyClient::builder(TokioExecutor::new()).build(https);
+        let state = StdArc::new(crate::state::StateStore::new(300));
+        let shared = StdArc::new(Shared {
+            client,
+            captures: cw.clone(),
+            cfg,
+            state,
+            ca: None,
+            engine: StdArc::new(engine),
+        });
+
+        let cases = vec!["/no-content-type", "/no-etag", "/405-no-allow"];
+        for path in cases {
+            let uri: Uri = format!("{}{}", mock.uri(), path).parse()?;
+            let req = Request::builder()
+                .method("GET")
+                .uri(uri)
+                .body(Full::new(Bytes::new()).boxed())?;
+
+            let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+                "127.0.0.1:12345".parse()?,
+            ));
+            let resp = handle_request(
+                req,
+                shared.clone(),
+                conn_metadata,
+                hyper::http::uri::Scheme::HTTP,
+            )
+            .await?;
+
+            assert!(resp.status().as_u16() == 200 || resp.status().as_u16() == 405);
+        }
+
+        // Read the capture file and ensure there is at least one violation recorded among the JSONL entries
+        let s = tokio::fs::read_to_string(&tmp).await?;
+        let mut found_violation = false;
+        for line in s.lines() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let v: serde_json::Value = serde_json::from_str(line)?;
+            if v["violations"]
+                .as_array()
+                .map(|a| !a.is_empty())
+                .unwrap_or(false)
+            {
+                found_violation = true;
+                break;
+            }
+        }
+        assert!(
+            found_violation,
+            "expected at least one capture with a violation"
+        );
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_proxy_capture_seed_load_success() -> anyhow::Result<()> {
+        // Bind a socket first to reserve the port so run_proxy will fail after startup
+        let l = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let addr = l.local_addr()?;
+
+        // Create a temporary captures JSONL with a single valid transaction
+        let tmp_capture =
+            std::env::temp_dir().join(format!("lint_proxy_seed_ok_{}.jsonl", Uuid::new_v4()));
+        let pcap = tmp_capture
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+
+        // Write a minimal transaction record
+        use crate::test_helpers::make_test_transaction;
+        let mut tx = make_test_transaction();
+        tx.request.uri = "http://example/seed".to_string();
+        let line = serde_json::to_string(&tx)? + "\n";
+        tokio::fs::write(&tmp_capture, line).await?;
+
+        let tmp = std::env::temp_dir().join(format!(
+            "lint-http_proxy_seed_test_ok_{}.jsonl",
+            Uuid::new_v4()
+        ));
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+        let cw = CaptureWriter::new(p.clone()).await?;
+
+        let mut cfg_inner = crate::config::Config::default();
+        cfg_inner.general.captures_seed = true;
+        cfg_inner.general.captures = pcap.clone();
+        let cfg = StdArc::new(cfg_inner);
+        let engine = StdArc::new(crate::rules::RuleConfigEngine::new());
+
+        // run_proxy should attempt to load captures and then fail on bind
+        let res = run_proxy(addr, cw, cfg, engine).await;
+        assert!(res.is_err());
+
+        // Cleanup
+        let _ = fs::remove_file(&tmp).await;
+        let _ = tokio::fs::remove_file(&tmp_capture).await;
+        drop(l);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_proxy_tls_enabled_starts_and_can_be_aborted() -> anyhow::Result<()> {
+        let tmp = std::env::temp_dir().join(format!(
+            "lint-http_proxy_run_tls_test_{}.jsonl",
+            Uuid::new_v4()
+        ));
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+        let cw = CaptureWriter::new(p.clone()).await?;
+
+        let mut cfg = crate::config::Config::default();
+        cfg.tls.enabled = true;
+        // Use temp paths for CA files
+        let cert_path = std::env::temp_dir().join(format!("test_ca_run_{}.crt", Uuid::new_v4()));
+        let key_path = std::env::temp_dir().join(format!("test_ca_run_{}.key", Uuid::new_v4()));
+        cfg.tls.ca_cert_path = Some(cert_path.to_string_lossy().to_string());
+        cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
+
+        let cfg = StdArc::new(cfg);
+        let engine = StdArc::new(crate::rules::RuleConfigEngine::new());
+        let addr: std::net::SocketAddr = "127.0.0.1:0".parse()?;
+
+        let task = tokio::spawn(async move {
+            let _ = run_proxy(addr, cw, cfg, engine).await;
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        task.abort();
+        let _ = task.await;
+
+        // Ensure CA files were created by startup
+        assert!(cert_path.exists());
+        assert!(key_path.exists());
+
+        tokio::fs::remove_file(&cert_path).await?;
+        tokio::fs::remove_file(&key_path).await?;
+        tokio::fs::remove_file(&tmp).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn handle_request_relative_uri_with_invalid_host_falls_back_and_returns_502(
+    ) -> anyhow::Result<()> {
+        let tmp =
+            std::env::temp_dir().join(format!("lint_proxy_badhost_test_{}.jsonl", Uuid::new_v4()));
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+        let cw = CaptureWriter::new(p.clone()).await?;
+
+        let cfg = StdArc::new(crate::config::Config::default());
+        let https = HttpsConnectorBuilder::new()
+            .with_native_roots()?
+            .https_or_http()
+            .enable_http1()
+            .enable_http2()
+            .build();
+        let client: LegacyClient<_, http_body_util::Full<bytes::Bytes>> =
+            LegacyClient::builder(TokioExecutor::new()).build(https);
+        let state = StdArc::new(crate::state::StateStore::new(300));
+        let shared = StdArc::new(Shared {
+            client,
+            captures: cw.clone(),
+            cfg,
+            state,
+            ca: None,
+            engine: StdArc::new(crate::rules::RuleConfigEngine::new()),
+        });
+
+        // Relative URI with invalid Host header should fail to parse and fallback to localhost
+        let req = Request::builder()
+            .method("GET")
+            .uri("/willfail")
+            .header(hyper::header::HOST, "bad host")
+            .body(Full::new(Bytes::new()).boxed())?;
+
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse()?,
+        ));
+        let resp = handle_request(
+            req,
+            shared.clone(),
+            conn_metadata,
+            hyper::http::uri::Scheme::HTTP,
+        )
+        .await?;
+
+        // Expect 502 (or 400 in case of immediate request rejection) because client will fail to connect to localhost
+        let status = resp.status().as_u16();
+        assert!(
+            status == 502 || status == 400,
+            "unexpected status: {}",
+            status
+        );
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn handle_http_logic_upstream_body_collect_error_returns_500() -> anyhow::Result<()> {
+        // Start a raw TCP server that returns a truncated response body
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+
+        let server_task = tokio::spawn(async move {
+            if let Ok((socket, _)) = listener.accept().await {
+                // Read the request (drain input)
+                let mut buf = [0u8; 1024];
+                let _ = socket.readable().await;
+                let _ = socket.try_read(&mut buf);
+
+                // Write headers with Content-Length 10 but only send 3 bytes, then close
+                let resp = b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nabc";
+                let _ = socket.try_write(resp);
+                // Drop socket to close connection prematurely
+            }
+        });
+
+        let tmp =
+            std::env::temp_dir().join(format!("lint_proxy_trunc_test_{}.jsonl", Uuid::new_v4()));
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+        let cw = CaptureWriter::new(p.clone()).await?;
+
+        let cfg = StdArc::new(crate::config::Config::default());
+        let https = HttpsConnectorBuilder::new()
+            .with_native_roots()?
+            .https_or_http()
+            .enable_http1()
+            .enable_http2()
+            .build();
+        let client: LegacyClient<_, http_body_util::Full<bytes::Bytes>> =
+            LegacyClient::builder(TokioExecutor::new()).build(https);
+        let state = StdArc::new(crate::state::StateStore::new(300));
+        let shared = StdArc::new(Shared {
+            client,
+            captures: cw.clone(),
+            cfg,
+            state,
+            ca: None,
+            engine: StdArc::new(crate::rules::RuleConfigEngine::new()),
+        });
+
+        let uri: Uri = format!("http://127.0.0.1:{}/", addr.port()).parse()?;
+        let req = Request::builder()
+            .method("GET")
+            .uri(uri)
+            .body(Full::new(Bytes::new()).boxed())?;
+
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse()?,
+        ));
+        let resp = handle_http_logic(
+            req,
+            shared.clone(),
+            conn_metadata,
+            hyper::http::uri::Scheme::HTTP,
+        )
+        .await?;
+
+        assert_eq!(resp.status().as_u16(), 500);
+
+        let _ = server_task.await;
         let _ = fs::remove_file(&tmp).await;
         Ok(())
     }

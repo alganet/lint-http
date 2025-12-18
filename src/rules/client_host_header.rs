@@ -245,4 +245,55 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn host_header_non_utf8_returns_violation() -> anyhow::Result<()> {
+        let rule = ClientHostHeader;
+        use crate::test_helpers::make_test_transaction;
+        use hyper::header::HeaderValue;
+        use hyper::HeaderMap;
+
+        let mut tx = make_test_transaction();
+        let mut hm = HeaderMap::new();
+        // Insert an invalid UTF-8 header value
+        hm.insert("host", HeaderValue::from_bytes(&[0xff]).unwrap());
+        tx.request.headers = hm;
+
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+
+        assert!(violation.is_some());
+        assert_eq!(
+            violation.map(|v| v.message),
+            Some("Host header is not valid UTF-8".to_string())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn scope_is_client() {
+        let r = ClientHostHeader;
+        assert_eq!(
+            crate::rules::Rule::scope(&r),
+            crate::rules::RuleScope::Client
+        );
+    }
+
+    #[test]
+    fn port_parse_error_returns_invalid_message() -> anyhow::Result<()> {
+        let rule = ClientHostHeader;
+        use crate::test_helpers::make_test_transaction;
+        let mut tx = make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "host",
+            "example.com:999999999999999999999",
+        )]);
+
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(violation.is_some());
+        let v = violation.unwrap();
+        assert!(v.message.starts_with("Host header port is invalid"));
+        Ok(())
+    }
 }
