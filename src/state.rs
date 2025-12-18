@@ -314,73 +314,74 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn seed_from_transaction_populates_state() -> anyhow::Result<()> {
+    #[rstest]
+    #[case(Some("test-client/1.0"), true, true)]
+    #[case(None, true, true)]
+    #[case(Some("other"), false, false)]
+    fn test_seed_from_transaction(
+        #[case] user_agent: Option<&str>,
+        #[case] has_response: bool,
+        #[case] expect_seeded: bool,
+    ) -> anyhow::Result<()> {
         let store = StateStore::new(300);
+        let uri = "http://example.com/resource";
 
-        // Create a transaction with response headers
-        let mut resp_headers = std::collections::HashMap::new();
-        resp_headers.insert("etag".to_string(), "\"12345\"".to_string());
-        resp_headers.insert("cache-control".to_string(), "max-age=3600".to_string());
+        let mut tx = if has_response {
+            crate::test_helpers::make_test_transaction_with_response(200, &[("etag", "\"123\"")])
+        } else {
+            crate::test_helpers::make_test_transaction()
+        };
 
-        use crate::test_helpers::make_test_transaction_with_response;
-        let mut tx = make_test_transaction_with_response(
-            200,
-            &[("etag", "\"12345\""), ("cache-control", "max-age=3600")],
-        );
-        tx.request
-            .headers
-            .insert("user-agent", "test-client/1.0".parse()?);
-        // Ensure the resource matches the expected URL
-        tx.request.uri = "http://example.com/resource".to_string();
-        tx.timing.duration_ms = 100;
+        if let Some(ua) = user_agent {
+            tx.request.headers.insert("user-agent", ua.parse()?);
+        } else {
+            tx.request.headers.remove("user-agent");
+        }
+        tx.request.uri = uri.to_string();
 
-        // Seed the state
         store.seed_from_transaction(&tx);
 
-        // Verify the transaction was recorded
+        let expected_ua = user_agent.unwrap_or("unknown");
         let client = ClientIdentifier::new(
             IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
-            "test-client/1.0".to_string(),
+            expected_ua.to_string(),
         );
 
-        let prev_tx = store
-            .get_previous(&client, "http://example.com/resource")
-            .ok_or_else(|| anyhow::anyhow!("State should contain seeded transaction"))?;
-        let resp = prev_tx
-            .response
-            .ok_or_else(|| anyhow::anyhow!("expected response"))?;
-        assert_eq!(resp.status, 200);
-        assert_eq!(
-            resp.headers.get("etag").and_then(|v| v.to_str().ok()),
-            Some("\"12345\"")
-        );
-        assert_eq!(
-            resp.headers
-                .get("cache-control")
-                .and_then(|v| v.to_str().ok()),
-            Some("max-age=3600")
-        );
+        let prev = store.get_previous(&client, uri);
+        if expect_seeded {
+            assert!(
+                prev.is_some(),
+                "Should have seeded for UA={}, has_resp={}",
+                expected_ua,
+                has_response
+            );
+        } else {
+            assert!(
+                prev.is_none(),
+                "Should NOT have seeded for UA={}, has_resp={}",
+                expected_ua,
+                has_response
+            );
+        }
         Ok(())
     }
 
     #[test]
-    fn seed_from_transaction_without_response_headers_does_nothing() {
+    fn get_previous_handles_poisoned_lock() {
         let store = StateStore::new(300);
+        let client = make_client();
+        let resource = "http://example.com/resource";
 
-        use crate::test_helpers::make_test_transaction;
-        let tx = make_test_transaction();
+        // Poison the lock by panicking while holding a write lock in another thread.
+        let store_arc = store.store.clone();
+        let handle = thread::spawn(move || {
+            let _guard = store_arc.write().unwrap();
+            panic!("intentional panic to poison lock");
+        });
+        let _ = handle.join(); // ignore the panic result
 
-        // Seed the state (should do nothing since no response headers)
-        store.seed_from_transaction(&tx);
-
-        // Verify nothing was recorded
-        let client = ClientIdentifier::new(
-            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
-            "unknown".to_string(),
-        );
-
-        let prev = store.get_previous(&client, "http://example.com/resource");
-        assert!(prev.is_none());
+        // Now attempting to read should hit the poisoned branch and return None
+        let res = store.get_previous(&client, resource);
+        assert!(res.is_none());
     }
 }

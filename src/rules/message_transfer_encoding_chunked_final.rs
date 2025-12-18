@@ -182,4 +182,19 @@ mod tests {
         assert!(v.is_some());
         Ok(())
     }
+
+    #[test]
+    fn check_non_utf8() -> anyhow::Result<()> {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut hm = hyper::HeaderMap::new();
+        // 0xFF is not a valid UTF-8 character
+        let bad_value = HeaderValue::from_bytes(&[0xFF])?;
+        hm.insert(hyper::header::TRANSFER_ENCODING, bad_value);
+        tx.request.headers = hm;
+
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_none()); // Rule skips invalid UTF-8 headers
+        Ok(())
+    }
 }

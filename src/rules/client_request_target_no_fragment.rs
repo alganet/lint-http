@@ -68,4 +68,10 @@ mod tests {
             assert!(violation.is_none());
         }
     }
+
+    #[test]
+    fn scope_is_client() {
+        let rule = ClientRequestTargetNoFragment;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+    }
 }

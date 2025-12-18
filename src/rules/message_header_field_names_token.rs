@@ -27,38 +27,38 @@ impl Rule for MessageHeaderFieldNamesToken {
         // token characters per RFC token (tchar) - use shared helper
         // Check request headers
         for (k, _v) in tx.request.headers.iter() {
-            if let Some(c) = crate::token::find_invalid_token_char(k.as_str()) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "Header field-name '{}' contains invalid character: '{}'",
-                        k.as_str(),
-                        c
-                    ),
-                });
+            if let Some(v) = check_header_name(k.as_str(), config) {
+                return Some(v);
             }
         }
 
         // Check response headers if present
         if let Some(resp) = &tx.response {
             for (k, _v) in resp.headers.iter() {
-                if let Some(c) = crate::token::find_invalid_token_char(k.as_str()) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!(
-                            "Header field-name '{}' contains invalid character: '{}'",
-                            k.as_str(),
-                            c
-                        ),
-                    });
+                if let Some(v) = check_header_name(k.as_str(), config) {
+                    return Some(v);
                 }
             }
         }
 
         None
     }
+}
+
+// Extracted helper to make the message/violation formatting testable without needing
+// to construct invalid `HeaderName` values (which hyper often rejects).
+fn check_header_name(name: &str, config: &crate::rules::RuleConfig) -> Option<Violation> {
+    if let Some(c) = crate::token::find_invalid_token_char(name) {
+        return Some(Violation {
+            rule: MessageHeaderFieldNamesToken.id().into(),
+            severity: config.severity,
+            message: format!(
+                "Header field-name '{}' contains invalid character: '{}'",
+                name, c
+            ),
+        });
+    }
+    None
 }
 
 #[cfg(test)]
@@ -136,6 +136,31 @@ mod tests {
             assert!(violation.is_some());
         } else {
             assert!(violation.is_none());
+        }
+        Ok(())
+    }
+
+    #[rstest]
+    #[case("host", false, None)]
+    #[case("x@bad", true, Some('@'))]
+    #[case("bad header", true, Some(' '))]
+    fn check_header_name_helper_cases(
+        #[case] name: &str,
+        #[case] expect_violation: bool,
+        #[case] expected_char: Option<char>,
+    ) -> anyhow::Result<()> {
+        let cfg = &crate::test_helpers::make_test_rule_config();
+        let res = super::check_header_name(name, cfg);
+
+        if expect_violation {
+            assert!(res.is_some(), "expected violation for '{}'", name);
+            let v = res.unwrap();
+            assert!(v.message.contains(name));
+            if let Some(c) = expected_char {
+                assert!(v.message.contains(&c.to_string()));
+            }
+        } else {
+            assert!(res.is_none(), "expected no violation for '{}'", name);
         }
         Ok(())
     }

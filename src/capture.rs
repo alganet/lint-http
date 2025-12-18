@@ -189,8 +189,7 @@ mod tests {
         // Write a mix of valid and invalid transaction JSON
         use crate::test_helpers::{make_test_transaction, make_test_transaction_with_response};
         let mut tx1 = make_test_transaction();
-        let mut tx2 = make_test_transaction_with_response(201, &[("user", "u2")]);
-        // Ensure these transactions reflect the test's expectations
+        let mut tx2 = make_test_transaction_with_response(201, [("user", "u2")].as_ref());
         tx1.request.uri = "http://example/".to_string();
         tx2.request.method = "POST".to_string();
         tx2.request.uri = "http://example/post".to_string();
@@ -207,6 +206,45 @@ mod tests {
         assert_eq!(records.len(), 2);
         assert_eq!(records[0].request.method, "GET");
         assert_eq!(records[1].request.method, "POST");
+
+        fs::remove_file(&tmp).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn load_captures_skips_empty_lines() -> anyhow::Result<()> {
+        let tmp =
+            std::env::temp_dir().join(format!("lint_empty_lines_test_{}.jsonl", Uuid::new_v4()));
+
+        // Write a valid record, then an empty line, then another valid record
+        use crate::test_helpers::{make_test_transaction, make_test_transaction_with_response};
+        let tx1 = make_test_transaction();
+        let tx2 = make_test_transaction_with_response(202, &[("x", "y")]);
+        let content = format!(
+            "{}\n\n{}\n",
+            serde_json::to_string(&tx1)?,
+            serde_json::to_string(&tx2)?
+        );
+        fs::write(&tmp, content).await?;
+
+        let records = load_captures(&tmp).await?;
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].request.method, "GET");
+        assert_eq!(records[1].response.as_ref().unwrap().status, 202);
+
+        fs::remove_file(&tmp).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn load_captures_blank_line_returns_empty() -> anyhow::Result<()> {
+        let tmp =
+            std::env::temp_dir().join(format!("lint_blank_line_test_{}.jsonl", Uuid::new_v4()));
+        // Single blank line should be ignored
+        fs::write(&tmp, "\n").await?;
+
+        let records = load_captures(&tmp).await?;
+        assert_eq!(records.len(), 0);
 
         fs::remove_file(&tmp).await?;
         Ok(())
