@@ -294,6 +294,7 @@ pub mod server_content_type_present;
 pub mod server_etag_or_last_modified;
 pub mod server_no_body_for_1xx_204_304;
 pub mod server_response_405_allow;
+pub mod server_status_code_valid_range;
 pub mod server_x_content_type_options;
 
 pub const RULES: &[&dyn RuleConfigValidator] = &[
@@ -315,6 +316,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &server_content_type_present::ServerContentTypePresent,
     &message_connection_upgrade::MessageConnectionUpgrade,
+    &server_status_code_valid_range::ServerStatusCodeValidRange,
     &server_charset_specification::ServerCharsetSpecification,
 ];
 
