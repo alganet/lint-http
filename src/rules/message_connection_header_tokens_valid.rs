@@ -194,4 +194,30 @@ mod tests {
             .is_none());
         Ok(())
     }
+
+    #[test]
+    fn non_utf8_connection_header_returns_none() -> anyhow::Result<()> {
+        let rule = MessageConnectionHeaderTokensValid;
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut hm = hyper::HeaderMap::new();
+        // Insert a non-UTF8 header value to exercise the to_str() Err branch
+        hm.insert(
+            hyper::header::CONNECTION,
+            hyper::header::HeaderValue::from_bytes(&[0xffu8])?,
+        );
+        tx.request.headers = hm;
+
+        assert!(rule
+            .check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config())
+            .is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn scope_is_both() -> anyhow::Result<()> {
+        let rule = MessageConnectionHeaderTokensValid;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        Ok(())
+    }
 }

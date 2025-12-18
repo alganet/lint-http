@@ -541,4 +541,56 @@ mod tests {
         let v: &dyn RuleConfigValidator = &r;
         assert_eq!(v.scope(), RuleScope::Both);
     }
+
+    #[test]
+    fn parse_rule_config_success() -> anyhow::Result<()> {
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        table.insert("severity".to_string(), toml::Value::String("warn".into()));
+        cfg.rules.insert(
+            "server_cache_control_present".into(),
+            toml::Value::Table(table),
+        );
+
+        let rc = parse_rule_config(&cfg, "server_cache_control_present")?;
+        assert!(rc.enabled);
+        assert_eq!(rc.severity, crate::lint::Severity::Warn);
+        Ok(())
+    }
+
+    #[test]
+    fn validate_and_cache_all_get_cached_success() -> anyhow::Result<()> {
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        table.insert("severity".to_string(), toml::Value::String("error".into()));
+        cfg.rules.insert(
+            "server_cache_control_present".into(),
+            toml::Value::Table(table),
+        );
+
+        let mut engine = RuleConfigEngine::new();
+        engine.validate_and_cache_all(&cfg)?;
+        let rc: std::sync::Arc<RuleConfig> = engine.get_cached("server_cache_control_present");
+        assert_eq!(rc.severity, crate::lint::Severity::Error);
+        Ok(())
+    }
+
+    #[test]
+    fn get_rule_enabled_and_severity_required_success() -> anyhow::Result<()> {
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        table.insert("severity".to_string(), toml::Value::String("warn".into()));
+        cfg.rules
+            .insert("test_rule".into(), toml::Value::Table(table));
+
+        let enabled = get_rule_enabled_required(&cfg, "test_rule")?;
+        assert!(enabled);
+
+        let sev = get_rule_severity_required(&cfg, "test_rule")?;
+        assert_eq!(sev, crate::lint::Severity::Warn);
+        Ok(())
+    }
 }

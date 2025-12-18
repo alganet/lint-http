@@ -159,4 +159,13 @@ mod tests {
         assert!(violation.is_none());
         Ok(())
     }
+
+    #[test]
+    fn scope_is_client() {
+        let r = ClientCacheRespect;
+        assert_eq!(
+            crate::rules::Rule::scope(&r),
+            crate::rules::RuleScope::Client
+        );
+    }
 }
