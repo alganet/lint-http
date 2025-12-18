@@ -280,6 +280,7 @@ pub mod client_accept_encoding_present;
 pub mod client_cache_respect;
 pub mod client_host_header;
 pub mod client_request_method_token_uppercase;
+pub mod client_request_target_no_fragment;
 pub mod client_user_agent_present;
 pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
@@ -308,6 +309,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_accept_encoding_present::ClientAcceptEncodingPresent,
     &client_cache_respect::ClientCacheRespect,
     &client_host_header::ClientHostHeader,
+    &client_request_target_no_fragment::ClientRequestTargetNoFragment,
     &client_request_method_token_uppercase::ClientRequestMethodTokenUppercase,
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
     &message_content_length::MessageContentLength,
