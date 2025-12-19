@@ -8,6 +8,8 @@ SPDX-License-Identifier: ISC
 
 `lint-http` includes several built-in rules to check for HTTP best practices.
 
+Note: rules are **disabled by default** and are enabled/configured via your TOML config; when adding rules, include docs in `docs/rules/<rule_id>.md` and register the rule in `src/rules/mod.rs`.
+
 ## Connection Rules
 
 - [message_connection_upgrade](rules/message_connection_upgrade.md) - If `Connection` includes `upgrade`, `Upgrade` header MUST be present.

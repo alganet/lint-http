@@ -21,10 +21,11 @@ We maintain high standards for code quality and testing.
 
 ### Requirements
 
-- **Code Coverage**: Minimum **80%** test coverage is required.
+- **Code Coverage**: Minimum **90%** test coverage is required (see `.cargo/config.toml` for the configured threshold/alias).
 - **Tests**: All tests must pass (`cargo test`).
-- **Linting**: No clippy warnings allowed (`cargo clippy`).
-- **Formatting**: Code must be formatted with `rustfmt` (`cargo fmt`).
+- **Linting**: Use `cargo lint` (alias in `.cargo/config.toml`) — clippy warnings are treated as errors.
+- **Formatting**: Code must be formatted with `cargo fmt` (`rustfmt`).
+- **Headers & Docs**: New source, test, and documentation files must include the SPDX header; new rules must include a docs file in `docs/rules/` and an example entry in `config_example.toml`.
 
 ### Running QA
 
@@ -34,14 +35,14 @@ Run the full suite before submitting a PR:
 # Format code
 cargo fmt
 
-# Run linter
-cargo clippy -- -D warnings
+# Run linter (alias)
+cargo lint
 
 # Run tests
 cargo test
 
-# Check coverage (requires cargo-tarpaulin)
-cargo tarpaulin --out Xml
+# Coverage (alias)
+cargo coverage
 ```
 
 ## Rule Creation Guidelines

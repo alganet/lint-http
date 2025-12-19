@@ -8,74 +8,59 @@ SPDX-License-Identifier: ISC
 
 ⚠️ **Early stage, experimental and incomplete.** ⚠️
 
+**A TLS-terminating HTTP/HTTPS forward proxy that lints traffic and writes captures.** 🔧
+
+lint-http inspects HTTP(S) traffic, runs protocol best-practice checks (rules), and writes detailed JSONL captures for debugging and analysis. It's intended as a development and testing tool — not for production use.
+
 ---
 
-**HTTP/HTTPS forward proxy with linting and capture capabilities.**
+## Highlights
 
-`lint-http` intercepts HTTP and HTTPS traffic, checks for adherence to best practices, and captures detailed traffic logs. It functions as a TLS-terminating proxy with on-the-fly certificate generation, making it ideal for debugging and analyzing encrypted traffic during development.
+- TLS interception using Rust-native stacks (rustls / tokio-rustls / hyper-rustls)
+- HTTP/2 and HTTP/1.1 support (via ALPN)
+- JSONL traffic captures (`captures.jsonl`) with request/response metadata + timing
+- Configurable, stateful lint rules (enable/disable via TOML)
+- Easy to use with curl, browsers, and other HTTP clients
 
-## Features
+## Quick start — run locally
 
-- 🔒 **TLS/HTTPS Interception**: Full HTTPS traffic inspection with automatic certificate generation
-- 🌐 **HTTP/2 Support**: Complete HTTP/2 and HTTP/1.1 protocol support via ALPN
-- 📊 **Traffic Capture**: Logs request/response details (method, URI, status, headers, timing) to JSONL
-- ✅ **Smart Linting**: Automatically checks HTTP traffic for best practice violations
-- 📝 **Stateful Analysis**: Tracks client behavior across requests for cache validation and connection efficiency
-- ⚙️ **Configurable Rules**: Enable/disable specific lint rules via TOML configuration
-- 🔌 **Universal Proxy**: Compatible with curl, browsers, and any HTTP client
-
-## Installation
-
-### From Source
+1) Build and run (recommended for development):
 
 ```bash
-cargo install --path .
+cargo run -- --config config_example.toml
 ```
 
-### Requirements
-
-- Rust 1.70 or later
-- OpenSSL (for native-tls support)
-
-## Quick Start
-
-### Basic HTTP Proxy
+2) Basic HTTP usage:
 
 ```bash
-# Start the proxy (requires a configuration file)
-lint-http --config config.toml
-
-# Use with curl
+# use the proxy (example listens on 127.0.0.1:3000)
 curl -x http://localhost:3000 http://example.com
 ```
 
-### HTTPS Proxy with TLS Interception
+3) HTTPS interception (trust the generated CA locally):
 
 ```bash
-# 1. Start proxy with TLS enabled
-lint-http --config config_example.toml
-
-# 2. Download and trust the CA certificate
+# Download the CA cert exposed by the running proxy
 curl http://localhost:3000/_lint_http/cert > lint-http-ca.crt
-
-# 3. Use the proxy with HTTPS
+# Tell your client to trust `lint-http-ca.crt` and use the proxy for HTTPS
 curl -x http://localhost:3000 --cacert lint-http-ca.crt https://example.com
-
-# 4. HTTP/2 is fully supported
-curl -x http://localhost:3000 --cacert lint-http-ca.crt --http2 https://www.google.com
 ```
+
+Notes:
+- The proxy uses rustls; no system OpenSSL dependency is required for basic operation.
+- See `config_example.toml` for an example configuration.
 
 ## Configuration
 
-`lint-http` is configured via a TOML file provided with the `--config` argument.
+The proxy is configured via a TOML file passed with `--config`.
 
 ```bash
 lint-http --config config.toml
 ```
 
-For detailed configuration options, including **TLS setup** and **General settings**, see [docs/configuration.md](docs/configuration.md).
+Refer to `docs/configuration.md` for full options, including TLS settings and rule configuration.
 
-### Quick Example
+Example snippet:
 
 ```toml
 [general]
@@ -85,22 +70,23 @@ ttl_seconds = 300
 
 [tls]
 enabled = true
-# ... see docs for full TLS config
 ```
 
-## Lint Rules
+## Lint rules
 
-`lint-http` checks for various client and server best practices, such as:
+Rules cover common client and server best practices (e.g., `User-Agent` presence, `Cache-Control`, `ETag`, connection reuse). Rules are documented in `docs/rules/` and listed in `docs/rules.md`.
 
-- **Client**: `User-Agent`, `Accept-Encoding`, Connection reuse, Cache respect.
-- **Server**: `Cache-Control`, `ETag`, Security headers.
+## Capture format
 
-For a complete list of rules and their explanations, see [docs/rules.md](docs/rules.md).
+Captures are written as JSON Lines; each line is an `HttpTransaction` JSON object containing:
+- unique `id`, `timestamp`
+- `client` metadata (ip, user-agent)
+- `request` (method, uri, headers)
+- `response` (status, headers)
+- `timing` (duration)
+- `violations` (rule id, severity, message)
 
-
-## Capture Format
-
-Captures are written as JSONL (JSON Lines) to the specified file. Each line contains a full `HttpTransaction` record:
+Example (abbreviated):
 
 ```json
 {
@@ -129,41 +115,27 @@ Captures are written as JSONL (JSON Lines) to the specified file. Each line cont
 
 ## Development
 
-### Running Tests
+Run tests and linters locally:
 
 ```bash
-# Run all tests
+# run tests
 cargo test
 
-# Run with coverage
-cargo coverage
+# run lint (clippy alias in .cargo/config.toml)
+cargo lint
 
-# Coverage: 81.66% (383/469 lines)
+# coverage (alias in .cargo/config.toml)
+cargo coverage
 ```
 
-### Project Structure
+See `.cargo/config.toml` for configured aliases (coverage/lint).
 
-- `src/proxy.rs` - HTTP/HTTPS proxy implementation with TLS support
-- `src/ca.rs` - Certificate authority for dynamic cert generation
-- `src/lint.rs` - Lint rule evaluation engine
-- `src/rules/` - Individual lint rule implementations
-- `src/state.rs` - Stateful analysis across requests
-- `src/capture.rs` - Traffic capture to JSONL
-- `src/config.rs` - Configuration file parsing
+## Security notice
 
-## Security Considerations
+lint-http is a debugging tool — do not use in production.
+- The CA private key can decrypt intercepted HTTPS traffic; keep it private
+- Only use on trusted networks and machines
 
-⚠️ **WARNING**: `lint-http` is a development and debugging tool. **Never use in production environments.**
+## Contributing & license
 
-- The CA certificate private key provides full access to decrypt intercepted HTTPS traffic
-- Never share or distribute the `ca.key` file
-- Regularly rotate the CA certificate if used over extended periods
-- Only use on networks you control
-
-## License
-
-ISC License - See LICENSE file for details
-
-## Contributing
-
-Contributions welcome! See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for guidelines.
+Contributions are welcome — see `.github/CONTRIBUTING.md` for guidelines. The project is licensed under the ISC license (see `LICENSE`).
