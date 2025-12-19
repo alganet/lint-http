@@ -4,118 +4,84 @@ SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# lint-http AI Coding Instructions
+## What this file is for ✅
+Short, actionable tips for AI agents and contributors working on `lint-http`: where to look, how to run and test, and project-specific conventions that cannot be inferred from Rust conventions alone.
 
-## Project Overview
+## Quick project summary (big picture) 🔧
+- Purpose: TLS-terminating HTTP/HTTPS forward proxy that lints traffic and writes JSONL captures.
+- High-level flow: Client → `src/proxy.rs` (terminates TLS via `src/ca.rs`) → `src/lint.rs` (runs rules in `src/rules/`) → `src/capture.rs` (writes `captures.jsonl`).
+- Rules are stateful when needed and can consult previous transactions using `src/state.rs` (keyed by `ClientIdentifier`).
 
-`lint-http` is a Rust HTTP/HTTPS forward proxy that intercepts traffic to check for best practices and capture detailed logs. It performs TLS termination with on-the-fly certificate generation for HTTPS inspection.
+## Essential commands & CI expectations ⚙️
+- Format: `cargo fmt` (required)
+- Lint: `cargo lint` (alias in `.cargo/config.toml`) ≈ `cargo clippy --all-features --all-targets -- -D warnings`
+- Tests: `cargo test`
+- Coverage: `cargo coverage` (alias in `.cargo/config.toml`, uses tarpaulin); CI enforces a coverage threshold — check `.cargo/config.toml` for `fail-under` (project uses strict threshold).
+- Run locally: `cargo run -- --config config_example.toml`
+- Note: for minimum supported Rust version and other tooling settings, rely on repo files like `Cargo.toml` and `.cargo/config.toml` as the sources of truth.
 
-## Architecture
+## How rules are added and validated (do this exactly) 🧩
+1. Add a file: `src/rules/<client|server>_<name>.rs` (name → rule id returned by `id()`).
+2. Implement the `Rule` trait (see `src/rules/mod.rs` for the trait signature and `RuleScope`).
+   - If your rule needs custom config, override `validate_and_box` to return a parsed config type.
+3. Register the rule in `src/rules/mod.rs` (add module and append to `RULES`).
+4. Add docs: `docs/rules/<rule_id>.md` and reference it from `docs/rules.md`.
+5. Add configuration example to `config_example.toml` (tests assert it contains all rules).
+6. Add tests covering:
+   - Violation and non-violation cases
+   - `validate_rules` behavior (valid + invalid config cases)
+   - Use helpers from `src/test_helpers.rs`: `enable_rule`, `enable_rule_with_paths`, `make_test_transaction_with_response`, `make_test_engine`.
 
-### Core Data Flow
-```
-Client → Proxy (proxy.rs) → TLS termination (ca.rs) → Forward to upstream
-                ↓                                              ↓
-        State tracking (state.rs)                    Response received
-                ↓                                              ↓
-        Lint rules (lint.rs + rules/) ← ← ← ← ← ← ← ← ← ← ← ←
-                ↓
-        Capture (capture.rs) → JSONL file
-```
+Important: rules are disabled by default. The `Config::load_from_path` function calls `validate_rules` at startup and returns a `RuleConfigEngine` — ensure enabled rules are validated and cached before runtime. `RuleConfigEngine::get_cached` will panic if a rule wasn't validated.
 
-### Key Modules
-- `src/proxy.rs` - Main proxy server, handles HTTP/1.1 and HTTP/2, CONNECT tunneling
-- `src/ca.rs` - Certificate Authority for dynamic TLS cert generation per domain
-- `src/lint.rs` - Orchestrates rule evaluation against requests/responses
-- `src/rules/mod.rs` - Defines `Rule` trait and `RULES` static array
-- `src/state.rs` - Cross-request state tracking (keyed by `ClientIdentifier`: IP + User-Agent)
-- `src/capture.rs` - JSONL output via `CaptureWriter` and `HttpTransaction`
-- `src/config.rs` - TOML config loading with `Config::is_enabled(rule_id)`
+## Project conventions & gotchas ⚠️
+- SPDX header: every source/test/doc file must include the SPDX license header at the top.
+- Rule tables must explicitly include `enabled` (boolean) and `severity` (string: `info|warn|error`) — missing keys cause startup validation to fail.
+- `config_example.toml` is canonical for examples; a test asserts it contains an example for every rule in `RULES`.
+- Tests use small helpers from `src/test_helpers.rs` (don’t re-implement common setups).
+- TLS is implemented using Rust-native TLS stacks (e.g., `rustls`, `tokio-rustls`, `hyper-rustls`) with no required system OpenSSL dependency — rely on the crates listed in `Cargo.toml` for implementation details.
+- Be mindful that `.cargo/config.toml` contains the authoritative lint & coverage aliases and thresholds.
 
-## Development Commands
+## Rule documentation style 📚
+Each rule must have a corresponding doc in `docs/rules/<rule_id>.md` and follow this strict structure and formatting to make docs machine-parsable and consistent:
 
-```bash
-cargo fmt                          # Format code (required)
-cargo clippy -- -D warnings        # Lint with zero warnings (required)
-cargo test                         # Run all tests
-cargo coverage                     # Run tarpaulin coverage (alias in .cargo/config.toml)
-cargo run -- --config config_example.toml  # Run locally with example config
-```
+1. SPDX header (same header as other files).
+2. H1 title: either a human-friendly title or the exact rule id (both are acceptable, but prefer the more-readable title for user-facing docs).
+3. `## Description` — short, 1–3 paragraphs describing what the rule checks and why it matters.
+4. `## Specifications` — bullet list of authoritative references (prefer `https://www.rfc-editor.org/rfc/` links for RFCs, include section anchors when relevant, e.g. `RFC 7234 §5.2`).
+5. `## Configuration` — TOML snippet showing the minimal example required to enable the rule (include `enabled` and `severity` keys).
+6. `## Examples` — include `✅ Good` and `❌ Bad` examples as fenced `http` blocks; show minimal requests/responses that illustrate pass/fail cases.
 
-**Minimum 80% test coverage required.**
+Formatting rules:
+- Use fenced code blocks with language markers (`toml`, `http`).
+- Keep docs concise and focused (avoid long protocol digressions).
+- When referencing RFCs or specs, prefer canonical links (rfc-editor.org, w3.org, MDN) and include the specific section if applicable.
+- Add `docs/rules/<rule_id>.md` for each new rule and add an example in `config_example.toml` (a test asserts coverage).
 
-## Adding a New Lint Rule
+Rationale: Consistent docs make it easy for contributors and automated tools (including AI agents) to locate example traffic, canonical references, and config snippets quickly.
 
-1. **Create rule file**: `src/rules/<category>_<name>.rs` (e.g., `server_cache_control_present.rs`)
 
-2. **Implement the `Rule` trait**:
-```rust
-use crate::lint::Violation;
-use crate::rules::Rule;
-use crate::state::{ClientIdentifier, StateStore};
+## Helpers & common utilities 🔁
+- Reuse existing helpers whenever possible — the codebase centralizes common parsing and test helpers to reduce duplication.
+  - `src/token.rs` — token/header parsing utilities used by multiple rules for HTTP token validation (e.g., header name/value/token checks). Prefer using or extending these helpers when implementing rules that parse or validate header tokens.
+  - `src/test_helpers.rs` — test fixtures and helpers (`enable_rule`, `make_test_transaction_with_response`, etc.) for consistent unit tests.
+  - When adding new helpers: add tests, document intent with a module-level comment, and keep APIs small and focused for reuse.
 
-pub struct MyRuleName;
+## Useful files to inspect (start here) 📚
+- `src/proxy.rs` — main runtime, connection handling, and TLS entry points
+- `src/ca.rs` — dynamic certificate generation and CA endpoints (`/_lint_http/cert`)
+- `src/lint.rs` & `src/rules/mod.rs` — rule engine and registration
+- `src/state.rs` — state store and TTL behavior
+- `src/capture.rs` — JSONL capture format and writer
+- `src/test_helpers.rs` — utilities for unit tests
+- `config_example.toml` — canonical rule examples
+- `.cargo/config.toml` — lint/coverage aliases and thresholds
+- `docs/rules/` — per-rule documentation examples
 
-impl Rule for MyRuleName {
-    fn id(&self) -> &'static str {
-        "category_my_rule_name"  // Must match filename convention
-    }
-
-    fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, previous: Option<&crate::http_transaction::HttpTransaction>, config: &crate::config::Config) -> Option<Violation> {
-        // Return Some(Violation{...}) on failure, None on pass
-    }
-
-    // Declare rule scope explicitly. Prefer setting this to Client/Server when
-    // the rule only inspects requests or responses respectively.
-    fn scope(&self) -> crate::rules::RuleScope { crate::rules::RuleScope::Both }
-}
-```
-
-3. **Register in `src/rules/mod.rs`**: Add module declaration and append to `RULES` array
-
-4. **Add tests in same file**: Must cover both violation and non-violation cases. Use `test_helpers`:
-```rust
-use crate::test_helpers::{make_test_client};
-```
-
-5. **Document in `docs/rules/<rule_name>.md`** and link from `docs/rules.md`
-
-## Conventions
-
-### SPDX Headers
-All files must start with license header:
-```rust
-// SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
-//
-// SPDX-License-Identifier: ISC
-```
-
-### Rule Naming
-- Client rules: `client_<name>` (e.g., `client_user_agent_present`)
-- Server rules: `server_<name>` (e.g., `server_cache_control_present`)
-
-### Error Handling
-Use `anyhow::Result` for fallible operations. The proxy is development-only, so fail-fast is acceptable.
-
-### State Management
-`StateStore` tracks transactions per `(ClientIdentifier, resource)` with configurable TTL. Rules receive an `Option<&HttpTransaction>` representing the previous transaction for the same client+resource when available; use this for stateful analysis like cache validation.
-
-### Test Helpers Location
-Shared test utilities are in `src/test_helpers.rs` (only compiled in test cfg).
-
-## Configuration
-
-Rules default to disabled. Enable via TOML only by adding a rule table with `enabled = true`:
-```toml
-[rules.server_cache_control_present]
-enabled = true
-```
-
-Check rule status: `cfg.is_enabled("rule_id")` returns `true` only when there is a `[rules.<rule_id>]` table containing `enabled = true`.
-
-### Configurable Rules
-
-- Configurable rules should not rely on hardcoded defaults. If a rule requires configuration, it must be provided via a `[rules.<rule_id>]` table in TOML and include the necessary keys (numeric values, arrays, etc.).
-- During `validate_config`, a rule should parse and validate the provided TOML values. If required keys are missing or invalid types are present, `validate_config` must return an error to fail startup validation.
-- For runtime use, cache parsed rule configuration using `crate::rules::config_cache::RuleConfigCache<T>`. In your `check_transaction`, retrieve the cached config with `get_or_init` and panic with a clear message if parsing fails at runtime (this matches how other rules use defensive assertions).
-- Include explicit tests to validate `validate_config` behavior and runtime behavior with valid configuration. Tests should also include invalid config and missing config failure cases for `validate_config`.
+## Testing checklist for PRs ✅
+- `cargo fmt` passes
+- `cargo lint` (or `cargo clippy -- -D warnings`) passes
+- `cargo test` passes on CI
+- New rule: add doc entry in `docs/rules/` and update `config_example.toml`
+- Add tests for invalid configurations (validation should fail with helpful error messages)
+- Ensure SPDX header present in new files
