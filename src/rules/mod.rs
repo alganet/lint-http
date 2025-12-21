@@ -286,6 +286,7 @@ pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
 pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
+pub mod message_content_type_well_formed;
 pub mod message_header_field_names_token;
 pub mod message_transfer_encoding_chunked_final;
 pub mod server_cache_control_present;
@@ -317,6 +318,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_transfer_encoding_chunked_final::MessageTransferEncodingChunkedFinal,
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &server_content_type_present::ServerContentTypePresent,
+    &message_content_type_well_formed::MessageContentTypeWellFormed,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &server_status_code_valid_range::ServerStatusCodeValidRange,
     &server_charset_specification::ServerCharsetSpecification,
