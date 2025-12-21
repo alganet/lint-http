@@ -73,6 +73,10 @@ severity = "warn"
 enabled = true
 severity = "error"
 
+[rules.client_request_uri_percent_encoding_valid]
+enabled = true
+severity = "error"
+
 [rules.server_content_type_present]
 enabled = true
 severity = "warn"
