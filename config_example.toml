@@ -77,6 +77,10 @@ severity = "error"
 enabled = true
 severity = "warn"
 
+[rules.message_content_type_well_formed]
+enabled = true
+severity = "warn"
+
 [rules.message_content_length_vs_transfer_encoding]
 enabled = true
 severity = "warn"
