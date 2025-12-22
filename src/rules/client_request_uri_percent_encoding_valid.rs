@@ -25,7 +25,7 @@ impl Rule for ClientRequestUriPercentEncodingValid {
         config: &Self::Config,
     ) -> Option<Violation> {
         let s = tx.request.uri.as_str();
-        if let Some(msg) = crate::rules::uri::check_percent_encoding(s) {
+        if let Some(msg) = crate::uri::check_percent_encoding(s) {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,

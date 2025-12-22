@@ -49,7 +49,7 @@ impl Rule for ServerLocationHeaderUriValid {
                 });
             }
 
-            if crate::rules::uri::contains_whitespace(s) {
+            if crate::uri::contains_whitespace(s) {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
@@ -57,7 +57,7 @@ impl Rule for ServerLocationHeaderUriValid {
                 });
             }
 
-            if let Some(msg) = crate::rules::uri::check_percent_encoding(s) {
+            if let Some(msg) = crate::uri::check_percent_encoding(s) {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
@@ -65,7 +65,7 @@ impl Rule for ServerLocationHeaderUriValid {
                 });
             }
 
-            if let Some(msg) = crate::rules::uri::validate_scheme_if_present(s) {
+            if let Some(msg) = crate::uri::validate_scheme_if_present(s) {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,

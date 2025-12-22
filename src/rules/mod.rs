@@ -301,7 +301,6 @@ pub mod server_no_body_for_1xx_204_304;
 pub mod server_response_405_allow;
 pub mod server_status_code_valid_range;
 pub mod server_x_content_type_options;
-pub mod uri;
 
 pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_cache_control_present::ServerCacheControlPresent,
