@@ -34,6 +34,7 @@ pub mod rules;
 pub mod serde_helpers;
 pub mod state;
 pub mod token;
+pub mod uri;
 
 #[cfg(test)]
 mod test_helpers;
