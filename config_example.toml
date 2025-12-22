@@ -42,6 +42,10 @@ severity = "warn"
 enabled = true
 severity = "info"
 
+[rules.server_location_header_uri_valid]
+enabled = true
+severity = "warn"
+
 [rules.server_x_content_type_options]
 enabled = true
 severity = "warn"
