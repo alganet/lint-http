@@ -7,12 +7,6 @@ use crate::rules::Rule;
 
 pub struct ClientRequestUriPercentEncodingValid;
 
-impl ClientRequestUriPercentEncodingValid {
-    fn is_hex(b: u8) -> bool {
-        b.is_ascii_hexdigit()
-    }
-}
-
 impl Rule for ClientRequestUriPercentEncodingValid {
     type Config = crate::rules::RuleConfig;
 
@@ -30,37 +24,13 @@ impl Rule for ClientRequestUriPercentEncodingValid {
         _previous: Option<&crate::http_transaction::HttpTransaction>,
         config: &Self::Config,
     ) -> Option<Violation> {
-        let s = tx.request.uri.as_bytes();
-        let len = s.len();
-        let mut i = 0usize;
-
-        while i < len {
-            if s[i] == b'%' {
-                // Need two following characters
-                if i + 2 >= len {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message:
-                            "Percent-encoding incomplete: '%' must be followed by two hex digits"
-                                .into(),
-                    });
-                }
-                let hi = s[i + 1];
-                let lo = s[i + 2];
-                if !Self::is_hex(hi) || !Self::is_hex(lo) {
-                    // Try to show the offending three-char sequence if possible
-                    let seq = &tx.request.uri[i..i + 3.min(len - i)];
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!("Invalid percent-encoding '{}' in request-target", seq),
-                    });
-                }
-                i += 3;
-            } else {
-                i += 1;
-            }
+        let s = tx.request.uri.as_str();
+        if let Some(msg) = crate::rules::uri::check_percent_encoding(s) {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: format!("{} in request-target", msg),
+            });
         }
 
         None

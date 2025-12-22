@@ -296,14 +296,17 @@ pub mod server_charset_specification;
 pub mod server_clear_site_data;
 pub mod server_content_type_present;
 pub mod server_etag_or_last_modified;
+pub mod server_location_header_uri_valid;
 pub mod server_no_body_for_1xx_204_304;
 pub mod server_response_405_allow;
 pub mod server_status_code_valid_range;
 pub mod server_x_content_type_options;
+pub mod uri;
 
 pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_cache_control_present::ServerCacheControlPresent,
     &server_etag_or_last_modified::ServerEtagOrLastModified,
+    &server_location_header_uri_valid::ServerLocationHeaderUriValid,
     &server_x_content_type_options::ServerXContentTypeOptions,
     &server_response_405_allow::ServerResponse405Allow,
     &server_clear_site_data::ServerClearSiteData,
