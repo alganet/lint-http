@@ -46,3 +46,4 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_content_length](rules/message_content_length.md) - Validates Content-Length values and multiple Content-Length header consistency.
 - [message_transfer_encoding_chunked_final](rules/message_transfer_encoding_chunked_final.md) - Ensures `chunked` (when used) is the final transfer-coding in `Transfer-Encoding` headers.
 - [message_connection_header_tokens_valid](rules/message_connection_header_tokens_valid.md) - `Connection` header tokens must be valid header field-names (token grammar).
+- [message_retry_after_date_or_delay](rules/message_retry_after_date_or_delay.md) - `Retry-After` must be either an HTTP-date or a non-negative delay-seconds.
