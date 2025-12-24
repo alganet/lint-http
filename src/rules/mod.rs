@@ -292,6 +292,7 @@ pub mod message_content_type_well_formed;
 pub mod message_header_field_names_token;
 pub mod message_retry_after_date_or_delay;
 pub mod message_transfer_encoding_chunked_final;
+pub mod message_via_header_syntax_valid;
 pub mod server_cache_control_present;
 pub mod server_charset_specification;
 pub mod server_clear_site_data;
@@ -330,6 +331,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_content_type_well_formed::MessageContentTypeWellFormed,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
+    &message_via_header_syntax_valid::MessageViaHeaderSyntaxValid,
     &server_status_code_valid_range::ServerStatusCodeValidRange,
     &server_charset_specification::ServerCharsetSpecification,
 ];
