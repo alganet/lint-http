@@ -29,6 +29,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 
 - [server_cache_control_present](rules/server_cache_control_present.md) - Checks for `Cache-Control` header on cacheable responses.
 - [server_etag_or_last_modified](rules/server_etag_or_last_modified.md) - Checks for `ETag` or `Last-Modified` headers.
+- [server_last_modified_rfc1123_format](rules/server_last_modified_rfc1123_format.md) - Ensures `Last-Modified` header uses IMF-fixdate (RFC 9110 §7.7.1).
 - [server_location_header_uri_valid](rules/server_location_header_uri_valid.md) - `Location` header value should be a valid URI-reference.
 - [server_x_content_type_options](rules/server_x_content_type_options.md) - Checks for `X-Content-Type-Options: nosniff`.
 - [server_response_405_allow](rules/server_response_405_allow.md) - Checks `Allow` header is present on `405` responses.
