@@ -13,8 +13,9 @@ This rule checks if the client correctly uses conditional headers (`If-None-Matc
 If a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time.
 
 ## Specifications
-- [RFC 7232 §3.2](https://www.rfc-editor.org/rfc/rfc7232.html#section-3.2): If-None-Match
-- [RFC 7232 §3.3](https://www.rfc-editor.org/rfc/rfc7232.html#section-3.3): If-Modified-Since
+
+- [RFC 9110 §13.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.1): If-None-Match
+- [RFC 9110 §13.1.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3): If-Modified-Since
 
 ## Configuration
 
@@ -27,6 +28,7 @@ severity = "warn"
 ## Examples
 
 ### ✅ Good Request
+
 **First Request:**
 ```http
 GET /image.png HTTP/1.1
@@ -47,6 +49,7 @@ If-None-Match: "abcdef12345"
 ```
 
 ### ❌ Bad Request
+
 **First Request:**
 ```http
 GET /image.png HTTP/1.1

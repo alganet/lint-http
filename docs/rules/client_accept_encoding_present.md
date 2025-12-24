@@ -14,7 +14,7 @@ Modern HTTP clients should support compression (gzip, brotli, etc.) to reduce ba
 
 ## Specifications
 
-- [RFC 7231 §5.3.4](https://www.rfc-editor.org/rfc/rfc7231.html#section-5.3.4): Accept-Encoding header
+- [RFC 9110 §12.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3): Accept-Encoding header
 
 ## Configuration
 
@@ -27,6 +27,7 @@ severity = "info"
 ## Examples
 
 ### ✅ Good Request
+
 ```http
 GET /resource HTTP/1.1
 Host: example.com
@@ -34,6 +35,7 @@ Accept-Encoding: gzip, deflate, br
 ```
 
 ### ❌ Bad Request
+
 ```http
 GET /resource HTTP/1.1
 Host: example.com

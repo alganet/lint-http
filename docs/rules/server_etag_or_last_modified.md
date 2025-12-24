@@ -7,14 +7,15 @@ SPDX-License-Identifier: ISC
 # Server ETag or Last-Modified Present
 
 ## Description
+
 This rule checks if `200 OK` responses include either an `ETag` or a `Last-Modified` header.
 
 These headers act as validators, allowing clients to perform conditional requests (`If-None-Match` or `If-Modified-Since`). This enables efficient caching and revalidation, significantly reducing bandwidth when resources haven't changed.
 
 ## Specifications
-- [RFC 7232 §2.1](https://www.rfc-editor.org/rfc/rfc7232.html#section-2.1): Weak and strong validators
-- [RFC 7232 §2.2](https://www.rfc-editor.org/rfc/rfc7232.html#section-2.2): Last-Modified header
-- [RFC 7232 §2.3](https://www.rfc-editor.org/rfc/rfc7232.html#section-2.3): ETag header
+
+- [RFC 9110 §8.8.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.1): Last-Modified header
+- [RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): ETag header
 
 ## Configuration
 
@@ -43,6 +44,7 @@ Last-Modified: Wed, 21 Oct 2015 07:28:00 GMT
 ```
 
 ### ❌ Bad Response
+
 ```http
 HTTP/1.1 200 OK
 Content-Type: image/png

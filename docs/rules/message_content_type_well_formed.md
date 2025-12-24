@@ -12,8 +12,7 @@ This rule checks that `Content-Type` headers (both requests and responses) parse
 
 ## Specifications
 
-- [RFC 9110 §6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4): Content-Type header and media type syntax
-- [RFC 7231 §3.1.1.1](https://www.rfc-editor.org/rfc/rfc7231#section-3.1.1.1): Media type semantics
+- [RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type header and media type syntax
 
 ## Configuration
 
@@ -25,7 +24,7 @@ severity = "warn"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 Content-Type: text/plain
@@ -33,7 +32,7 @@ Content-Type: application/json; charset=utf-8
 Content-Type: image/vnd.example+json; foo="bar"; charset=utf-8
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 Content-Type: text
