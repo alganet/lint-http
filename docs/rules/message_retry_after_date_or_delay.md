@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# Message Retry-After: Date or Delay
+# Message Retry-After Date or Delay
 
 ## Description
 
@@ -12,12 +12,9 @@ The `Retry-After` header, when present in responses, MUST be either a non-negati
 
 ## Specifications
 
-- [RFC 9110 §7.1.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.3) — Retry-After: HTTP-date / delta-seconds
-  (IMF-fixdate date format is expected for HTTP-date)
+- [RFC 9110 §10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3): Retry-After header
 
 ## Configuration
-
-Minimal example (enable the rule and set severity):
 
 ```toml
 [rules.message_retry_after_date_or_delay]
@@ -27,28 +24,22 @@ severity = "warn"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 HTTP/1.1 503 Service Unavailable
 Retry-After: 120
 
-
 HTTP/1.1 503 Service Unavailable
 Retry-After: Wed, 21 Oct 2015 07:28:00 GMT
-
-
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 HTTP/1.1 503 Service Unavailable
 Retry-After: tomorrow
 
-
 HTTP/1.1 503 Service Unavailable
 Retry-After: -1
-
-
 ```

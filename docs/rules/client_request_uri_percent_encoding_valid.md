@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# client_request_uri_percent_encoding_valid
+# Client Request URI Percent Encoding Valid
 
 ## Description
 
@@ -12,7 +12,7 @@ This rule checks that percent-encodings (pct-encodings) in the request-target ar
 
 ## Specifications
 
-- RFC 3986 §2.1 — Percent-Encoding: https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1
+- [RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding
 
 ## Configuration
 
@@ -36,9 +36,9 @@ Host: example.com
 ```http
 GET /path%2 HTTP/1.1
 Host: example.com
-```
+# incomplete percent-encoding
 
-```http
 GET /path%GG HTTP/1.1
 Host: example.com
+# invalid hex digits
 ```

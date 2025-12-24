@@ -8,13 +8,13 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-This rule validates that **header field-names** conform to the `token` grammar (RFC 7230 §3.2). Field-names containing control characters, spaces, or other separator characters are invalid and can indicate protocol violations or injection attempts.
+This rule validates that **header field-names** conform to the `token` grammar. Field-names containing control characters, spaces, or other separator characters are invalid and can indicate protocol violations or injection attempts.
 
 The rule flags header names that contain characters outside the allowed `tchar` set (letters, digits, and the following characters: ``! # $ % & ' * + - . ^ _ ` | ~``).
 
 ## Specifications
 
-- [RFC 7230 §3.2](https://www.rfc-editor.org/rfc/rfc7230.html#section-3.2): Field syntax and header field naming
+- [RFC 9110 §5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1): Field Names
 
 ## Configuration
 

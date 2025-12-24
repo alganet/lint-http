@@ -12,8 +12,8 @@ HTTP request methods are case-sensitive tokens. This rule ensures method tokens 
 
 ## Specifications
 
-- [RFC 9112 §5.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-5.1): Method
-- [RFC 7230 §3.2.6](https://www.rfc-editor.org/rfc/rfc7230.html#section-3.2.6): Tokens
+- [RFC 9110 §9.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1): Methods
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens
 
 ## Configuration
 
@@ -26,11 +26,13 @@ severity = "warn"
 ## Examples
 
 ### ✅ Good
+
 ```http
 GET /index.html HTTP/1.1
 ```
 
 ### ❌ Bad
+
 ```http
 get /index.html HTTP/1.1
 ```

@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# Message: Connection Upgrade
+# Message Connection Upgrade
 
 ## Description
 
@@ -14,7 +14,7 @@ Missing the `Upgrade` header while advertising `upgrade` in `Connection` can cau
 
 ## Specifications
 
-- [RFC 7230 §6.7](https://www.rfc-editor.org/rfc/rfc7230.html#section-6.7): Upgrade mechanisms
+- [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade header
 
 ## Configuration
 
@@ -27,12 +27,14 @@ severity = "warn"
 ## Examples
 
 ### ✅ Good
+
 ```http
 Connection: upgrade
 Upgrade: websocket
 ```
 
 ### ❌ Bad
+
 ```http
 Connection: upgrade
 # Missing Upgrade header

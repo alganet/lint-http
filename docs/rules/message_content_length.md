@@ -12,13 +12,13 @@ This rule validates `Content-Length` header values for syntax and consistency:
 
 - Each `Content-Length` header value must be a non-negative decimal integer (no signs, no decimals).
 - A `Content-Length` header with an empty value or containing non-digit characters is invalid.
-- When multiple `Content-Length` header fields are present, their trimmed numeric values MUST be identical (RFC 7230 §3.3.2).
+- When multiple `Content-Length` header fields are present, their trimmed numeric values MUST be identical.
 
 Improper `Content-Length` values can lead to message framing errors or truncated bodies; the rule flags invalid or inconsistent values.
 
 ## Specifications
 
-- [RFC 7230 §3.3.2](https://www.rfc-editor.org/rfc/rfc7230.html#section-3.3.2): Message Body and Content-Length
+- [RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): Content-Length
 
 ## Configuration
 

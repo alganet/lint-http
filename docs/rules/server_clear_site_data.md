@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# server_clear_site_data
+# Server Clear Site Data
 
 ## Description
 
@@ -12,8 +12,8 @@ Checks that configured logout paths include a `Clear-Site-Data` header so client
 
 ## Specifications
 
-- [MDN: Clear-Site-Data](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Clear-Site-Data)
 - [W3C Clear Site Data Specification](https://www.w3.org/TR/clear-site-data/)
+- [MDN: Clear-Site-Data](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Clear-Site-Data)
 
 ## Configuration
 
@@ -45,4 +45,5 @@ Host: example.com
 
 HTTP/1.1 200 OK
 Content-Type: application/json
+# Missing Clear-Site-Data
 ```

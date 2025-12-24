@@ -14,7 +14,7 @@ While not strictly mandatory for all HTTP requests, the `User-Agent` header is h
 
 ## Specifications
 
-- [RFC 7231 §5.5.3](https://www.rfc-editor.org/rfc/rfc7231.html#section-5.5.3): User-Agent header
+- [RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5): User-Agent header
 
 ## Configuration
 
