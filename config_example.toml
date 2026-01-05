@@ -77,6 +77,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.client_expect_header_valid]
+enabled = true
+severity = "error"
+
 [rules.client_request_target_no_fragment]
 enabled = true
 severity = "error"
