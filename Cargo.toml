@@ -15,7 +15,7 @@ keywords = ["proxy", "http", "lint", "testing", "debugging"]
 categories = ["network-programming", "development-tools"]
 
 [dependencies]
-tokio = { version = "1.43", features = ["full"] }
+tokio = { version = "1.49", features = ["full"] }
 hyper = { version = "1.8.1", features = ["full"] }
 clap = { version = "4.3", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
