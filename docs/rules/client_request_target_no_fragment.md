@@ -15,7 +15,7 @@ Fragment identifiers are intended for client-side use only (e.g., to scroll to a
 ## Specifications
 
 - [RFC 3986 §3.5](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.5): Fragment
-- [RFC 9112 §2.7](https://www.rfc-editor.org/rfc/rfc9112.html#section-2.7): Request-Target
+- [RFC 9112 §3.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2): Request-Target
 
 ## Configuration
 

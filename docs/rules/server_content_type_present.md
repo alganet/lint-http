@@ -18,7 +18,7 @@ The rule considers a response to likely have a body when any of:
 ## Specifications
 
 - [RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type header
-- [RFC 9112 §6](https://www.rfc-editor.org/rfc/rfc9112.html#section-6): Message body length rules
+- [RFC 9112 §6](https://www.rfc-editor.org/rfc/rfc9112.html#name-message-body-length): Message body length rules
 
 ## Configuration
 

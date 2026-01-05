@@ -14,7 +14,7 @@ The status-code element is a three-digit integer that attempts to understand and
 
 ## Specifications
 
-- [RFC 9110 §6](https://www.rfc-editor.org/rfc/rfc9110.html#section-6): Status Codes
+- [RFC 9110 §15.1](https://www.rfc-editor.org/rfc/rfc9110.html#name-overview-of-status-codes): Status Codes
 
 ## Configuration
 
