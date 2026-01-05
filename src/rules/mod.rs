@@ -278,6 +278,7 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<RuleConf
 
 pub mod client_accept_encoding_present;
 pub mod client_cache_respect;
+pub mod client_expect_header_valid;
 pub mod client_host_header;
 pub mod client_range_header_syntax_valid;
 pub mod client_request_method_token_uppercase;
@@ -323,6 +324,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_request_uri_percent_encoding_valid::ClientRequestUriPercentEncodingValid,
     &client_range_header_syntax_valid::ClientRangeHeaderSyntaxValid,
     &client_request_method_token_uppercase::ClientRequestMethodTokenUppercase,
+    &client_expect_header_valid::ClientExpectHeaderValid,
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
     &message_content_length::MessageContentLength,
     &message_header_field_names_token::MessageHeaderFieldNamesToken,
