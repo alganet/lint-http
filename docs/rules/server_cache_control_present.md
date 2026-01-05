@@ -14,7 +14,7 @@ The `Cache-Control` header is the primary mechanism for defining the caching pol
 
 ## Specifications
 
-- [RFC 9111 §5.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2): Cache-Control header
+- [RFC 9111 §5.2](https://www.rfc-editor.org/rfc/rfc9111.html#name-cache-control): Cache-Control header
 
 ## Configuration
 

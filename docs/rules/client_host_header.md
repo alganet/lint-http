@@ -19,8 +19,8 @@ This rule combines presence and syntax checks previously implemented in separate
 
 ## Specifications
 
+- [RFC 9110 §7.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2): Host header field
 - [RFC 9112 §3.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2): Host header field in requests
-- [RFC 9112 §5.4](https://www.rfc-editor.org/rfc/rfc9112.html#section-5.4): Host header field
 - [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2): Authority component and IP-literals
 
 ## Configuration

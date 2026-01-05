@@ -13,7 +13,7 @@ Responses with status codes in the 1xx range (Informational), `204 No Content`, 
 When these statuses include a message body, intermediaries and clients can misinterpret the message framing, leading to incorrect behavior.
 
 ## Specifications
-- [RFC 9110 §6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.3): Message body for status codes 1xx, 204, 304
+- [RFC 9110 §6.4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.1): Message body for status codes 1xx, 204, 304
 
 ## Configuration
 

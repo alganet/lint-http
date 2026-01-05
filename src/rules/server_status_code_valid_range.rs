@@ -34,7 +34,7 @@ impl Rule for ServerStatusCodeValidRange {
                 rule: self.id().into(),
                 severity: config.severity,
                 message: format!(
-                    "HTTP response status code {} is outside the valid range of 100-599 (RFC 9110 §6)",
+                    "HTTP response status code {} is outside the valid range of 100-599 (RFC 9110 §15.1)",
                     status
                 ),
             });

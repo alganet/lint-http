@@ -14,7 +14,7 @@ The `Allow` header is required in `405` responses to indicate the set of methods
 
 ## Specifications
 
-- [RFC 9110 §10.5.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.5.6): 405 Method Not Allowed
+- [RFC 9110 §10.5.6](https://www.rfc-editor.org/rfc/rfc9110.html#name-405-method-not-allowed): 405 Method Not Allowed
 - [RFC 9110 §10.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1): Allow header
 
 ## Configuration

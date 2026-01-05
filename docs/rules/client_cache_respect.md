@@ -14,7 +14,7 @@ If a server provides validators (like `ETag` or `Last-Modified`) in a response, 
 
 ## Specifications
 
-- [RFC 9110 §13.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.1): If-None-Match
+- [RFC 9110 §13.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2): If-None-Match
 - [RFC 9110 §13.1.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3): If-Modified-Since
 
 ## Configuration
