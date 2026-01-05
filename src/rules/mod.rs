@@ -284,6 +284,7 @@ pub mod client_request_method_token_uppercase;
 pub mod client_request_target_no_fragment;
 pub mod client_request_uri_percent_encoding_valid;
 pub mod client_user_agent_present;
+pub mod message_age_header_numeric;
 pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
 pub mod message_content_length;
@@ -331,6 +332,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_content_type_well_formed::MessageContentTypeWellFormed,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
+    &message_age_header_numeric::MessageAgeHeaderNumeric,
     &message_via_header_syntax_valid::MessageViaHeaderSyntaxValid,
     &server_status_code_valid_range::ServerStatusCodeValidRange,
     &server_charset_specification::ServerCharsetSpecification,
