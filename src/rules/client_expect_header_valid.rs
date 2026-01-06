@@ -72,7 +72,7 @@ pub(crate) fn validate_expect_member(member: &str) -> Option<String> {
     if name.is_empty() {
         return Some("Empty expectation name in Expect header".into());
     }
-    if let Some(c) = crate::token::find_invalid_token_char(name) {
+    if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
         return Some(format!(
             "Invalid token in Expect header: '{}' (invalid char: '{}')",
             name, c
@@ -148,7 +148,7 @@ pub(crate) fn validate_expect_member(member: &str) -> Option<String> {
                     rhs
                 ));
             }
-        } else if let Some(c) = crate::token::find_invalid_token_char(rhs) {
+        } else if let Some(c) = crate::helpers::token::find_invalid_token_char(rhs) {
             return Some(format!(
                 "Invalid token in Expect header parameter: '{}' (invalid char: '{}')",
                 rhs, c

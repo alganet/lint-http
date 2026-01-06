@@ -27,6 +27,7 @@ pub mod ca;
 pub mod capture;
 pub mod config;
 pub mod connection;
+pub mod helpers;
 pub mod http_date;
 pub mod http_transaction;
 pub mod lint;
@@ -34,8 +35,6 @@ pub mod proxy;
 pub mod rules;
 pub mod serde_helpers;
 pub mod state;
-pub mod token;
-pub mod uri;
 
 #[cfg(test)]
 mod test_helpers;

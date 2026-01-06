@@ -27,7 +27,7 @@ impl Rule for ClientRequestMethodTokenUppercase {
         let m = tx.request.method.as_str();
 
         // Validate token characters per RFC token (tchar) and uppercase requirement using shared helpers
-        if let Some(c) = crate::token::find_invalid_token_char(m) {
+        if let Some(c) = crate::helpers::token::find_invalid_token_char(m) {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
@@ -35,7 +35,7 @@ impl Rule for ClientRequestMethodTokenUppercase {
             });
         }
 
-        if crate::token::find_first_lowercase(m).is_some() {
+        if crate::helpers::token::find_first_lowercase(m).is_some() {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,

@@ -48,7 +48,7 @@ impl Rule for MessageHeaderFieldNamesToken {
 // Extracted helper to make the message/violation formatting testable without needing
 // to construct invalid `HeaderName` values (which hyper often rejects).
 fn check_header_name(name: &str, config: &crate::rules::RuleConfig) -> Option<Violation> {
-    if let Some(c) = crate::token::find_invalid_token_char(name) {
+    if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
         return Some(Violation {
             rule: MessageHeaderFieldNamesToken.id().into(),
             severity: config.severity,
