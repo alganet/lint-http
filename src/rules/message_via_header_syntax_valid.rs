@@ -89,7 +89,7 @@ fn is_valid_protocol(tok: &str) -> bool {
         if c == '/' || c == '.' {
             continue;
         }
-        if crate::token::is_tchar(c) {
+        if crate::helpers::token::is_tchar(c) {
             continue;
         }
         return false;
@@ -125,7 +125,7 @@ fn is_valid_received_by(rb: &str) -> bool {
         return false;
     }
     // host/pseudonym characters: allow tchar and '.' and ':' handled already
-    if crate::token::find_invalid_token_char(host).is_some() {
+    if crate::helpers::token::find_invalid_token_char(host).is_some() {
         return false;
     }
     if parts.len() == 2 {

@@ -103,7 +103,7 @@ fn check_content_type(
     }
 
     // Validate tokens for type and subtype
-    if let Some(c) = crate::token::find_invalid_token_char(t) {
+    if let Some(c) = crate::helpers::token::find_invalid_token_char(t) {
         return Some(Violation {
             rule: MessageContentTypeWellFormed.id().into(),
             severity: config.severity,
@@ -114,7 +114,7 @@ fn check_content_type(
         });
     }
 
-    if let Some(c) = crate::token::find_invalid_token_char(s) {
+    if let Some(c) = crate::helpers::token::find_invalid_token_char(s) {
         return Some(Violation {
             rule: MessageContentTypeWellFormed.id().into(),
             severity: config.severity,
@@ -143,7 +143,7 @@ fn check_content_type(
                         message: format!("Invalid Content-Type '{}': empty parameter name", val),
                     });
                 }
-                if let Some(c) = crate::token::find_invalid_token_char(name) {
+                if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
                     return Some(Violation {
                         rule: MessageContentTypeWellFormed.id().into(),
                         severity: config.severity,
@@ -161,7 +161,7 @@ fn check_content_type(
                     // We won't validate quoted-string contents further here
                 } else {
                     // must be a token
-                    if let Some(c) = crate::token::find_invalid_token_char(value) {
+                    if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
                         return Some(Violation {
                             rule: MessageContentTypeWellFormed.id().into(),
                             severity: config.severity,
