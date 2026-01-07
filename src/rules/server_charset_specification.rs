@@ -27,18 +27,27 @@ impl Rule for ServerCharsetSpecification {
         let Some(resp) = &tx.response else {
             return None;
         };
-        if let Some(content_type) = resp.headers.get(hyper::header::CONTENT_TYPE.as_str()) {
-            if let Ok(ct_str) = content_type.to_str() {
-                let ct_lower = ct_str.to_lowercase();
-                if ct_lower.starts_with("text/")
-                    && !ct_lower.contains(";charset=")
-                    && !ct_lower.contains("; charset=")
-                {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Text-based Content-Type header missing charset parameter.".into(),
+
+        if let Some(ct_str) = crate::helpers::headers::get_header_str(&resp.headers, "content-type")
+        {
+            // Parse content-type to inspect type and parameters reliably
+            if let Ok(parsed) = crate::helpers::headers::parse_media_type(ct_str) {
+                if parsed.type_.eq_ignore_ascii_case("text") {
+                    let has_charset = parsed.params.unwrap_or("").split(';').any(|p| {
+                        let p = p.trim();
+                        p.split_once('=')
+                            .map(|(k, _)| k.trim().eq_ignore_ascii_case("charset"))
+                            .unwrap_or(false)
                     });
+
+                    if !has_charset {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: "Text-based Content-Type header missing charset parameter."
+                                .into(),
+                        });
+                    }
                 }
             }
         }

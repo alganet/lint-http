@@ -39,12 +39,11 @@ impl Rule for ServerContentTypePresent {
         }
 
         // If response likely contains a body, require Content-Type.
-        let has_nonzero_content_length = resp
-            .headers
-            .get("content-length")
-            .and_then(|v| v.to_str().ok().and_then(|s| s.parse::<usize>().ok()))
-            .map(|n| n > 0)
-            .unwrap_or(false);
+        let has_nonzero_content_length =
+            crate::helpers::headers::get_header_str(&resp.headers, "content-length")
+                .and_then(|s| s.parse::<usize>().ok())
+                .map(|n| n > 0)
+                .unwrap_or(false);
 
         let has_transfer_encoding = resp.headers.contains_key("transfer-encoding");
 
