@@ -53,45 +53,26 @@ fn check_content_type(
     val: &str,
     config: &crate::rules::RuleConfig,
 ) -> Option<Violation> {
-    let trimmed = val.trim();
-    if trimmed.is_empty() {
-        return Some(Violation {
-            rule: MessageContentTypeWellFormed.id().into(),
-            severity: config.severity,
-            message: "Empty Content-Type header".into(),
-        });
-    }
+    use crate::helpers::headers::parse_media_type;
 
-    // Split media-type and parameters
-    let mut parts = trimmed.splitn(2, ';');
-    let media = parts.next().unwrap().trim();
-
-    // main type/subtype
-    if !media.contains('/') {
-        return Some(Violation {
-            rule: MessageContentTypeWellFormed.id().into(),
-            severity: config.severity,
-            message: format!(
-                "Invalid Content-Type '{}': missing '/' between type and subtype",
-                val
-            ),
-        });
-    }
-
-    let mut ts = media.splitn(2, '/');
-    let t = ts.next().unwrap().trim();
-    let s = ts.next().unwrap().trim();
-
-    if t.is_empty() || s.is_empty() {
-        return Some(Violation {
-            rule: MessageContentTypeWellFormed.id().into(),
-            severity: config.severity,
-            message: format!("Invalid Content-Type '{}': empty type or subtype", val),
-        });
-    }
+    let parsed = match parse_media_type(val) {
+        Ok(p) => p,
+        Err(msg) => {
+            let message = if msg == "Empty media-type" {
+                "Empty Content-Type header".into()
+            } else {
+                msg.replace("media-type", "Content-Type")
+            };
+            return Some(Violation {
+                rule: MessageContentTypeWellFormed.id().into(),
+                severity: config.severity,
+                message,
+            });
+        }
+    };
 
     // Wildcards are not valid in Content-Type (they are for Accept)
-    if t == "*" || s == "*" {
+    if parsed.type_ == "*" || parsed.subtype == "*" {
         return Some(Violation {
             rule: MessageContentTypeWellFormed.id().into(),
             severity: config.severity,
@@ -103,7 +84,7 @@ fn check_content_type(
     }
 
     // Validate tokens for type and subtype
-    if let Some(c) = crate::helpers::token::find_invalid_token_char(t) {
+    if let Some(c) = crate::helpers::token::find_invalid_token_char(parsed.type_) {
         return Some(Violation {
             rule: MessageContentTypeWellFormed.id().into(),
             severity: config.severity,
@@ -114,7 +95,7 @@ fn check_content_type(
         });
     }
 
-    if let Some(c) = crate::helpers::token::find_invalid_token_char(s) {
+    if let Some(c) = crate::helpers::token::find_invalid_token_char(parsed.subtype) {
         return Some(Violation {
             rule: MessageContentTypeWellFormed.id().into(),
             severity: config.severity,
@@ -126,7 +107,7 @@ fn check_content_type(
     }
 
     // If parameters exist, do a basic validation: name=value pairs, name token, value token or quoted-string
-    if let Some(params) = parts.next() {
+    if let Some(params) = parsed.params {
         for raw in params.split(';') {
             let p = raw.trim();
             if p.is_empty() {

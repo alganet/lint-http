@@ -28,24 +28,21 @@ impl Rule for ServerLastModifiedRfc1123Format {
             return None;
         };
 
-        if let Some(hv) = resp.headers.get("last-modified") {
-            if let Ok(s) = hv.to_str() {
-                if !crate::http_date::is_valid_http_date(s) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Last-Modified header is not a valid IMF-fixdate (RFC 9110)"
-                            .into(),
-                    });
-                }
-            } else {
-                // Non-UTF8 header values are considered invalid for date parsing
+        if let Some(s) = crate::helpers::headers::get_header_str(&resp.headers, "last-modified") {
+            if !crate::http_date::is_valid_http_date(s) {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
-                    message: "Last-Modified header contains non-UTF8 bytes and is invalid".into(),
+                    message: "Last-Modified header is not a valid IMF-fixdate (RFC 9110)".into(),
                 });
             }
+        } else if resp.headers.contains_key("last-modified") {
+            // Non-UTF8 header values are considered invalid for date parsing
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: "Last-Modified header contains non-UTF8 bytes and is invalid".into(),
+            });
         }
         None
     }

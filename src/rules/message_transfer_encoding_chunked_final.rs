@@ -31,11 +31,8 @@ impl Rule for MessageTransferEncodingChunkedFinal {
                     Ok(v) => v,
                     Err(_) => continue,
                 };
-                for part in s.split(',') {
-                    let token = part.trim().to_ascii_lowercase();
-                    if !token.is_empty() {
-                        codings.push(token);
-                    }
+                for token in crate::helpers::headers::parse_list_header(s) {
+                    codings.push(token.to_ascii_lowercase());
                 }
             }
 

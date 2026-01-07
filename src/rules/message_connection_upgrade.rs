@@ -48,10 +48,10 @@ impl Rule for MessageConnectionUpgrade {
 fn connection_contains_upgrade_map(headers: &hyper::HeaderMap) -> bool {
     if let Some(val) = headers.get("connection") {
         if let Ok(s) = val.to_str() {
-            for token in s.split(',') {
-                if token.trim().eq_ignore_ascii_case("upgrade") {
-                    return true;
-                }
+            if crate::helpers::headers::parse_list_header(s)
+                .any(|token| token.eq_ignore_ascii_case("upgrade"))
+            {
+                return true;
             }
         }
     }
