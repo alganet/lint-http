@@ -286,6 +286,7 @@ mod tests {
                 tx.request.uri = resource1.clone();
                 tx.response = Some(crate::http_transaction::ResponseInfo {
                     status: 200 + i,
+                    version: "HTTP/1.1".into(),
                     headers: HeaderMap::new(),
                 });
                 store1.record_transaction(&tx);

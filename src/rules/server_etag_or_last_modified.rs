@@ -63,6 +63,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
+            version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(headers),
         });
 

@@ -204,6 +204,7 @@ mod tests {
         tx.request.uri = format!("http://test.com{}", resource_path);
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
+            version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
         });
 

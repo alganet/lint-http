@@ -23,6 +23,8 @@ pub struct TimingInfo {
 pub struct RequestInfo {
     pub method: String,
     pub uri: String,
+    /// The exact HTTP-version token from the start-line, e.g. "HTTP/1.1". Required.
+    pub version: String,
     #[serde(
         serialize_with = "crate::serde_helpers::serialize_headers",
         deserialize_with = "crate::serde_helpers::deserialize_headers"
@@ -34,6 +36,8 @@ pub struct RequestInfo {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ResponseInfo {
     pub status: u16,
+    /// The exact HTTP-version token from the status-line, e.g. "HTTP/1.1". Required.
+    pub version: String,
     #[serde(
         serialize_with = "crate::serde_helpers::serialize_headers",
         deserialize_with = "crate::serde_helpers::deserialize_headers"
@@ -67,6 +71,7 @@ impl HttpTransaction {
             request: RequestInfo {
                 method,
                 uri,
+                version: "HTTP/1.1".into(),
                 headers: HeaderMap::new(),
             },
             response: None,
@@ -143,6 +148,7 @@ mod tests {
         let mut tx = make_test_transaction();
         tx.response = Some(ResponseInfo {
             status: 200,
+            version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("etag", "\"abc\"")]),
         });
 

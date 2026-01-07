@@ -68,6 +68,7 @@ mod tests {
         if let Some(h) = headers {
             tx.response = Some(crate::http_transaction::ResponseInfo {
                 status: 200,
+                version: "HTTP/1.1".into(),
                 headers: crate::test_helpers::make_headers_from_pairs(&h),
             });
         }
@@ -95,6 +96,7 @@ mod tests {
         hm.insert("last-modified", bad);
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
+            version: "HTTP/1.1".into(),
             headers: hm,
         });
 

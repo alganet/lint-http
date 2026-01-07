@@ -34,6 +34,7 @@ async fn test_captures_seed_behavior(#[case] seed_enabled: bool) -> anyhow::Resu
     resp_headers.insert("etag", "\"abc123\"".parse()?);
     tx.response = Some(ResponseInfo {
         status: 200,
+        version: "HTTP/1.1".into(),
         headers: resp_headers,
     });
 

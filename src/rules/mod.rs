@@ -292,6 +292,7 @@ pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
 pub mod message_content_type_well_formed;
 pub mod message_header_field_names_token;
+pub mod message_http_version_syntax_valid;
 pub mod message_retry_after_date_or_delay;
 pub mod message_transfer_encoding_chunked_final;
 pub mod message_via_header_syntax_valid;
@@ -336,6 +337,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
     &message_age_header_numeric::MessageAgeHeaderNumeric,
     &message_via_header_syntax_valid::MessageViaHeaderSyntaxValid,
+    &message_http_version_syntax_valid::MessageHttpVersionSyntaxValid,
     &server_status_code_valid_range::ServerStatusCodeValidRange,
     &server_charset_specification::ServerCharsetSpecification,
 ];

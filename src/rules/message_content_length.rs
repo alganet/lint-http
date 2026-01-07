@@ -164,6 +164,7 @@ mod tests {
         hm.insert(hyper::header::CONTENT_LENGTH, HeaderValue::from_str(value)?);
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
+            version: "HTTP/1.1".into(),
             headers: hm,
         });
 
@@ -221,6 +222,7 @@ mod tests {
         }
         tx2.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
+            version: "HTTP/1.1".into(),
             headers: hm2,
         });
 
