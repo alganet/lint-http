@@ -106,7 +106,11 @@ pub fn make_test_transaction_with_response(
 
     let mut tx = make_test_transaction();
     let headers = make_headers_from_pairs(resp_headers);
-    tx.response = Some(ResponseInfo { status, headers });
+    tx.response = Some(ResponseInfo {
+        status,
+        version: "HTTP/1.1".into(),
+        headers,
+    });
     tx
 }
 

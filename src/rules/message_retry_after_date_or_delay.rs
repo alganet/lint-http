@@ -114,6 +114,7 @@ mod tests {
         );
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 503,
+            version: "HTTP/1.1".into(),
             headers: hm,
         });
 
@@ -163,6 +164,7 @@ mod tests {
         hm.insert("retry-after", bad);
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 503,
+            version: "HTTP/1.1".into(),
             headers: hm,
         });
 

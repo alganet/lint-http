@@ -44,6 +44,17 @@ static HOP_BY_HOP_HEADERS: &[&str] = &[
     "upgrade",
 ];
 
+// Convert hyper::Version into the textual HTTP-version token used in start/status lines.
+fn format_http_version(v: hyper::Version) -> String {
+    match v {
+        hyper::Version::HTTP_09 => "HTTP/0.9".to_string(),
+        hyper::Version::HTTP_10 => "HTTP/1.0".to_string(),
+        hyper::Version::HTTP_11 => "HTTP/1.1".to_string(),
+        hyper::Version::HTTP_2 => "HTTP/2.0".to_string(),
+        _ => "HTTP/1.1".to_string(),
+    }
+}
+
 #[derive(Debug)]
 struct AlwaysResolves(Arc<CertifiedKey>);
 
@@ -279,6 +290,7 @@ where
         method: &str,
         uri_str: &str,
         req_headers: &hyper::HeaderMap<hyper::header::HeaderValue>,
+        req_version: String,
         status: u16,
         response_headers: Option<hyper::HeaderMap<hyper::header::HeaderValue>>,
         duration_ms: u64,
@@ -289,8 +301,10 @@ where
             uri_str.to_string(),
         );
         tx.request.headers = req_headers.clone();
+        tx.request.version = req_version;
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
+            version: "HTTP/1.1".into(),
             headers: response_headers.unwrap_or_default(),
         });
         tx.timing = crate::http_transaction::TimingInfo { duration_ms };
@@ -342,6 +356,8 @@ where
         .to_string();
     let client_id = crate::state::ClientIdentifier::new(client_ip, user_agent);
 
+    // Capture request version before moving `req` into body
+    let req_version = format_http_version(req.version());
     let body = req.into_body();
     let captures = &shared.captures;
 
@@ -363,6 +379,7 @@ where
                 method.as_str(),
                 &uri_str,
                 &req_headers,
+                req_version.clone(),
                 500,
                 None,
                 duration,
@@ -391,6 +408,7 @@ where
                 method.as_str(),
                 &uri_str,
                 &req_headers,
+                req_version.clone(),
                 500,
                 None,
                 duration,
@@ -416,6 +434,7 @@ where
                 method.as_str(),
                 &uri_str,
                 &req_headers,
+                req_version.clone(),
                 502,
                 None,
                 duration,
@@ -427,6 +446,8 @@ where
 
     let status = resp.status().as_u16();
     let headers = resp.headers().clone();
+    // Capture the upstream response version before consuming the body
+    let resp_ver = format_http_version(resp.version());
     let resp_body_bytes = match resp.into_body().collect().await {
         Ok(collected) => collected.to_bytes(),
         Err(e) => {
@@ -449,6 +470,7 @@ where
                 method.as_str(),
                 &uri_str,
                 &req_headers,
+                req_version.clone(),
                 500,
                 None,
                 duration,
@@ -466,8 +488,10 @@ where
         uri_str.clone(),
     );
     tx.request.headers = req_headers.clone();
+    tx.request.version = req_version.clone();
     tx.response = Some(crate::http_transaction::ResponseInfo {
         status,
+        version: resp_ver,
         headers: headers.clone(),
     });
     tx.timing = crate::http_transaction::TimingInfo {
@@ -1735,7 +1759,15 @@ mod tests {
             let _ = run_proxy(addr, cw, cfg, engine).await;
         });
 
-        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        // Wait up to 2s for the CA files to be created by startup
+        let start = std::time::Instant::now();
+        while !(cert_path.exists() && key_path.exists()) {
+            if start.elapsed() > std::time::Duration::from_secs(2) {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+
         task.abort();
         let _ = task.await;
 

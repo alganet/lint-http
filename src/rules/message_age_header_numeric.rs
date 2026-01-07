@@ -114,6 +114,7 @@ mod tests {
         hm.insert("age", bad);
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
+            version: "HTTP/1.1".into(),
             headers: hm,
         });
 

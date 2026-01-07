@@ -129,6 +129,7 @@ mod tests {
         tx.timing = TimingInfo { duration_ms: 5 };
         tx.response = Some(ResponseInfo {
             status: 200,
+            version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
         });
 

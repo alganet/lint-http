@@ -88,6 +88,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 302,
+            version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("location", loc)]),
         });
         tx
@@ -128,6 +129,7 @@ mod tests {
         );
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 302,
+            version: "HTTP/1.1".into(),
             headers,
         });
 
@@ -147,6 +149,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 302,
+            version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("location", "1http://ex")]),
         });
 
@@ -166,6 +169,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 302,
+            version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("location", "ht!tp://ex")]),
         });
 
@@ -187,6 +191,7 @@ mod tests {
         headers.append("location", "bad%ZZ".parse().unwrap());
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 302,
+            version: "HTTP/1.1".into(),
             headers,
         });
 
