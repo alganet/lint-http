@@ -282,6 +282,7 @@ pub mod client_expect_header_valid;
 pub mod client_host_header;
 pub mod client_range_header_syntax_valid;
 pub mod client_request_method_token_uppercase;
+pub mod client_request_target_form_checks;
 pub mod client_request_target_no_fragment;
 pub mod client_request_uri_percent_encoding_valid;
 pub mod client_user_agent_present;
@@ -324,6 +325,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_cache_respect::ClientCacheRespect,
     &client_host_header::ClientHostHeader,
     &client_request_target_no_fragment::ClientRequestTargetNoFragment,
+    &client_request_target_form_checks::ClientRequestTargetFormChecks,
     &client_request_uri_percent_encoding_valid::ClientRequestUriPercentEncodingValid,
     &client_range_header_syntax_valid::ClientRangeHeaderSyntaxValid,
     &client_request_method_token_uppercase::ClientRequestMethodTokenUppercase,
