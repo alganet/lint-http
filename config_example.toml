@@ -89,6 +89,10 @@ severity = "error"
 enabled = true
 severity = "error"
 
+[rules.client_request_target_form_checks]
+enabled = true
+severity = "error"
+
 [rules.client_range_header_syntax_valid]
 enabled = true
 severity = "error"
