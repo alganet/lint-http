@@ -310,6 +310,7 @@ pub mod server_no_body_for_1xx_204_304;
 pub mod server_patch_accept_patch_header;
 pub mod server_response_405_allow;
 pub mod server_response_location_on_redirect;
+pub mod server_server_timing_header_syntax;
 pub mod server_status_code_valid_range;
 pub mod server_vary_header_valid;
 pub mod server_x_content_type_options;
@@ -335,6 +336,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_accept_ranges_values_valid::ServerAcceptRangesValuesValid,
     &server_vary_header_valid::ServerVaryHeaderValid,
     &server_patch_accept_patch_header::ServerPatchAcceptPatchHeader,
+    &server_server_timing_header_syntax::ServerServerTimingHeaderSyntax,
     &server_alt_svc_header_syntax::ServerAltSvcHeaderSyntax,
     &client_request_method_token_uppercase::ClientRequestMethodTokenUppercase,
     &client_expect_header_valid::ClientExpectHeaderValid,
