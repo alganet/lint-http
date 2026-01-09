@@ -297,6 +297,7 @@ pub mod message_http_version_syntax_valid;
 pub mod message_retry_after_date_or_delay;
 pub mod message_transfer_encoding_chunked_final;
 pub mod message_via_header_syntax_valid;
+pub mod server_accept_ranges_values_valid;
 pub mod server_cache_control_present;
 pub mod server_charset_specification;
 pub mod server_clear_site_data;
@@ -328,6 +329,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_request_target_form_checks::ClientRequestTargetFormChecks,
     &client_request_uri_percent_encoding_valid::ClientRequestUriPercentEncodingValid,
     &client_range_header_syntax_valid::ClientRangeHeaderSyntaxValid,
+    &server_accept_ranges_values_valid::ServerAcceptRangesValuesValid,
     &client_request_method_token_uppercase::ClientRequestMethodTokenUppercase,
     &client_expect_header_valid::ClientExpectHeaderValid,
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
