@@ -97,6 +97,10 @@ severity = "error"
 enabled = true
 severity = "warn"
 
+[rules.server_vary_header_valid]
+enabled = true
+severity = "warn"
+
 [rules.client_range_header_syntax_valid]
 enabled = true
 severity = "error"
