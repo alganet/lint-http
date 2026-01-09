@@ -47,6 +47,17 @@ impl Rule for ServerVaryHeaderValid {
                 }
             };
 
+            // Detect empty/empty-after-trim tokens such as trailing commas or consecutive commas
+            for raw in s.split(',') {
+                if raw.trim().is_empty() {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Vary header contains empty token (e.g., trailing or consecutive commas)".into(),
+                    });
+                }
+            }
+
             for token in crate::helpers::headers::parse_list_header(s) {
                 total_tokens += 1;
 
@@ -104,6 +115,12 @@ mod tests {
     #[case(Some("*, accept-encoding"), true)]
     #[case(Some(""), true)]
     #[case(Some("x@bad"), true)]
+    #[case(Some("Accept-Encoding,"), true)]
+    #[case(Some(",Accept-Encoding"), true)]
+    #[case(Some("Accept-Encoding,,User-Agent"), true)]
+    #[case(Some("   "), true)]
+    #[case(Some(","), true)]
+    #[case(Some("\"Accept-Encoding\""), true)]
     fn vary_cases(#[case] header: Option<&str>, #[case] expect_violation: bool) {
         let rule = ServerVaryHeaderValid;
         let tx = match header {
