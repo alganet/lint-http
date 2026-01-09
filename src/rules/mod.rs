@@ -292,6 +292,7 @@ pub mod message_connection_upgrade;
 pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
 pub mod message_content_type_well_formed;
+pub mod message_digest_header_syntax;
 pub mod message_header_field_names_token;
 pub mod message_http_version_syntax_valid;
 pub mod message_retry_after_date_or_delay;
@@ -347,6 +348,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &server_content_type_present::ServerContentTypePresent,
     &message_content_type_well_formed::MessageContentTypeWellFormed,
+    &message_digest_header_syntax::MessageDigestHeaderSyntax,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
     &message_age_header_numeric::MessageAgeHeaderNumeric,
