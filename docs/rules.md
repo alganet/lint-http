@@ -44,6 +44,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [server_accept_ranges_values_valid](rules/server_accept_ranges_values_valid.md) - `Accept-Ranges` should be either `bytes` or `none` and `none` must not be combined with other values. (RFC 9110 §7.3.4)
 - [server_vary_header_valid](rules/server_vary_header_valid.md) - `Vary` header value must be `*` or a list of header field-names. (RFC 9110 §7.3.6)
 - [server_patch_accept_patch_header](rules/server_patch_accept_patch_header.md) - `PATCH` responses should include `Accept-Patch` to declare supported patch media types. (RFC 5789 §2.2)
+- [server_server_timing_header_syntax](rules/server_server_timing_header_syntax.md) - `Server-Timing` header metrics must use valid metric-name and metric-parameter syntax (token-based names and parameters). (W3C Server-Timing spec §3)
 - [server_alt_svc_header_syntax](rules/server_alt_svc_header_syntax.md) - `Alt-Svc` header must follow `protocol=authority` syntax. (RFC 7838)
 
 
