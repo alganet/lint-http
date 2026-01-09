@@ -42,6 +42,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [server_status_code_valid_range](rules/server_status_code_valid_range.md) - HTTP response status codes must be in the range 100–599.
 - [server_content_type_present](rules/server_content_type_present.md) - Ensure responses that likely contain a body include `Content-Type`.
 - [server_accept_ranges_values_valid](rules/server_accept_ranges_values_valid.md) - `Accept-Ranges` should be either `bytes` or `none` and `none` must not be combined with other values. (RFC 9110 §7.3.4)
+- [server_vary_header_valid](rules/server_vary_header_valid.md) - `Vary` header value must be `*` or a list of header field-names. (RFC 9110 §7.3.6)
 
 
 ## Message Rules
