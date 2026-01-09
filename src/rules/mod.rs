@@ -306,6 +306,7 @@ pub mod server_etag_or_last_modified;
 pub mod server_last_modified_rfc1123_format;
 pub mod server_location_header_uri_valid;
 pub mod server_no_body_for_1xx_204_304;
+pub mod server_patch_accept_patch_header;
 pub mod server_response_405_allow;
 pub mod server_response_location_on_redirect;
 pub mod server_status_code_valid_range;
@@ -332,6 +333,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_range_header_syntax_valid::ClientRangeHeaderSyntaxValid,
     &server_accept_ranges_values_valid::ServerAcceptRangesValuesValid,
     &server_vary_header_valid::ServerVaryHeaderValid,
+    &server_patch_accept_patch_header::ServerPatchAcceptPatchHeader,
     &client_request_method_token_uppercase::ClientRequestMethodTokenUppercase,
     &client_expect_header_valid::ClientExpectHeaderValid,
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
