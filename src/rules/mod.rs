@@ -298,6 +298,7 @@ pub mod message_retry_after_date_or_delay;
 pub mod message_transfer_encoding_chunked_final;
 pub mod message_via_header_syntax_valid;
 pub mod server_accept_ranges_values_valid;
+pub mod server_alt_svc_header_syntax;
 pub mod server_cache_control_present;
 pub mod server_charset_specification;
 pub mod server_clear_site_data;
@@ -334,6 +335,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_accept_ranges_values_valid::ServerAcceptRangesValuesValid,
     &server_vary_header_valid::ServerVaryHeaderValid,
     &server_patch_accept_patch_header::ServerPatchAcceptPatchHeader,
+    &server_alt_svc_header_syntax::ServerAltSvcHeaderSyntax,
     &client_request_method_token_uppercase::ClientRequestMethodTokenUppercase,
     &client_expect_header_valid::ClientExpectHeaderValid,
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,

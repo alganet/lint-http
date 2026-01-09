@@ -105,6 +105,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.server_alt_svc_header_syntax]
+enabled = true
+severity = "warn"
+
 [rules.client_range_header_syntax_valid]
 enabled = true
 severity = "error"
