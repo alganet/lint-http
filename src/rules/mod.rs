@@ -289,6 +289,7 @@ pub mod client_user_agent_present;
 pub mod message_age_header_numeric;
 pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
+pub mod message_content_encoding_iana_registered;
 pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
 pub mod message_content_type_well_formed;
@@ -350,6 +351,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_content_type_well_formed::MessageContentTypeWellFormed,
     &message_digest_header_syntax::MessageDigestHeaderSyntax,
     &message_connection_upgrade::MessageConnectionUpgrade,
+    &message_content_encoding_iana_registered::MessageContentEncodingIanaRegistered,
     &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
     &message_age_header_numeric::MessageAgeHeaderNumeric,
     &message_via_header_syntax_valid::MessageViaHeaderSyntaxValid,
