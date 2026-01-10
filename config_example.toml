@@ -174,6 +174,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_allow_header_method_tokens]
+enabled = true
+severity = "error"
+
 [rules.server_no_body_for_1xx_204_304]
 enabled = true
 severity = "error"
