@@ -119,6 +119,20 @@ mod tests {
     }
 
     #[test]
+    fn scope_is_server() {
+        let rule = ServerAcceptRangesValuesValid;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+    }
+
+    #[test]
+    fn missing_response_returns_none() {
+        let rule = ServerAcceptRangesValuesValid;
+        let tx = crate::test_helpers::make_test_transaction();
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_none());
+    }
+
+    #[test]
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "server_accept_ranges_values_valid");

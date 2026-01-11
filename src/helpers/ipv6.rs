@@ -121,9 +121,22 @@ mod tests {
     }
 
     #[test]
+    fn parse_port_str_empty_returns_none() {
+        assert_eq!(parse_port_str(""), None);
+    }
+
+    #[test]
     fn looks_like_unbracketed_ipv6_with_port_cases() {
         assert!(looks_like_unbracketed_ipv6_with_port("fe80::1:80"));
         assert!(!looks_like_unbracketed_ipv6_with_port("example.com:80"));
         assert!(!looks_like_unbracketed_ipv6_with_port("::1"));
+    }
+
+    #[test]
+    fn parse_bracketed_ipv6_rejects_non_bracket_input() {
+        // Input not starting with '[' should return None
+        assert_eq!(parse_bracketed_ipv6("example.com:80"), None);
+        // Unbracketed IPv6-like string should also be rejected by this helper
+        assert_eq!(parse_bracketed_ipv6("::1:80"), None);
     }
 }

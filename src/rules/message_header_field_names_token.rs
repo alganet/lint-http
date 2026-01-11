@@ -164,4 +164,10 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn scope_is_both() {
+        let rule = MessageHeaderFieldNamesToken;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
 }

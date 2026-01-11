@@ -310,4 +310,35 @@ mod tests {
         assert!(v.is_some());
         Ok(())
     }
+
+    #[rstest]
+    #[case("", false)]
+    #[case("1.1", true)]
+    #[case("HTTP/2.0", true)]
+    fn is_valid_protocol_cases(
+        #[case] val: &str,
+        #[case] expect_valid: bool,
+    ) -> anyhow::Result<()> {
+        assert_eq!(super::is_valid_protocol(val), expect_valid);
+        Ok(())
+    }
+
+    #[rstest]
+    #[case("", false)]
+    #[case("[::1]", true)]
+    #[case("[::1]:8080", true)]
+    #[case("::1", false)]
+    fn is_valid_received_by_cases(
+        #[case] val: &str,
+        #[case] expect_valid: bool,
+    ) -> anyhow::Result<()> {
+        assert_eq!(super::is_valid_received_by(val), expect_valid);
+        Ok(())
+    }
+
+    #[test]
+    fn scope_is_both() {
+        let rule = MessageViaHeaderSyntaxValid;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
 }

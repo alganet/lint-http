@@ -126,6 +126,9 @@ mod tests {
     #[case("GET POST", false, true)]
     #[case("GET, PO@T", false, true)]
     #[case("get, POST", false, false)]
+    // Response header variants exercising the response branch
+    #[case("GET, , POST", true, true)]
+    #[case("", true, true)]
     fn test_allow_header_validation(
         #[case] allow_value: &str,
         #[case] is_response: bool,

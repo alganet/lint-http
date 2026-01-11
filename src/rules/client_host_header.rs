@@ -291,4 +291,17 @@ mod tests {
         assert!(v.message.starts_with("Host header port is invalid"));
         Ok(())
     }
+
+    #[test]
+    fn validate_port_empty_returns_violation() -> anyhow::Result<()> {
+        let rule = ClientHostHeader;
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.validate_port("", &cfg);
+        assert!(v.is_some());
+        assert_eq!(
+            v.map(|v| v.message),
+            Some("Host header includes empty port".to_string())
+        );
+        Ok(())
+    }
 }

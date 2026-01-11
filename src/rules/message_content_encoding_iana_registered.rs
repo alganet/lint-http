@@ -299,6 +299,21 @@ mod tests {
     }
 
     #[test]
+    fn parse_allowed_config_missing_rule_errors() {
+        // If the entire rule is not present in the config, parsing should fail
+        let cfg = crate::config::Config::default();
+        let res = parse_allowed_config(&cfg, "message_content_encoding_iana_registered");
+        assert!(res.is_err());
+        let msg = res.unwrap_err().to_string();
+        // Different helper functions compose different error strings; accept either form.
+        assert!(
+            msg.contains("requires configuration")
+                || msg.contains("missing configuration")
+                || msg.contains("missing")
+        );
+    }
+
+    #[test]
     fn validate_and_box_fails_when_allowed_missing() {
         let rule = MessageContentEncodingIanaRegistered;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -319,6 +334,28 @@ mod tests {
         );
         let res = parse_allowed_config(&cfg, "message_content_encoding_iana_registered");
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn parse_config_rejects_allowed_not_array() {
+        let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_encoding_iana_registered",
+        ]);
+        cfg.rules.insert(
+            "message_content_encoding_iana_registered".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert("severity".into(), toml::Value::String("warn".into()));
+                // 'allowed' present but not an array
+                t.insert("allowed".into(), toml::Value::String("gzip".into()));
+                t
+            }),
+        );
+        let res = parse_allowed_config(&cfg, "message_content_encoding_iana_registered");
+        assert!(res.is_err());
+        let msg = res.unwrap_err().to_string();
+        assert!(msg.contains("'allowed' must be an array"));
     }
 
     #[test]
@@ -347,6 +384,12 @@ mod tests {
             .map_err(|_| anyhow::anyhow!("downcast failed"))?;
         assert!(arc.allowed.contains(&"gzip".to_string()));
         Ok(())
+    }
+
+    #[test]
+    fn scope_is_both() {
+        let rule = MessageContentEncodingIanaRegistered;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
     }
 
     #[test]

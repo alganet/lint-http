@@ -313,6 +313,14 @@ mod tests {
         assert!(msg.is_none());
     }
 
+    #[rstest]
+    #[case("", "Empty element in Expect header")]
+    #[case("   ", "Empty element in Expect header")]
+    fn helper_empty_member_cases(#[case] member: &str, #[case] expected: &str) {
+        let msg = validate_expect_member(member);
+        assert!(matches!(msg, Some(ref s) if s.contains(expected)));
+    }
+
     #[test]
     fn helper_rejects_empty_name() {
         let msg = validate_expect_member("=value");

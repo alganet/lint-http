@@ -195,4 +195,10 @@ mod tests {
         assert!(v.is_none()); // Rule skips invalid UTF-8 headers
         Ok(())
     }
+
+    #[test]
+    fn scope_is_both() {
+        let rule = MessageTransferEncodingChunkedFinal;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
 }

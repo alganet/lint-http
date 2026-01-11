@@ -205,4 +205,19 @@ mod tests {
         assert!(!is_valid_serialized_origin("https://[::1"));
         assert!(!is_valid_serialized_origin(""));
     }
+
+    use rstest::rstest;
+
+    #[rstest]
+    #[case("ht$tp://example.com")]
+    #[case("http://example.com:")]
+    #[case("http://:80")]
+    fn invalid_serialized_origin_cases(#[case] input: &str) {
+        assert!(!is_valid_serialized_origin(input));
+    }
+
+    #[test]
+    fn scheme_first_char_not_alpha_is_invalid() {
+        assert!(!is_valid_serialized_origin("1http://example.com"));
+    }
 }

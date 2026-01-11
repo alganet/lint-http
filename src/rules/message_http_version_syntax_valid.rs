@@ -192,4 +192,10 @@ mod tests {
         let v = rule.check_transaction(&tx, None, &make_test_rule_config());
         assert!(v.is_none());
     }
+
+    #[test]
+    fn scope_is_both() {
+        let rule = MessageHttpVersionSyntaxValid;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
 }

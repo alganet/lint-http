@@ -218,4 +218,18 @@ mod tests {
         let _engine = crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
+
+    #[test]
+    fn scope_is_server() {
+        let rule = ServerVaryHeaderValid;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+    }
+
+    #[test]
+    fn no_response_returns_none() {
+        let rule = ServerVaryHeaderValid;
+        let tx = crate::test_helpers::make_test_transaction(); // request-only, no response
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_none());
+    }
 }
