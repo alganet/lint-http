@@ -116,31 +116,35 @@ impl Rule for ServerAltSvcHeaderSyntax {
                     });
                 }
 
-                // If authority contains a port, ensure port is numeric
-                // For IPv6 like [::1]:443, look for ']' then ':'
-                if let Some(bracket_pos) = auth.rfind(']') {
-                    // possible IPv6 literal
-                    if auth.contains('[')
-                        && auth.len() > bracket_pos + 1
-                        && &auth[bracket_pos + 1..bracket_pos + 2] == ":"
-                    {
-                        let port_str = &auth[bracket_pos + 2..];
-                        if port_str.is_empty() || port_str.chars().any(|c| !c.is_ascii_digit()) {
+                // If authority contains a port, ensure port is numeric (and handle bracketed IPv6)
+                if auth.starts_with('[') {
+                    match crate::helpers::ipv6::parse_bracketed_ipv6(auth) {
+                        Some((_inner, port_opt)) => {
+                            if let Some(port_str) = port_opt {
+                                if crate::helpers::ipv6::parse_port_str(port_str).is_none() {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: config.severity,
+                                        message: format!(
+                                            "Alt-Svc authority port is invalid: '{}'",
+                                            port_str
+                                        ),
+                                    });
+                                }
+                            }
+                        }
+                        None => {
                             return Some(Violation {
                                 rule: self.id().into(),
                                 severity: config.severity,
-                                message: format!(
-                                    "Alt-Svc authority port is invalid: '{}'",
-                                    port_str
-                                ),
+                                message: "Alt-Svc authority contains malformed IPv6 literal".into(),
                             });
                         }
                     }
                 } else if auth.contains(':') {
-                    // split on last ':' to allow IPv6-ish strings to not match here
                     if let Some(idx) = auth.rfind(':') {
                         let port_str = &auth[idx + 1..];
-                        if port_str.is_empty() || port_str.chars().any(|c| !c.is_ascii_digit()) {
+                        if crate::helpers::ipv6::parse_port_str(port_str).is_none() {
                             return Some(Violation {
                                 rule: self.id().into(),
                                 severity: config.severity,

@@ -7,5 +7,6 @@
 //! This module groups reusable helpers for validating HTTP common structures.
 
 pub mod headers;
+pub mod ipv6;
 pub mod token;
 pub mod uri;
