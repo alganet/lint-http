@@ -260,4 +260,10 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn scope_is_both() {
+        let rule = MessageContentTypeWellFormed;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
 }

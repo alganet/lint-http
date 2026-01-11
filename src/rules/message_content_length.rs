@@ -259,4 +259,10 @@ mod tests {
         assert!(v.unwrap().message.contains("non-UTF8"));
         Ok(())
     }
+
+    #[test]
+    fn scope_is_both() {
+        let rule = MessageContentLength;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
 }

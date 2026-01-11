@@ -121,4 +121,10 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn scope_is_both() {
+        let rule = MessageConnectionUpgrade;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
 }

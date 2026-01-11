@@ -746,6 +746,18 @@ mod tests {
     }
 
     #[test]
+    fn want_content_digest_in_request_invalid_weight_is_violation() {
+        let rule = MessageDigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request
+            .headers
+            .append("want-content-digest", "sha-256=20".parse().unwrap());
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+    }
+
+    #[test]
     fn content_md5_deprecation_is_reported() {
         let rule = MessageDigestHeaderSyntax;
         let tx = crate::test_helpers::make_test_transaction_with_response(
@@ -777,6 +789,19 @@ mod tests {
             200,
             &[("repr-digest", "sha-256=:not-base64!:")],
         );
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn repr_digest_structured_syntax_invalid_base64_in_request() {
+        let rule = MessageDigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "repr-digest",
+            "sha-256=:not-base64!:",
+        )]);
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(&tx, None, &cfg);
         assert!(v.is_some());
@@ -983,6 +1008,26 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hm,
         });
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    // Non-UTF8 request tests for Want-* headers (parametrized)
+    #[rstest]
+    #[case("want-content-digest")]
+    #[case("want-repr-digest")]
+    fn want_field_request_non_utf8_is_violation(
+        #[case] header: &'static str,
+    ) -> anyhow::Result<()> {
+        let rule = MessageDigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append(header, bad);
+        tx.request.headers = hm;
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(&tx, None, &cfg);
         assert!(v.is_some());

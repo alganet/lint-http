@@ -176,9 +176,12 @@ mod tests {
     #[case(Some("h2=\"[::1]:443\""), false)]
     #[case(Some("h@=example.com:443"), true)]
     #[case(Some("h2=example.com:notaport"), true)]
+    #[case(Some("h2=[::1"), true)]
+    #[case(Some("h2=[::1]:0"), true)]
     #[case(Some("h2="), true)]
     #[case(Some(","), true)]
     #[case(Some("h2example.com:443"), true)]
+    #[case(Some(";ma=1"), true)]
     fn alt_svc_cases(#[case] header: Option<&str>, #[case] expect_violation: bool) {
         let rule = ServerAltSvcHeaderSyntax;
         let tx = match header {
@@ -204,6 +207,15 @@ mod tests {
                 v
             );
         }
+    }
+
+    #[test]
+    fn missing_response_returns_none() {
+        let rule = ServerAltSvcHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction();
+
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_none());
     }
 
     #[test]
@@ -233,5 +245,11 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "server_alt_svc_header_syntax");
         let _engine = crate::rules::validate_rules(&cfg)?;
         Ok(())
+    }
+
+    #[test]
+    fn scope_is_server() {
+        let rule = ServerAltSvcHeaderSyntax;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
     }
 }

@@ -305,4 +305,11 @@ mod tests {
         let violation = rule.check_transaction(&tx, None, &config);
         assert!(violation.is_none());
     }
+
+    #[test]
+    fn id_and_scope_are_expected() {
+        let rule = ServerXContentTypeOptions;
+        assert_eq!(rule.id(), "server_x_content_type_options");
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+    }
 }
