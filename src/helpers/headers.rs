@@ -67,6 +67,76 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
     })
 }
 
+/// Validate a serialized-origin as defined by RFC 6454: scheme "://" host [":" port]
+/// Accepts an optional trailing slash (examples in RFC 7034 include it).
+/// This is a conservative validator: it ensures scheme chars, presence of host,
+/// and numeric port (if present). It does not attempt full IDNA or host label validation.
+pub fn is_valid_serialized_origin(val: &str) -> bool {
+    let s = val.trim();
+    if s.is_empty() {
+        return false;
+    }
+
+    // Split scheme://rest
+    let parts: Vec<&str> = s.splitn(2, "://").collect();
+    if parts.len() != 2 {
+        return false;
+    }
+    let scheme = parts[0];
+    let mut rest = parts[1];
+
+    // If a path or any data after '/', ignore it per RFC 7034 examples and advice
+    if let Some(idx) = rest.find('/') {
+        rest = &rest[..idx];
+    }
+
+    // Scheme: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) per RFC3986
+    let mut chars = scheme.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() => (),
+        _ => return false,
+    }
+    if !chars.all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.') {
+        return false;
+    }
+
+    // rest should be host[:port] and must not contain '/', whitespace or userinfo '@'
+    if rest.is_empty()
+        || rest.contains('/')
+        || rest.contains('\t')
+        || rest.contains(' ')
+        || rest.contains('@')
+    {
+        return false;
+    }
+
+    if let Some(colon_pos) = rest.rfind(':') {
+        // If colon exists, treat as host:port candidate. But IPv6 address may contain ':' and be bracketed.
+        if rest.starts_with('[') {
+            // Use the ipv6 helper to parse bracketed IPv6 and optional port
+            if let Some((_, port_opt)) = crate::helpers::ipv6::parse_bracketed_ipv6(rest) {
+                if let Some(port_str) = port_opt {
+                    return crate::helpers::ipv6::parse_port_str(port_str).is_some();
+                }
+                return true;
+            } else {
+                return false; // malformed or unmatched '['
+            }
+        } else {
+            let host = &rest[..colon_pos];
+            let port = &rest[colon_pos + 1..];
+            if host.is_empty() || port.is_empty() {
+                return false;
+            }
+            // Parse and validate port using helper
+            return crate::helpers::ipv6::parse_port_str(port).is_some();
+        }
+    }
+
+    // No port: ensure host is non-empty
+    !rest.is_empty()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,5 +175,34 @@ mod tests {
         assert!(parse_media_type("text").is_err());
         assert!(parse_media_type("/html").is_err());
         assert!(parse_media_type("text/").is_err());
+    }
+
+    #[test]
+    fn test_is_valid_serialized_origin() {
+        assert!(is_valid_serialized_origin("https://example.com"));
+        assert!(is_valid_serialized_origin("https://example.com/"));
+        assert!(is_valid_serialized_origin("http://example.com:8080"));
+        assert!(is_valid_serialized_origin("https://localhost"));
+        assert!(is_valid_serialized_origin("https://[::1]:8080"));
+        assert!(is_valid_serialized_origin("https://[::1]"));
+
+        // Port range & formatting checks
+        assert!(is_valid_serialized_origin("http://example.com:1"));
+        assert!(is_valid_serialized_origin("http://example.com:65535"));
+        assert!(is_valid_serialized_origin("http://example.com:080")); // leading zero allowed -> 80
+
+        assert!(!is_valid_serialized_origin("http://example.com:0")); // port 0 invalid
+        assert!(!is_valid_serialized_origin("http://example.com:65536")); // out of range
+        assert!(!is_valid_serialized_origin(
+            "http://example.com:999999999999"
+        )); // too large
+
+        assert!(!is_valid_serialized_origin("example.com"));
+        assert!(!is_valid_serialized_origin("https:///foo"));
+        assert!(!is_valid_serialized_origin("https://"));
+        assert!(!is_valid_serialized_origin("http://host:notaport"));
+        assert!(!is_valid_serialized_origin("https://user@example.com"));
+        assert!(!is_valid_serialized_origin("https://[::1"));
+        assert!(!is_valid_serialized_origin(""));
     }
 }

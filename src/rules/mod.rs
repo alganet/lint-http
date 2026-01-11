@@ -317,6 +317,7 @@ pub mod server_server_timing_header_syntax;
 pub mod server_status_code_valid_range;
 pub mod server_vary_header_valid;
 pub mod server_x_content_type_options;
+pub mod server_x_frame_options_value_valid;
 
 pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_cache_control_present::ServerCacheControlPresent,
@@ -325,6 +326,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_location_header_uri_valid::ServerLocationHeaderUriValid,
     &server_response_location_on_redirect::ServerResponseLocationOnRedirect,
     &server_x_content_type_options::ServerXContentTypeOptions,
+    &server_x_frame_options_value_valid::ServerXFrameOptionsValueValid,
     &server_response_405_allow::ServerResponse405Allow,
     &server_clear_site_data::ServerClearSiteData,
     &server_no_body_for_1xx_204_304::ServerNoBodyFor1xx204304,

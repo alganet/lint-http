@@ -59,6 +59,10 @@ enabled = true
 severity = "warn"
 content_types = ["text/html", "application/javascript", "application/json"]
 
+[rules.server_x_frame_options_value_valid]
+enabled = true
+severity = "warn"
+
 [rules.server_response_405_allow]
 enabled = true
 severity = "warn"

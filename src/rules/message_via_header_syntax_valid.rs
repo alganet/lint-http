@@ -103,19 +103,15 @@ fn is_valid_received_by(rb: &str) -> bool {
     }
     // IPv6 with bracket [::1] or [::1]:port
     if rb.starts_with('[') {
-        // find closing bracket
-        if let Some(pos) = rb.find(']') {
-            let after = &rb[pos + 1..];
-            if after.is_empty() {
+        match crate::helpers::ipv6::parse_bracketed_ipv6(rb) {
+            Some((_inner, port_opt)) => {
+                if let Some(port_str) = port_opt {
+                    return crate::helpers::ipv6::parse_port_str(port_str).is_some();
+                }
                 return true;
             }
-            // if colon present, port must be digits
-            if let Some(stripped) = after.strip_prefix(':') {
-                return stripped.chars().all(|c| c.is_ascii_digit());
-            }
-            return false;
+            None => return false,
         }
-        return false;
     }
 
     // Otherwise may be host[:port] or pseudonym (token)

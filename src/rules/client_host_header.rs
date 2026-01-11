@@ -73,43 +73,47 @@ impl Rule for ClientHostHeader {
         }
 
         // Bracketed IPv6 literal: [::1]:port or [::1]
-        if let Some(rest) = s.strip_prefix('[') {
-            if let Some(end_idx) = rest.find(']') {
-                let after = &rest[end_idx + 1..];
-                if let Some(port) = after.strip_prefix(':') {
-                    return self.validate_port(port, config);
+        if s.starts_with('[') {
+            match crate::helpers::ipv6::parse_bracketed_ipv6(s) {
+                Some((_inner, port_opt)) => {
+                    if let Some(port) = port_opt {
+                        return self.validate_port(port, config);
+                    }
+                    return None;
                 }
-                return None;
+                None => {
+                    // malformed bracketed host — flag as violation
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Malformed bracketed IPv6 literal in Host header".into(),
+                    });
+                }
             }
-            // malformed bracketed host — flag as violation
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: "Malformed bracketed IPv6 literal in Host header".into(),
-            });
         }
 
         // Non-bracketed form. If it contains multiple ':' it may be an unbracketed IPv6 address.
-        // Detect the pattern where an unbracketed IPv6 literal is followed by :<digits> indicating
-        // a port (e.g., `fe80::1:80`) — that's a violation because IPv6+port must be bracketed.
         let colon_count = s.chars().filter(|&c| c == ':').count();
         if colon_count == 0 {
             return None;
         }
 
         if colon_count > 1 {
-            if let Some(idx) = s.rfind(':') {
-                let (maybe_host, port_part) = s.split_at(idx);
-                let port = &port_part[1..];
-                if !port.is_empty() && port.chars().all(|c| c.is_ascii_digit()) {
-                    if let Ok(ip) = maybe_host.parse::<IpAddr>() {
-                        if matches!(ip, IpAddr::V6(_)) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: "IPv6 literal with port must be bracketed in Host header"
-                                    .into(),
-                            });
+            if crate::helpers::ipv6::looks_like_unbracketed_ipv6_with_port(s) {
+                if let Some(idx) = s.rfind(':') {
+                    let (maybe_host, port_part) = s.split_at(idx);
+                    let port = &port_part[1..];
+                    if !port.is_empty() && port.chars().all(|c| c.is_ascii_digit()) {
+                        if let Ok(ip) = maybe_host.parse::<IpAddr>() {
+                            if matches!(ip, IpAddr::V6(_)) {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: config.severity,
+                                    message:
+                                        "IPv6 literal with port must be bracketed in Host header"
+                                            .into(),
+                                });
+                            }
                         }
                     }
                 }
