@@ -19,6 +19,61 @@ pub fn parse_list_header(val: &str) -> impl Iterator<Item = &str> {
     val.split(',').map(|s| s.trim()).filter(|s| !s.is_empty())
 }
 
+/// Validate a quoted-string per HTTP rules: must start and end with DQUOTE, support backslash escapes,
+/// must not contain unescaped control characters (except HTAB). Returns Ok(()) on success, Err(msg)
+/// on failure.
+pub fn validate_quoted_string(val: &str) -> Result<(), String> {
+    let bytes = val.as_bytes();
+    if bytes.len() < 2 || bytes[0] != b'"' || bytes[bytes.len() - 1] != b'"' {
+        return Err(format!("Quoted-string not properly quoted: '{}'", val));
+    }
+
+    // Walk the interior checking for unescaped control chars and ensuring proper escaping
+    let mut i = 1usize;
+    let mut prev_backslash = false;
+    while i + 1 < bytes.len() {
+        let b = bytes[i];
+        if prev_backslash {
+            // escaped char allowed
+            prev_backslash = false;
+        } else if b == b'\\' {
+            prev_backslash = true;
+        } else if b == b'"' {
+            // unescaped quote before the terminating one -> invalid
+            return Err(format!("Unescaped quote in quoted-string: '{}'", val));
+        } else if (b < 0x20 && b != b'\t') || b == 0x7f {
+            return Err(format!("Control character in quoted-string: '{}'", val));
+        }
+        i += 1;
+    }
+
+    if prev_backslash {
+        return Err(format!(
+            "Quoted-string ends with escape character: '{}'",
+            val
+        ));
+    }
+
+    Ok(())
+}
+
+/// Validate an entity-tag (ETag) value per RFC 9110 §7.6 and §7.8. Accepts '*' or an entity-tag
+/// which may be weak (prefix 'W/'). Returns Ok(()) on success or Err(msg) describing the problem.
+pub fn validate_entity_tag(val: &str) -> Result<(), String> {
+    let s = val.trim();
+    if s == "*" {
+        return Ok(());
+    }
+
+    let rest = if let Some(stripped) = s.strip_prefix("W/") {
+        stripped
+    } else {
+        s
+    };
+    // rest must be a quoted-string
+    validate_quoted_string(rest)
+}
+
 /// Represents a parsed Media Type (e.g. "text/html; charset=utf-8").
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParsedMediaType<'a> {
@@ -219,5 +274,62 @@ mod tests {
     #[test]
     fn scheme_first_char_not_alpha_is_invalid() {
         assert!(!is_valid_serialized_origin("1http://example.com"));
+    }
+
+    // Quoted-string helper tests
+    #[test]
+    fn validate_quoted_string_control_char_reports_violation() {
+        let s = "\"bad\x01str\"";
+        let res = validate_quoted_string(s);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("Control character"));
+    }
+
+    #[test]
+    fn validate_quoted_string_unterminated_reports_violation() {
+        let s = "\"unfinished";
+        let res = validate_quoted_string(s);
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .contains("Quoted-string not properly quoted"));
+    }
+
+    #[test]
+    fn validate_quoted_string_extra_chars_reports_violation() {
+        let s = "\"abc\"x";
+        let res = validate_quoted_string(s);
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .contains("Quoted-string not properly quoted"));
+    }
+
+    #[test]
+    fn validate_quoted_string_with_escaped_quote_is_valid() {
+        let s = "\"a\\\"b\""; // "a\"b"
+        let res = validate_quoted_string(s);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn validate_quoted_string_ends_with_escape_reports_violation() {
+        let s = "\"abc\\\""; // ends with escaped state before final quote
+        let res = validate_quoted_string(s);
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .contains("Quoted-string ends with escape character"));
+    }
+
+    // Entity-tag helper tests
+    #[test]
+    fn validate_entity_tag_cases() {
+        assert!(validate_entity_tag("*").is_ok());
+        assert!(validate_entity_tag("\"abc\"").is_ok());
+        assert!(validate_entity_tag("W/\"abc\"").is_ok());
+        assert!(validate_entity_tag(" W/\"abc\" ").is_ok()); // leading/trailing whitespace tolerated
+        assert!(validate_entity_tag("abc").is_err()); // missing quotes
+        assert!(validate_entity_tag("W/abc").is_err()); // weak prefix without quoted-string
     }
 }

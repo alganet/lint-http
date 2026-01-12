@@ -142,6 +142,10 @@ allowed = ["aes128gcm", "br", "compress", "dcb", "dcz", "deflate", "exi", "gzip"
 enabled = true
 severity = "warn"
 
+[rules.message_if_none_match_etag_syntax]
+enabled = true
+severity = "warn"
+
 [rules.message_http_version_syntax_valid]
 enabled = true
 severity = "error"

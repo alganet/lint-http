@@ -138,12 +138,37 @@ impl Rule for ServerServerTimingHeaderSyntax {
 
                     // value can be token or quoted-string
                     if rhs.starts_with('"') {
-                        if let Err(msg) = validate_quoted_string(pname, rhs) {
+                        if let Err(msg) = crate::helpers::headers::validate_quoted_string(rhs) {
                             return Some(Violation {
                                 rule: self.id().into(),
                                 severity: config.severity,
-                                message: msg,
+                                message: format!(
+                                    "Server-Timing parameter '{}' quoted-string error: {}",
+                                    pname, msg
+                                ),
                             });
+                        }
+
+                        // If dur is quoted, try parsing the inside as float; tolerate quoted dur per lenient parsing
+                        if pname.eq_ignore_ascii_case("dur") {
+                            let inner = &rhs[1..rhs.len() - 1];
+                            if inner.is_empty() {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: config.severity,
+                                    message: "Server-Timing 'dur' parameter has empty value".into(),
+                                });
+                            }
+                            if inner.parse::<f64>().is_err() {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: config.severity,
+                                    message: format!(
+                                        "Server-Timing 'dur' parameter is not a number: '{}'",
+                                        inner
+                                    ),
+                                });
+                            }
                         }
                     } else {
                         // token value
@@ -175,85 +200,6 @@ impl Rule for ServerServerTimingHeaderSyntax {
 
         None
     }
-}
-
-fn validate_quoted_string(pname: &str, rhs: &str) -> Result<(), String> {
-    // validate quoted-string: must terminate with an unescaped '"', no unescaped control chars
-    let mut prev_backslash = false;
-    let mut terminated = false;
-    for c in rhs.chars().skip(1) {
-        if prev_backslash {
-            prev_backslash = false;
-            continue;
-        }
-        if c == '\\' {
-            prev_backslash = true;
-            continue;
-        }
-        if c == '"' {
-            terminated = true;
-            break;
-        }
-        if c.is_ascii_control() && c != '\t' {
-            return Err(format!(
-                "Invalid control char in Server-Timing quoted-string value for param '{}': '{}'",
-                pname, rhs
-            ));
-        }
-    }
-    if !terminated {
-        return Err(format!(
-            "Server-Timing quoted-string not terminated for parameter '{}': '{}'",
-            pname, rhs
-        ));
-    }
-
-    // ensure nothing after terminating quote
-    // find terminating unescaped quote index
-    let bytes = rhs.as_bytes();
-    let mut i = 1usize;
-    let mut prev_backslash = false;
-    while i < bytes.len() {
-        let b = bytes[i];
-        if prev_backslash {
-            prev_backslash = false;
-        } else if b == b'\\' {
-            prev_backslash = true;
-        } else if b == b'"' {
-            break;
-        }
-        i += 1;
-    }
-    if i >= bytes.len() || bytes[i] != b'"' {
-        return Err(format!(
-            "Server-Timing quoted-string not terminated for parameter '{}': '{}'",
-            pname, rhs
-        ));
-    }
-    if i + 1 != bytes.len() {
-        return Err(format!(
-            "Invalid characters after quoted-string in Server-Timing parameter '{}': '{}'",
-            pname, rhs
-        ));
-    }
-
-    // If dur is quoted, try parsing the inside as float? spec uses token for dur,
-    // but tolerate quoted dur by parsing inner content.
-    if pname.eq_ignore_ascii_case("dur") {
-        // extract inner
-        let inner = &rhs[1..i];
-        if inner.is_empty() {
-            return Err("Server-Timing 'dur' parameter has empty value".into());
-        }
-        if inner.parse::<f64>().is_err() {
-            return Err(format!(
-                "Server-Timing 'dur' parameter is not a number: '{}'",
-                inner
-            ));
-        }
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -419,7 +365,11 @@ mod tests {
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(v.is_some());
         let msg = v.unwrap().message;
-        assert!(msg.contains("Invalid characters after quoted-string"));
+        // underlying helper reports a generic quoted-string problem
+        assert!(
+            msg.contains("Quoted-string not properly quoted")
+                || msg.contains("Invalid characters after quoted-string")
+        );
     }
 
     #[test]
@@ -474,49 +424,35 @@ mod tests {
     #[test]
     fn helper_quoted_string_control_char_reports_violation() {
         let s = "\"bad\x01str\"";
-        let res = validate_quoted_string("desc", s);
+        let res = crate::helpers::headers::validate_quoted_string(s);
         assert!(res.is_err());
-        assert!(res.unwrap_err().contains("Invalid control char"));
+        assert!(res.unwrap_err().contains("Control character"));
     }
 
     #[test]
     fn helper_quoted_string_unterminated_reports_violation() {
         let s = "\"unfinished";
-        let res = validate_quoted_string("desc", s);
+        let res = crate::helpers::headers::validate_quoted_string(s);
         assert!(res.is_err());
-        assert!(res.unwrap_err().contains("not terminated"));
+        assert!(res
+            .unwrap_err()
+            .contains("Quoted-string not properly quoted"));
     }
 
     #[test]
     fn helper_quoted_string_extra_chars_reports_violation() {
         let s = "\"abc\"x";
-        let res = validate_quoted_string("desc", s);
+        let res = crate::helpers::headers::validate_quoted_string(s);
         assert!(res.is_err());
         assert!(res
             .unwrap_err()
-            .contains("Invalid characters after quoted-string"));
+            .contains("Quoted-string not properly quoted"));
     }
 
     #[test]
     fn helper_quoted_string_with_escaped_quote_is_valid() {
         let s = "\"a\\\"b\""; // "a\"b"
-        let res = validate_quoted_string("desc", s);
+        let res = crate::helpers::headers::validate_quoted_string(s);
         assert!(res.is_ok());
-    }
-
-    #[test]
-    fn helper_quoted_dur_empty_reports_violation() {
-        let s = "\"\"";
-        let res = validate_quoted_string("dur", s);
-        assert!(res.is_err());
-        assert!(res.unwrap_err().contains("'dur' parameter has empty value"));
-    }
-
-    #[test]
-    fn helper_quoted_dur_not_number_reports_violation() {
-        let s = "\"abc\"";
-        let res = validate_quoted_string("dur", s);
-        assert!(res.is_err());
-        assert!(res.unwrap_err().contains("'dur' parameter is not a number"));
     }
 }
