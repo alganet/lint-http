@@ -54,6 +54,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_content_type_well_formed](rules/message_content_type_well_formed.md) - Validates `Content-Type` header parses as a `media-type` with valid type/subtype and parameters.
 - [message_content_encoding_iana_registered](rules/message_content_encoding_iana_registered.md) - Validates `Content-Encoding` and `Accept-Encoding` tokens are IANA-registered or explicitly allowed; flags invalid tokens. (RFC 9110 §5.3)
 - [message_digest_header_syntax](rules/message_digest_header_syntax.md) - `Content-Digest`/`Repr-Digest`/`Want-*` fields must follow RFC 9530 structured syntax; legacy `Digest`/`Content-MD5` are deprecated. (RFC 9530 §2–§4)
+- [message_if_none_match_etag_syntax](rules/message_if_none_match_etag_syntax.md) - `If-None-Match` header must be `*` or a comma-separated list of valid entity-tags (ETags). (RFC 9110 §7.6, §7.8.4)
 - [message_http_version_syntax_valid](rules/message_http_version_syntax_valid.md) - Start-line `HTTP-version` must match `HTTP/DIGIT.DIGIT` (RFC 9112 §2.3).
 - [message_content_length_vs_transfer_encoding](rules/message_content_length_vs_transfer_encoding.md) - Flags messages that include both `Content-Length` and `Transfer-Encoding`.
 - [message_content_length](rules/message_content_length.md) - Validates Content-Length values and multiple Content-Length header consistency.
