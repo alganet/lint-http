@@ -298,6 +298,7 @@ pub mod message_digest_header_syntax;
 pub mod message_header_field_names_token;
 pub mod message_http_version_syntax_valid;
 pub mod message_if_none_match_etag_syntax;
+pub mod message_referer_uri_valid;
 pub mod message_retry_after_date_or_delay;
 pub mod message_transfer_encoding_chunked_final;
 pub mod message_via_header_syntax_valid;
@@ -361,6 +362,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_age_header_numeric::MessageAgeHeaderNumeric,
     &message_allow_header_method_tokens::MessageAllowHeaderMethodTokens,
     &message_via_header_syntax_valid::MessageViaHeaderSyntaxValid,
+    &message_referer_uri_valid::MessageRefererUriValid,
     &message_http_version_syntax_valid::MessageHttpVersionSyntaxValid,
     &server_status_code_valid_range::ServerStatusCodeValidRange,
     &server_charset_specification::ServerCharsetSpecification,
