@@ -63,6 +63,10 @@ content_types = ["text/html", "application/javascript", "application/json"]
 enabled = true
 severity = "warn"
 
+[rules.server_x_xss_protection_value_valid]
+enabled = true
+severity = "warn"
+
 [rules.server_response_405_allow]
 enabled = true
 severity = "warn"
