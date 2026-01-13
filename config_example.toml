@@ -133,6 +133,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_referer_uri_valid]
+enabled = true
+severity = "warn"
+
 [rules.message_content_encoding_iana_registered]
 enabled = true
 severity = "warn"
