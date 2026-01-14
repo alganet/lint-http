@@ -302,6 +302,7 @@ pub mod message_header_field_names_token;
 pub mod message_http_version_syntax_valid;
 pub mod message_if_none_match_etag_syntax;
 pub mod message_max_forwards_numeric;
+pub mod message_range_and_content_range_consistency;
 pub mod message_referer_uri_valid;
 pub mod message_retry_after_date_or_delay;
 pub mod message_transfer_encoding_chunked_final;
@@ -355,6 +356,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_expect_header_valid::ClientExpectHeaderValid,
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
     &message_content_length::MessageContentLength,
+    &message_range_and_content_range_consistency::MessageRangeAndContentRangeConsistency,
     &message_header_field_names_token::MessageHeaderFieldNamesToken,
     &message_transfer_encoding_chunked_final::MessageTransferEncodingChunkedFinal,
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
