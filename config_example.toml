@@ -161,6 +161,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_cross_origin_resource_policy_valid]
+enabled = true
+severity = "warn"
+
 [rules.message_content_encoding_iana_registered]
 enabled = true
 severity = "warn"
