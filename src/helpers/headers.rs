@@ -57,6 +57,157 @@ pub fn validate_quoted_string(val: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Validate a mailbox-list per RFC 5322-ish syntax. This is a conservative validator
+/// that accepts common mailbox forms used in `From` headers: a comma-separated list
+/// of either `addr-spec` (user@example.com) or `display-name <addr-spec>` entries.
+/// It does not implement full RFC 5322 parsing (which is complex), but it rejects
+/// obvious invalid values such as missing `@`, empty local-part or domain, unbalanced
+/// angle brackets, or control characters. Returns Ok(()) on success or Err(msg).
+pub fn validate_mailbox_list(val: &str) -> Result<(), String> {
+    let s = val.trim();
+    if s.is_empty() {
+        return Err("From header must not be empty".into());
+    }
+
+    // We need to split on top-level commas, respecting quoted-strings and angle-bracketed addr-specs
+    let mut parts: Vec<&str> = Vec::new();
+    let mut start = 0usize;
+    let mut in_quote = false;
+    let mut prev_backslash = false;
+    let mut angle_depth = 0usize;
+
+    for (i, b) in s.as_bytes().iter().enumerate() {
+        match *b {
+            b'"' if !prev_backslash => in_quote = !in_quote,
+            b'\\' if in_quote && !prev_backslash => prev_backslash = true,
+            b',' if !in_quote && angle_depth == 0 => {
+                // split here
+                let part = s[start..i].trim();
+                if !part.is_empty() {
+                    parts.push(part);
+                }
+                start = i + 1;
+            }
+            b'<' if !in_quote => angle_depth += 1,
+            b'>' if !in_quote && angle_depth > 0 => angle_depth -= 1,
+            _ => prev_backslash = false,
+        }
+    }
+
+    // last part
+    if start < s.len() {
+        let part = s[start..].trim();
+        if !part.is_empty() {
+            parts.push(part);
+        }
+    }
+
+    if parts.is_empty() {
+        return Err("From header contains no mailboxes".into());
+    }
+
+    for p in parts {
+        // Validate each mailbox: either contains '<' '>' with addr-spec inside or is addr-spec directly
+        if let Some(open) = p.find('<') {
+            let close = p.rfind('>');
+            if close.is_none() || close.unwrap() < open {
+                return Err(format!("Malformed angle-addr in mailbox: '{}'", p));
+            }
+            let addr = p[open + 1..close.unwrap()].trim();
+            if let Err(e) = validate_addr_spec(addr) {
+                return Err(format!("Invalid addr-spec '{}': {}", addr, e));
+            }
+        } else {
+            // Bare addr-spec
+            if let Err(e) = validate_addr_spec(p) {
+                return Err(format!("Invalid addr-spec '{}': {}", p, e));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_addr_spec(addr: &str) -> Result<(), String> {
+    if addr.is_empty() {
+        return Err("empty addr-spec".into());
+    }
+
+    if addr.starts_with('"') {
+        // quoted local-part style: "local"@domain
+        if let Some(at_pos) = addr.rfind('@') {
+            let local = addr[..at_pos].trim();
+            let domain = addr[at_pos + 1..].trim();
+            if validate_quoted_string(local).is_err() {
+                return Err("invalid quoted local-part".into());
+            }
+            if domain.is_empty() {
+                return Err("empty domain".into());
+            }
+            if !validate_domain(domain) {
+                return Err("invalid domain".into());
+            }
+            return Ok(());
+        } else {
+            return Err("missing '@' in addr-spec".into());
+        }
+    }
+
+    // Non-quoted local-part
+    let parts: Vec<&str> = addr.split('@').collect();
+    if parts.len() != 2 {
+        return Err("addr-spec must contain a single '@'".into());
+    }
+    let local = parts[0].trim();
+    let domain = parts[1].trim();
+
+    if local.is_empty() {
+        return Err("empty local-part".into());
+    }
+    // local-part must not contain spaces or control chars
+    if local.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return Err("invalid characters in local-part".into());
+    }
+    // disallow leading or trailing dot and consecutive dots
+    if local.starts_with('.') || local.ends_with('.') || local.contains("..") {
+        return Err("invalid dot placement in local-part".into());
+    }
+
+    if domain.is_empty() {
+        return Err("empty domain".into());
+    }
+
+    if !validate_domain(domain) {
+        return Err("invalid domain".into());
+    }
+
+    Ok(())
+}
+
+fn validate_domain(domain: &str) -> bool {
+    let d = domain;
+    if d.starts_with('[') && d.ends_with(']') {
+        // address-literal - accept without deep validation
+        return true;
+    }
+
+    // labels separated by '.'
+    let labels: Vec<&str> = d.split('.').collect();
+    if labels.iter().any(|l| l.is_empty()) {
+        return false;
+    }
+    for lbl in labels {
+        // labels may contain letters, digits and hyphen, can't start or end with '-'
+        if lbl.starts_with('-') || lbl.ends_with('-') {
+            return false;
+        }
+        if !lbl.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+            return false;
+        }
+    }
+    true
+}
+
 /// Validate an entity-tag (ETag) value per RFC 9110 §7.6 and §7.8. Accepts '*' or an entity-tag
 /// which may be weak (prefix 'W/'). Returns Ok(()) on success or Err(msg) describing the problem.
 pub fn validate_entity_tag(val: &str) -> Result<(), String> {
@@ -331,5 +482,19 @@ mod tests {
         assert!(validate_entity_tag(" W/\"abc\" ").is_ok()); // leading/trailing whitespace tolerated
         assert!(validate_entity_tag("abc").is_err()); // missing quotes
         assert!(validate_entity_tag("W/abc").is_err()); // weak prefix without quoted-string
+    }
+
+    #[test]
+    fn validate_mailbox_list_common_cases() {
+        assert!(validate_mailbox_list("alice@example.com").is_ok());
+        assert!(validate_mailbox_list("Alice <alice@example.com>").is_ok());
+        assert!(validate_mailbox_list("Alice <alice@example.com>, bob@example.org").is_ok());
+        assert!(validate_mailbox_list("\"Quoted\" <\"q\\\"u\"@exa.com>").is_ok());
+
+        assert!(validate_mailbox_list("").is_err());
+        assert!(validate_mailbox_list("not-an-email").is_err());
+        assert!(validate_mailbox_list("alice@").is_err());
+        assert!(validate_mailbox_list("@example.com").is_err());
+        assert!(validate_mailbox_list("Alice <alice@example.com").is_err());
     }
 }

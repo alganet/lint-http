@@ -145,6 +145,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_from_header_email_syntax]
+enabled = true
+severity = "warn"
+
 [rules.message_access_control_allow_credentials_when_origin]
 enabled = true
 severity = "warn"
