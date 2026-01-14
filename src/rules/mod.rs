@@ -296,6 +296,7 @@ pub mod message_content_encoding_iana_registered;
 pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
 pub mod message_content_type_well_formed;
+pub mod message_cross_origin_opener_policy_valid;
 pub mod message_digest_header_syntax;
 pub mod message_header_field_names_token;
 pub mod message_http_version_syntax_valid;
@@ -368,6 +369,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_via_header_syntax_valid::MessageViaHeaderSyntaxValid,
     &message_access_control_allow_credentials_when_origin::MessageAccessControlAllowCredentialsWhenOrigin,
     &message_access_control_allow_origin_valid::MessageAccessControlAllowOriginValid,
+    &message_cross_origin_opener_policy_valid::MessageCrossOriginOpenerPolicyValid,
     &message_referer_uri_valid::MessageRefererUriValid,
     &message_http_version_syntax_valid::MessageHttpVersionSyntaxValid,
     &server_status_code_valid_range::ServerStatusCodeValidRange,
