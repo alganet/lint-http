@@ -141,6 +141,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_access_control_allow_credentials_when_origin]
+enabled = true
+severity = "warn"
+
 [rules.message_content_encoding_iana_registered]
 enabled = true
 severity = "warn"
