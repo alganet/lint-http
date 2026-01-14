@@ -198,6 +198,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_max_forwards_numeric]
+enabled = true
+severity = "warn"
+
 [rules.message_age_header_numeric]
 enabled = true
 severity = "warn"
