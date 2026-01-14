@@ -25,7 +25,7 @@ severity = "warn"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 GET /resource HTTP/1.1
@@ -45,7 +45,7 @@ Host: example.com
 If-None-Match: *
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 GET /resource HTTP/1.1
