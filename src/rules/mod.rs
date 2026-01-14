@@ -287,6 +287,7 @@ pub mod client_request_target_no_fragment;
 pub mod client_request_uri_percent_encoding_valid;
 pub mod client_user_agent_present;
 pub mod message_access_control_allow_credentials_when_origin;
+pub mod message_access_control_allow_origin_valid;
 pub mod message_age_header_numeric;
 pub mod message_allow_header_method_tokens;
 pub mod message_connection_header_tokens_valid;
@@ -366,6 +367,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_allow_header_method_tokens::MessageAllowHeaderMethodTokens,
     &message_via_header_syntax_valid::MessageViaHeaderSyntaxValid,
     &message_access_control_allow_credentials_when_origin::MessageAccessControlAllowCredentialsWhenOrigin,
+    &message_access_control_allow_origin_valid::MessageAccessControlAllowOriginValid,
     &message_referer_uri_valid::MessageRefererUriValid,
     &message_http_version_syntax_valid::MessageHttpVersionSyntaxValid,
     &server_status_code_valid_range::ServerStatusCodeValidRange,
