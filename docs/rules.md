@@ -57,6 +57,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_access_control_allow_origin_valid](rules/message_access_control_allow_origin_valid.md) - `Access-Control-Allow-Origin` must be a single value: `*`, `null`, or a serialized origin (`scheme://host[:port]`). (CORS)
 - [message_cross_origin_opener_policy_valid](rules/message_cross_origin_opener_policy_valid.md) - `Cross-Origin-Opener-Policy` must be `same-origin`, `same-origin-allow-popups`, or `unsafe-none`. (W3C / Fetch)
 - [message_referer_uri_valid](rules/message_referer_uri_valid.md) - `Referer` header value should be a valid URI-reference. (RFC 9110 §7.5.3)
+- [message_from_header_email_syntax](rules/message_from_header_email_syntax.md) - `From` header should be a valid mailbox-list (addr-spec or display-name <addr-spec>). (RFC 9110 §7.1.1, RFC 5322 §3.4)
 - [message_max_forwards_numeric](rules/message_max_forwards_numeric.md) - `Max-Forwards` header value must be a non-negative decimal integer (RFC 9110 §7.6.2)
 - [message_content_encoding_iana_registered](rules/message_content_encoding_iana_registered.md) - Validates `Content-Encoding` and `Accept-Encoding` tokens are IANA-registered or explicitly allowed; flags invalid tokens. (RFC 9110 §5.3)
 - [message_digest_header_syntax](rules/message_digest_header_syntax.md) - `Content-Digest`/`Repr-Digest`/`Want-*` fields must follow RFC 9530 structured syntax; legacy `Digest`/`Content-MD5` are deprecated. (RFC 9530 §2–§4)
