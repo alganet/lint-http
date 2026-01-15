@@ -182,6 +182,10 @@ enabled = true
 severity = "warn"
 allowed = ["aes128gcm", "br", "compress", "dcb", "dcz", "deflate", "exi", "gzip", "identity", "pack200-gzip", "x-compress", "x-gzip", "zstd"]
 
+[rules.message_te_header_constraints]
+enabled = true
+severity = "warn"
+
 [rules.message_digest_header_syntax]
 enabled = true
 severity = "warn"
