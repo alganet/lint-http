@@ -282,6 +282,7 @@ pub mod client_expect_header_valid;
 pub mod client_host_header;
 pub mod client_range_header_syntax_valid;
 pub mod client_request_method_token_uppercase;
+pub mod client_request_origin_header_present_for_cors;
 pub mod client_request_target_form_checks;
 pub mod client_request_target_no_fragment;
 pub mod client_request_uri_percent_encoding_valid;
@@ -357,6 +358,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_server_timing_header_syntax::ServerServerTimingHeaderSyntax,
     &server_alt_svc_header_syntax::ServerAltSvcHeaderSyntax,
     &client_request_method_token_uppercase::ClientRequestMethodTokenUppercase,
+    &client_request_origin_header_present_for_cors::ClientRequestOriginHeaderPresentForCors,
     &client_expect_header_valid::ClientExpectHeaderValid,
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
     &message_content_length::MessageContentLength,

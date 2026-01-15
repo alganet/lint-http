@@ -133,6 +133,10 @@ severity = "warn"
 enabled = true
 severity = "error"
 
+[rules.client_request_origin_header_present_for_cors]
+enabled = true
+severity = "warn"
+
 [rules.server_content_type_present]
 enabled = true
 severity = "warn"
