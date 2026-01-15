@@ -19,12 +19,11 @@ fn parse_allowed_config(
     let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
     let enabled = crate::rules::get_rule_enabled_required(config, rule_id)?;
 
-    let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
-        anyhow::anyhow!(
-            "rule '{}' requires configuration and a named 'allowed' array listing acceptable transfer-codings. Example in config_example.toml",
-            rule_id
-        )
-    })?;
+    // get_rule_severity_required/required_enabled already asserts the rule config exists,
+    // so unwrap is safe here and avoids creating an unreachable error branch.
+    let rule_cfg = config
+        .get_rule_config(rule_id)
+        .expect("internal error: rule config missing after validation");
     let table = rule_cfg
         .as_table()
         .ok_or_else(|| anyhow::anyhow!("Configuration for rule '{}' must be a table", rule_id))?;
@@ -516,6 +515,21 @@ mod tests {
             assert!(violation.is_none());
         }
         Ok(())
+    }
+
+    #[test]
+    fn parse_config_requires_named_rule_cfg() {
+        // No rule entry present at all should produce an error stating configuration is required
+        let cfg = crate::config::Config::default();
+        let res = parse_allowed_config(&cfg, "message_transfer_coding_iana_registered");
+        assert!(res.is_err());
+        let e = res.unwrap_err();
+        // Depending on which helper fails first the message may reference "missing configuration"
+        // or the older phrasing "requires configuration". Accept either.
+        assert!(
+            format!("{}", e).contains("missing configuration")
+                || format!("{}", e).contains("requires configuration")
+        );
     }
 
     #[test]

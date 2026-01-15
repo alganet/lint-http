@@ -27,8 +27,9 @@ pub fn validate_language_tag(tag: &str) -> Result<(), String> {
         return Err(format!("invalid character '{}' in language tag", c));
     }
 
-    // Hyphen placement checks
-    if s.starts_with('-') || s.ends_with('-') || s.contains("--") {
+    // Hyphen placement checks: leading or trailing hyphens are invalid here;
+    // consecutive hyphens are rejected below as empty subtags in the split loop.
+    if s.starts_with('-') || s.ends_with('-') {
         return Err("invalid hyphen placement in language tag".into());
     }
 
@@ -75,6 +76,13 @@ mod tests {
         assert!(validate_language_tag("-en").is_err());
         assert!(validate_language_tag("en-").is_err());
         assert!(validate_language_tag("en--US").is_err());
+    }
+
+    #[test]
+    fn empty_subtag_reports_error() {
+        let res = validate_language_tag("en--US");
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("empty subtag"));
     }
 
     #[test]

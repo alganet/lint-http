@@ -898,6 +898,25 @@ mod tests {
     }
 
     #[test]
+    fn repr_digest_response_non_utf8_is_violation() -> anyhow::Result<()> {
+        let rule = MessageDigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("repr-digest", bad);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hm,
+        });
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
     fn content_digest_response_non_utf8_is_violation() -> anyhow::Result<()> {
         let rule = MessageDigestHeaderSyntax;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
@@ -1086,6 +1105,22 @@ mod tests {
         let bad = HeaderValue::from_bytes(&[0xff])?;
         hm.append("content-md5", bad);
         tx.request.headers = hm;
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn content_md5_response_non_utf8_is_violation() -> anyhow::Result<()> {
+        let rule = MessageDigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("content-md5", bad);
+        tx.response.as_mut().unwrap().headers = hm;
+
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(&tx, None, &cfg);
         assert!(v.is_some());

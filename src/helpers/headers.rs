@@ -464,6 +464,15 @@ mod tests {
     }
 
     #[test]
+    fn validate_quoted_string_unescaped_quote_reports_violation() {
+        // inner unescaped quote before the terminating quote
+        let s = "\"a\"b\""; // "a"b"
+        let res = validate_quoted_string(s);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("Unescaped quote"));
+    }
+
+    #[test]
     fn validate_quoted_string_ends_with_escape_reports_violation() {
         let s = "\"abc\\\""; // ends with escaped state before final quote
         let res = validate_quoted_string(s);
@@ -496,5 +505,29 @@ mod tests {
         assert!(validate_mailbox_list("alice@").is_err());
         assert!(validate_mailbox_list("@example.com").is_err());
         assert!(validate_mailbox_list("Alice <alice@example.com").is_err());
+    }
+
+    #[test]
+    fn validate_addr_spec_quoted_missing_at_reports_violation() {
+        // quoted local-part but no '@' should be rejected
+        let res = validate_addr_spec("\"local\"");
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("missing '@'"));
+    }
+
+    #[test]
+    fn validate_addr_spec_quoted_local_with_control_char_reports_violation() {
+        // quoted local-part with control character should trigger invalid quoted local-part
+        let res = validate_addr_spec("\"bad\x01\"@example.com");
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("invalid quoted local-part"));
+    }
+
+    #[test]
+    fn validate_addr_spec_invalid_domain_reports_violation() {
+        // domain labels can't be empty or start with hyphen
+        let res = validate_addr_spec("local@-example.com");
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("invalid domain"));
     }
 }

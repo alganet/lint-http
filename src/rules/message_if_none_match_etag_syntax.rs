@@ -188,4 +188,11 @@ mod tests {
         assert!(v.is_some());
         Ok(())
     }
+
+    #[test]
+    fn id_and_scope_are_expected() {
+        let r = MessageIfNoneMatchEtagSyntax;
+        assert_eq!(r.id(), "message_if_none_match_etag_syntax");
+        assert_eq!(r.scope(), crate::rules::RuleScope::Both);
+    }
 }

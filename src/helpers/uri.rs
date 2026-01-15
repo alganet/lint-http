@@ -167,5 +167,24 @@ mod tests {
         assert!(validate_origin_value("http:///bad").is_some());
         assert!(validate_origin_value("https://exa mple").is_some());
         assert!(validate_origin_value("invalid-origin").is_some());
+        // invalid scheme in Origin
+        let m = validate_origin_value("1http://example.com").unwrap();
+        assert!(m.contains("Invalid scheme"));
+    }
+
+    #[test]
+    fn extract_origin_invalid_scheme_whitespace_and_missing_authority() {
+        // invalid scheme (does not start with alphabetic)
+        assert_eq!(extract_origin_if_absolute("1http://example.com"), None);
+        // whitespace in authority
+        assert_eq!(extract_origin_if_absolute("http://exa mple"), None);
+        // missing authority (empty after scheme)
+        assert_eq!(extract_origin_if_absolute("http://"), None);
+    }
+
+    #[test]
+    fn validate_origin_missing_host_reports_missing() {
+        let m = validate_origin_value("http://").unwrap();
+        assert!(m.contains("Origin missing host"));
     }
 }
