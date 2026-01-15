@@ -9,5 +9,6 @@
 pub mod content_range;
 pub mod headers;
 pub mod ipv6;
+pub mod language;
 pub mod token;
 pub mod uri;

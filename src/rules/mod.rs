@@ -303,6 +303,7 @@ pub mod message_from_header_email_syntax;
 pub mod message_header_field_names_token;
 pub mod message_http_version_syntax_valid;
 pub mod message_if_none_match_etag_syntax;
+pub mod message_language_tag_format_valid;
 pub mod message_max_forwards_numeric;
 pub mod message_range_and_content_range_consistency;
 pub mod message_referer_uri_valid;
@@ -364,6 +365,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &server_content_type_present::ServerContentTypePresent,
     &message_content_type_well_formed::MessageContentTypeWellFormed,
+    &message_language_tag_format_valid::MessageLanguageTagFormatValid,
     &message_digest_header_syntax::MessageDigestHeaderSyntax,
     &message_if_none_match_etag_syntax::MessageIfNoneMatchEtagSyntax,
     &message_connection_upgrade::MessageConnectionUpgrade,
