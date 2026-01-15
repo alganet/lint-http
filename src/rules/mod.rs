@@ -287,6 +287,7 @@ pub mod client_request_target_form_checks;
 pub mod client_request_target_no_fragment;
 pub mod client_request_uri_percent_encoding_valid;
 pub mod client_user_agent_present;
+pub mod message_accept_header_media_type_syntax;
 pub mod message_access_control_allow_credentials_when_origin;
 pub mod message_access_control_allow_origin_valid;
 pub mod message_age_header_numeric;
@@ -374,6 +375,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &server_content_type_present::ServerContentTypePresent,
     &message_content_type_well_formed::MessageContentTypeWellFormed,
+    &message_accept_header_media_type_syntax::MessageAcceptHeaderMediaTypeSyntax,
     &message_language_tag_format_valid::MessageLanguageTagFormatValid,
     &message_digest_header_syntax::MessageDigestHeaderSyntax,
     &message_if_none_match_etag_syntax::MessageIfNoneMatchEtagSyntax,
