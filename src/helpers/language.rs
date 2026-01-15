@@ -94,4 +94,9 @@ mod tests {
         // ASCII BEL control char
         assert!(validate_language_tag("en\x07US").is_err());
     }
+
+    #[test]
+    fn non_ascii_characters_are_rejected() {
+        assert!(validate_language_tag("en-ç").is_err());
+    }
 }
