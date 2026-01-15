@@ -312,6 +312,7 @@ pub mod message_range_and_content_range_consistency;
 pub mod message_referer_uri_valid;
 pub mod message_retry_after_date_or_delay;
 pub mod message_te_header_constraints;
+pub mod message_transfer_coding_iana_registered;
 pub mod message_transfer_encoding_chunked_final;
 pub mod message_via_header_syntax_valid;
 pub mod server_accept_ranges_values_valid;
@@ -375,6 +376,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_if_none_match_etag_syntax::MessageIfNoneMatchEtagSyntax,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_content_encoding_iana_registered::MessageContentEncodingIanaRegistered,
+    &message_transfer_coding_iana_registered::MessageTransferCodingIanaRegistered,
     &message_te_header_constraints::MessageTeHeaderConstraints,
     &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
     &message_prefer_header_valid::MessagePreferHeaderValid,
