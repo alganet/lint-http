@@ -79,15 +79,15 @@ pub async fn load_captures<P: AsRef<std::path::Path>>(
 
     while let Some(line) = lines.next_line().await? {
         line_num += 1;
-        if line.trim().is_empty() {
-            continue;
-        }
-
-        match serde_json::from_str::<crate::http_transaction::HttpTransaction>(&line) {
-            Ok(record) => records.push(record),
-            Err(e) => {
-                tracing::warn!(line = line_num, error = %e, "failed to parse capture record, skipping");
+        if !line.trim().is_empty() {
+            match serde_json::from_str::<crate::http_transaction::HttpTransaction>(&line) {
+                Ok(record) => records.push(record),
+                Err(e) => {
+                    tracing::warn!(line = line_num, error = %e, "failed to parse capture record, skipping");
+                }
             }
+        } else {
+            tracing::debug!(line = line_num, "skipping empty/whitespace capture line");
         }
     }
 
