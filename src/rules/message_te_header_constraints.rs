@@ -103,7 +103,7 @@ impl Rule for MessageTeHeaderConstraints {
                             let v = val.unwrap();
                             // q special-case: validate qvalue format 0..1 with up to three decimals
                             if name.eq_ignore_ascii_case("q") {
-                                if !valid_qvalue(v) {
+                                if !crate::helpers::headers::valid_qvalue(v) {
                                     return Some(Violation {
                                         rule: self.id().to_string(),
                                         severity: config.severity,
@@ -164,26 +164,6 @@ impl Rule for MessageTeHeaderConstraints {
 
         None
     }
-}
-
-/// Validate qvalue syntax: 0, 1, 0.5, 0.123, 1.0, 0.000, etc. up to 3 decimals
-fn valid_qvalue(s: &str) -> bool {
-    let s = s.trim();
-    // Must match either 1 or 1.0{0,3} or 0(.xxx){0,3}
-    if s == "1" || s == "1.0" || s == "1.00" || s == "1.000" {
-        return true;
-    }
-    if s.starts_with("0") {
-        if s == "0" {
-            return true;
-        }
-        if let Some(rest) = s.strip_prefix("0.") {
-            if !rest.is_empty() && rest.len() <= 3 && rest.chars().all(|c| c.is_ascii_digit()) {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 // Find the first invalid character in a TE transfer-coding token per rule's stricter policy.
@@ -353,7 +333,7 @@ mod tests {
     #[case("0.1234", false)]
     #[case(" 0.5 ", true)]
     fn check_qvalue_cases(#[case] s: &str, #[case] expected: bool) {
-        assert_eq!(valid_qvalue(s), expected);
+        assert_eq!(crate::helpers::headers::valid_qvalue(s), expected);
     }
 
     #[test]

@@ -57,6 +57,26 @@ pub fn validate_quoted_string(val: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Validate qvalue syntax: 0, 1, 0.5, 0.123, 1.0, 0.000, etc. up to 3 decimals
+pub fn valid_qvalue(s: &str) -> bool {
+    let s = s.trim();
+    // Must match either 1 or 1.0{0,3} or 0(.xxx){0,3}
+    if s == "1" || s == "1.0" || s == "1.00" || s == "1.000" {
+        return true;
+    }
+    if s.starts_with("0") {
+        if s == "0" {
+            return true;
+        }
+        if let Some(rest) = s.strip_prefix("0.") {
+            if !rest.is_empty() && rest.len() <= 3 && rest.chars().all(|c| c.is_ascii_digit()) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Validate a mailbox-list per RFC 5322-ish syntax. This is a conservative validator
 /// that accepts common mailbox forms used in `From` headers: a comma-separated list
 /// of either `addr-spec` (user@example.com) or `display-name <addr-spec>` entries.
@@ -381,6 +401,20 @@ mod tests {
         assert!(parse_media_type("text").is_err());
         assert!(parse_media_type("/html").is_err());
         assert!(parse_media_type("text/").is_err());
+    }
+
+    #[test]
+    fn test_valid_qvalue() {
+        assert!(valid_qvalue("1"));
+        assert!(valid_qvalue("1.0"));
+        assert!(valid_qvalue("1.00"));
+        assert!(valid_qvalue("1.000"));
+        assert!(valid_qvalue("0"));
+        assert!(valid_qvalue("0.5"));
+        assert!(valid_qvalue("0.123"));
+        assert!(!valid_qvalue("1.0000"));
+        assert!(!valid_qvalue("0.1234"));
+        assert!(!valid_qvalue("abc"));
     }
 
     #[test]
