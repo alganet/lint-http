@@ -296,6 +296,7 @@ pub mod message_connection_upgrade;
 pub mod message_content_encoding_iana_registered;
 pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
+pub mod message_content_transfer_encoding_valid;
 pub mod message_content_type_well_formed;
 pub mod message_cross_origin_embedder_policy_valid;
 pub mod message_cross_origin_opener_policy_valid;
@@ -376,6 +377,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_if_none_match_etag_syntax::MessageIfNoneMatchEtagSyntax,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_content_encoding_iana_registered::MessageContentEncodingIanaRegistered,
+    &message_content_transfer_encoding_valid::MessageContentTransferEncodingValid,
     &message_transfer_coding_iana_registered::MessageTransferCodingIanaRegistered,
     &message_te_header_constraints::MessageTeHeaderConstraints,
     &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
