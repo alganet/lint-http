@@ -36,6 +36,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [server_location_header_uri_valid](rules/server_location_header_uri_valid.md) - `Location` header value should be a valid URI-reference.
 - [server_response_location_on_redirect](rules/server_response_location_on_redirect.md) - Redirect responses SHOULD include `Location` header when semantics require it (RFC 9110 §10.2.2, §15.4).
 - [server_x_content_type_options](rules/server_x_content_type_options.md) - Checks for `X-Content-Type-Options: nosniff`.
+- [server_problem_details_content_type](rules/server_problem_details_content_type.md) - Problem Details responses SHOULD use `application/problem+json` or `application/problem+xml`. (RFC 7807)
 - [server_x_frame_options_value_valid](rules/server_x_frame_options_value_valid.md) - `X-Frame-Options` header must be `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <origin>` and must not appear multiple times. (RFC 7034 §2.1)
 - [server_x_xss_protection_value_valid](rules/server_x_xss_protection_value_valid.md) - `X-XSS-Protection` header value should be `0` or `1; mode=block` when present (case-insensitive). (MDN)
 - [server_response_405_allow](rules/server_response_405_allow.md) - Checks `Allow` header is present on `405` responses.

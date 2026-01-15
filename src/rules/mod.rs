@@ -327,6 +327,7 @@ pub mod server_last_modified_rfc1123_format;
 pub mod server_location_header_uri_valid;
 pub mod server_no_body_for_1xx_204_304;
 pub mod server_patch_accept_patch_header;
+pub mod server_problem_details_content_type;
 pub mod server_response_405_allow;
 pub mod server_response_location_on_redirect;
 pub mod server_server_timing_header_syntax;
@@ -361,6 +362,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_patch_accept_patch_header::ServerPatchAcceptPatchHeader,
     &server_server_timing_header_syntax::ServerServerTimingHeaderSyntax,
     &server_alt_svc_header_syntax::ServerAltSvcHeaderSyntax,
+    &server_problem_details_content_type::ServerProblemDetailsContentType,
     &client_request_method_token_uppercase::ClientRequestMethodTokenUppercase,
     &client_request_origin_header_present_for_cors::ClientRequestOriginHeaderPresentForCors,
     &client_expect_header_valid::ClientExpectHeaderValid,
