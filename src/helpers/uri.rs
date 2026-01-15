@@ -58,6 +58,65 @@ pub fn validate_scheme_if_present(s: &str) -> Option<String> {
     None
 }
 
+/// If `s` is an absolute-form request-target or full URI, return the origin
+/// component as `scheme://host[:port]`. Returns `None` if input is not absolute
+/// or if it does not contain a valid origin.
+pub fn extract_origin_if_absolute(s: &str) -> Option<String> {
+    let marker = "://";
+    let idx = s.find(marker)?;
+    let after = &s[idx + marker.len()..];
+    // find end of authority (first '/')
+    let end = after
+        .find('/')
+        .map(|p| idx + marker.len() + p)
+        .unwrap_or(s.len());
+    let origin = &s[..end];
+
+    // Basic validation: scheme valid, no whitespace, authority part present
+    if validate_scheme_if_present(origin).is_some() {
+        return None;
+    }
+    if contains_whitespace(origin) {
+        return None;
+    }
+    let authority = &origin[idx + marker.len()..];
+    if authority.is_empty() {
+        return None;
+    }
+    Some(origin.to_string())
+}
+
+/// Validate an `Origin` header value. Accepts `null` or a serialized origin
+/// of the form `scheme://host[:port]`. Returns `None` if valid or
+/// `Some(msg)` describing the problem.
+pub fn validate_origin_value(s: &str) -> Option<String> {
+    let s_trim = s.trim();
+    if s_trim.eq_ignore_ascii_case("null") {
+        return None;
+    }
+    // Must be an origin (absolute with no path)
+    if let Some(colon_pos) = s_trim.find("://") {
+        // no path allowed
+        if s_trim[colon_pos + 3..].contains('/') {
+            return Some("Origin must not include a path".into());
+        }
+        if validate_scheme_if_present(s_trim).is_some() {
+            return Some("Invalid scheme in Origin".into());
+        }
+        if contains_whitespace(s_trim) {
+            return Some("Origin contains whitespace".into());
+        }
+        // ensure authority (host:port) present
+        let authority = &s_trim[colon_pos + 3..];
+        if authority.is_empty() {
+            return Some("Origin missing host".into());
+        }
+        return None;
+    }
+
+    Some("Origin is not a valid serialized origin".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,5 +144,28 @@ mod tests {
         assert!(validate_scheme_if_present("ht!tp://ex").is_some());
         assert!(validate_scheme_if_present("/relative").is_none());
         assert!(validate_scheme_if_present("https://ex").is_none());
+    }
+
+    #[test]
+    fn extract_origin_if_absolute_cases() {
+        assert_eq!(extract_origin_if_absolute("/relative"), None);
+        assert_eq!(
+            extract_origin_if_absolute("http://example.com/path"),
+            Some("http://example.com".into())
+        );
+        assert_eq!(
+            extract_origin_if_absolute("https://example.com:8080"),
+            Some("https://example.com:8080".into())
+        );
+        assert_eq!(extract_origin_if_absolute("not-a-scheme//no"), None);
+    }
+
+    #[test]
+    fn validate_origin_value_cases() {
+        assert!(validate_origin_value("null").is_none());
+        assert!(validate_origin_value("https://example.com").is_none());
+        assert!(validate_origin_value("http:///bad").is_some());
+        assert!(validate_origin_value("https://exa mple").is_some());
+        assert!(validate_origin_value("invalid-origin").is_some());
     }
 }
