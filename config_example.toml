@@ -117,6 +117,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.server_deprecation_header_syntax]
+enabled = true
+severity = "warn"
+
 [rules.server_alt_svc_header_syntax]
 enabled = true
 severity = "warn"

@@ -323,6 +323,7 @@ pub mod server_cache_control_present;
 pub mod server_charset_specification;
 pub mod server_clear_site_data;
 pub mod server_content_type_present;
+pub mod server_deprecation_header_syntax;
 pub mod server_etag_or_last_modified;
 pub mod server_last_modified_rfc1123_format;
 pub mod server_location_header_uri_valid;
@@ -362,6 +363,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_vary_header_valid::ServerVaryHeaderValid,
     &server_patch_accept_patch_header::ServerPatchAcceptPatchHeader,
     &server_server_timing_header_syntax::ServerServerTimingHeaderSyntax,
+    &server_deprecation_header_syntax::ServerDeprecationHeaderSyntax,
     &server_alt_svc_header_syntax::ServerAltSvcHeaderSyntax,
     &server_problem_details_content_type::ServerProblemDetailsContentType,
     &client_request_method_token_uppercase::ClientRequestMethodTokenUppercase,
