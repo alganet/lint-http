@@ -294,6 +294,7 @@ pub mod message_age_header_numeric;
 pub mod message_allow_header_method_tokens;
 pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
+pub mod message_content_disposition_token_valid;
 pub mod message_content_encoding_iana_registered;
 pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
@@ -379,6 +380,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &server_content_type_present::ServerContentTypePresent,
     &message_content_type_well_formed::MessageContentTypeWellFormed,
+    &message_content_disposition_token_valid::MessageContentDispositionTokenValid,
     &message_accept_header_media_type_syntax::MessageAcceptHeaderMediaTypeSyntax,
     &message_language_tag_format_valid::MessageLanguageTagFormatValid,
     &message_digest_header_syntax::MessageDigestHeaderSyntax,
