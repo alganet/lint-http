@@ -292,6 +292,7 @@ pub mod message_access_control_allow_credentials_when_origin;
 pub mod message_access_control_allow_origin_valid;
 pub mod message_age_header_numeric;
 pub mod message_allow_header_method_tokens;
+pub mod message_cache_control_token_valid;
 pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
 pub mod message_content_disposition_parameter_validity;
@@ -395,6 +396,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
     &message_priority_header_syntax::MessagePriorityHeaderSyntax,
     &message_prefer_header_valid::MessagePreferHeaderValid,
+    &message_cache_control_token_valid::MessageCacheControlTokenValid,
     &message_preference_applied_header_valid::MessagePreferenceAppliedHeaderValid,
     &message_max_forwards_numeric::MessageMaxForwardsNumeric,
     &message_age_header_numeric::MessageAgeHeaderNumeric,
