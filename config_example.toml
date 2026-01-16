@@ -157,6 +157,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_content_disposition_parameter_validity]
+enabled = true
+severity = "warn"
+
 [rules.message_accept_header_media_type_syntax]
 enabled = true
 severity = "warn"

@@ -294,6 +294,7 @@ pub mod message_age_header_numeric;
 pub mod message_allow_header_method_tokens;
 pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
+pub mod message_content_disposition_parameter_validity;
 pub mod message_content_disposition_token_valid;
 pub mod message_content_encoding_iana_registered;
 pub mod message_content_length;
@@ -381,6 +382,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_content_type_present::ServerContentTypePresent,
     &message_content_type_well_formed::MessageContentTypeWellFormed,
     &message_content_disposition_token_valid::MessageContentDispositionTokenValid,
+    &message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity,
     &message_accept_header_media_type_syntax::MessageAcceptHeaderMediaTypeSyntax,
     &message_language_tag_format_valid::MessageLanguageTagFormatValid,
     &message_digest_header_syntax::MessageDigestHeaderSyntax,
@@ -680,5 +682,33 @@ mod tests {
         let sev = get_rule_severity_required(&cfg, "test_rule")?;
         assert_eq!(sev, crate::lint::Severity::Warn);
         Ok(())
+    }
+
+    #[test]
+    fn get_rule_severity_required_invalid_string_errors() {
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        table.insert(
+            "severity".to_string(),
+            toml::Value::String("critical".into()),
+        );
+        cfg.rules
+            .insert("test_rule_invalid".into(), toml::Value::Table(table));
+
+        let res = get_rule_severity_required(&cfg, "test_rule_invalid");
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_string().contains("invalid severity"));
+    }
+
+    #[test]
+    fn get_rule_enabled_required_missing_config_errors() {
+        let cfg = crate::config::Config::default();
+        let res = get_rule_enabled_required(&cfg, "nope");
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains("missing configuration"));
     }
 }

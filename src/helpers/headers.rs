@@ -77,6 +77,72 @@ pub fn valid_qvalue(s: &str) -> bool {
     false
 }
 
+/// Validate an RFC 5987 `ext-value` (e.g. `UTF-8''%e2%82%ac%20rates`).
+/// Returns Ok(()) if the value matches the expected pattern and contains
+/// only allowed characters/percent-escapes, or Err(msg) describing the
+/// problem.
+pub fn validate_ext_value(val: &str) -> Result<(), String> {
+    // Must contain at least two single quotes separating charset, optional language, and value-chars
+    let first_quote = val
+        .find('\'')
+        .ok_or_else(|| "ext-value missing charset separator".to_string())?;
+    let rest = &val[first_quote + 1..];
+    let second_quote = rest
+        .find('\'')
+        .ok_or_else(|| "ext-value missing language separator".to_string())?
+        + first_quote
+        + 1;
+
+    let charset = &val[..first_quote];
+    if charset.is_empty() {
+        return Err("charset in ext-value must not be empty".into());
+    }
+    // Basic charset sanity: must be ASCII and not contain quote
+    if !charset.is_ascii() || charset.contains('\'') {
+        return Err("invalid charset in ext-value".into());
+    }
+
+    // Language part may be empty; we don't strictly validate language tags here
+    let value_chars = &val[second_quote + 1..];
+    if value_chars.is_empty() {
+        // empty value is allowed
+        return Ok(());
+    }
+
+    let mut i = 0usize;
+    let bytes = value_chars.as_bytes();
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b == b'%' {
+            // Expect two hex digits
+            if i + 2 >= bytes.len() {
+                return Err("incomplete percent-encoding in ext-value".into());
+            }
+            let hi = bytes[i + 1];
+            let lo = bytes[i + 2];
+            if !((hi as char).is_ascii_hexdigit() && (lo as char).is_ascii_hexdigit()) {
+                return Err("invalid percent-encoding in ext-value".into());
+            }
+            i += 3;
+            continue;
+        }
+        let ch = bytes[i] as char;
+        // attr-char per RFC 5987: ALPHA / DIGIT / "!" / "#" / "$" / "%" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
+        if ch.is_ascii_alphanumeric()
+            || matches!(
+                ch,
+                '!' | '#' | '$' | '%' | '&' | '+' | '-' | '.' | '^' | '_' | '`' | '|' | '~'
+            )
+        {
+            i += 1;
+            continue;
+        }
+        return Err(format!("invalid character '{}' in ext-value", ch));
+    }
+
+    Ok(())
+}
+
 /// Validate a mailbox-list per RFC 5322-ish syntax. This is a conservative validator
 /// that accepts common mailbox forms used in `From` headers: a comma-separated list
 /// of either `addr-spec` (user@example.com) or `display-name <addr-spec>` entries.
@@ -563,5 +629,23 @@ mod tests {
         let res = validate_addr_spec("local@-example.com");
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("invalid domain"));
+    }
+
+    #[test]
+    fn test_validate_ext_value() {
+        // Valid ext-values
+        assert!(validate_ext_value("UTF-8''%e2%82%ac%20rates").is_ok());
+        assert!(validate_ext_value("iso-8859-1'en'%A3%20rates").is_ok());
+        assert!(validate_ext_value("UTF-8''simple-ascii").is_ok());
+        assert!(validate_ext_value("UTF-8''").is_ok()); // empty value-chars allowed
+
+        // Invalid: missing quotes
+        assert!(validate_ext_value("UTF-8%e2%82%ac").is_err());
+        // Invalid: incomplete percent
+        assert!(validate_ext_value("UTF-8''%e2%2").is_err());
+        // Invalid: bad hex
+        assert!(validate_ext_value("UTF-8''%ZZ").is_err());
+        // Invalid: invalid attr-char
+        assert!(validate_ext_value("UTF-8''hello@world").is_err());
     }
 }
