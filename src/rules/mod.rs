@@ -310,6 +310,7 @@ pub mod message_if_none_match_etag_syntax;
 pub mod message_language_tag_format_valid;
 pub mod message_max_forwards_numeric;
 pub mod message_prefer_header_valid;
+pub mod message_preference_applied_header_valid;
 pub mod message_range_and_content_range_consistency;
 pub mod message_referer_uri_valid;
 pub mod message_retry_after_date_or_delay;
@@ -388,6 +389,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_te_header_constraints::MessageTeHeaderConstraints,
     &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
     &message_prefer_header_valid::MessagePreferHeaderValid,
+    &message_preference_applied_header_valid::MessagePreferenceAppliedHeaderValid,
     &message_max_forwards_numeric::MessageMaxForwardsNumeric,
     &message_age_header_numeric::MessageAgeHeaderNumeric,
     &message_allow_header_method_tokens::MessageAllowHeaderMethodTokens,
