@@ -32,6 +32,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 
 - [server_cache_control_present](rules/server_cache_control_present.md) - Checks for `Cache-Control` header on cacheable responses.
 - [server_etag_or_last_modified](rules/server_etag_or_last_modified.md) - Checks for `ETag` or `Last-Modified` headers.
+- [message_etag_syntax](rules/message_etag_syntax.md) - Validates `ETag` header is a single, syntactically valid entity-tag (strong or weak); flags invalid `*` usage and multiple header fields. (RFC 9110 §7.6, §8.8.3)
 - [server_last_modified_rfc1123_format](rules/server_last_modified_rfc1123_format.md) - Ensures `Last-Modified` header uses IMF-fixdate (RFC 9110 §7.7.1).
 - [server_location_header_uri_valid](rules/server_location_header_uri_valid.md) - `Location` header value should be a valid URI-reference.
 - [server_response_location_on_redirect](rules/server_response_location_on_redirect.md) - Redirect responses SHOULD include `Location` header when semantics require it (RFC 9110 §10.2.2, §15.4).
