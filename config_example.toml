@@ -42,6 +42,10 @@ severity = "warn"
 enabled = true
 severity = "info"
 
+[rules.message_etag_syntax]
+enabled = true
+severity = "warn"
+
 [rules.server_last_modified_rfc1123_format]
 enabled = true
 severity = "warn"
