@@ -161,6 +161,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_priority_header_syntax]
+enabled = true
+severity = "warn"
+
 [rules.message_referer_uri_valid]
 enabled = true
 severity = "warn"
