@@ -59,6 +59,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_content_disposition_token_valid](rules/message_content_disposition_token_valid.md) - `Content-Disposition` header disposition-type must be a valid token. (RFC 6266 §4)
 - [message_content_disposition_parameter_validity](rules/message_content_disposition_parameter_validity.md) - `Content-Disposition` parameters such as `filename`, `filename*` and `size` must be syntactically valid (RFC 6266 §4, RFC 5987 §3.2)
 - [message_accept_header_media_type_syntax](rules/message_accept_header_media_type_syntax.md) - Validates `Accept` header media-range syntax, parameters, and `q` values. (RFC 9110 §7.2.1)
+- [message_cache_control_token_valid](rules/message_cache_control_token_valid.md) - `Cache-Control` directive names and unquoted values must follow the `token` grammar; quoted-string values are validated as such. (RFC 9110 §5.2)
 - [message_priority_header_syntax](rules/message_priority_header_syntax.md) - `Priority` header must follow `u` (urgency 0..7) and optional `i` (incremental boolean) parameter syntax. (RFC 9218 §4–§5)
 - [message_language_tag_format_valid](rules/message_language_tag_format_valid.md) - Validates `Content-Language` and `Accept-Language` language-tags follow BCP 47-style syntax (RFC 5646).
 - [message_access_control_allow_credentials_when_origin](rules/message_access_control_allow_credentials_when_origin.md) - If `Access-Control-Allow-Origin` is `*`, `Access-Control-Allow-Credentials` must not be `true`. (CORS)
