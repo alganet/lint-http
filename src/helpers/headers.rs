@@ -19,6 +19,40 @@ pub fn parse_list_header(val: &str) -> impl Iterator<Item = &str> {
     val.split(',').map(|s| s.trim()).filter(|s| !s.is_empty())
 }
 
+/// Split a comma-separated header value into top-level members while respecting quoted-strings
+/// and backslash escapes. Returns a Vec of slices referencing the original string.
+///
+/// This is useful for header grammars like `Cache-Control` and `Pragma` where members
+/// may contain quoted-strings with commas that must not be treated as separators.
+pub fn split_commas_respecting_quotes(s: &str) -> Vec<&str> {
+    let bytes = s.as_bytes();
+    let mut res = Vec::new();
+    let mut start = 0usize;
+    let mut i = 0usize;
+    let mut in_quote = false;
+    let mut prev_backslash = false;
+
+    while i < bytes.len() {
+        let b = bytes[i];
+        if prev_backslash {
+            prev_backslash = false;
+        } else if b == b'\\' {
+            prev_backslash = true;
+        } else if b == b'"' {
+            in_quote = !in_quote;
+        } else if b == b',' && !in_quote {
+            res.push(&s[start..i]);
+            start = i + 1;
+        }
+        i += 1;
+    }
+    // push remaining
+    if start <= s.len() {
+        res.push(&s[start..]);
+    }
+    res
+}
+
 /// Validate a quoted-string per HTTP rules: must start and end with DQUOTE, support backslash escapes,
 /// must not contain unescaped control characters (except HTAB). Returns Ok(()) on success, Err(msg)
 /// on failure.
@@ -647,5 +681,30 @@ mod tests {
         assert!(validate_ext_value("UTF-8''%ZZ").is_err());
         // Invalid: invalid attr-char
         assert!(validate_ext_value("UTF-8''hello@world").is_err());
+    }
+
+    #[test]
+    fn test_split_commas_respecting_quotes() {
+        let cases = vec![
+            ("a, b, c", vec!["a", "b", "c"]),
+            ("token=\"a,b\", other", vec!["token=\"a,b\"", "other"]),
+            (r#"token="a\"b",c"#, vec![r#"token="a\"b""#, "c"]),
+            (
+                "no-cache, foo=bar, token=\"quoted,comma\",baz",
+                vec!["no-cache", "foo=bar", "token=\"quoted,comma\"", "baz"],
+            ),
+            ("", vec![""]),
+            ("a,b,", vec!["a", "b", ""]),
+            (",,", vec!["", "", ""]),
+        ];
+
+        for (input, expected) in cases {
+            let got: Vec<String> = split_commas_respecting_quotes(input)
+                .iter()
+                .map(|s| s.trim().to_string())
+                .collect();
+            let exp: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
+            assert_eq!(got, exp, "input: {:?}", input);
+        }
     }
 }
