@@ -239,6 +239,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_if_modified_since_date_format]
+enabled = true
+severity = "warn"
+
 [rules.message_http_version_syntax_valid]
 enabled = true
 severity = "error"
