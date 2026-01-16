@@ -315,6 +315,7 @@ pub mod message_if_modified_since_date_format;
 pub mod message_if_none_match_etag_syntax;
 pub mod message_language_tag_format_valid;
 pub mod message_max_forwards_numeric;
+pub mod message_pragma_token_valid;
 pub mod message_prefer_header_valid;
 pub mod message_preference_applied_header_valid;
 pub mod message_priority_header_syntax;
@@ -403,6 +404,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_priority_header_syntax::MessagePriorityHeaderSyntax,
     &message_prefer_header_valid::MessagePreferHeaderValid,
     &message_cache_control_token_valid::MessageCacheControlTokenValid,
+    &message_pragma_token_valid::MessagePragmaTokenValid,
     &message_preference_applied_header_valid::MessagePreferenceAppliedHeaderValid,
     &message_max_forwards_numeric::MessageMaxForwardsNumeric,
     &message_age_header_numeric::MessageAgeHeaderNumeric,

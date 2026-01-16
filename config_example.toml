@@ -161,6 +161,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_pragma_token_valid]
+enabled = true
+severity = "warn"
+
 [rules.message_content_disposition_token_valid]
 enabled = true
 severity = "warn"
