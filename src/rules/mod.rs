@@ -311,6 +311,7 @@ pub mod message_from_header_email_syntax;
 pub mod message_header_field_names_token;
 pub mod message_http_version_syntax_valid;
 pub mod message_if_match_etag_syntax;
+pub mod message_if_modified_since_date_format;
 pub mod message_if_none_match_etag_syntax;
 pub mod message_language_tag_format_valid;
 pub mod message_max_forwards_numeric;
@@ -392,6 +393,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_etag_syntax::MessageEtagSyntax,
     &message_if_match_etag_syntax::MessageIfMatchEtagSyntax,
     &message_if_none_match_etag_syntax::MessageIfNoneMatchEtagSyntax,
+    &message_if_modified_since_date_format::MessageIfModifiedSinceDateFormat,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_content_encoding_iana_registered::MessageContentEncodingIanaRegistered,
     &message_content_transfer_encoding_valid::MessageContentTransferEncodingValid,
