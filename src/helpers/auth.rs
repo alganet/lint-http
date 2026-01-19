@@ -171,6 +171,44 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Validate an `Authorization` header value for having both a valid auth-scheme and
+/// non-empty credentials (token68 or auth-param list). Unlike `WWW-Authenticate` challenges,
+/// the `Authorization` header MUST include credentials after the auth-scheme.
+/// Returns Ok(()) on success or Err(String) describing the problem.
+pub fn validate_authorization_syntax(value: &str) -> Result<(), String> {
+    let v = value.trim();
+    if v.is_empty() {
+        return Err("Authorization header is empty".into());
+    }
+
+    let mut parts = v.splitn(2, char::is_whitespace);
+    let scheme = parts.next().unwrap().trim();
+    if scheme.is_empty() {
+        return Err("Authorization header missing auth-scheme".into());
+    }
+    if let Some(invalid) = crate::helpers::token::find_invalid_token_char(scheme) {
+        return Err(format!(
+            "Invalid character '{}' in Authorization auth-scheme",
+            invalid
+        ));
+    }
+
+    // Authorization MUST include credentials after scheme (unlike WWW-Authenticate)
+    if let Some(rest) = parts.next() {
+        let rest = rest.trim();
+        if rest.is_empty() {
+            return Err("Authorization header missing credentials after auth-scheme".into());
+        }
+        // Basic checks: no control characters
+        if rest.chars().any(|c| (c as u32) < 0x20 || c == '\x7f') {
+            return Err("Authorization credentials contain control characters".into());
+        }
+        Ok(())
+    } else {
+        Err("Authorization header missing credentials after auth-scheme".into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,6 +217,39 @@ mod tests {
     fn basic_single_challenge() {
         let got = split_and_group_challenges("Basic realm=\"x\"").unwrap();
         assert_eq!(got, vec!["Basic realm=\"x\"".to_string()]);
+    }
+
+    #[test]
+    fn validate_authorization_basic_ok() {
+        assert!(validate_authorization_syntax("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==").is_ok());
+    }
+
+    #[test]
+    fn validate_authorization_bearer_ok() {
+        assert!(validate_authorization_syntax("Bearer abc123").is_ok());
+    }
+
+    #[test]
+    fn validate_authorization_digest_ok() {
+        assert!(
+            validate_authorization_syntax("Digest username=\"Mufasa\", realm=\"test\"").is_ok()
+        );
+    }
+
+    #[test]
+    fn validate_authorization_missing_credentials() {
+        assert!(validate_authorization_syntax("Basic").is_err());
+        assert!(validate_authorization_syntax("Basic ").is_err());
+    }
+
+    #[test]
+    fn validate_authorization_invalid_scheme_char() {
+        assert!(validate_authorization_syntax("B@sic xyz").is_err());
+    }
+
+    #[test]
+    fn validate_authorization_control_chars() {
+        assert!(validate_authorization_syntax("Bearer \u{0001}").is_err());
     }
 
     #[test]
