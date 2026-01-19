@@ -52,3 +52,20 @@ pub fn make_temp_captures_path(prefix: &str) -> std::path::PathBuf {
 pub fn make_temp_config_path(prefix: &str) -> std::path::PathBuf {
     std::env::temp_dir().join(format!("{}_{}.toml", prefix, uuid::Uuid::new_v4()))
 }
+
+#[cfg(test)]
+#[test]
+fn make_temp_paths_include_prefix() {
+    let p = make_temp_captures_path("testprefix");
+    assert!(p
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .starts_with("testprefix"));
+    let p2 = make_temp_config_path("cfgprefix");
+    assert!(p2
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .starts_with("cfgprefix"));
+}

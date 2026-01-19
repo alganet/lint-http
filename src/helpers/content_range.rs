@@ -147,4 +147,11 @@ mod tests {
         assert!(parse_content_range("bytes */*").is_err());
         assert!(parse_content_range("bytes */x").is_err());
     }
+
+    #[test]
+    fn unexpected_star_prefix_reports_error() {
+        let r = parse_content_range("bytes *1/1234");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("unexpected value"));
+    }
 }
