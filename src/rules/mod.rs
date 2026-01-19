@@ -292,6 +292,7 @@ pub mod message_access_control_allow_credentials_when_origin;
 pub mod message_access_control_allow_origin_valid;
 pub mod message_age_header_numeric;
 pub mod message_allow_header_method_tokens;
+pub mod message_authorization_credentials_present;
 pub mod message_cache_control_token_valid;
 pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
@@ -399,6 +400,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_server_header_product_valid::MessageServerHeaderProductValid,
     &message_digest_header_syntax::MessageDigestHeaderSyntax,
     &message_www_authenticate_challenge_syntax::MessageWwwAuthenticateChallengeSyntax,
+    &message_authorization_credentials_present::MessageAuthorizationCredentialsPresent,
     &message_cookie_attribute_consistency::MessageCookieAttributeConsistency,
     &message_etag_syntax::MessageEtagSyntax,
     &message_if_match_etag_syntax::MessageIfMatchEtagSyntax,
