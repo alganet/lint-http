@@ -193,6 +193,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_early_data_header_safe_method]
+enabled = true
+severity = "warn"
+
 [rules.message_priority_header_syntax]
 enabled = true
 severity = "warn"
