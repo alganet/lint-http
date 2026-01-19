@@ -318,6 +318,7 @@ pub mod message_if_none_match_etag_syntax;
 pub mod message_if_unmodified_since_date_format;
 pub mod message_language_tag_format_valid;
 pub mod message_max_forwards_numeric;
+pub mod message_multipart_boundary_syntax;
 pub mod message_pragma_token_valid;
 pub mod message_prefer_header_valid;
 pub mod message_preference_applied_header_valid;
@@ -393,6 +394,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &server_content_type_present::ServerContentTypePresent,
     &message_content_type_well_formed::MessageContentTypeWellFormed,
+    &message_multipart_boundary_syntax::MessageMultipartBoundarySyntax,
     &message_content_disposition_token_valid::MessageContentDispositionTokenValid,
     &message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity,
     &message_accept_header_media_type_syntax::MessageAcceptHeaderMediaTypeSyntax,

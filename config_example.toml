@@ -165,6 +165,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_multipart_boundary_syntax]
+enabled = true
+severity = "warn"
+
 [rules.message_cache_control_token_valid]
 enabled = true
 severity = "warn"
