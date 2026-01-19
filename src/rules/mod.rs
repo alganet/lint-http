@@ -287,6 +287,7 @@ pub mod client_request_target_form_checks;
 pub mod client_request_target_no_fragment;
 pub mod client_request_uri_percent_encoding_valid;
 pub mod client_user_agent_present;
+pub mod message_accept_encoding_parameter_validity;
 pub mod message_accept_header_media_type_syntax;
 pub mod message_access_control_allow_credentials_when_origin;
 pub mod message_access_control_allow_origin_valid;
@@ -413,6 +414,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_if_unmodified_since_date_format::MessageIfUnmodifiedSinceDateFormat,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_content_encoding_iana_registered::MessageContentEncodingIanaRegistered,
+    &message_accept_encoding_parameter_validity::MessageAcceptEncodingParameterValidity,
     &message_content_transfer_encoding_valid::MessageContentTransferEncodingValid,
     &message_transfer_coding_iana_registered::MessageTransferCodingIanaRegistered,
     &message_te_header_constraints::MessageTeHeaderConstraints,

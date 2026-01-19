@@ -230,6 +230,10 @@ enabled = true
 severity = "warn"
 allowed = ["aes128gcm", "br", "compress", "dcb", "dcz", "deflate", "exi", "gzip", "identity", "pack200-gzip", "x-compress", "x-gzip", "zstd"]
 
+[rules.message_accept_encoding_parameter_validity]
+enabled = true
+severity = "warn"
+
 [rules.message_transfer_coding_iana_registered]
 enabled = true
 severity = "warn"
