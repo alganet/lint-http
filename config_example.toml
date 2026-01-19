@@ -272,8 +272,11 @@ enabled = true
 severity = "warn"
 
 [rules.message_www_authenticate_challenge_syntax]
+
+[rules.message_auth_scheme_iana_registered]
 enabled = true
 severity = "warn"
+allowed = ["Basic", "Bearer", "Digest"]
 
 [rules.message_authorization_credentials_present]
 enabled = true
