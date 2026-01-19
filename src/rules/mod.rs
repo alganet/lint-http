@@ -303,6 +303,7 @@ pub mod message_content_encoding_iana_registered;
 pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
 pub mod message_content_transfer_encoding_valid;
+pub mod message_content_type_iana_registered;
 pub mod message_content_type_well_formed;
 pub mod message_cookie_attribute_consistency;
 pub mod message_cross_origin_embedder_policy_valid;
@@ -396,6 +397,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &server_content_type_present::ServerContentTypePresent,
     &message_content_type_well_formed::MessageContentTypeWellFormed,
+    &message_content_type_iana_registered::MessageContentTypeIanaRegistered,
     &message_multipart_boundary_syntax::MessageMultipartBoundarySyntax,
     &message_content_disposition_token_valid::MessageContentDispositionTokenValid,
     &message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity,
