@@ -295,6 +295,7 @@ pub mod message_age_header_numeric;
 pub mod message_allow_header_method_tokens;
 pub mod message_authorization_credentials_present;
 pub mod message_cache_control_token_valid;
+pub mod message_charset_iana_registered;
 pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
 pub mod message_content_disposition_parameter_validity;
@@ -398,6 +399,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_content_type_present::ServerContentTypePresent,
     &message_content_type_well_formed::MessageContentTypeWellFormed,
     &message_content_type_iana_registered::MessageContentTypeIanaRegistered,
+    &message_charset_iana_registered::MessageCharsetIanaRegistered,
     &message_multipart_boundary_syntax::MessageMultipartBoundarySyntax,
     &message_content_disposition_token_valid::MessageContentDispositionTokenValid,
     &message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity,
