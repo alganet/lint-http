@@ -836,4 +836,46 @@ mod tests {
         let s = strip_comments("Agent\\\\(x)").unwrap();
         assert_eq!(s, "Agent\\");
     }
+
+    #[test]
+    fn get_header_str_and_parse_list_header() {
+        use hyper::header::HeaderValue;
+        use hyper::HeaderMap;
+
+        let mut hm = HeaderMap::new();
+        hm.insert("x-test", HeaderValue::from_static("ok"));
+        assert_eq!(get_header_str(&hm, "x-test"), Some("ok"));
+
+        // non-visible ASCII / non-UTF8 in header value should return None
+        hm.insert("bad", HeaderValue::from_bytes(&[0xff]).unwrap());
+        assert!(get_header_str(&hm, "bad").is_none());
+
+        // parse_list_header splits and trims
+        let vals: Vec<&str> = parse_list_header("a, b, ,c").collect();
+        assert_eq!(vals, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn validate_quoted_string_cases() {
+        // valid
+        assert!(validate_quoted_string("\"ok\"").is_ok());
+        // not quoted
+        assert!(validate_quoted_string("noquotes").is_err());
+        // unescaped quote inside
+        assert!(validate_quoted_string("\"bad\"inner\"").is_err());
+        // control character inside
+        assert!(validate_quoted_string("\"a\x01b\"").is_err());
+        // ends with escape char
+        assert!(validate_quoted_string("\"abc\\\"").is_err());
+    }
+
+    #[test]
+    fn validate_mailbox_list_examples() {
+        // valid list
+        assert!(validate_mailbox_list("User <user@example.com>, other@example.com").is_ok());
+        // missing '@'
+        assert!(validate_mailbox_list("userexample.com").is_err());
+        // unbalanced angle brackets
+        assert!(validate_mailbox_list("Name <user@example.com").is_err());
+    }
 }
