@@ -165,6 +165,11 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_content_type_iana_registered]
+enabled = true
+severity = "warn"
+allowed = ["text/plain", "application/json", "image/*", "+json"]
+
 [rules.message_multipart_boundary_syntax]
 enabled = true
 severity = "warn"
