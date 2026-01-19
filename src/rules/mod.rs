@@ -325,6 +325,7 @@ pub mod message_retry_after_date_or_delay;
 pub mod message_te_header_constraints;
 pub mod message_transfer_coding_iana_registered;
 pub mod message_transfer_encoding_chunked_final;
+pub mod message_user_agent_token_valid;
 pub mod message_via_header_syntax_valid;
 pub mod server_accept_ranges_values_valid;
 pub mod server_alt_svc_header_syntax;
@@ -390,6 +391,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity,
     &message_accept_header_media_type_syntax::MessageAcceptHeaderMediaTypeSyntax,
     &message_language_tag_format_valid::MessageLanguageTagFormatValid,
+    &message_user_agent_token_valid::MessageUserAgentTokenValid,
     &message_digest_header_syntax::MessageDigestHeaderSyntax,
     &message_etag_syntax::MessageEtagSyntax,
     &message_if_match_etag_syntax::MessageIfMatchEtagSyntax,

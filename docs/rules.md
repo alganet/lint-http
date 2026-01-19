@@ -64,6 +64,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_pragma_token_valid](rules/message_pragma_token_valid.md) - `Pragma` header directives must follow `token` or `token="quoted-string"` syntax. (RFC 9110 §8.2)
 - [message_priority_header_syntax](rules/message_priority_header_syntax.md) - `Priority` header must follow `u` (urgency 0..7) and optional `i` (incremental boolean) parameter syntax. (RFC 9218 §4–§5)
 - [message_language_tag_format_valid](rules/message_language_tag_format_valid.md) - Validates `Content-Language` and `Accept-Language` language-tags follow BCP 47-style syntax (RFC 5646).
+- [message_user_agent_token_valid](rules/message_user_agent_token_valid.md) - Validates `User-Agent` header product tokens and optional versions; allows parenthesized comments. (RFC 9110 §10.1.5)
 - [message_access_control_allow_credentials_when_origin](rules/message_access_control_allow_credentials_when_origin.md) - If `Access-Control-Allow-Origin` is `*`, `Access-Control-Allow-Credentials` must not be `true`. (CORS)
 - [message_access_control_allow_origin_valid](rules/message_access_control_allow_origin_valid.md) - `Access-Control-Allow-Origin` must be a single value: `*`, `null`, or a serialized origin (`scheme://host[:port]`). (CORS)
 - [message_cross_origin_opener_policy_valid](rules/message_cross_origin_opener_policy_valid.md) - `Cross-Origin-Opener-Policy` must be `same-origin`, `same-origin-allow-popups`, or `unsafe-none`. (W3C / Fetch)

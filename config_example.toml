@@ -93,6 +93,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_user_agent_token_valid]
+enabled = true
+severity = "warn"
+
 [rules.client_expect_header_valid]
 enabled = true
 severity = "error"

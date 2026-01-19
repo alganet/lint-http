@@ -19,6 +19,69 @@ pub fn parse_list_header(val: &str) -> impl Iterator<Item = &str> {
     val.split(',').map(|s| s.trim()).filter(|s| !s.is_empty())
 }
 
+/// Remove top-level parenthesized comments from a header value.
+///
+/// This supports simple comment removal as used in headers like `User-Agent`.
+/// It handles backslash escapes and nested parentheses. Returns `Err` if
+/// comments are unbalanced or the input contains control characters.
+pub fn strip_comments(val: &str) -> Result<String, String> {
+    let bytes = val.as_bytes();
+    let mut res = String::with_capacity(val.len());
+    let mut i = 0usize;
+    let mut depth = 0i32;
+    let mut prev_backslash = false;
+
+    while i < bytes.len() {
+        let b = bytes[i];
+        if prev_backslash {
+            // include escaped char regardless of whether in comment
+            if depth == 0 {
+                res.push(b as char);
+            }
+            prev_backslash = false;
+            i += 1;
+            continue;
+        }
+
+        if b == b'\\' {
+            prev_backslash = true;
+            i += 1;
+            continue;
+        }
+
+        if b == b'(' {
+            depth += 1;
+            i += 1;
+            continue;
+        }
+
+        if b == b')' {
+            if depth == 0 {
+                return Err("Unmatched closing parenthesis in comment".into());
+            }
+            depth -= 1;
+            i += 1;
+            continue;
+        }
+
+        if depth == 0 {
+            // outside comment: ensure visible ascii
+            if (b < 0x20 && b != b'\t') || b == 0x7f {
+                return Err("Control character in header value".into());
+            }
+            res.push(b as char);
+        }
+
+        i += 1;
+    }
+
+    if depth != 0 {
+        return Err("Unterminated parenthesized comment".into());
+    }
+
+    Ok(res)
+}
+
 /// Split a comma-separated header value into top-level members while respecting quoted-strings
 /// and backslash escapes. Returns a Vec of slices referencing the original string.
 ///
@@ -706,5 +769,71 @@ mod tests {
             let exp: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
             assert_eq!(got, exp, "input: {:?}", input);
         }
+    }
+
+    #[test]
+    fn strip_comments_basic_and_nested() {
+        // basic comment removal
+        let v = "Mozilla/5.0 (compatible; Bot/1.0; +http://example.com)";
+        let s = strip_comments(v).unwrap();
+        assert_eq!(s.trim(), "Mozilla/5.0");
+
+        // nested comments
+        let v2 = "A(B(C)D)E";
+        let s2 = strip_comments(v2).unwrap();
+        assert_eq!(s2, "AE");
+    }
+
+    #[test]
+    fn strip_comments_unterminated_reports_error() {
+        let v = "Agent (incomplete";
+        let res = strip_comments(v);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("Unterminated"));
+    }
+
+    #[test]
+    fn strip_comments_unmatched_closing_reports_error() {
+        let v = "Bad )extra";
+        let res = strip_comments(v);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("Unmatched closing"));
+    }
+
+    #[test]
+    fn strip_comments_escaped_parentheses_outside_comment_are_preserved() {
+        // backslash-escaped parentheses should be preserved and not treated as comment delimiters
+        let s = strip_comments("Agent\\(1.0\\)").unwrap();
+        assert_eq!(s, "Agent(1.0)");
+    }
+
+    #[test]
+    fn strip_comments_escaped_paren_inside_comment_does_not_end_comment() {
+        // an escaped ')' inside a comment should not terminate the comment
+        let s = strip_comments("A(B\\)C)D").unwrap();
+        assert_eq!(s, "AD");
+    }
+
+    #[test]
+    fn strip_comments_control_chars_report_error() {
+        // control characters (except HTAB) should cause an error
+        let v = "Bad\x01Char";
+        assert!(strip_comments(v).is_err());
+        let v2 = "Bad\x7fChar";
+        assert!(strip_comments(v2).is_err());
+    }
+
+    #[test]
+    fn strip_comments_tabs_allowed() {
+        // tabs are allowed in header values
+        let s = strip_comments("Agent\t1.0").unwrap();
+        assert_eq!(s, "Agent\t1.0");
+    }
+
+    #[test]
+    fn strip_comments_escaped_backslash_is_preserved() {
+        // double backslash should become a single literal backslash and subsequent '(' starts a comment
+        let s = strip_comments("Agent\\\\(x)").unwrap();
+        assert_eq!(s, "Agent\\");
     }
 }
