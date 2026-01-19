@@ -302,6 +302,7 @@ pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
 pub mod message_content_transfer_encoding_valid;
 pub mod message_content_type_well_formed;
+pub mod message_cookie_attribute_consistency;
 pub mod message_cross_origin_embedder_policy_valid;
 pub mod message_cross_origin_opener_policy_valid;
 pub mod message_cross_origin_resource_policy_valid;
@@ -394,6 +395,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_language_tag_format_valid::MessageLanguageTagFormatValid,
     &message_user_agent_token_valid::MessageUserAgentTokenValid,
     &message_digest_header_syntax::MessageDigestHeaderSyntax,
+    &message_cookie_attribute_consistency::MessageCookieAttributeConsistency,
     &message_etag_syntax::MessageEtagSyntax,
     &message_if_match_etag_syntax::MessageIfMatchEtagSyntax,
     &message_if_none_match_etag_syntax::MessageIfNoneMatchEtagSyntax,
