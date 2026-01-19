@@ -362,4 +362,10 @@ mod tests {
         let msg2 = validate_expect_member("a= ");
         assert!(matches!(msg2, Some(ref s) if s.contains("Empty expectation parameter")));
     }
+
+    #[test]
+    fn helper_detects_invalid_name_token() {
+        let msg = validate_expect_member("a/b");
+        assert!(matches!(msg, Some(ref s) if s.contains("Invalid token in Expect header")));
+    }
 }

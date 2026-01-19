@@ -331,6 +331,7 @@ pub mod message_transfer_coding_iana_registered;
 pub mod message_transfer_encoding_chunked_final;
 pub mod message_user_agent_token_valid;
 pub mod message_via_header_syntax_valid;
+pub mod message_warning_header_syntax;
 pub mod message_www_authenticate_challenge_syntax;
 pub mod server_accept_ranges_values_valid;
 pub mod server_alt_svc_header_syntax;
@@ -399,6 +400,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_user_agent_token_valid::MessageUserAgentTokenValid,
     &message_server_header_product_valid::MessageServerHeaderProductValid,
     &message_digest_header_syntax::MessageDigestHeaderSyntax,
+    &message_warning_header_syntax::MessageWarningHeaderSyntax,
     &message_www_authenticate_challenge_syntax::MessageWwwAuthenticateChallengeSyntax,
     &message_authorization_credentials_present::MessageAuthorizationCredentialsPresent,
     &message_cookie_attribute_consistency::MessageCookieAttributeConsistency,

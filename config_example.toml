@@ -243,6 +243,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_warning_header_syntax]
+enabled = true
+severity = "warn"
+
 [rules.message_www_authenticate_challenge_syntax]
 enabled = true
 severity = "warn"
