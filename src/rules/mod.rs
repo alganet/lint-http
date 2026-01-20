@@ -337,6 +337,7 @@ pub mod message_sec_fetch_mode_value_valid;
 pub mod message_sec_fetch_site_value_valid;
 pub mod message_server_header_product_valid;
 pub mod message_te_header_constraints;
+pub mod message_trailer_headers_valid;
 pub mod message_transfer_coding_iana_registered;
 pub mod message_transfer_encoding_chunked_final;
 pub mod message_user_agent_token_valid;
@@ -434,6 +435,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_content_transfer_encoding_valid::MessageContentTransferEncodingValid,
     &message_transfer_coding_iana_registered::MessageTransferCodingIanaRegistered,
     &message_te_header_constraints::MessageTeHeaderConstraints,
+    &message_trailer_headers_valid::MessageTrailerHeadersValid,
     &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
     &message_priority_header_syntax::MessagePriorityHeaderSyntax,
     &message_prefer_header_valid::MessagePreferHeaderValid,
