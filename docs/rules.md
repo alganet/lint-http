@@ -98,6 +98,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_content_length](rules/message_content_length.md) - Validates Content-Length values and multiple Content-Length header consistency.
 - [message_range_and_content_range_consistency](rules/message_range_and_content_range_consistency.md) - Validate Range/Content-Range semantics for 206/416 and Content-Length consistency.
 - [message_header_field_names_token](rules/message_header_field_names_token.md) - Validates header field-names conform to the `token` grammar.
+- [message_extension_headers_registered](rules/message_extension_headers_registered.md) - Non-standard header field-names SHOULD be explicitly allowed via configuration to avoid accidental custom headers and typos. (IANA HTTP Field Name registry; RFC 9110 §5.1)
 - [message_transfer_encoding_chunked_final](rules/message_transfer_encoding_chunked_final.md) - Ensures `chunked` (when used) is the final transfer-coding in `Transfer-Encoding` headers.
 - [message_te_header_constraints](rules/message_te_header_constraints.md) - `TE` header must use only valid members (transfer-coding or `trailers`), valid parameters (e.g., `q` with up to three decimals), and requests with `TE` must include `Connection: TE`.
 - [message_via_header_syntax_valid](rules/message_via_header_syntax_valid.md) - `Via` header values must follow the field-value syntax.

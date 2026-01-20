@@ -314,6 +314,7 @@ pub mod message_cross_origin_resource_policy_valid;
 pub mod message_digest_header_syntax;
 pub mod message_early_data_header_safe_method;
 pub mod message_etag_syntax;
+pub mod message_extension_headers_registered;
 pub mod message_from_header_email_syntax;
 pub mod message_header_field_names_token;
 pub mod message_http_version_syntax_valid;
@@ -396,6 +397,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_content_length::MessageContentLength,
     &message_range_and_content_range_consistency::MessageRangeAndContentRangeConsistency,
     &message_header_field_names_token::MessageHeaderFieldNamesToken,
+    &message_extension_headers_registered::MessageExtensionHeadersRegistered,
     &message_transfer_encoding_chunked_final::MessageTransferEncodingChunkedFinal,
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &server_content_type_present::ServerContentTypePresent,
