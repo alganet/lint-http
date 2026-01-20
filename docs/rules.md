@@ -47,6 +47,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [server_status_code_valid_range](rules/server_status_code_valid_range.md) - HTTP response status codes must be in the range 100–599.
 - [server_content_type_present](rules/server_content_type_present.md) - Ensure responses that likely contain a body include `Content-Type`.
 - [server_accept_ranges_values_valid](rules/server_accept_ranges_values_valid.md) - `Accept-Ranges` should be either `bytes` or `none` and `none` must not be combined with other values. (RFC 9110 §7.3.4)
+- [message_accept_ranges_and_206_consistency](rules/message_accept_ranges_and_206_consistency.md) - If response is `206` (Partial Content), `Accept-Ranges` SHOULD indicate support (e.g., `bytes`) and must not be `none`. (RFC 7233 §4.1; RFC 9110 §7.3.4)
 - [server_vary_header_valid](rules/server_vary_header_valid.md) - `Vary` header value must be `*` or a list of header field-names. (RFC 9110 §7.3.6)
 - [server_patch_accept_patch_header](rules/server_patch_accept_patch_header.md) - `PATCH` responses should include `Accept-Patch` to declare supported patch media types. (RFC 5789 §2.2)
 - [server_server_timing_header_syntax](rules/server_server_timing_header_syntax.md) - `Server-Timing` header metrics must use valid metric-name and metric-parameter syntax (token-based names and parameters). (W3C Server-Timing spec §3)
