@@ -19,6 +19,39 @@ pub fn parse_list_header(val: &str) -> impl Iterator<Item = &str> {
     val.split(',').map(|s| s.trim()).filter(|s| !s.is_empty())
 }
 
+/// Check whether a header name is a hop-by-hop header.
+///
+/// Returns `true` if `name` matches a known hop-by-hop header (case-insensitive)
+/// or if it is nominated by the optional `Connection` header value.
+/// This mirrors the hop-by-hop semantics in RFC 7230 §4.1.2 and §6.1.
+pub fn is_hop_by_hop_header(name: &str, connection_header_value: Option<&str>) -> bool {
+    let name_l = name.trim().to_ascii_lowercase();
+    static HOP_BY_HOP: &[&str] = &[
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+    ];
+
+    if HOP_BY_HOP.contains(&name_l.as_str()) {
+        return true;
+    }
+
+    if let Some(conn) = connection_header_value {
+        for tok in parse_list_header(conn) {
+            if tok.eq_ignore_ascii_case(name_l.as_str()) {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
 /// Remove top-level parenthesized comments from a header value.
 ///
 /// This supports simple comment removal as used in headers like `User-Agent`.
