@@ -237,6 +237,11 @@ severity = "warn"
 [rules.message_sec_fetch_site_value_valid]
 enabled = true
 severity = "warn"
+
+[rules.message_sec_fetch_mode_value_valid]
+enabled = true
+severity = "warn"
+
 [rules.message_cross_origin_resource_policy_valid]
 enabled = true
 severity = "warn"
