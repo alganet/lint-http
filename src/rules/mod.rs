@@ -333,6 +333,7 @@ pub mod message_priority_header_syntax;
 pub mod message_range_and_content_range_consistency;
 pub mod message_referer_uri_valid;
 pub mod message_retry_after_date_or_delay;
+pub mod message_sec_fetch_dest_value_valid;
 pub mod message_sec_fetch_mode_value_valid;
 pub mod message_sec_fetch_site_value_valid;
 pub mod message_sec_fetch_user_value_valid;
@@ -439,6 +440,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_te_header_constraints::MessageTeHeaderConstraints,
     &message_trailer_headers_valid::MessageTrailerHeadersValid,
     &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
+    &message_sec_fetch_dest_value_valid::MessageSecFetchDestValueValid,
     &message_priority_header_syntax::MessagePriorityHeaderSyntax,
     &message_prefer_header_valid::MessagePreferHeaderValid,
     &message_cache_control_token_valid::MessageCacheControlTokenValid,
