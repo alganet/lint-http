@@ -291,6 +291,7 @@ pub mod message_accept_and_content_type_negotiation;
 pub mod message_accept_encoding_parameter_validity;
 pub mod message_accept_header_media_type_syntax;
 pub mod message_accept_language_weight_validity;
+pub mod message_accept_ranges_and_206_consistency;
 pub mod message_access_control_allow_credentials_when_origin;
 pub mod message_access_control_allow_origin_valid;
 pub mod message_age_header_numeric;
@@ -404,6 +405,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
     &message_content_length::MessageContentLength,
     &message_range_and_content_range_consistency::MessageRangeAndContentRangeConsistency,
+    &message_accept_ranges_and_206_consistency::MessageAcceptRangesAnd206Consistency,
     &message_header_field_names_token::MessageHeaderFieldNamesToken,
     &message_extension_headers_registered::MessageExtensionHeadersRegistered,
     &message_transfer_encoding_chunked_final::MessageTransferEncodingChunkedFinal,

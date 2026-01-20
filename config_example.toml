@@ -157,6 +157,10 @@ severity = "error"
 enabled = true
 severity = "warn"
 
+[rules.message_accept_ranges_and_206_consistency]
+enabled = true
+severity = "warn"
+
 [rules.client_request_uri_percent_encoding_valid]
 enabled = true
 severity = "error"
