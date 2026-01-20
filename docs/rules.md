@@ -75,6 +75,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_cross_origin_resource_policy_valid](rules/message_cross_origin_resource_policy_valid.md) - `Cross-Origin-Resource-Policy` must be `same-site`, `same-origin`, or `cross-origin`. (W3C / MDN)
 - [message_cross_origin_embedder_policy_valid](rules/message_cross_origin_embedder_policy_valid.md) - `Cross-Origin-Embedder-Policy` should be `require-corp` or `credentialless` (W3C / MDN)
 - [message_sec_fetch_site_value_valid](rules/message_sec_fetch_site_value_valid.md) - `Sec-Fetch-Site` must be one of `cross-site`, `same-origin`, `same-site`, or `none`. (W3C / Fetch)
+- [message_sec_fetch_mode_value_valid](rules/message_sec_fetch_mode_value_valid.md) - `Sec-Fetch-Mode` must be one of `cors`, `no-cors`, `same-origin`, `navigate`, or `websocket`. (W3C / Fetch)
 - [message_referer_uri_valid](rules/message_referer_uri_valid.md) - `Referer` header value should be a valid URI-reference. (RFC 9110 §7.5.3)
 - [message_from_header_email_syntax](rules/message_from_header_email_syntax.md) - `From` header should be a valid mailbox-list (addr-spec or display-name <addr-spec>). (RFC 9110 §7.1.1, RFC 5322 §3.4)
 - [message_max_forwards_numeric](rules/message_max_forwards_numeric.md) - `Max-Forwards` header value must be a non-negative decimal integer (RFC 9110 §7.6.2)

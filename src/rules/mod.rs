@@ -333,6 +333,7 @@ pub mod message_priority_header_syntax;
 pub mod message_range_and_content_range_consistency;
 pub mod message_referer_uri_valid;
 pub mod message_retry_after_date_or_delay;
+pub mod message_sec_fetch_mode_value_valid;
 pub mod message_sec_fetch_site_value_valid;
 pub mod message_server_header_product_valid;
 pub mod message_te_header_constraints;
@@ -413,6 +414,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_early_data_header_safe_method::MessageEarlyDataHeaderSafeMethod,
     &message_user_agent_token_valid::MessageUserAgentTokenValid,
     &message_sec_fetch_site_value_valid::MessageSecFetchSiteValueValid,
+    &message_sec_fetch_mode_value_valid::MessageSecFetchModeValueValid,
     &message_server_header_product_valid::MessageServerHeaderProductValid,
     &message_digest_header_syntax::MessageDigestHeaderSyntax,
     &message_warning_header_syntax::MessageWarningHeaderSyntax,
