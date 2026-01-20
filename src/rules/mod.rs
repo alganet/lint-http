@@ -317,6 +317,7 @@ pub mod message_digest_header_syntax;
 pub mod message_early_data_header_safe_method;
 pub mod message_etag_syntax;
 pub mod message_extension_headers_registered;
+pub mod message_forwarded_header_validity;
 pub mod message_from_header_email_syntax;
 pub mod message_header_field_names_token;
 pub mod message_http_version_syntax_valid;
@@ -452,6 +453,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_age_header_numeric::MessageAgeHeaderNumeric,
     &message_allow_header_method_tokens::MessageAllowHeaderMethodTokens,
     &message_via_header_syntax_valid::MessageViaHeaderSyntaxValid,
+    &message_forwarded_header_validity::MessageForwardedHeaderValidity,
     &message_access_control_allow_credentials_when_origin::MessageAccessControlAllowCredentialsWhenOrigin,
     &message_access_control_allow_origin_valid::MessageAccessControlAllowOriginValid,
     &message_cross_origin_opener_policy_valid::MessageCrossOriginOpenerPolicyValid,
@@ -531,6 +533,17 @@ mod tests {
     fn test_get_cached_missing_panics() {
         let engine = RuleConfigEngine::new();
         let _: std::sync::Arc<RuleConfig> = engine.get_cached("nonexistent_rule");
+    }
+
+    #[test]
+    fn rule_config_engine_validate_and_cache_for_new_rule() -> anyhow::Result<()> {
+        let mut cfg = crate::config::Config::default();
+        crate::test_helpers::enable_rule(&mut cfg, "message_forwarded_header_validity");
+        let mut engine = RuleConfigEngine::new();
+        engine.validate_and_cache_all(&cfg)?;
+        let cfg_obj: Arc<RuleConfig> = engine.get_cached("message_forwarded_header_validity");
+        assert!(cfg_obj.enabled);
+        Ok(())
     }
 
     #[test]
