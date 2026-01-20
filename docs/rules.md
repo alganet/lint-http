@@ -80,6 +80,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_sec_fetch_mode_value_valid](rules/message_sec_fetch_mode_value_valid.md) - `Sec-Fetch-Mode` must be one of `cors`, `no-cors`, `same-origin`, `navigate`, or `websocket`. (W3C / Fetch)
 - [message_sec_fetch_user_value_valid](rules/message_sec_fetch_user_value_valid.md) - `Sec-Fetch-User` must be `?1` when present (navigation requests only). (W3C / Fetch)
 - [message_referer_uri_valid](rules/message_referer_uri_valid.md) - `Referer` header value should be a valid URI-reference. (RFC 9110 §7.5.3)
+- [message_link_header_validity](rules/message_link_header_validity.md) - Validates `Link` header parameters and semantics (`rel`, `title`, `preload`, `next`); enforces `as` when `rel=preload` and recommends `rel=preload`+`as` for 103 Early Hints.
 - [message_from_header_email_syntax](rules/message_from_header_email_syntax.md) - `From` header should be a valid mailbox-list (addr-spec or display-name <addr-spec>). (RFC 9110 §7.1.1, RFC 5322 §3.4)
 - [message_max_forwards_numeric](rules/message_max_forwards_numeric.md) - `Max-Forwards` header value must be a non-negative decimal integer (RFC 9110 §7.6.2)
 - [message_content_encoding_iana_registered](rules/message_content_encoding_iana_registered.md) - Validates `Content-Encoding` and `Accept-Encoding` tokens are IANA-registered or explicitly allowed; flags invalid tokens. (RFC 9110 §5.3)

@@ -326,6 +326,7 @@ pub mod message_if_modified_since_date_format;
 pub mod message_if_none_match_etag_syntax;
 pub mod message_if_unmodified_since_date_format;
 pub mod message_language_tag_format_valid;
+pub mod message_link_header_validity;
 pub mod message_max_forwards_numeric;
 pub mod message_multipart_boundary_syntax;
 pub mod message_pragma_token_valid;
@@ -460,6 +461,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_cross_origin_resource_policy_valid::MessageCrossOriginResourcePolicyValid,
     &message_cross_origin_embedder_policy_valid::MessageCrossOriginEmbedderPolicyValid,
     &message_referer_uri_valid::MessageRefererUriValid,
+    &message_link_header_validity::MessageLinkHeaderValidity,
     &message_from_header_email_syntax::MessageFromHeaderEmailSyntax,
     &message_http_version_syntax_valid::MessageHttpVersionSyntaxValid,
     &server_status_code_valid_range::ServerStatusCodeValidRange,

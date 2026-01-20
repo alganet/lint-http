@@ -231,6 +231,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_link_header_validity]
+enabled = true
+severity = "warn"
+
 [rules.message_from_header_email_syntax]
 enabled = true
 severity = "warn"
