@@ -287,6 +287,7 @@ pub mod client_request_target_form_checks;
 pub mod client_request_target_no_fragment;
 pub mod client_request_uri_percent_encoding_valid;
 pub mod client_user_agent_present;
+pub mod message_accept_and_content_type_negotiation;
 pub mod message_accept_encoding_parameter_validity;
 pub mod message_accept_header_media_type_syntax;
 pub mod message_accept_language_weight_validity;
@@ -413,6 +414,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_content_disposition_token_valid::MessageContentDispositionTokenValid,
     &message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity,
     &message_accept_header_media_type_syntax::MessageAcceptHeaderMediaTypeSyntax,
+    &message_accept_and_content_type_negotiation::MessageAcceptAndContentTypeNegotiation,
     &message_language_tag_format_valid::MessageLanguageTagFormatValid,
     &message_early_data_header_safe_method::MessageEarlyDataHeaderSafeMethod,
     &message_user_agent_token_valid::MessageUserAgentTokenValid,
