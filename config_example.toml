@@ -203,6 +203,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_accept_language_weight_validity]
+enabled = true
+severity = "warn"
+
 [rules.message_early_data_header_safe_method]
 enabled = true
 severity = "warn"
