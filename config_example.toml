@@ -125,6 +125,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_sec_fetch_user_value_valid]
+enabled = true
+severity = "warn"
+
 [rules.server_deprecation_header_syntax]
 enabled = true
 severity = "warn"
