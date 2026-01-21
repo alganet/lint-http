@@ -191,6 +191,10 @@ allowed = ["utf-8", "iso-8859-1", "us-ascii"]
 enabled = true
 severity = "warn"
 
+[rules.message_date_and_time_headers_consistency]
+enabled = true
+severity = "warn"
+
 [rules.message_accept_and_content_type_negotiation]
 enabled = true
 severity = "warn"

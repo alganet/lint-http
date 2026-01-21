@@ -314,6 +314,7 @@ pub mod message_cookie_attribute_consistency;
 pub mod message_cross_origin_embedder_policy_valid;
 pub mod message_cross_origin_opener_policy_valid;
 pub mod message_cross_origin_resource_policy_valid;
+pub mod message_date_and_time_headers_consistency;
 pub mod message_digest_header_syntax;
 pub mod message_early_data_header_safe_method;
 pub mod message_etag_syntax;
@@ -437,6 +438,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_if_none_match_etag_syntax::MessageIfNoneMatchEtagSyntax,
     &message_if_modified_since_date_format::MessageIfModifiedSinceDateFormat,
     &message_if_unmodified_since_date_format::MessageIfUnmodifiedSinceDateFormat,
+    &message_date_and_time_headers_consistency::MessageDateAndTimeHeadersConsistency,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_content_encoding_iana_registered::MessageContentEncodingIanaRegistered,
     &message_accept_encoding_parameter_validity::MessageAcceptEncodingParameterValidity,
