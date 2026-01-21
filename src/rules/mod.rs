@@ -304,6 +304,7 @@ pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
 pub mod message_content_disposition_parameter_validity;
 pub mod message_content_disposition_token_valid;
+pub mod message_content_encoding_and_type_consistency;
 pub mod message_content_encoding_iana_registered;
 pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
@@ -443,6 +444,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_date_and_time_headers_consistency::MessageDateAndTimeHeadersConsistency,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_content_encoding_iana_registered::MessageContentEncodingIanaRegistered,
+    &message_content_encoding_and_type_consistency::MessageContentEncodingAndTypeConsistency,
     &message_accept_encoding_parameter_validity::MessageAcceptEncodingParameterValidity,
     &message_accept_language_weight_validity::MessageAcceptLanguageWeightValidity,
     &message_content_transfer_encoding_valid::MessageContentTransferEncodingValid,

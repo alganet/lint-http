@@ -192,6 +192,10 @@ enabled = true
 severity = "warn"
 allowed = ["utf-8", "iso-8859-1", "us-ascii"]
 
+[rules.message_content_encoding_and_type_consistency]
+enabled = true
+severity = "warn"
+
 [rules.message_multipart_boundary_syntax]
 enabled = true
 severity = "warn"
