@@ -216,6 +216,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_cache_control_directive_validity]
+enabled = true
+severity = "warn"
+
 [rules.message_pragma_token_valid]
 enabled = true
 severity = "warn"
