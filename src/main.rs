@@ -105,4 +105,40 @@ enabled = false
         fs::remove_file(&tmp).await?;
         Ok(())
     }
+
+    #[tokio::test]
+    async fn run_app_fails_when_capture_writer_new_errors() -> anyhow::Result<()> {
+        // Create a directory to use as the captures path so CaptureWriter::new fails
+        let captures_dir =
+            std::env::temp_dir().join(format!("lint_main_capture_dir_{}", Uuid::new_v4()));
+        tokio::fs::create_dir(&captures_dir).await?;
+
+        let cfg_path = std::env::temp_dir().join(format!(
+            "lint_main_cli_cfg_capture_dir_{}.toml",
+            Uuid::new_v4()
+        ));
+        let toml = format!(
+            r#"[general]
+listen = "127.0.0.1:3000"
+captures = "{}"
+
+[tls]
+enabled = false
+"#,
+            captures_dir.to_string_lossy()
+        );
+        tokio::fs::write(&cfg_path, toml).await?;
+
+        let args = Args {
+            config: cfg_path.to_str().unwrap().to_string(),
+        };
+
+        // run_app should attempt to create CaptureWriter and fail when path is a directory
+        let res = super::run_app(args).await;
+        assert!(res.is_err());
+
+        tokio::fs::remove_file(&cfg_path).await?;
+        tokio::fs::remove_dir(&captures_dir).await?;
+        Ok(())
+    }
 }

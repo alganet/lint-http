@@ -319,6 +319,11 @@ allowed = ["Basic", "Bearer", "Digest"]
 enabled = true
 severity = "warn"
 
+[rules.message_auth_header_consistency]
+enabled = true
+severity = "warn"
+
+
 [rules.message_cookie_attribute_consistency]
 enabled = true
 severity = "warn"
