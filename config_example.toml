@@ -182,6 +182,11 @@ enabled = true
 severity = "warn"
 allowed = ["text/plain", "application/json", "image/*", "+json"]
 
+[rules.message_media_type_suffix_validity]
+enabled = true
+severity = "warn"
+allowed = ["json", "xml", "ber", "der", "fastinfoset", "wbxml", "exi"]
+
 [rules.message_charset_iana_registered]
 enabled = true
 severity = "warn"

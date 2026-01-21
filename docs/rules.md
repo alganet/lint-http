@@ -60,6 +60,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 
 - [message_content_type_well_formed](rules/message_content_type_well_formed.md) - Validates `Content-Type` header parses as a `media-type` with valid type/subtype and parameters.
 - [message_content_type_iana_registered](rules/message_content_type_iana_registered.md) - `Content-Type` media types SHOULD be IANA-registered or match an allowlist; supports `type/subtype`, `type/*`, and `+suffix` patterns.
+- [message_media_type_suffix_validity](rules/message_media_type_suffix_validity.md) - Flags media types using unknown `+suffix` structured-syntax suffixes (e.g., `+json`, `+xml`). (RFC 6838)
 - [message_charset_iana_registered](rules/message_charset_iana_registered.md) - If `Content-Type` includes a `charset` parameter, its value SHOULD be an IANA-registered character set name or match an allowlist. (RFC 9110 §6.4)
 - [message_multipart_boundary_syntax](rules/message_multipart_boundary_syntax.md) - `multipart/*` Content-Type must include a `boundary` parameter; boundary value must be 1..70 characters, not end with whitespace, and use allowed characters. (RFC 2046 §5.1.1)
 - [message_content_disposition_token_valid](rules/message_content_disposition_token_valid.md) - `Content-Disposition` header disposition-type must be a valid token. (RFC 6266 §4)
