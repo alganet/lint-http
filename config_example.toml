@@ -38,6 +38,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.server_status_and_caching_semantics]
+enabled = true
+severity = "warn"
+
 [rules.server_etag_or_last_modified]
 enabled = true
 severity = "info"
