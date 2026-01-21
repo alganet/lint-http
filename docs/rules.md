@@ -54,7 +54,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_server_header_product_valid](rules/message_server_header_product_valid.md) - Validates `Server` header product tokens and optional versions; allows parenthesized comments. (RFC 9110 §7.1.1)
 - [server_deprecation_header_syntax](rules/server_deprecation_header_syntax.md) - `Deprecation` header must be a structured date item (e.g., `@1688169599`) per RFC 9745; legacy forms (`true` or HTTP-date) are deprecated.
 - [server_alt_svc_header_syntax](rules/server_alt_svc_header_syntax.md) - `Alt-Svc` header must follow `protocol=authority` syntax. (RFC 7838)
-
+- [server_must_revalidate_and_immutable_mismatch](rules/server_must_revalidate_and_immutable_mismatch.md) - `Cache-Control` MUST NOT include both `must-revalidate` and `immutable` as they conflict in caching semantics. (RFC 9111 §5.2.2.2; RFC 8246)
 
 ## Message Rules
 
