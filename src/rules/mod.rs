@@ -300,6 +300,7 @@ pub mod message_auth_scheme_iana_registered;
 pub mod message_authorization_credentials_present;
 pub mod message_cache_control_token_valid;
 pub mod message_charset_iana_registered;
+pub mod message_conditional_headers_consistency;
 pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
 pub mod message_content_disposition_parameter_validity;
@@ -441,6 +442,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_if_none_match_etag_syntax::MessageIfNoneMatchEtagSyntax,
     &message_if_modified_since_date_format::MessageIfModifiedSinceDateFormat,
     &message_if_unmodified_since_date_format::MessageIfUnmodifiedSinceDateFormat,
+    &message_conditional_headers_consistency::MessageConditionalHeadersConsistency,
     &message_date_and_time_headers_consistency::MessageDateAndTimeHeadersConsistency,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_content_encoding_iana_registered::MessageContentEncodingIanaRegistered,
