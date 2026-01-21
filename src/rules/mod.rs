@@ -330,6 +330,7 @@ pub mod message_if_unmodified_since_date_format;
 pub mod message_language_tag_format_valid;
 pub mod message_link_header_validity;
 pub mod message_max_forwards_numeric;
+pub mod message_media_type_suffix_validity;
 pub mod message_multipart_boundary_syntax;
 pub mod message_pragma_token_valid;
 pub mod message_prefer_header_valid;
@@ -414,6 +415,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_content_type_present::ServerContentTypePresent,
     &message_content_type_well_formed::MessageContentTypeWellFormed,
     &message_content_type_iana_registered::MessageContentTypeIanaRegistered,
+    &message_media_type_suffix_validity::MessageMediaTypeSuffixValidity,
     &message_charset_iana_registered::MessageCharsetIanaRegistered,
     &message_multipart_boundary_syntax::MessageMultipartBoundarySyntax,
     &message_content_disposition_token_valid::MessageContentDispositionTokenValid,

@@ -489,6 +489,17 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
     })
 }
 
+/// Return the structured-syntax suffix part of a subtype if present (the part after the last `+`).
+/// For example, `ld+json` -> `json`. This is a small helper for rules that need to inspect
+/// subtype suffixes. Returns `None` for subtypes with no `+`.
+pub fn media_type_subtype_suffix(subtype: &str) -> Option<&str> {
+    if let Some(pos) = subtype.rfind('+') {
+        Some(&subtype[pos + 1..])
+    } else {
+        None
+    }
+}
+
 /// Validate a serialized-origin as defined by RFC 6454: scheme "://" host [":" port]
 /// Accepts an optional trailing slash (examples in RFC 7034 include it).
 /// This is a conservative validator: it ensures scheme chars, presence of host,
@@ -597,6 +608,20 @@ mod tests {
         assert!(parse_media_type("text").is_err());
         assert!(parse_media_type("/html").is_err());
         assert!(parse_media_type("text/").is_err());
+    }
+
+    #[test]
+    fn test_media_type_subtype_suffix() {
+        // No suffix
+        assert_eq!(media_type_subtype_suffix("html"), None);
+        // Common suffix
+        assert_eq!(media_type_subtype_suffix("ld+json"), Some("json"));
+        // Vendor with suffix
+        assert_eq!(media_type_subtype_suffix("vnd.foo+xml"), Some("xml"));
+        // Trailing plus (empty suffix)
+        assert_eq!(media_type_subtype_suffix("foo+"), Some(""));
+        // Multiple plus (take last)
+        assert_eq!(media_type_subtype_suffix("a+b+json"), Some("json"));
     }
 
     #[test]
