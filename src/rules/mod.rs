@@ -372,6 +372,7 @@ pub mod server_problem_details_content_type;
 pub mod server_response_405_allow;
 pub mod server_response_location_on_redirect;
 pub mod server_server_timing_header_syntax;
+pub mod server_status_and_caching_semantics;
 pub mod server_status_code_valid_range;
 pub mod server_vary_header_valid;
 pub mod server_x_content_type_options;
@@ -380,6 +381,7 @@ pub mod server_x_xss_protection_value_valid;
 
 pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_cache_control_present::ServerCacheControlPresent,
+    &server_status_and_caching_semantics::ServerStatusAndCachingSemantics,
     &server_must_revalidate_and_immutable_mismatch::ServerMustRevalidateAndImmutableMismatch,
     &server_etag_or_last_modified::ServerEtagOrLastModified,
     &server_last_modified_rfc1123_format::ServerLastModifiedRfc1123Format,
