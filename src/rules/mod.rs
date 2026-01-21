@@ -298,6 +298,7 @@ pub mod message_age_header_numeric;
 pub mod message_allow_header_method_tokens;
 pub mod message_auth_scheme_iana_registered;
 pub mod message_authorization_credentials_present;
+pub mod message_cache_control_directive_validity;
 pub mod message_cache_control_token_valid;
 pub mod message_charset_iana_registered;
 pub mod message_conditional_headers_consistency;
@@ -460,6 +461,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_priority_header_syntax::MessagePriorityHeaderSyntax,
     &message_prefer_header_valid::MessagePreferHeaderValid,
     &message_cache_control_token_valid::MessageCacheControlTokenValid,
+    &message_cache_control_directive_validity::MessageCacheControlDirectiveValidity,
     &message_pragma_token_valid::MessagePragmaTokenValid,
     &message_preference_applied_header_valid::MessagePreferenceAppliedHeaderValid,
     &message_max_forwards_numeric::MessageMaxForwardsNumeric,
