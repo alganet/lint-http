@@ -364,6 +364,7 @@ pub mod server_deprecation_header_syntax;
 pub mod server_etag_or_last_modified;
 pub mod server_last_modified_rfc1123_format;
 pub mod server_location_header_uri_valid;
+pub mod server_must_revalidate_and_immutable_mismatch;
 pub mod server_no_body_for_1xx_204_304;
 pub mod server_patch_accept_patch_header;
 pub mod server_problem_details_content_type;
@@ -378,6 +379,7 @@ pub mod server_x_xss_protection_value_valid;
 
 pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_cache_control_present::ServerCacheControlPresent,
+    &server_must_revalidate_and_immutable_mismatch::ServerMustRevalidateAndImmutableMismatch,
     &server_etag_or_last_modified::ServerEtagOrLastModified,
     &server_last_modified_rfc1123_format::ServerLastModifiedRfc1123Format,
     &server_location_header_uri_valid::ServerLocationHeaderUriValid,
