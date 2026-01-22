@@ -355,6 +355,7 @@ pub mod message_transfer_encoding_chunked_final;
 pub mod message_user_agent_token_valid;
 pub mod message_via_header_syntax_valid;
 pub mod message_warning_header_syntax;
+pub mod message_well_known_uri_format;
 pub mod message_www_authenticate_challenge_syntax;
 pub mod server_accept_ranges_values_valid;
 pub mod server_alt_svc_header_syntax;
@@ -479,6 +480,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_cross_origin_resource_policy_valid::MessageCrossOriginResourcePolicyValid,
     &message_cross_origin_embedder_policy_valid::MessageCrossOriginEmbedderPolicyValid,
     &message_referer_uri_valid::MessageRefererUriValid,
+    &message_well_known_uri_format::MessageWellKnownUriFormat,
     &message_link_header_validity::MessageLinkHeaderValidity,
     &message_from_header_email_syntax::MessageFromHeaderEmailSyntax,
     &message_http_version_syntax_valid::MessageHttpVersionSyntaxValid,

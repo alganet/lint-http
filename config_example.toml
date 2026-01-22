@@ -264,6 +264,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_well_known_uri_format]
+enabled = true
+severity = "warn"
+
 [rules.message_link_header_validity]
 enabled = true
 severity = "warn"
