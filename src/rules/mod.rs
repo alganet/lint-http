@@ -281,6 +281,7 @@ pub mod client_cache_respect;
 pub mod client_expect_header_valid;
 pub mod client_host_header;
 pub mod client_range_header_syntax_valid;
+pub mod client_request_method_body_consistency;
 pub mod client_request_method_token_uppercase;
 pub mod client_request_origin_header_present_for_cors;
 pub mod client_request_target_form_checks;
@@ -409,6 +410,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_alt_svc_header_syntax::ServerAltSvcHeaderSyntax,
     &server_problem_details_content_type::ServerProblemDetailsContentType,
     &client_request_method_token_uppercase::ClientRequestMethodTokenUppercase,
+    &client_request_method_body_consistency::ClientRequestMethodBodyConsistency,
     &client_request_origin_header_present_for_cors::ClientRequestOriginHeaderPresentForCors,
     &client_expect_header_valid::ClientExpectHeaderValid,
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
