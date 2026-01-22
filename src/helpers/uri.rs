@@ -117,6 +117,47 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
     Some("Origin is not a valid serialized origin".into())
 }
 
+/// Extract the path component from a request-target or absolute URI.
+///
+/// - If `s` is an absolute URI (`scheme://host[:port]/path...`), returns the
+///   serialized path (including leading `/`), or `/` if none present.
+/// - If `s` is an origin-form request-target (starts with `/`), returns the
+///   path portion up to, but not including, the `?` or `#` characters.
+/// - For authority-form (CONNECT) or asterisk-form (`*`) request-targets,
+///   returns `None` since they do not carry a path to validate.
+pub fn extract_path_from_request_target(s: &str) -> Option<String> {
+    let s_trim = s.trim();
+
+    if s_trim == "*" {
+        return None;
+    }
+
+    // Absolute-form: find scheme marker '://', then the first '/' after authority
+    if let Some(idx) = s_trim.find("://") {
+        let after = &s_trim[idx + 3..];
+        // find first '/' which marks start of path
+        if let Some(pos) = after.find('/') {
+            let path = &after[pos..];
+            // strip query and fragment
+            let end = path.find(&['?', '#'][..]).unwrap_or(path.len());
+            return Some(path[..end].to_string());
+        } else {
+            // no '/', path is root
+            return Some("/".into());
+        }
+    }
+
+    // Origin-form: must start with '/'
+    if s_trim.starts_with('/') {
+        // strip query and fragment
+        let end_idx = s_trim.find(&['?', '#'][..]).unwrap_or(s_trim.len());
+        return Some(s_trim[..end_idx].to_string());
+    }
+
+    // authority-form (host:port) or unknown forms are not path-bearing
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -158,6 +199,25 @@ mod tests {
             Some("https://example.com:8080".into())
         );
         assert_eq!(extract_origin_if_absolute("not-a-scheme//no"), None);
+    }
+
+    #[test]
+    fn extract_path_from_request_target_cases() {
+        assert_eq!(extract_path_from_request_target("/"), Some("/".into()));
+        assert_eq!(
+            extract_path_from_request_target("/foo/bar?x=1#z"),
+            Some("/foo/bar".into())
+        );
+        assert_eq!(
+            extract_path_from_request_target("http://example.com/.well-known/foo?x=1"),
+            Some("/.well-known/foo".into())
+        );
+        assert_eq!(
+            extract_path_from_request_target("https://example.com"),
+            Some("/".into())
+        );
+        assert_eq!(extract_path_from_request_target("*"), None);
+        assert_eq!(extract_path_from_request_target("example.com:443"), None);
     }
 
     #[test]
