@@ -175,6 +175,8 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
 /// non-empty credentials (token68 or auth-param list). Unlike `WWW-Authenticate` challenges,
 /// the `Authorization` header MUST include credentials after the auth-scheme.
 /// Returns Ok(()) on success or Err(String) describing the problem.
+use base64::Engine;
+
 pub fn validate_authorization_syntax(value: &str) -> Result<(), String> {
     let v = value.trim();
     if v.is_empty() {
@@ -207,6 +209,48 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), String> {
     } else {
         Err("Authorization header missing credentials after auth-scheme".into())
     }
+}
+
+/// Validate Basic auth credentials token68 (base64 encoding of user-pass octet string).
+/// Returns Ok(()) on syntactically valid Basic credentials, or Err(String) describing the problem.
+///
+/// Validation performed:
+/// - Base64 decodes successfully
+/// - Decoded octets contain at least one ':' separator
+/// - User-id (octets before first ':') does not contain control characters
+/// - Password (octets after first ':') does not contain control characters
+pub fn validate_basic_credentials(token68: &str) -> Result<(), String> {
+    let s = token68.trim();
+    if s.is_empty() {
+        return Err("Basic credentials token is empty".into());
+    }
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(s)
+        .map_err(|e| format!("Invalid base64 in Basic credentials: {}", e))?;
+    if decoded.is_empty() {
+        return Err("Decoded Basic credentials empty".into());
+    }
+    // find first colon separator
+    let pos = decoded.iter().position(|b| *b == b':');
+    if pos.is_none() {
+        return Err("Decoded Basic credentials missing ':' separator".into());
+    }
+    let pos = pos.unwrap();
+    let (user, pass) = decoded.split_at(pos);
+    // pass starts with ':' character; skip it
+    let pass = &pass[1..];
+
+    let contains_ctl =
+        |bytes: &[u8]| -> Option<u8> { bytes.iter().find(|&&b| b < 0x20 || b == 0x7f).copied() };
+
+    if let Some(v) = contains_ctl(user) {
+        return Err(format!("User-id contains control character: 0x{:02x}", v));
+    }
+    if let Some(v) = contains_ctl(pass) {
+        return Err(format!("Password contains control character: 0x{:02x}", v));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -398,6 +442,57 @@ mod tests {
         let r = validate_challenge_syntax("NewSch realm=, other=1");
         assert!(r.is_err());
         assert!(r.unwrap_err().contains("missing value"));
+    }
+
+    #[test]
+    fn validate_basic_credentials_ok() {
+        // 'Aladdin:open sesame' -> base64
+        assert!(validate_basic_credentials("QWxhZGRpbjpvcGVuIHNlc2FtZQ==").is_ok());
+    }
+
+    #[test]
+    fn validate_basic_credentials_missing_colon() {
+        // 'abc' base64
+        assert!(validate_basic_credentials("YWJj").is_err());
+    }
+
+    #[test]
+    fn validate_basic_credentials_invalid_base64() {
+        assert!(validate_basic_credentials("not-base64!!").is_err());
+    }
+
+    #[test]
+    fn validate_basic_credentials_ctl_in_password() {
+        // user:pass where pass contains 0x01
+        let creds = b"user:\x01pass";
+        let enc = base64::engine::general_purpose::STANDARD.encode(creds);
+        let res = validate_basic_credentials(&enc);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("control"));
+    }
+
+    #[test]
+    fn validate_basic_credentials_ctl_in_user() {
+        // user contains 0x01
+        let creds = b"us\x01er:pass";
+        let enc = base64::engine::general_purpose::STANDARD.encode(creds);
+        let res = validate_basic_credentials(&enc);
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .contains("User-id contains control character"));
+    }
+
+    #[test]
+    fn validate_basic_credentials_empty_token() {
+        assert!(validate_basic_credentials("").is_err());
+    }
+    #[test]
+    fn validate_basic_credentials_empty_user_allowed() {
+        // ':pass' should be allowed (empty user-id) as long as no control chars
+        let creds = b":pass";
+        let enc = base64::engine::general_purpose::STANDARD.encode(creds);
+        assert!(validate_basic_credentials(&enc).is_ok());
     }
 
     #[test]
