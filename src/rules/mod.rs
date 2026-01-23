@@ -277,6 +277,7 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<RuleConf
 }
 
 pub mod client_accept_encoding_present;
+pub mod client_accept_ranges_on_partial_content;
 pub mod client_cache_respect;
 pub mod client_expect_header_valid;
 pub mod client_host_header;
@@ -404,6 +405,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_request_target_form_checks::ClientRequestTargetFormChecks,
     &client_request_uri_percent_encoding_valid::ClientRequestUriPercentEncodingValid,
     &client_range_header_syntax_valid::ClientRangeHeaderSyntaxValid,
+    &client_accept_ranges_on_partial_content::ClientAcceptRangesOnPartialContent,
     &server_accept_ranges_values_valid::ServerAcceptRangesValuesValid,
     &server_vary_header_valid::ServerVaryHeaderValid,
     &server_patch_accept_patch_header::ServerPatchAcceptPatchHeader,

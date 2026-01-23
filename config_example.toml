@@ -165,6 +165,10 @@ severity = "warn"
 enabled = true
 severity = "error"
 
+[rules.client_accept_ranges_on_partial_content]
+enabled = true
+severity = "warn"
+
 [rules.message_range_and_content_range_consistency]
 enabled = true
 severity = "warn"
