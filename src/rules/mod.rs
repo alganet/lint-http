@@ -350,6 +350,7 @@ pub mod message_sec_fetch_mode_value_valid;
 pub mod message_sec_fetch_site_value_valid;
 pub mod message_sec_fetch_user_value_valid;
 pub mod message_server_header_product_valid;
+pub mod message_structured_headers_validity;
 pub mod message_te_header_constraints;
 pub mod message_trailer_headers_valid;
 pub mod message_transfer_coding_iana_registered;
@@ -468,6 +469,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
     &message_sec_fetch_dest_value_valid::MessageSecFetchDestValueValid,
     &message_priority_header_syntax::MessagePriorityHeaderSyntax,
+    &message_structured_headers_validity::MessageStructuredHeadersValidity,
     &message_prefer_header_valid::MessagePreferHeaderValid,
     &message_cache_control_token_valid::MessageCacheControlTokenValid,
     &message_cache_control_directive_validity::MessageCacheControlDirectiveValidity,

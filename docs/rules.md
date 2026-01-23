@@ -74,6 +74,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_cache_control_directive_validity](rules/message_cache_control_directive_validity.md) - Validate directive-specific `Cache-Control` argument formats (e.g., numeric `max-age`, field-name lists for `private`/`no-cache`). (RFC 9110 §5.2)
 - [message_pragma_token_valid](rules/message_pragma_token_valid.md) - `Pragma` header directives must follow `token` or `token="quoted-string"` syntax. (RFC 9110 §8.2)
 - [message_priority_header_syntax](rules/message_priority_header_syntax.md) - `Priority` header must follow `u` (urgency 0..7) and optional `i` (incremental boolean) parameter syntax. (RFC 9218 §4–§5)
+- [message_structured_headers_validity](rules/message_structured_headers_validity.md) - Validates configured headers follow RFC 8941 Structured Field syntax (Item/List/Dictionary). (RFC 8941)
 - [message_language_tag_format_valid](rules/message_language_tag_format_valid.md) - Validates `Content-Language` and `Accept-Language` language-tags follow BCP 47-style syntax (RFC 5646).
 - [message_user_agent_token_valid](rules/message_user_agent_token_valid.md) - Validates `User-Agent` header product tokens and optional versions; allows parenthesized comments. (RFC 9110 §10.1.5)
 - [message_access_control_allow_credentials_when_origin](rules/message_access_control_allow_credentials_when_origin.md) - If `Access-Control-Allow-Origin` is `*`, `Access-Control-Allow-Credentials` must not be `true`. (CORS)
