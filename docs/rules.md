@@ -26,6 +26,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [client_request_target_no_fragment](rules/client_request_target_no_fragment.md) - Request-target MUST NOT include a URI fragment (`#`) in origin-form.
 - [client_request_target_form_checks](rules/client_request_target_form_checks.md) - Enforce correct request-target forms: `CONNECT` uses authority-form; `*` only valid for `OPTIONS`. (RFC 9112 §2.7).
 - [client_request_origin_header_present_for_cors](rules/client_request_origin_header_present_for_cors.md) - CORS preflight requests and cross-origin absolute-form requests should include an `Origin` header. (RFC 6454)
+- [client_accept_ranges_on_partial_content](rules/client_accept_ranges_on_partial_content.md) - Clients should track `Accept-Ranges` advertised by servers and avoid sending `Range` requests when server advertises `none` or a previous `206` did not advertise support. (RFC 9110 §7.3.4; RFC 7233 §4.1)
 - [client_request_uri_percent_encoding_valid](rules/client_request_uri_percent_encoding_valid.md) - Percent-encodings in the request-target must be well-formed (`%` followed by two hex digits). (RFC 3986 §2.1)
 - [client_range_header_syntax_valid](rules/client_range_header_syntax_valid.md) - `Range` header value must match byte-range-set syntax when present. (RFC 9110 §14.1.2)
 
