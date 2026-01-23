@@ -315,6 +315,7 @@ pub mod message_content_transfer_encoding_valid;
 pub mod message_content_type_iana_registered;
 pub mod message_content_type_well_formed;
 pub mod message_cookie_attribute_consistency;
+pub mod message_cookie_domain_validity;
 pub mod message_cross_origin_embedder_policy_valid;
 pub mod message_cross_origin_opener_policy_valid;
 pub mod message_cross_origin_resource_policy_valid;
@@ -445,6 +446,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_authorization_credentials_present::MessageAuthorizationCredentialsPresent,
     &message_auth_scheme_iana_registered::MessageAuthSchemeIanaRegistered,
     &message_cookie_attribute_consistency::MessageCookieAttributeConsistency,
+    &message_cookie_domain_validity::MessageCookieDomainValidity,
     &message_etag_syntax::MessageEtagSyntax,
     &message_if_match_etag_syntax::MessageIfMatchEtagSyntax,
     &message_if_none_match_etag_syntax::MessageIfNoneMatchEtagSyntax,

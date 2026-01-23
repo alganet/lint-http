@@ -8,6 +8,7 @@
 
 pub mod auth;
 pub mod content_range;
+pub mod domain;
 pub mod headers;
 pub mod ipv6;
 pub mod language;
