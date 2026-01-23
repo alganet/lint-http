@@ -124,6 +124,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_forwarded_header_validity](rules/message_forwarded_header_validity.md) - `Forwarded` header must follow correct syntax with valid IP addresses and parameters. (RFC 7239)
 - [message_connection_header_tokens_valid](rules/message_connection_header_tokens_valid.md) - `Connection` header tokens must be valid header field-names (token grammar).
 - [message_retry_after_date_or_delay](rules/message_retry_after_date_or_delay.md) - `Retry-After` must be either an HTTP-date or a non-negative delay-seconds.
+- [message_refresh_header_syntax_valid](rules/message_refresh_header_syntax_valid.md) - `Refresh` header (non-standard) must be `delta-seconds` or `delta-seconds; url=<URI>` and follow URI syntax for `url` parameter. (MDN)
 - [message_prefer_header_valid](rules/message_prefer_header_valid.md) - `Prefer` header directives and parameters must be syntactically valid. (RFC 7240 §2)
 - [message_preference_applied_header_valid](rules/message_preference_applied_header_valid.md) - `Preference-Applied` header must list preferences that were present in the request's `Prefer` header; parameters are not allowed. (RFC 7240 §3)
 - [message_allow_header_method_tokens](rules/message_allow_header_method_tokens.md) - `Allow` header must contain valid HTTP method tokens. (RFC 9110 §7.1.1)
