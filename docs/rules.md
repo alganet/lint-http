@@ -103,6 +103,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_auth_scheme_iana_registered](rules/message_auth_scheme_iana_registered.md) - Authentication schemes used in `WWW-Authenticate`/`Authorization` SHOULD be IANA-registered or match a configured allowlist. (IANA HTTP Auth registry; RFC 9110 §7.2.1)
 - [message_authorization_credentials_present](rules/message_authorization_credentials_present.md) - `Authorization` header must include an auth-scheme and non-empty credentials. (RFC 9110 §7.6.2)
 - [message_cookie_attribute_consistency](rules/message_cookie_attribute_consistency.md) - `Set-Cookie` attributes should be syntactically valid and follow security consistency rules (SameSite/Secure, Max-Age numeric, Expires date). (RFC 6265 §5.2.2)
+- [message_cookie_domain_validity](rules/message_cookie_domain_validity.md) - `Set-Cookie` `Domain` attributes should be valid domain names and must not be IP literals or contain invalid characters. (RFC 6265 §5.2.3)
 - [message_if_none_match_etag_syntax](rules/message_if_none_match_etag_syntax.md) - `If-None-Match` header must be `*` or a comma-separated list of valid entity-tags (ETags). (RFC 9110 §7.6, §7.8.4)
 - [message_if_match_etag_syntax](rules/message_if_match_etag_syntax.md) - `If-Match` header must be `*` or a comma-separated list of valid entity-tags (ETags). (RFC 9110 §7.6, §7.8.3)
 - [message_if_modified_since_date_format](rules/message_if_modified_since_date_format.md) - `If-Modified-Since` header must be a valid HTTP-date (IMF-fixdate). (RFC 9110 §7.8.1)
