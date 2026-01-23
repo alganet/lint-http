@@ -78,6 +78,8 @@ mod tests {
     #[case("sub.domain.example", true)]
     #[case("", false)]
     #[case(" ", false)]
+    #[case(".", false)]
+    #[case("ex ample.com", false)]
     #[case("192.168.0.1", false)]
     #[case("[::1]", false)]
     #[case("exa_mple.com", false)]
@@ -93,5 +95,15 @@ mod tests {
         } else {
             assert!(res.is_err(), "expected '{}' to be invalid", input);
         }
+    }
+
+    #[test]
+    fn domain_total_length_exceeds_255_is_error() {
+        // Build a domain with multiple labels each under 64 chars, but total > 255
+        let label = "a".repeat(50);
+        let parts: Vec<String> = (0..6).map(|_| label.clone()).collect();
+        let domain = parts.join("."); // length = 6*50 + 5 = 305 > 255
+        let res = validate_cookie_domain(&domain);
+        assert!(res.is_err(), "expected long domain to be invalid");
     }
 }

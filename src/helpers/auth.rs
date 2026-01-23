@@ -413,4 +413,10 @@ mod tests {
         assert!(r.is_err());
         assert!(r.unwrap_err().contains("Invalid character"));
     }
+
+    #[test]
+    fn token68_with_allowed_chars_ok() {
+        let r = validate_challenge_syntax("NewSch abc+");
+        assert!(r.is_ok());
+    }
 }
