@@ -426,6 +426,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_refresh_header_syntax_valid]
+enabled = true
+severity = "warn"
+
 [rules.message_prefer_header_valid]
 enabled = true
 severity = "warn"
