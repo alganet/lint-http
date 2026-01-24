@@ -44,6 +44,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [server_x_frame_options_value_valid](rules/server_x_frame_options_value_valid.md) - `X-Frame-Options` header must be `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <origin>` and must not appear multiple times. (RFC 7034 §2.1)
 - [server_x_xss_protection_value_valid](rules/server_x_xss_protection_value_valid.md) - `X-XSS-Protection` header value should be `0` or `1; mode=block` when present (case-insensitive). (MDN)
 - [server_content_security_policy_validity](rules/server_content_security_policy_validity.md) - Validates basic `Content-Security-Policy` directive syntax and common structural issues (unterminated quotes, empty directives). (W3C CSP)
+- [message_strict_transport_security_validity](rules/message_strict_transport_security_validity.md) - Validates `Strict-Transport-Security` header directives: `max-age` required (numeric), `includeSubDomains` and `preload` must not have values. (RFC 6797)
 - [message_content_security_policy_and_frame_options_consistency](rules/message_content_security_policy_and_frame_options_consistency.md) - Warn when `Content-Security-Policy: frame-ancestors` contradicts `X-Frame-Options` (`DENY`, `SAMEORIGIN`, `ALLOW-FROM`), which may cause inconsistent framing behavior across user agents.
 - [server_response_405_allow](rules/server_response_405_allow.md) - Checks `Allow` header is present on `405` responses.
 - [server_charset_specification](rules/server_charset_specification.md) - Checks text-based `Content-Type` headers include charset parameter.
