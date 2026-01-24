@@ -354,6 +354,7 @@ pub mod message_sec_fetch_mode_value_valid;
 pub mod message_sec_fetch_site_value_valid;
 pub mod message_sec_fetch_user_value_valid;
 pub mod message_server_header_product_valid;
+pub mod message_strict_transport_security_validity;
 pub mod message_structured_headers_validity;
 pub mod message_te_header_constraints;
 pub mod message_timing_allow_origin_validity;
@@ -403,6 +404,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_x_xss_protection_value_valid::ServerXXssProtectionValueValid,
     &server_content_security_policy_validity::ServerContentSecurityPolicyValidity,
     &message_content_security_policy_and_frame_options_consistency::MessageContentSecurityPolicyAndFrameOptionsConsistency,
+    &message_strict_transport_security_validity::MessageStrictTransportSecurityValidity,
     &server_response_405_allow::ServerResponse405Allow,
     &server_clear_site_data::ServerClearSiteData,
     &server_no_body_for_1xx_204_304::ServerNoBodyFor1xx204304,

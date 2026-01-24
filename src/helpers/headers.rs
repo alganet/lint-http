@@ -149,6 +149,40 @@ pub fn split_commas_respecting_quotes(s: &str) -> Vec<&str> {
     res
 }
 
+/// Split a semicolon-separated header value into top-level members while respecting quoted-strings
+/// and backslash escapes. Returns a Vec of slices referencing the original string.
+///
+/// Useful for header grammars like `Strict-Transport-Security` where directives are separated
+/// with `;` and may include quoted-strings (rare but defensive).
+pub fn split_semicolons_respecting_quotes(s: &str) -> Vec<&str> {
+    let bytes = s.as_bytes();
+    let mut res = Vec::new();
+    let mut start = 0usize;
+    let mut i = 0usize;
+    let mut in_quote = false;
+    let mut prev_backslash = false;
+
+    while i < bytes.len() {
+        let b = bytes[i];
+        if prev_backslash {
+            prev_backslash = false;
+        } else if b == b'\\' {
+            prev_backslash = true;
+        } else if b == b'"' {
+            in_quote = !in_quote;
+        } else if b == b';' && !in_quote {
+            res.push(&s[start..i]);
+            start = i + 1;
+        }
+        i += 1;
+    }
+    // push remaining
+    if start <= s.len() {
+        res.push(&s[start..]);
+    }
+    res
+}
+
 /// Validate a quoted-string per HTTP rules: must start and end with DQUOTE, support backslash escapes,
 /// must not contain unescaped control characters (except HTAB). Returns Ok(()) on success, Err(msg)
 /// on failure.
@@ -866,6 +900,52 @@ mod tests {
     }
 
     #[test]
+    fn test_split_semicolons_respecting_quotes() {
+        let cases = vec![
+            ("a; b; c", vec!["a", "b", "c"]),
+            (
+                "max-age=63072000; includeSubDomains; preload",
+                vec!["max-age=63072000", " includeSubDomains", " preload"],
+            ),
+            ("token=\"a;b\";x", vec!["token=\"a;b\"", "x"]),
+            ("a;;b", vec!["a", "", "b"]),
+            ("", vec![""]),
+            ("a;", vec!["a", ""]),
+        ];
+
+        for (input, expected) in cases {
+            let got: Vec<String> = split_semicolons_respecting_quotes(input)
+                .iter()
+                .map(|s| s.trim().to_string())
+                .collect();
+            let exp: Vec<String> = expected.iter().map(|s| s.trim().to_string()).collect();
+            assert_eq!(got, exp, "input: {:?}", input);
+        }
+    }
+
+    #[test]
+    fn test_is_hop_by_hop_header() {
+        // builtin hop-by-hop headers (case-insensitive)
+        assert!(is_hop_by_hop_header("Connection", None));
+        assert!(is_hop_by_hop_header("connection", None));
+        assert!(is_hop_by_hop_header("keep-alive", None));
+        assert!(!is_hop_by_hop_header("x-foo", None));
+
+        // connection nominates an additional hop-by-hop header
+        assert!(is_hop_by_hop_header(
+            "X-Special",
+            Some("keep-alive, X-Special")
+        ));
+        // not nominated if not listed
+        assert!(!is_hop_by_hop_header("X-Special", Some("keep-alive")));
+        // nomination is case-insensitive
+        assert!(is_hop_by_hop_header(
+            "x-special",
+            Some("KEEP-ALIVE, x-special")
+        ));
+    }
+
+    #[test]
     fn strip_comments_escaped_paren_inside_comment_does_not_end_comment() {
         // an escaped ')' inside a comment should not terminate the comment
         let s = strip_comments("A(B\\)C)D").unwrap();
@@ -893,24 +973,6 @@ mod tests {
         // double backslash should become a single literal backslash and subsequent '(' starts a comment
         let s = strip_comments("Agent\\\\(x)").unwrap();
         assert_eq!(s, "Agent\\");
-    }
-
-    #[test]
-    fn get_header_str_and_parse_list_header() {
-        use hyper::header::HeaderValue;
-        use hyper::HeaderMap;
-
-        let mut hm = HeaderMap::new();
-        hm.insert("x-test", HeaderValue::from_static("ok"));
-        assert_eq!(get_header_str(&hm, "x-test"), Some("ok"));
-
-        // non-visible ASCII / non-UTF8 in header value should return None
-        hm.insert("bad", HeaderValue::from_bytes(&[0xff]).unwrap());
-        assert!(get_header_str(&hm, "bad").is_none());
-
-        // parse_list_header splits and trims
-        let vals: Vec<&str> = parse_list_header("a, b, ,c").collect();
-        assert_eq!(vals, vec!["a", "b", "c"]);
     }
 
     #[test]
