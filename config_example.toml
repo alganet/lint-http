@@ -365,6 +365,10 @@ allowed = ["Basic", "Bearer", "Digest"]
 enabled = true
 severity = "warn"
 
+[rules.message_bearer_token_format_validity]
+enabled = true
+severity = "warn"
+
 [rules.message_basic_auth_base64_validity]
 enabled = true
 severity = "warn"

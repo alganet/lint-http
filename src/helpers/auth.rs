@@ -252,7 +252,48 @@ pub fn validate_basic_credentials(token68: &str) -> Result<(), String> {
 
     Ok(())
 }
+/// Validate Bearer token per token68-like rules: token must be non-empty, contain no
+/// whitespace, the main body may contain only ALPHA / DIGIT / '-' / '.' / '_' / '~' / '+' / '/'
+/// and any trailing padding must be '=' characters. Returns Ok(()) or Err(String).
+pub fn validate_bearer_token(token: &str) -> Result<(), String> {
+    let s = token.trim();
+    if s.is_empty() {
+        return Err("Bearer token is empty".into());
+    }
 
+    // No whitespace anywhere
+    if s.chars().any(|c| c.is_ascii_whitespace()) {
+        return Err("Bearer token contains whitespace".into());
+    }
+
+    // Split at first '=' to identify padding (if any)
+    let first_eq = s.find('=');
+    let (main, padding) = match first_eq {
+        Some(idx) => (&s[..idx], &s[idx..]),
+        None => (s, ""),
+    };
+
+    if main.is_empty() {
+        return Err("Bearer token has empty main part".into());
+    }
+
+    let allowed_main =
+        |c: char| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '~' | '+' | '/');
+
+    for c in main.chars() {
+        if !allowed_main(c) {
+            return Err(format!("Invalid character '{}' in Bearer token", c));
+        }
+    }
+
+    for c in padding.chars() {
+        if c != '=' {
+            return Err("Bearer token padding contains invalid character".into());
+        }
+    }
+
+    Ok(())
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -401,6 +442,29 @@ mod tests {
     fn first_part_invalid_and_after_eq_no_quotes_permitted_as_token68() {
         let r = validate_challenge_syntax("NewSch bad@=abc");
         assert!(r.is_ok());
+    }
+
+    // Tests for validate_bearer_token helper
+    #[test]
+    fn validate_bearer_token_ok_and_padding() {
+        assert!(validate_bearer_token("abc123").is_ok());
+        assert!(validate_bearer_token("abc+").is_ok());
+        assert!(validate_bearer_token("abc==").is_ok());
+    }
+
+    #[test]
+    fn validate_bearer_token_rejects_whitespace_and_invalid_chars() {
+        assert!(validate_bearer_token("a b").is_err());
+        assert!(validate_bearer_token("").is_err());
+        assert!(validate_bearer_token("a@b").is_err());
+    }
+
+    #[test]
+    fn validate_bearer_token_rejects_eq_in_middle_or_nonpad() {
+        assert!(validate_bearer_token("ab=c").is_err());
+        assert!(validate_bearer_token("ab=c==").is_err());
+        assert!(validate_bearer_token("=abc").is_err());
+        assert!(validate_bearer_token("abc=a").is_err());
     }
 
     #[test]
