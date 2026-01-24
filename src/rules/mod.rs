@@ -314,6 +314,7 @@ pub mod message_content_encoding_and_type_consistency;
 pub mod message_content_encoding_iana_registered;
 pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
+pub mod message_content_security_policy_and_frame_options_consistency;
 pub mod message_content_transfer_encoding_valid;
 pub mod message_content_type_iana_registered;
 pub mod message_content_type_well_formed;
@@ -401,6 +402,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_x_frame_options_value_valid::ServerXFrameOptionsValueValid,
     &server_x_xss_protection_value_valid::ServerXXssProtectionValueValid,
     &server_content_security_policy_validity::ServerContentSecurityPolicyValidity,
+    &message_content_security_policy_and_frame_options_consistency::MessageContentSecurityPolicyAndFrameOptionsConsistency,
     &server_response_405_allow::ServerResponse405Allow,
     &server_clear_site_data::ServerClearSiteData,
     &server_no_body_for_1xx_204_304::ServerNoBodyFor1xx204304,
