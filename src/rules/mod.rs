@@ -354,6 +354,7 @@ pub mod message_sec_fetch_user_value_valid;
 pub mod message_server_header_product_valid;
 pub mod message_structured_headers_validity;
 pub mod message_te_header_constraints;
+pub mod message_timing_allow_origin_validity;
 pub mod message_trailer_headers_valid;
 pub mod message_transfer_coding_iana_registered;
 pub mod message_transfer_encoding_chunked_final;
@@ -486,6 +487,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_forwarded_header_validity::MessageForwardedHeaderValidity,
     &message_access_control_allow_credentials_when_origin::MessageAccessControlAllowCredentialsWhenOrigin,
     &message_access_control_allow_origin_valid::MessageAccessControlAllowOriginValid,
+    &message_timing_allow_origin_validity::MessageTimingAllowOriginValidity,
     &message_cross_origin_opener_policy_valid::MessageCrossOriginOpenerPolicyValid,
     &message_cross_origin_resource_policy_valid::MessageCrossOriginResourcePolicyValid,
     &message_cross_origin_embedder_policy_valid::MessageCrossOriginEmbedderPolicyValid,
