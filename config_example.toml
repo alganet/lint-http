@@ -75,6 +75,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.server_content_security_policy_validity]
+enabled = true
+severity = "warn"
+
 [rules.server_response_405_allow]
 enabled = true
 severity = "warn"

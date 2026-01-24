@@ -43,6 +43,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [server_problem_details_content_type](rules/server_problem_details_content_type.md) - Problem Details responses SHOULD use `application/problem+json` or `application/problem+xml`. (RFC 7807)
 - [server_x_frame_options_value_valid](rules/server_x_frame_options_value_valid.md) - `X-Frame-Options` header must be `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <origin>` and must not appear multiple times. (RFC 7034 §2.1)
 - [server_x_xss_protection_value_valid](rules/server_x_xss_protection_value_valid.md) - `X-XSS-Protection` header value should be `0` or `1; mode=block` when present (case-insensitive). (MDN)
+- [server_content_security_policy_validity](rules/server_content_security_policy_validity.md) - Validates basic `Content-Security-Policy` directive syntax and common structural issues (unterminated quotes, empty directives). (W3C CSP)
 - [server_response_405_allow](rules/server_response_405_allow.md) - Checks `Allow` header is present on `405` responses.
 - [server_charset_specification](rules/server_charset_specification.md) - Checks text-based `Content-Type` headers include charset parameter.
 - [server_clear_site_data](rules/server_clear_site_data.md) - Checks logout endpoints include `Clear-Site-Data` header (configurable paths).
