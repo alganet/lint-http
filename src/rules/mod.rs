@@ -301,6 +301,7 @@ pub mod message_allow_header_method_tokens;
 pub mod message_auth_scheme_iana_registered;
 pub mod message_authorization_credentials_present;
 pub mod message_basic_auth_base64_validity;
+pub mod message_bearer_token_format_validity;
 pub mod message_cache_control_directive_validity;
 pub mod message_cache_control_token_valid;
 pub mod message_charset_iana_registered;
@@ -450,6 +451,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_warning_header_syntax::MessageWarningHeaderSyntax,
     &message_www_authenticate_challenge_syntax::MessageWwwAuthenticateChallengeSyntax,
     &message_authorization_credentials_present::MessageAuthorizationCredentialsPresent,
+    &message_bearer_token_format_validity::MessageBearerTokenFormatValidity,
     &message_basic_auth_base64_validity::MessageBasicAuthBase64Validity,
     &message_auth_scheme_iana_registered::MessageAuthSchemeIanaRegistered,
     &message_cookie_attribute_consistency::MessageCookieAttributeConsistency,
