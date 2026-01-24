@@ -5,13 +5,13 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-pub struct ClientRequestMethodTokenUppercase;
+pub struct ClientRequestMethodTokenValid;
 
-impl Rule for ClientRequestMethodTokenUppercase {
+impl Rule for ClientRequestMethodTokenValid {
     type Config = crate::rules::RuleConfig;
 
     fn id(&self) -> &'static str {
-        "client_request_method_token_uppercase"
+        "client_request_method_token_valid"
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
@@ -65,7 +65,7 @@ mod tests {
         #[case] method_str: &str,
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
-        let rule = ClientRequestMethodTokenUppercase;
+        let rule = ClientRequestMethodTokenValid;
 
         let method_res = Method::from_bytes(method_str.as_bytes());
         if method_res.is_err() {
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn violation_messages_are_meaningful() -> anyhow::Result<()> {
-        let rule = ClientRequestMethodTokenUppercase;
+        let rule = ClientRequestMethodTokenValid;
 
         use crate::test_helpers::make_test_transaction;
 
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn scope_is_client() {
-        let rule = ClientRequestMethodTokenUppercase;
+        let rule = ClientRequestMethodTokenValid;
         assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
     }
 }

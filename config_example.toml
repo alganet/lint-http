@@ -101,7 +101,7 @@ paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
 enabled = true
 severity = "warn"
 
-[rules.client_request_method_token_uppercase]
+[rules.client_request_method_token_valid]
 enabled = true
 severity = "warn"
 
