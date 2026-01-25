@@ -321,6 +321,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_x_forwarded_consistency]
+enabled = true
+severity = "warn"
+
 [rules.message_cross_origin_opener_policy_valid]
 enabled = true
 severity = "warn"
