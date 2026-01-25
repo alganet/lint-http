@@ -437,6 +437,10 @@ severity = "warn"
 enabled = true
 severity = "error"
 
+[rules.message_request_body_length_accuracy]
+enabled = true
+severity = "error"
+
 [rules.message_header_field_names_token]
 enabled = true
 severity = "warn"
