@@ -90,6 +90,8 @@ mod tests {
             status: 302,
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("location", loc)]),
+
+            body_length: None,
         });
         tx
     }
@@ -131,6 +133,8 @@ mod tests {
             status: 302,
             version: "HTTP/1.1".into(),
             headers,
+
+            body_length: None,
         });
 
         let config = crate::rules::RuleConfig {
@@ -151,6 +155,8 @@ mod tests {
             status: 302,
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("location", "1http://ex")]),
+
+            body_length: None,
         });
 
         let config = crate::rules::RuleConfig {
@@ -171,6 +177,8 @@ mod tests {
             status: 302,
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("location", "ht!tp://ex")]),
+
+            body_length: None,
         });
 
         let config = crate::rules::RuleConfig {
@@ -193,6 +201,8 @@ mod tests {
             status: 302,
             version: "HTTP/1.1".into(),
             headers,
+
+            body_length: None,
         });
 
         let config = crate::rules::RuleConfig {

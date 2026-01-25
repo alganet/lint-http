@@ -322,6 +322,7 @@ where
             status,
             version: "HTTP/1.1".into(),
             headers: response_headers.unwrap_or_default(),
+            body_length: None,
         });
         tx.timing = crate::http_transaction::TimingInfo { duration_ms };
         captures.write_transaction(&tx).await?;
@@ -509,6 +510,7 @@ where
         status,
         version: resp_ver,
         headers: headers.clone(),
+        body_length: Some(resp_body_bytes.len() as u64),
     });
     tx.timing = crate::http_transaction::TimingInfo {
         duration_ms: duration,

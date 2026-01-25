@@ -133,6 +133,8 @@ mod tests {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: hdrs,
+
+            body_length: None,
         });
 
         let v = rule.check_transaction(&tx, None, &make_test_rule_config());
@@ -156,6 +158,8 @@ mod tests {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: hdrs,
+
+            body_length: None,
         });
 
         let v = rule.check_transaction(&tx, None, &make_test_rule_config());

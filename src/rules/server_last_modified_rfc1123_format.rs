@@ -70,6 +70,8 @@ mod tests {
                 status: 200,
                 version: "HTTP/1.1".into(),
                 headers: crate::test_helpers::make_headers_from_pairs(&h),
+
+                body_length: None,
             });
         }
 
@@ -98,6 +100,8 @@ mod tests {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: hm,
+
+            body_length: None,
         });
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());

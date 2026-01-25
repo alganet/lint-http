@@ -89,6 +89,7 @@ mod tests {
             status: 200,
             version: "HTTP/2.0".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
+            body_length: None,
         });
 
         let rule = MessageHttpVersionSyntaxValid;
@@ -127,6 +128,8 @@ mod tests {
             status: 200,
             version: "1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
+
+            body_length: None,
         });
         let rule = MessageHttpVersionSyntaxValid;
         let v = rule.check_transaction(&tx, None, &make_test_rule_config());
@@ -168,6 +171,8 @@ mod tests {
             status: 200,
             version: "HTTP/1.1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
+
+            body_length: None,
         });
         let rule = MessageHttpVersionSyntaxValid;
         let v = rule.check_transaction(&tx, None, &make_test_rule_config());

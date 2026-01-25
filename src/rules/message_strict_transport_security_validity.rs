@@ -215,6 +215,8 @@ mod tests {
                 "strict-transport-security",
                 val,
             )]),
+
+            body_length: None,
         });
         tx
     }
@@ -253,6 +255,8 @@ mod tests {
             status: 200,
             version: "HTTP/1.1".into(),
             headers,
+
+            body_length: None,
         });
         let rule = MessageStrictTransportSecurityValidity;
         let cfg = crate::rules::RuleConfig {
@@ -394,6 +398,8 @@ mod tests {
                 ("strict-transport-security", "max-age=1"),
                 ("strict-transport-security", "includeSubDomains"),
             ]),
+
+            body_length: None,
         });
         let rule = MessageStrictTransportSecurityValidity;
         let cfg = crate::rules::RuleConfig {

@@ -332,6 +332,8 @@ mod tests {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
+
+            body_length: None,
         });
 
         // Append a non-UTF8 header value
@@ -401,6 +403,8 @@ mod tests {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
+
+            body_length: None,
         });
 
         // Append a valid and an invalid Set-Cookie header

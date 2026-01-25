@@ -88,6 +88,8 @@ mod tests {
                     "content-type",
                     content_type,
                 )]),
+
+                body_length: None,
             });
         }
 

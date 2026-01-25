@@ -206,6 +206,7 @@ mod tests {
             status: 206,
             version: "HTTP/1.1".into(),
             headers: hm,
+            body_length: None,
         });
 
         let v = rule.check_transaction(&tx, None, &cfg);
@@ -228,6 +229,7 @@ mod tests {
             status: 206,
             version: "HTTP/1.1".into(),
             headers: hm,
+            body_length: None,
         });
 
         let v = rule.check_transaction(&tx, None, &cfg);
@@ -249,6 +251,7 @@ mod tests {
             status: 206,
             version: "HTTP/1.1".into(),
             headers: hm,
+            body_length: None,
         });
 
         let v = rule.check_transaction(&tx, None, &cfg);
@@ -270,6 +273,7 @@ mod tests {
             status: 206,
             version: "HTTP/1.1".into(),
             headers: hm,
+            body_length: None,
         });
 
         let v = rule.check_transaction(&tx, None, &cfg);
@@ -290,6 +294,7 @@ mod tests {
             status: 206,
             version: "HTTP/1.1".into(),
             headers: hm,
+            body_length: None,
         });
 
         let v = rule.check_transaction(&tx, None, &cfg);

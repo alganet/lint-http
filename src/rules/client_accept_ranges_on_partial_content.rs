@@ -216,6 +216,7 @@ mod tests {
             status: 206,
             version: p.response.as_ref().unwrap().version.clone(),
             headers: hm,
+            body_length: None,
         });
 
         // ensure URI matches so previous state is relevant

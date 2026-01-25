@@ -110,6 +110,7 @@ pub fn make_test_transaction_with_response(
         status,
         version: "HTTP/1.1".into(),
         headers,
+        body_length: None,
     });
     tx
 }

@@ -96,6 +96,8 @@ mod tests {
                 status: 200,
                 version: "HTTP/1.1".into(),
                 headers: HeaderMap::new(),
+
+                body_length: None,
             });
         }
 

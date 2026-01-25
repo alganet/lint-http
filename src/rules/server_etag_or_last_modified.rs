@@ -65,6 +65,8 @@ mod tests {
             status,
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(headers),
+
+            body_length: None,
         });
 
         let violation =
