@@ -1627,4 +1627,68 @@ mod tests {
         let _ = server_task.await;
         Ok(())
     }
+
+    #[tokio::test]
+    async fn tunnel_fails_when_remote_not_listening() -> anyhow::Result<()> {
+        use tokio::io::AsyncWriteExt;
+
+        // pick a currently-unused port by binding and dropping
+        let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let port = listener.local_addr()?.port();
+        drop(listener);
+
+        // Create a duplex pair to simulate the upgraded client side
+        let (mut client_side, server_side) = tokio::io::duplex(64);
+
+        // Run the tunnel helper which should fail to connect
+        let t = tokio::spawn(
+            async move { super::tunnel_with_io(server_side, "127.0.0.1", port).await },
+        );
+
+        // Write some data; the tunnel should error when trying to connect
+        let _ = client_side.write_all(b"ping").await;
+
+        let res = t.await?;
+        assert!(res.is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn tunnel_completes_when_remote_closes_early() -> anyhow::Result<()> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::time::timeout;
+
+        // Start a simple TCP server that reads a couple bytes then closes
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let port = listener.local_addr()?.port();
+        let server_task = tokio::spawn(async move {
+            if let Ok((mut sock, _)) = listener.accept().await {
+                // read two bytes then close
+                let mut buf = [0u8; 2];
+                let _ = sock.read_exact(&mut buf).await;
+                // drop socket to close prematurely
+                drop(sock);
+            }
+        });
+
+        let (mut client_side, server_side) = tokio::io::duplex(64);
+        let t = tokio::spawn(
+            async move { super::tunnel_with_io(server_side, "127.0.0.1", port).await },
+        );
+
+        // send 4 bytes even though server only reads 2 and then closes
+        client_side.write_all(b"ping").await?;
+
+        // closing client side to let tunnel finish
+        drop(client_side);
+        // Ensure the tunnel finishes quickly instead of hanging indefinitely.
+        let res = timeout(std::time::Duration::from_secs(2), t)
+            .await
+            .map_err(|_| anyhow::anyhow!("tunnel did not complete within timeout"))??;
+        // The tunnel may succeed or return an IO error depending on timing; that's acceptable
+        // as long as it didn't hang or panic (timeout/JoinError would have been returned above).
+        let _ = res;
+        let _ = server_task.await;
+        Ok(())
+    }
 }
