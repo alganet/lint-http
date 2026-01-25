@@ -350,6 +350,7 @@ pub mod message_priority_header_syntax;
 pub mod message_range_and_content_range_consistency;
 pub mod message_referer_uri_valid;
 pub mod message_refresh_header_syntax_valid;
+pub mod message_response_body_length_accuracy;
 pub mod message_retry_after_date_or_delay;
 pub mod message_sec_fetch_dest_value_valid;
 pub mod message_sec_fetch_mode_value_valid;
@@ -432,6 +433,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_expect_header_valid::ClientExpectHeaderValid,
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
     &message_content_length::MessageContentLength,
+    &message_response_body_length_accuracy::MessageResponseBodyLengthAccuracy,
     &message_range_and_content_range_consistency::MessageRangeAndContentRangeConsistency,
     &message_accept_ranges_and_206_consistency::MessageAcceptRangesAnd206Consistency,
     &message_header_field_names_token::MessageHeaderFieldNamesToken,

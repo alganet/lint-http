@@ -62,6 +62,7 @@ mod tests {
                 Some(l) => crate::test_helpers::make_headers_from_pairs(&[("location", l)]),
                 None => crate::test_helpers::make_headers_from_pairs(&[]),
             },
+            body_length: None,
         });
         tx
     }

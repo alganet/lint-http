@@ -102,6 +102,8 @@ mod tests {
                     .into_iter()
                     .collect::<Vec<_>>(),
             ),
+
+            body_length: None,
         });
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());

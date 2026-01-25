@@ -148,6 +148,7 @@ mod tests {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("cache-control", val)]),
+            body_length: None,
         });
         tx
     }

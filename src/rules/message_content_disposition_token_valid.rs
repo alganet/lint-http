@@ -195,6 +195,8 @@ mod tests {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: hm,
+
+            body_length: None,
         });
 
         let config = crate::rules::RuleConfig {

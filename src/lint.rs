@@ -131,6 +131,7 @@ mod tests {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
+            body_length: None,
         });
 
         let violations = lint_transaction(&tx, &cfg, &state, &engine);

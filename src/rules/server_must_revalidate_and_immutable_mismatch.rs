@@ -125,6 +125,8 @@ mod tests {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: HeaderMap::new(),
+
+            body_length: None,
         });
 
         tx.response
@@ -158,6 +160,8 @@ mod tests {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: HeaderMap::new(),
+
+            body_length: None,
         });
 
         let bad = HeaderValue::from_bytes(&[0xff]).expect("should construct non-utf8 header");

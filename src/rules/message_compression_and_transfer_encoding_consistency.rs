@@ -172,6 +172,8 @@ mod tests {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
+
+            body_length: None,
         });
 
         tx.response.as_mut().unwrap().headers.append(

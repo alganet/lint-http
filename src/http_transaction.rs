@@ -43,6 +43,8 @@ pub struct ResponseInfo {
         deserialize_with = "crate::serde_helpers::deserialize_headers"
     )]
     pub headers: HeaderMap,
+    /// Length in bytes of the captured (decoded) body, if available.
+    pub body_length: Option<u64>,
 }
 
 /// Canonical transaction that flows through parsing -> linting -> capture.
@@ -150,6 +152,7 @@ mod tests {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("etag", "\"abc\"")]),
+            body_length: None,
         });
 
         let s = serde_json::to_string(&tx)?;

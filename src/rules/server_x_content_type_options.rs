@@ -142,6 +142,8 @@ mod tests {
             status,
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice()),
+
+            body_length: None,
         });
 
         let violation = rule.check_transaction(&tx, None, &config);
@@ -286,6 +288,8 @@ mod tests {
                 "content-type",
                 "text/html; charset=utf-8",
             )]),
+
+            body_length: None,
         });
 
         let violation = rule.check_transaction(&tx, None, &config);

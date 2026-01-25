@@ -36,6 +36,8 @@ async fn test_captures_seed_behavior(#[case] seed_enabled: bool) -> anyhow::Resu
         status: 200,
         version: "HTTP/1.1".into(),
         headers: resp_headers,
+
+        body_length: None,
     });
 
     fs::write(&captures_file, serde_json::to_string(&tx)?).await?;
