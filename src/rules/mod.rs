@@ -305,6 +305,7 @@ pub mod message_bearer_token_format_validity;
 pub mod message_cache_control_directive_validity;
 pub mod message_cache_control_token_valid;
 pub mod message_charset_iana_registered;
+pub mod message_compression_and_transfer_encoding_consistency;
 pub mod message_conditional_headers_consistency;
 pub mod message_connection_header_tokens_valid;
 pub mod message_connection_upgrade;
@@ -477,6 +478,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_accept_language_weight_validity::MessageAcceptLanguageWeightValidity,
     &message_content_transfer_encoding_valid::MessageContentTransferEncodingValid,
     &message_transfer_coding_iana_registered::MessageTransferCodingIanaRegistered,
+    &message_compression_and_transfer_encoding_consistency::MessageCompressionAndTransferEncodingConsistency,
     &message_te_header_constraints::MessageTeHeaderConstraints,
     &message_trailer_headers_valid::MessageTrailerHeadersValid,
     &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
