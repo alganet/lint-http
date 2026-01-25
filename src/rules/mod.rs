@@ -302,6 +302,7 @@ pub mod message_auth_scheme_iana_registered;
 pub mod message_authorization_credentials_present;
 pub mod message_basic_auth_base64_validity;
 pub mod message_bearer_token_format_validity;
+pub mod message_cache_control_and_pragma_consistency;
 pub mod message_cache_control_directive_validity;
 pub mod message_cache_control_token_valid;
 pub mod message_charset_iana_registered;
@@ -494,6 +495,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_cache_control_token_valid::MessageCacheControlTokenValid,
     &message_expires_and_cache_control_consistency::MessageExpiresAndCacheControlConsistency,
     &message_cache_control_directive_validity::MessageCacheControlDirectiveValidity,
+    &message_cache_control_and_pragma_consistency::MessageCacheControlAndPragmaConsistency,
     &message_pragma_token_valid::MessagePragmaTokenValid,
     &message_preference_applied_header_valid::MessagePreferenceAppliedHeaderValid,
     &message_max_forwards_numeric::MessageMaxForwardsNumeric,
