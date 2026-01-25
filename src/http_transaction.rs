@@ -30,6 +30,8 @@ pub struct RequestInfo {
         deserialize_with = "crate::serde_helpers::deserialize_headers"
     )]
     pub headers: HeaderMap,
+    /// Length in bytes of the captured (decoded) request body, if available.
+    pub body_length: Option<u64>,
 }
 
 /// Response portion of an HTTP transaction (may be absent for failed upstreams).
@@ -75,6 +77,7 @@ impl HttpTransaction {
                 uri,
                 version: "HTTP/1.1".into(),
                 headers: HeaderMap::new(),
+                body_length: None,
             },
             response: None,
             timing: TimingInfo { duration_ms: 0 },

@@ -124,6 +124,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_content_length_vs_transfer_encoding](rules/message_content_length_vs_transfer_encoding.md) - Flags messages that include both `Content-Length` and `Transfer-Encoding`.
 - [message_content_length](rules/message_content_length.md) - Validates Content-Length values and multiple Content-Length header consistency.
 - [message_response_body_length_accuracy](rules/message_response_body_length_accuracy.md) - Ensures `Content-Length` matches the captured body length when available; flags mismatches and invalid values. (RFC 9110 §8.6, RFC 9112 §6.3)
+- [message_request_body_length_accuracy](rules/message_request_body_length_accuracy.md) - Ensures `Content-Length` in requests matches the captured request body length when available; flags mismatches and invalid values. (RFC 9112 §6.2, RFC 9112 §6.3)
 - [message_range_and_content_range_consistency](rules/message_range_and_content_range_consistency.md) - Validate Range/Content-Range semantics for 206/416 and Content-Length consistency.
 - [message_header_field_names_token](rules/message_header_field_names_token.md) - Validates header field-names conform to the `token` grammar.
 - [message_extension_headers_registered](rules/message_extension_headers_registered.md) - Non-standard header field-names SHOULD be explicitly allowed via configuration to avoid accidental custom headers and typos. (IANA HTTP Field Name registry; RFC 9110 §5.1)
