@@ -641,6 +641,19 @@ async fn tunnel(upgraded: Upgraded, host: &str, port: u16) -> std::io::Result<()
 }
 
 #[cfg(test)]
+async fn tunnel_with_io<S>(mut upgraded_io: S, host: &str, port: u16) -> std::io::Result<()>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    trace!("tunnel (test helper): connecting to {}:{}", host, port);
+    let mut server = tokio::net::TcpStream::connect((host, port)).await?;
+    // Perform bidirectional copy between the upgraded side and the remote server
+    let (n1, n2) = tokio::io::copy_bidirectional(&mut upgraded_io, &mut server).await?;
+    trace!("tunnel: copy finished: {} bytes -> {} bytes", n1, n2);
+    Ok(())
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use bytes::Bytes;
@@ -1572,6 +1585,46 @@ mod tests {
 
         let _ = server_task.await;
         let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn tunnel_copies_data_between_sides() -> anyhow::Result<()> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        // Start a simple TCP server that reads 'ping' and replies 'pong'
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let port = listener.local_addr()?.port();
+        let server_task = tokio::spawn(async move {
+            if let Ok((mut sock, _)) = listener.accept().await {
+                let mut buf = [0u8; 4];
+                if sock.read_exact(&mut buf).await.is_ok() {
+                    assert_eq!(&buf, b"ping");
+                    let _ = sock.write_all(b"pong").await;
+                }
+            }
+        });
+
+        // Create a duplex pair to simulate the upgraded client side
+        let (mut client_side, server_side) = tokio::io::duplex(64);
+
+        // Run the tunnel helper which will connect to the mock server and copy data
+        let t = tokio::spawn(
+            async move { super::tunnel_with_io(server_side, "127.0.0.1", port).await },
+        );
+
+        // Write 'ping' from the client side and read 'pong' in response
+        tokio::io::AsyncWriteExt::write_all(&mut client_side, b"ping").await?;
+        let mut resp = [0u8; 4];
+        tokio::io::AsyncReadExt::read_exact(&mut client_side, &mut resp).await?;
+        assert_eq!(&resp, b"pong");
+
+        // Close the client side to let tunnel finish
+        drop(client_side);
+        let res = t.await?;
+        assert!(res.is_ok());
+
+        let _ = server_task.await;
         Ok(())
     }
 }
