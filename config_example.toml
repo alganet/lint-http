@@ -350,6 +350,10 @@ enabled = true
 severity = "warn"
 allowed = ["chunked", "gzip", "deflate"]
 
+[rules.message_compression_and_transfer_encoding_consistency]
+enabled = true
+severity = "warn"
+
 [rules.message_content_transfer_encoding_valid]
 enabled = true
 severity = "warn"
