@@ -133,6 +133,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_te_header_constraints](rules/message_te_header_constraints.md) - `TE` header must use only valid members (transfer-coding or `trailers`), valid parameters (e.g., `q` with up to three decimals), and requests with `TE` must include `Connection: TE`.
 - [message_via_header_syntax_valid](rules/message_via_header_syntax_valid.md) - `Via` header values must follow the field-value syntax.
 - [message_forwarded_header_validity](rules/message_forwarded_header_validity.md) - `Forwarded` header must follow correct syntax with valid IP addresses and parameters. (RFC 7239)
+- [message_x_forwarded_consistency](rules/message_x_forwarded_consistency.md) - `X-Forwarded-*` headers (`X-Forwarded-For`, `X-Forwarded-Proto`, `X-Forwarded-Host`) should be syntactically valid and use expected values (IPs for `X-Forwarded-For`, `http`/`https` for `X-Forwarded-Proto`, valid host for `X-Forwarded-Host`).
 - [message_connection_header_tokens_valid](rules/message_connection_header_tokens_valid.md) - `Connection` header tokens must be valid header field-names (token grammar).
 - [message_retry_after_date_or_delay](rules/message_retry_after_date_or_delay.md) - `Retry-After` must be either an HTTP-date or a non-negative delay-seconds.
 - [message_refresh_header_syntax_valid](rules/message_refresh_header_syntax_valid.md) - `Refresh` header (non-standard) must be `delta-seconds` or `delta-seconds; url=<URI>` and follow URI syntax for `url` parameter. (MDN)

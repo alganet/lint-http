@@ -371,6 +371,7 @@ pub mod message_via_header_syntax_valid;
 pub mod message_warning_header_syntax;
 pub mod message_well_known_uri_format;
 pub mod message_www_authenticate_challenge_syntax;
+pub mod message_x_forwarded_consistency;
 pub mod server_accept_ranges_values_valid;
 pub mod server_alt_svc_header_syntax;
 pub mod server_cache_control_present;
@@ -503,6 +504,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_allow_header_method_tokens::MessageAllowHeaderMethodTokens,
     &message_via_header_syntax_valid::MessageViaHeaderSyntaxValid,
     &message_forwarded_header_validity::MessageForwardedHeaderValidity,
+    &message_x_forwarded_consistency::MessageXForwardedConsistency,
     &message_access_control_allow_credentials_when_origin::MessageAccessControlAllowCredentialsWhenOrigin,
     &message_access_control_allow_origin_valid::MessageAccessControlAllowOriginValid,
     &message_timing_allow_origin_validity::MessageTimingAllowOriginValidity,
