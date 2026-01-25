@@ -327,6 +327,7 @@ pub mod message_date_and_time_headers_consistency;
 pub mod message_digest_header_syntax;
 pub mod message_early_data_header_safe_method;
 pub mod message_etag_syntax;
+pub mod message_expires_and_cache_control_consistency;
 pub mod message_extension_headers_registered;
 pub mod message_forwarded_header_validity;
 pub mod message_from_header_email_syntax;
@@ -485,6 +486,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_structured_headers_validity::MessageStructuredHeadersValidity,
     &message_prefer_header_valid::MessagePreferHeaderValid,
     &message_cache_control_token_valid::MessageCacheControlTokenValid,
+    &message_expires_and_cache_control_consistency::MessageExpiresAndCacheControlConsistency,
     &message_cache_control_directive_validity::MessageCacheControlDirectiveValidity,
     &message_pragma_token_valid::MessagePragmaTokenValid,
     &message_preference_applied_header_valid::MessagePreferenceAppliedHeaderValid,
