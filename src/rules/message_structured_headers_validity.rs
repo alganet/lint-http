@@ -1082,4 +1082,32 @@ mod tests {
         let v = validate_structured_field("bad?token");
         assert!(v.is_some());
     }
+
+    #[rstest]
+    fn split_spaces_trailing_space_produces_empty_member() {
+        let parts = split_spaces_outside_quotes("a ");
+        assert_eq!(parts, vec!["a", ""]);
+    }
+
+    #[rstest]
+    fn split_commas_respects_parentheses() {
+        let parts = split_commas_outside_quotes("a,(b,c),d");
+        assert_eq!(parts, vec!["a", "(b,c)", "d"]);
+    }
+
+    #[rstest]
+    fn split_semicolons_respects_parentheses() {
+        let parts = split_semicolons_outside_quotes("a;(b;c);d");
+        assert_eq!(parts, vec!["a", "(b;c)", "d"]);
+    }
+
+    #[rstest]
+    fn find_char_outside_quotes_ignores_quoted() {
+        // '=' only inside a quoted-string should be ignored
+        let s = "\"x=y\"";
+        assert_eq!(find_char_outside_quotes(s, '='), None);
+        // '=' outside quotes should be found at its position
+        let s2 = "a=1,b=2";
+        assert_eq!(find_char_outside_quotes(s2, '='), Some(1));
+    }
 }

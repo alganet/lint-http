@@ -83,6 +83,7 @@ mod tests {
     #[case(500, Some("text/problem+json"), true)]
     #[case(500, Some("application/problem+xml; charset=utf-8"), false)]
     #[case(500, Some("text/html"), false)]
+    #[case(500, Some("not-a-media"), false)]
     #[case(200, Some("application/json"), false)]
     #[case(404, None, false)]
     fn check_cases(
