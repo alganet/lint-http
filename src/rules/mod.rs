@@ -345,6 +345,7 @@ pub mod message_link_header_validity;
 pub mod message_max_forwards_numeric;
 pub mod message_media_type_suffix_validity;
 pub mod message_multipart_boundary_syntax;
+pub mod message_permissions_policy_directives_valid;
 pub mod message_pragma_token_valid;
 pub mod message_prefer_header_valid;
 pub mod message_preference_applied_header_valid;
@@ -496,6 +497,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_sec_fetch_dest_value_valid::MessageSecFetchDestValueValid,
     &message_priority_header_syntax::MessagePriorityHeaderSyntax,
     &message_structured_headers_validity::MessageStructuredHeadersValidity,
+    &message_permissions_policy_directives_valid::MessagePermissionsPolicyDirectivesValid,
     &message_prefer_header_valid::MessagePreferHeaderValid,
     &message_cache_control_token_valid::MessageCacheControlTokenValid,
     &message_expires_and_cache_control_consistency::MessageExpiresAndCacheControlConsistency,

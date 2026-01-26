@@ -293,6 +293,10 @@ enabled = true
 severity = "warn"
 headers = ["Priority", "Permissions-Policy"]
 
+[rules.message_permissions_policy_directives_valid]
+enabled = true
+severity = "warn"
+
 [rules.message_referer_uri_valid]
 enabled = true
 severity = "warn"
