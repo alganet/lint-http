@@ -393,6 +393,10 @@ allowed = ["Basic", "Bearer", "Digest"]
 enabled = true
 severity = "warn"
 
+[rules.message_digest_auth_validity]
+enabled = true
+severity = "warn"
+
 [rules.message_bearer_token_format_validity]
 enabled = true
 severity = "warn"
