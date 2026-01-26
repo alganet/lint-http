@@ -326,6 +326,7 @@ pub mod message_cross_origin_embedder_policy_valid;
 pub mod message_cross_origin_opener_policy_valid;
 pub mod message_cross_origin_resource_policy_valid;
 pub mod message_date_and_time_headers_consistency;
+pub mod message_digest_auth_validity;
 pub mod message_digest_header_syntax;
 pub mod message_early_data_header_safe_method;
 pub mod message_etag_syntax;
@@ -465,6 +466,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_warning_header_syntax::MessageWarningHeaderSyntax,
     &message_www_authenticate_challenge_syntax::MessageWwwAuthenticateChallengeSyntax,
     &message_authorization_credentials_present::MessageAuthorizationCredentialsPresent,
+    &message_digest_auth_validity::MessageDigestAuthValidity,
     &message_bearer_token_format_validity::MessageBearerTokenFormatValidity,
     &message_basic_auth_base64_validity::MessageBasicAuthBase64Validity,
     &message_auth_scheme_iana_registered::MessageAuthSchemeIanaRegistered,

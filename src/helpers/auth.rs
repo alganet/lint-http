@@ -294,6 +294,37 @@ pub fn validate_bearer_token(token: &str) -> Result<(), String> {
 
     Ok(())
 }
+
+/// Parse an auth-param list (e.g., `username="Mufasa", realm="x", nonce=abc`) into a
+/// HashMap of (name -> value) pairs. Values preserve quotes when present (e.g., `"x"`).
+/// Returns Err(String) on parse error.
+pub fn parse_auth_params(s: &str) -> Result<std::collections::HashMap<String, String>, String> {
+    let mut out = std::collections::HashMap::new();
+    // split comma-separated params respecting quoted-strings
+    for part in split_commas_respecting_quotes(s) {
+        let p = part.trim();
+        if p.is_empty() {
+            return Err("empty auth-param".into());
+        }
+        let mut kv = p.splitn(2, '=');
+        let name = kv
+            .next()
+            .map(|x| x.trim())
+            .filter(|x| !x.is_empty())
+            .ok_or_else(|| "empty auth-param name".to_string())?;
+        let val = kv
+            .next()
+            .map(|x| x.trim())
+            .ok_or_else(|| format!("auth-param '{}' missing value", name))?;
+        // name must be a token
+        if let Some(inv) = crate::helpers::token::find_invalid_token_char(name) {
+            return Err(format!("Invalid character '{}' in auth-param name", inv));
+        }
+        out.insert(name.to_ascii_lowercase(), val.to_string());
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,6 +338,11 @@ mod tests {
     #[test]
     fn validate_authorization_basic_ok() {
         assert!(validate_authorization_syntax("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==").is_ok());
+    }
+
+    #[test]
+    fn validate_authorization_digest_missing_credentials() {
+        assert!(validate_authorization_syntax("Digest").is_err());
     }
 
     #[test]
@@ -387,6 +423,41 @@ mod tests {
         let r = split_and_group_challenges("Basic realm=\"x\", , error=\"y\"");
         assert!(r.is_err());
         assert!(r.unwrap_err().contains("empty"));
+    }
+
+    #[test]
+    fn parse_auth_params_ok_and_lowercases_names() {
+        let got = parse_auth_params("username=\"Mufasa\", realm=\"x\", nonce=abc").unwrap();
+        assert_eq!(got.get("username").map(|s| s.as_str()), Some("\"Mufasa\""));
+        assert_eq!(got.get("realm").map(|s| s.as_str()), Some("\"x\""));
+        assert_eq!(got.get("nonce").map(|s| s.as_str()), Some("abc"));
+    }
+
+    #[test]
+    fn parse_auth_params_errors_on_missing_value_or_name() {
+        assert!(parse_auth_params("username").is_err());
+        assert!(parse_auth_params("=abc").is_err());
+        assert!(parse_auth_params("").is_err());
+    }
+
+    #[test]
+    fn parse_auth_params_invalid_name_char() {
+        let r = parse_auth_params("user@name=abc");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("Invalid character"));
+    }
+
+    #[test]
+    fn parse_auth_params_empty_member_is_error() {
+        let r = parse_auth_params("a=b, , c=d");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("empty"));
+    }
+
+    #[test]
+    fn parse_auth_params_trailing_comma_is_error() {
+        let r = parse_auth_params("a=b,");
+        assert!(r.is_err());
     }
 
     #[test]
@@ -564,6 +635,20 @@ mod tests {
         let r = validate_challenge_syntax("Basic realm=\"unterminated");
         assert!(r.is_err());
         assert!(r.unwrap_err().contains("Invalid quoted-string"));
+    }
+
+    #[test]
+    fn quoted_string_ends_with_escape_reports_error() {
+        // Build the string programmatically to ensure exact control of contents:
+        // Resulting string contains the characters: '"' 'a' 'b' 'c' '\' '"' i.e. "abc\"
+        let mut s = String::new();
+        s.push('"');
+        s.push_str("abc");
+        s.push('\\');
+        s.push('"');
+        let r = crate::helpers::headers::validate_quoted_string(&s);
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("ends with escape"));
     }
 
     #[test]

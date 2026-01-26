@@ -221,6 +221,47 @@ pub fn validate_quoted_string(val: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Check whether a quoted-string's unescaped inner content, after trimming,
+/// is empty. Returns Ok(true) if the inner content is empty after trimming,
+/// Ok(false) if it contains any non-whitespace character, or Err(msg) if the
+/// input is not a well-formed quoted-string. This is useful for treating
+/// quoted-empty values (e.g., `""` or `"   "`) as empty for presence checks.
+pub fn quoted_string_inner_trimmed_is_empty(val: &str) -> Result<bool, String> {
+    let bytes = val.as_bytes();
+    if bytes.len() < 2 || bytes[0] != b'"' || bytes[bytes.len() - 1] != b'"' {
+        return Err(format!("Quoted-string not properly quoted: '{}'", val));
+    }
+
+    let mut inner = String::with_capacity(bytes.len());
+    let mut i = 1usize;
+    let mut prev_backslash = false;
+    while i + 1 < bytes.len() {
+        let b = bytes[i];
+        if prev_backslash {
+            inner.push(b as char);
+            prev_backslash = false;
+        } else if b == b'\\' {
+            prev_backslash = true;
+        } else if b == b'"' {
+            return Err(format!("Unescaped quote in quoted-string: '{}'", val));
+        } else if (b < 0x20 && b != b'\t') || b == 0x7f {
+            return Err(format!("Control character in quoted-string: '{}'", val));
+        } else {
+            inner.push(b as char);
+        }
+        i += 1;
+    }
+
+    if prev_backslash {
+        return Err(format!(
+            "Quoted-string ends with escape character: '{}'",
+            val
+        ));
+    }
+
+    Ok(inner.trim().is_empty())
+}
+
 /// Validate qvalue syntax: 0, 1, 0.5, 0.123, 1.0, 0.000, etc. up to 3 decimals
 pub fn valid_qvalue(s: &str) -> bool {
     let s = s.trim();
@@ -769,6 +810,29 @@ mod tests {
         assert!(res
             .unwrap_err()
             .contains("Quoted-string ends with escape character"));
+    }
+
+    #[test]
+    fn quoted_string_inner_trimmed_is_empty_true_cases() {
+        assert!(quoted_string_inner_trimmed_is_empty("\"\"").unwrap());
+        assert!(quoted_string_inner_trimmed_is_empty("\"   \"").unwrap());
+    }
+
+    #[test]
+    fn quoted_string_inner_trimmed_is_empty_false_and_invalid_cases() {
+        assert!(!quoted_string_inner_trimmed_is_empty("\"a\"").unwrap());
+        // escaped quote inside is a non-empty inner
+        assert!(!quoted_string_inner_trimmed_is_empty("\"\\\"\"").unwrap());
+        // unterminated quoted-string is an error
+        assert!(quoted_string_inner_trimmed_is_empty("\"unterminated").is_err());
+    }
+
+    #[test]
+    fn quoted_string_inner_unescaped_quote_reports_error() {
+        let s = "\"a\"b\""; // inner unescaped quote before terminating quote
+        let r = quoted_string_inner_trimmed_is_empty(s);
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("Unescaped quote"));
     }
 
     // Entity-tag helper tests
