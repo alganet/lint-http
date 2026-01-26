@@ -393,6 +393,7 @@ pub mod server_response_location_on_redirect;
 pub mod server_server_timing_header_syntax;
 pub mod server_status_and_caching_semantics;
 pub mod server_status_code_valid_range;
+pub mod server_vary_and_cache_consistency;
 pub mod server_vary_header_valid;
 pub mod server_x_content_type_options;
 pub mod server_x_frame_options_value_valid;
@@ -426,6 +427,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_accept_ranges_on_partial_content::ClientAcceptRangesOnPartialContent,
     &server_accept_ranges_values_valid::ServerAcceptRangesValuesValid,
     &server_vary_header_valid::ServerVaryHeaderValid,
+    &server_vary_and_cache_consistency::ServerVaryAndCacheConsistency,
     &server_patch_accept_patch_header::ServerPatchAcceptPatchHeader,
     &server_server_timing_header_syntax::ServerServerTimingHeaderSyntax,
     &server_deprecation_header_syntax::ServerDeprecationHeaderSyntax,
