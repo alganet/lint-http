@@ -149,6 +149,11 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.server_keep_alive_timeout_reasonable]
+enabled = true
+severity = "warn"
+max_timeout_seconds = 3600
+
 [rules.message_sec_fetch_user_value_valid]
 enabled = true
 severity = "warn"
