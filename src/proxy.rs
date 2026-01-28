@@ -98,6 +98,22 @@ pub async fn run_proxy(
     cfg: Arc<Config>,
     engine: Arc<crate::rules::RuleConfigEngine>,
 ) -> anyhow::Result<()> {
+    // Default behavior: no accept limit (runs forever)
+    run_proxy_with_limit(listen, captures, cfg, engine, None).await
+}
+
+/// Testable variant of `run_proxy` that accepts an optional `accept_limit`.
+/// When `accept_limit` is `Some(n)`, the accept loop will accept `n` connections
+/// and then return after accepting the Nth connection. Connection handlers are
+/// spawned asynchronously and may still be running when this function returns,
+/// allowing tests to deterministically bound how many connections are accepted.
+pub async fn run_proxy_with_limit(
+    listen: SocketAddr,
+    captures: CaptureWriter,
+    cfg: Arc<Config>,
+    engine: Arc<crate::rules::RuleConfigEngine>,
+    accept_limit: Option<usize>,
+) -> anyhow::Result<()> {
     let https = HttpsConnectorBuilder::new()
         .with_native_roots()?
         .https_or_http()
@@ -168,8 +184,21 @@ pub async fn run_proxy(
     let executor = TokioExecutor::new();
     let server_builder = AutoConnBuilder::new(executor);
 
+    // Accept loop with optional limit
+    let mut remaining = accept_limit;
     loop {
+        // If we're limited and have reached zero, stop accepting
+        if let Some(0) = remaining {
+            break;
+        }
+
         let (stream, remote_addr) = listener.accept().await?;
+
+        // Decrement remaining if present
+        if let Some(ref mut n) = remaining {
+            *n -= 1;
+        }
+
         let shared = shared.clone();
         let builder_clone = server_builder.clone();
         tokio::spawn(async move {
@@ -198,6 +227,8 @@ pub async fn run_proxy(
             }
         });
     }
+
+    Ok(())
 }
 
 async fn handle_request<B>(
@@ -895,6 +926,125 @@ mod tests {
         tokio::fs::remove_file(&tmp).await?;
         Ok(())
     }
+
+    #[tokio::test]
+    async fn run_proxy_with_limit_accepts_one_connection_and_returns() -> anyhow::Result<()> {
+        use tokio::net::TcpStream;
+
+        // pick a free port by binding to :0 then dropping the listener
+        let l = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let addr = l.local_addr()?;
+        drop(l);
+
+        let (shared, tmp, cw) =
+            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None, None).await?;
+
+        // spawn the proxy with accept_limit = 1
+        let cw_clone = cw.clone();
+        let cfg_clone = shared.cfg.clone();
+        let engine_clone = shared.engine.clone();
+        let task = tokio::spawn(async move {
+            run_proxy_with_limit(addr, cw_clone, cfg_clone, engine_clone, Some(1)).await
+        });
+
+        // Wait until we can connect (server startup may be slightly delayed)
+        // Keep the stream open until the server task completes to avoid races where
+        // the connection is reset before the server has a chance to accept it.
+        let mut connected = false;
+        let mut stream_opt: Option<TcpStream> = None;
+        for _ in 0..20 {
+            match TcpStream::connect(addr).await {
+                Ok(s) => {
+                    connected = true;
+                    stream_opt = Some(s);
+                    break;
+                }
+                Err(_) => tokio::time::sleep(std::time::Duration::from_millis(50)).await,
+            }
+        }
+        assert!(connected, "failed to connect to proxy");
+
+        // task should finish shortly after the single accept
+        let res = tokio::time::timeout(std::time::Duration::from_secs(2), task).await??;
+        assert!(res.is_ok());
+        // Drop the stream now that the proxy has accepted it
+        drop(stream_opt);
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_proxy_with_limit_accepts_zero_and_returns_immediately() -> anyhow::Result<()> {
+        // pick a free port
+        let l = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let addr = l.local_addr()?;
+        drop(l);
+
+        let (_shared, tmp, cw) =
+            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None, None).await?;
+
+        // accept_limit = 0 should return quickly
+        tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            run_proxy_with_limit(
+                addr,
+                cw,
+                _shared.cfg.clone(),
+                _shared.engine.clone(),
+                Some(0),
+            ),
+        )
+        .await
+        .expect("run_proxy_with_limit did not return within timeout")?;
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_proxy_with_limit_accepts_two_connections_and_returns() -> anyhow::Result<()> {
+        use tokio::net::TcpStream;
+
+        // pick a free port
+        let l = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let addr = l.local_addr()?;
+        drop(l);
+
+        let (shared, tmp, cw) =
+            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None, None).await?;
+
+        let task = tokio::spawn(async move {
+            run_proxy_with_limit(addr, cw, shared.cfg.clone(), shared.engine.clone(), Some(2)).await
+        });
+
+        // make two connections and keep them open until the server finishes
+        let mut streams: Vec<TcpStream> = Vec::new();
+        for _ in 0..2 {
+            let mut connected = false;
+            for _ in 0..20 {
+                match TcpStream::connect(addr).await {
+                    Ok(s) => {
+                        connected = true;
+                        streams.push(s);
+                        break;
+                    }
+                    Err(_) => tokio::time::sleep(std::time::Duration::from_millis(50)).await,
+                }
+            }
+            assert!(connected, "failed to connect to proxy");
+        }
+
+        // task should finish after two accepts
+        let res = tokio::time::timeout(std::time::Duration::from_secs(2), task).await??;
+        assert!(res.is_ok());
+        // Drop the streams now that the proxy has accepted them
+        drop(streams);
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
     #[tokio::test]
     async fn handle_request_serves_ca_cert() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
