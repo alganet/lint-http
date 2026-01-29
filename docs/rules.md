@@ -91,6 +91,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_cross_origin_opener_policy_valid](rules/message_cross_origin_opener_policy_valid.md) - `Cross-Origin-Opener-Policy` must be `same-origin`, `same-origin-allow-popups`, or `unsafe-none`. (W3C / Fetch)
 - [message_cross_origin_resource_policy_valid](rules/message_cross_origin_resource_policy_valid.md) - `Cross-Origin-Resource-Policy` must be `same-site`, `same-origin`, or `cross-origin`. (W3C / MDN)
 - [message_cross_origin_embedder_policy_valid](rules/message_cross_origin_embedder_policy_valid.md) - `Cross-Origin-Embedder-Policy` should be `require-corp` or `credentialless` (W3C / MDN)
+- [message_origin_isolated_header_validity](rules/message_origin_isolated_header_validity.md) - `Origin-Isolation` header must be a single structured-headers boolean `?1` to enable origin isolation. (Origin Isolation explainer)
 - [message_sec_fetch_site_value_valid](rules/message_sec_fetch_site_value_valid.md) - `Sec-Fetch-Site` must be one of `cross-site`, `same-origin`, `same-site`, or `none`. (W3C / Fetch)
 - [message_sec_fetch_dest_value_valid](rules/message_sec_fetch_dest_value_valid.md) - `Sec-Fetch-Dest` must be a destination token such as `image`, `document`, `script`, `worker`, `empty`, etc. (W3C / Fetch)
 - [message_sec_fetch_mode_value_valid](rules/message_sec_fetch_mode_value_valid.md) - `Sec-Fetch-Mode` must be one of `cors`, `no-cors`, `same-origin`, `navigate`, or `websocket`. (W3C / Fetch)

@@ -162,6 +162,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_origin_isolated_header_validity]
+enabled = true
+severity = "warn"
+
 [rules.server_deprecation_header_syntax]
 enabled = true
 severity = "warn"

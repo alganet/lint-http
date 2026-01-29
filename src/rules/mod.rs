@@ -345,6 +345,7 @@ pub mod message_link_header_validity;
 pub mod message_max_forwards_numeric;
 pub mod message_media_type_suffix_validity;
 pub mod message_multipart_boundary_syntax;
+pub mod message_origin_isolated_header_validity;
 pub mod message_permissions_policy_directives_valid;
 pub mod message_pragma_token_valid;
 pub mod message_prefer_header_valid;
@@ -518,6 +519,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_timing_allow_origin_validity::MessageTimingAllowOriginValidity,
     &message_cross_origin_opener_policy_valid::MessageCrossOriginOpenerPolicyValid,
     &message_cross_origin_resource_policy_valid::MessageCrossOriginResourcePolicyValid,
+    &message_origin_isolated_header_validity::MessageOriginIsolatedHeaderValidity,
     &message_cross_origin_embedder_policy_valid::MessageCrossOriginEmbedderPolicyValid,
     &message_referer_uri_valid::MessageRefererUriValid,
     &message_well_known_uri_format::MessageWellKnownUriFormat,
