@@ -458,6 +458,10 @@ severity = "warn"
 enabled = true
 severity = "error"
 
+[rules.message_http2_pseudo_headers_validity]
+enabled = true
+severity = "error"
+
 [rules.message_content_length_vs_transfer_encoding]
 enabled = true
 severity = "warn"
