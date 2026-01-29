@@ -336,6 +336,7 @@ pub mod message_extension_headers_registered;
 pub mod message_forwarded_header_validity;
 pub mod message_from_header_email_syntax;
 pub mod message_header_field_names_token;
+pub mod message_http2_pseudo_headers_validity;
 pub mod message_http_version_syntax_valid;
 pub mod message_if_match_etag_syntax;
 pub mod message_if_modified_since_date_format;
@@ -528,6 +529,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_link_header_validity::MessageLinkHeaderValidity,
     &message_from_header_email_syntax::MessageFromHeaderEmailSyntax,
     &message_http_version_syntax_valid::MessageHttpVersionSyntaxValid,
+    &message_http2_pseudo_headers_validity::MessageHttp2PseudoHeadersValidity,
     &server_status_code_valid_range::ServerStatusCodeValidRange,
     &server_charset_specification::ServerCharsetSpecification,
 ];
