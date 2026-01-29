@@ -305,6 +305,7 @@ pub mod message_bearer_token_format_validity;
 pub mod message_cache_control_and_pragma_consistency;
 pub mod message_cache_control_directive_validity;
 pub mod message_cache_control_token_valid;
+pub mod message_caching_directive_interaction;
 pub mod message_charset_iana_registered;
 pub mod message_compression_and_transfer_encoding_consistency;
 pub mod message_conditional_headers_consistency;
@@ -505,6 +506,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_cache_control_token_valid::MessageCacheControlTokenValid,
     &message_expires_and_cache_control_consistency::MessageExpiresAndCacheControlConsistency,
     &message_cache_control_directive_validity::MessageCacheControlDirectiveValidity,
+    &message_caching_directive_interaction::MessageCachingDirectiveInteraction,
     &message_cache_control_and_pragma_consistency::MessageCacheControlAndPragmaConsistency,
     &message_pragma_token_valid::MessagePragmaTokenValid,
     &message_preference_applied_header_valid::MessagePreferenceAppliedHeaderValid,
