@@ -261,6 +261,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_caching_directive_interaction]
+enabled = true
+severity = "warn"
+
 [rules.message_cache_control_and_pragma_consistency]
 enabled = true
 severity = "warn"
