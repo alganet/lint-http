@@ -42,11 +42,7 @@ impl Rule for MessageContentSecurityPolicyAndFrameOptionsConsistency {
                 Err(_) => continue, // other rule flags non-utf8
             };
 
-            for raw_dir in s.split(';') {
-                let dir = raw_dir.trim();
-                if dir.is_empty() {
-                    continue;
-                }
+            for dir in crate::helpers::headers::parse_semicolon_list(s) {
                 let mut parts = dir.split_whitespace();
                 let name = match parts.next() {
                     Some(n) => n,

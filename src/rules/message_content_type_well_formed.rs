@@ -108,11 +108,7 @@ fn check_content_type(
 
     // If parameters exist, do a basic validation: name=value pairs, name token, value token or quoted-string
     if let Some(params) = parsed.params {
-        for raw in params.split(';') {
-            let p = raw.trim();
-            if p.is_empty() {
-                continue;
-            }
+        for p in crate::helpers::headers::parse_semicolon_list(params) {
             if let Some(eq) = p.find('=') {
                 let (name, value) = p.split_at(eq);
                 let name = name.trim();

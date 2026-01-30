@@ -4,6 +4,63 @@
 
 use hyper::HeaderMap;
 
+/// Errors returned by `validate_content_length`.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ContentLengthError {
+    InvalidCharacter(String),
+    TooLarge(String),
+    MultipleValuesDiffer(String, String),
+    NonUtf8,
+}
+
+/// Validate `Content-Length` headers in a `HeaderMap`.
+///
+/// Checks:
+/// 1. Values must be valid UTF-8 digits.
+/// 2. Values must be parseable as u128.
+/// 3. If multiple values are present, they must be identical.
+///
+/// Returns `Ok(None)` if no Content-Length header is present,
+/// `Ok(Some(n))` if valid, or `Err(ContentLengthError)`.
+pub fn validate_content_length(headers: &HeaderMap) -> Result<Option<u128>, ContentLengthError> {
+    let entries: Vec<_> = headers
+        .get_all(hyper::header::CONTENT_LENGTH)
+        .iter()
+        .collect();
+
+    if entries.is_empty() {
+        return Ok(None);
+    }
+
+    let mut first_val: Option<u128> = None;
+    let mut first_raw: String = String::new();
+
+    for (i, hv) in entries.iter().enumerate() {
+        let s = hv.to_str().map_err(|_| ContentLengthError::NonUtf8)?;
+        let t = s.trim();
+
+        if t.is_empty() || !t.chars().all(|c| c.is_ascii_digit()) {
+            return Err(ContentLengthError::InvalidCharacter(s.to_string()));
+        }
+
+        let n = t
+            .parse::<u128>()
+            .map_err(|_| ContentLengthError::TooLarge(s.to_string()))?;
+
+        if i == 0 {
+            first_val = Some(n);
+            first_raw = s.to_string();
+        } else if Some(n) != first_val {
+            return Err(ContentLengthError::MultipleValuesDiffer(
+                first_raw,
+                s.to_string(),
+            ));
+        }
+    }
+
+    Ok(first_val)
+}
+
 /// Retrieve a header value as a string, if it exists and contains only visible ASCII.
 ///
 /// Returns `None` if the header is missing or contains non-visible ASCII characters
@@ -17,6 +74,14 @@ pub fn get_header_str<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str>
 /// This iterator splits by comma, trims whitespace, and skips empty parts.
 pub fn parse_list_header(val: &str) -> impl Iterator<Item = &str> {
     val.split(',').map(|s| s.trim()).filter(|s| !s.is_empty())
+}
+
+/// Parse a semicolon-separated list of directive values.
+///
+/// This iterator splits by semicolon, trims whitespace, and skips empty parts.
+/// Similar to `parse_list_header` but for semicolon-delimited lists.
+pub fn parse_semicolon_list(val: &str) -> impl Iterator<Item = &str> {
+    val.split(';').map(|s| s.trim()).filter(|s| !s.is_empty())
 }
 
 /// Check whether a header name is a hop-by-hop header.
@@ -401,10 +466,11 @@ pub fn validate_mailbox_list(val: &str) -> Result<(), String> {
         // Validate each mailbox: either contains '<' '>' with addr-spec inside or is addr-spec directly
         if let Some(open) = p.find('<') {
             let close = p.rfind('>');
-            if close.is_none() || close.unwrap() < open {
-                return Err(format!("Malformed angle-addr in mailbox: '{}'", p));
-            }
-            let addr = p[open + 1..close.unwrap()].trim();
+            let end = match close {
+                Some(idx) if idx > open => idx,
+                _ => return Err(format!("Malformed angle-addr in mailbox: '{}'", p)),
+            };
+            let addr = p[open + 1..end].trim();
             if let Err(e) = validate_addr_spec(addr) {
                 return Err(format!("Invalid addr-spec '{}': {}", addr, e));
             }
@@ -439,9 +505,9 @@ fn validate_addr_spec(addr: &str) -> Result<(), String> {
                 return Err("invalid domain".into());
             }
             return Ok(());
-        } else {
-            return Err("missing '@' in addr-spec".into());
         }
+
+        return Err("missing '@' in addr-spec".into());
     }
 
     // Non-quoted local-part
@@ -536,7 +602,10 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
     }
 
     let mut parts = trimmed.splitn(2, ';');
-    let media = parts.next().unwrap().trim();
+    let media = parts
+        .next()
+        .expect("splitn always yields at least one element")
+        .trim();
     let params = parts.next().map(|p| p.trim()).filter(|p| !p.is_empty());
 
     if !media.contains('/') {
@@ -630,15 +699,15 @@ pub fn is_valid_serialized_origin(val: &str) -> bool {
             } else {
                 return false; // malformed or unmatched '['
             }
-        } else {
-            let host = &rest[..colon_pos];
-            let port = &rest[colon_pos + 1..];
-            if host.is_empty() || port.is_empty() {
-                return false;
-            }
-            // Parse and validate port using helper
-            return crate::helpers::ipv6::parse_port_str(port).is_some();
         }
+
+        let host = &rest[..colon_pos];
+        let port = &rest[colon_pos + 1..];
+        if host.is_empty() || port.is_empty() {
+            return false;
+        }
+        // Parse and validate port using helper
+        return crate::helpers::ipv6::parse_port_str(port).is_some();
     }
 
     // No port: ensure host is non-empty

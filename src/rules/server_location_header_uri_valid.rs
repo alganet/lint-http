@@ -24,21 +24,17 @@ impl Rule for ServerLocationHeaderUriValid {
         _previous: Option<&crate::http_transaction::HttpTransaction>,
         config: &Self::Config,
     ) -> Option<Violation> {
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
+        let Some(resp) = &tx.response else {
+            return None;
         };
 
-        for hv in resp.headers.get_all("location").iter() {
-            let s = match hv.to_str() {
-                Ok(v) => v,
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Location header value is not valid UTF-8".into(),
-                    })
-                }
+        for hv in resp.headers.get_all("location") {
+            let Ok(s) = hv.to_str() else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Location header value is not valid UTF-8".into(),
+                });
             };
 
             if s.trim().is_empty() {

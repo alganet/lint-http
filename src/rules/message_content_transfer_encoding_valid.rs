@@ -190,17 +190,10 @@ mod tests {
         assert!(v.is_some());
 
         // multiple header fields where one is invalid -> should report violation
-        let mut tx2 = crate::test_helpers::make_test_transaction();
-        let mut hm = hyper::HeaderMap::new();
-        hm.append(
-            "content-transfer-encoding",
-            hyper::header::HeaderValue::from_static("base64"),
-        );
-        hm.append(
-            "content-transfer-encoding",
-            hyper::header::HeaderValue::from_static("x-bad"),
-        );
-        tx2.request.headers = hm;
+        let tx2 = crate::test_helpers::make_test_transaction_with_headers(&[
+            ("content-transfer-encoding", "base64"),
+            ("content-transfer-encoding", "x-bad"),
+        ]);
         let v2 = rule.check_transaction(&tx2, None, &cfg);
         assert!(v2.is_some());
         Ok(())

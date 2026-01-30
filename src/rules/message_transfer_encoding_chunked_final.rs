@@ -95,13 +95,10 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageTransferEncodingChunkedFinal;
 
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = hyper::HeaderMap::new();
-        hm.insert(
-            hyper::header::TRANSFER_ENCODING,
-            HeaderValue::from_str(value)?,
-        );
-        tx.request.headers = hm;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[(
+            "transfer-encoding",
+            value,
+        )]);
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {
@@ -117,9 +114,7 @@ mod tests {
     fn request_no_transfer_encoding_header_returns_none() -> anyhow::Result<()> {
         let rule = MessageTransferEncodingChunkedFinal;
 
-        let mut tx = crate::test_helpers::make_test_transaction();
-        // Ensure there is no Transfer-Encoding header
-        tx.request.headers = hyper::HeaderMap::new();
+        let tx = crate::test_helpers::make_test_transaction();
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(v.is_none());
@@ -137,19 +132,10 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageTransferEncodingChunkedFinal;
 
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let mut hm = hyper::HeaderMap::new();
-        hm.insert(
-            hyper::header::TRANSFER_ENCODING,
-            HeaderValue::from_str(value)?,
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("transfer-encoding", value)],
         );
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-
-            body_length: None,
-        });
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {
@@ -166,17 +152,10 @@ mod tests {
         let rule = MessageTransferEncodingChunkedFinal;
 
         // Two header fields: first 'chunked', second 'gzip' -> should violate
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = hyper::HeaderMap::new();
-        hm.append(
-            hyper::header::TRANSFER_ENCODING,
-            HeaderValue::from_static("chunked"),
-        );
-        hm.append(
-            hyper::header::TRANSFER_ENCODING,
-            HeaderValue::from_static("gzip"),
-        );
-        tx.request.headers = hm;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[
+            ("transfer-encoding", "chunked"),
+            ("transfer-encoding", "gzip"),
+        ]);
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(v.is_some());

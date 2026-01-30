@@ -91,11 +91,9 @@ fn validate_range_header(s: &str) -> Result<(), String> {
         }
 
         // Otherwise expect <first>-<last?> where last may be empty
-        let dash_idx = spec.find('-');
-        if dash_idx.is_none() {
-            return Err("byte-range-spec missing '-'".into());
-        }
-        let dash_idx = dash_idx.unwrap();
+        let dash_idx = spec
+            .find('-')
+            .ok_or_else(|| "byte-range-spec missing '-'".to_string())?;
         let first = spec[..dash_idx].trim();
         let last = spec[dash_idx + 1..].trim();
 

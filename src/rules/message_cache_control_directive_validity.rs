@@ -196,21 +196,11 @@ mod tests {
     use rstest::rstest;
 
     fn make_req(val: &str) -> crate::http_transaction::HttpTransaction {
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("cache-control", val)]);
-        tx
+        crate::test_helpers::make_test_transaction_with_headers(&[("cache-control", val)])
     }
 
     fn make_resp(val: &str) -> crate::http_transaction::HttpTransaction {
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[("cache-control", val)]),
-            body_length: None,
-        });
-        tx
+        crate::test_helpers::make_test_transaction_with_response(200, &[("cache-control", val)])
     }
 
     #[rstest]
@@ -277,8 +267,7 @@ mod tests {
     #[test]
     fn multiple_headers_valid() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[
             ("cache-control", "no-cache"),
             ("cache-control", "max-age=60"),
         ]);

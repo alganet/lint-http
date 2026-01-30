@@ -70,7 +70,12 @@ impl Rule for ServerVaryAndCacheConsistency {
                     continue;
                 }
                 // directive = token [ '=' ... ]
-                let name = m.split('=').next().unwrap().trim().to_ascii_lowercase();
+                let name = m
+                    .split('=')
+                    .next()
+                    .expect("split always yields at least one item")
+                    .trim()
+                    .to_ascii_lowercase();
                 match name.as_str() {
                     "max-age" | "s-maxage" | "public" => {
                         return Some(Violation {

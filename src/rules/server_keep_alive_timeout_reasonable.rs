@@ -81,22 +81,18 @@ impl Rule for ServerKeepAliveTimeoutReasonable {
         _previous: Option<&crate::http_transaction::HttpTransaction>,
         config: &Self::Config,
     ) -> Option<Violation> {
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
+        let Some(resp) = &tx.response else {
+            return None;
         };
 
         // Check for Keep-Alive header (legacy header used by some servers)
-        for hv in resp.headers.get_all("keep-alive").iter() {
-            let val = match hv.to_str() {
-                Ok(v) => v,
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Keep-Alive header value is not valid UTF-8".into(),
-                    })
-                }
+        for hv in resp.headers.get_all("keep-alive") {
+            let Ok(val) = hv.to_str() else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Keep-Alive header value is not valid UTF-8".into(),
+                });
             };
 
             // Split on commas (top-level) like: "timeout=5, max=1000"
@@ -105,8 +101,11 @@ impl Rule for ServerKeepAliveTimeoutReasonable {
                 if part.is_empty() {
                     continue;
                 }
-                let mut nv = part.splitn(2, '=').map(|s| s.trim());
-                let name = nv.next().unwrap().to_ascii_lowercase();
+                let mut nv = part.splitn(2, '=').map(str::trim);
+                let name = nv
+                    .next()
+                    .expect("splitn always returns at least one item")
+                    .to_ascii_lowercase();
                 let val_opt = nv.next();
                 if name == "timeout" {
                     if val_opt.is_none() {
@@ -116,7 +115,7 @@ impl Rule for ServerKeepAliveTimeoutReasonable {
                             message: "Keep-Alive timeout directive missing value".into(),
                         });
                     }
-                    let v = val_opt.unwrap();
+                    let v = val_opt.expect("checked for none above");
                     // Should be a non-negative integer
                     match v.parse::<u64>() {
                         Ok(sec) => {
@@ -134,7 +133,7 @@ impl Rule for ServerKeepAliveTimeoutReasonable {
                                 return Some(Violation {
                                     rule: self.id().into(),
                                     severity: config.severity,
-                                    message: format!("Keep-Alive timeout is unusually large ({} seconds); consider lower value", sec),
+                                    message: format!("Keep-Alive timeout is unusually large ({sec} seconds); consider lower value"),
                                 });
                             }
                         }
@@ -143,8 +142,7 @@ impl Rule for ServerKeepAliveTimeoutReasonable {
                                 rule: self.id().into(),
                                 severity: config.severity,
                                 message: format!(
-                                "Keep-Alive timeout value '{}' is not a valid non-negative integer",
-                                v
+                                "Keep-Alive timeout value '{v}' is not a valid non-negative integer"
                             ),
                             })
                         }

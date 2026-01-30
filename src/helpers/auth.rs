@@ -64,7 +64,10 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
 
     // scheme is first token before whitespace
     let mut parts = c.splitn(2, char::is_whitespace);
-    let scheme = parts.next().unwrap().trim();
+    let scheme = parts
+        .next()
+        .expect("splitn always yields at least one element")
+        .trim();
     if scheme.is_empty() {
         return Err("WWW-Authenticate challenge missing auth-scheme".into());
     }
@@ -118,12 +121,12 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
                         return Err("WWW-Authenticate token68 contains control characters".into());
                     }
                     return Ok(());
-                } else {
-                    return Err(format!(
-                        "WWW-Authenticate auth-param '{}' missing value",
-                        first_part
-                    ));
                 }
+
+                return Err(format!(
+                    "WWW-Authenticate auth-param '{}' missing value",
+                    first_part
+                ));
             }
         }
 
@@ -134,7 +137,10 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
                 return Err("WWW-Authenticate contains empty parameter".into());
             }
             let mut kv = param.splitn(2, '=');
-            let name = kv.next().unwrap().trim();
+            let name = kv
+                .next()
+                .expect("splitn always yields at least one element")
+                .trim();
             let val = kv.next();
             if name.is_empty() {
                 return Err("WWW-Authenticate auth-param name is empty".into());
@@ -148,7 +154,7 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
             if let Some(inv) = crate::helpers::token::find_invalid_token_char(name) {
                 return Err(format!("Invalid character '{}' in auth-param name", inv));
             }
-            let v = val.unwrap().trim();
+            let v = val.expect("checked for none above").trim();
             if v.is_empty() {
                 return Err(format!(
                     "WWW-Authenticate auth-param '{}' missing value",
@@ -184,7 +190,10 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), String> {
     }
 
     let mut parts = v.splitn(2, char::is_whitespace);
-    let scheme = parts.next().unwrap().trim();
+    let scheme = parts
+        .next()
+        .expect("splitn always yields at least one element")
+        .trim();
     if scheme.is_empty() {
         return Err("Authorization header missing auth-scheme".into());
     }
@@ -235,7 +244,7 @@ pub fn validate_basic_credentials(token68: &str) -> Result<(), String> {
     if pos.is_none() {
         return Err("Decoded Basic credentials missing ':' separator".into());
     }
-    let pos = pos.unwrap();
+    let pos = pos.expect("checked for none above");
     let (user, pass) = decoded.split_at(pos);
     // pass starts with ':' character; skip it
     let pass = &pass[1..];

@@ -153,7 +153,7 @@ enabled = false
         fs::write(&tmp, toml).await?;
 
         let args = Args {
-            config: tmp.to_str().unwrap().to_string(),
+            config: tmp.to_str().expect("valid utf8 path").to_string(),
         };
 
         // Spawn run_app_with_limit with accept_limit = 1
@@ -209,7 +209,7 @@ enabled = false
         tokio::fs::write(&tmp, toml).await?;
 
         let args = Args {
-            config: tmp.to_str().unwrap().to_string(),
+            config: tmp.to_str().expect("valid utf8 path").to_string(),
         };
 
         // run_app should return an error because the port is already taken

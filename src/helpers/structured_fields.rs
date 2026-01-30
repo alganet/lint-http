@@ -151,7 +151,9 @@ pub(crate) fn is_number(s: &str) -> bool {
     }
     if s2.contains('.') {
         let mut parts = s2.splitn(2, '.');
-        let a = parts.next().unwrap();
+        let a = parts
+            .next()
+            .expect("splitn always returns at least one item");
         let b = parts.next().unwrap_or("");
         return !a.is_empty()
             && a.chars().all(|c| c.is_ascii_digit())
