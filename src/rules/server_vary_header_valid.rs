@@ -150,21 +150,12 @@ mod tests {
 
     #[test]
     fn multiple_header_fields_merged() {
-        use hyper::header::HeaderValue;
-        use hyper::HeaderMap;
         let rule = ServerVaryHeaderValid;
 
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = HeaderMap::new();
-        hm.append("vary", HeaderValue::from_static("Accept-Encoding"));
-        hm.append("vary", HeaderValue::from_static("User-Agent"));
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-
-            body_length: None,
-        });
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("vary", "Accept-Encoding"), ("vary", "User-Agent")],
+        );
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(v.is_none());
@@ -172,21 +163,12 @@ mod tests {
 
     #[test]
     fn star_combined_across_header_fields_is_violation() {
-        use hyper::header::HeaderValue;
-        use hyper::HeaderMap;
         let rule = ServerVaryHeaderValid;
 
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = HeaderMap::new();
-        hm.append("vary", HeaderValue::from_static("*"));
-        hm.append("vary", HeaderValue::from_static("Accept-Encoding"));
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-
-            body_length: None,
-        });
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("vary", "*"), ("vary", "Accept-Encoding")],
+        );
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(v.is_some());

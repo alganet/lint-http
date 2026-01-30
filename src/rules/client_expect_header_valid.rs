@@ -183,25 +183,7 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = ClientExpectHeaderValid;
-
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = hyper::HeaderMap::new();
-        if value.is_empty() {
-            hm.insert("Expect", HeaderValue::from_static(""));
-        } else {
-            // Some test cases intentionally include control or invalid UTF-8 bytes; if
-            // HeaderValue::from_str fails, fall back to constructing from raw bytes to
-            // exercise the to_str() Err branch used by production code.
-            match HeaderValue::from_str(value) {
-                Ok(hv) => hm.insert("Expect", hv),
-                Err(_) => hm.insert(
-                    "Expect",
-                    HeaderValue::from_bytes(value.as_bytes()).expect("from_bytes should work"),
-                ),
-            };
-        }
-        tx.request.headers = hm;
-
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[("expect", value)]);
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {
             assert!(v.is_some(), "case '{}' expected violation", value);

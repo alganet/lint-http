@@ -200,17 +200,13 @@ mod tests {
 
     #[test]
     fn multiple_header_fields_first_valid_second_invalid() {
-        use hyper::header::HeaderValue;
-        use hyper::HeaderMap;
-
         let rule = MessageSecFetchDestValueValid;
         let cfg = crate::test_helpers::make_test_rule_config();
 
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = HeaderMap::new();
-        hm.append("sec-fetch-dest", HeaderValue::from_static("image"));
-        hm.append("sec-fetch-dest", HeaderValue::from_static("invalid"));
-        tx.request.headers = hm;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[
+            ("sec-fetch-dest", "image"),
+            ("sec-fetch-dest", "invalid"),
+        ]);
 
         let v = rule.check_transaction(&tx, None, &cfg);
         assert!(v.is_some(), "expected violation for multiple header fields");
@@ -220,17 +216,13 @@ mod tests {
 
     #[test]
     fn multiple_header_fields_both_invalid_reports_violation() {
-        use hyper::header::HeaderValue;
-        use hyper::HeaderMap;
-
         let rule = MessageSecFetchDestValueValid;
         let cfg = crate::test_helpers::make_test_rule_config();
 
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = HeaderMap::new();
-        hm.append("sec-fetch-dest", HeaderValue::from_static("bad1"));
-        hm.append("sec-fetch-dest", HeaderValue::from_static("bad2"));
-        tx.request.headers = hm;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[
+            ("sec-fetch-dest", "bad1"),
+            ("sec-fetch-dest", "bad2"),
+        ]);
 
         let v = rule.check_transaction(&tx, None, &cfg);
         assert!(

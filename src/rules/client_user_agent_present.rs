@@ -51,10 +51,7 @@ mod tests {
         #[case] expected_message: Option<&str>,
     ) -> anyhow::Result<()> {
         let rule = ClientUserAgentPresent;
-
-        use crate::test_helpers::make_test_transaction;
-        let mut tx = make_test_transaction();
-        tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&header_pairs);
         let violation =
             rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
 

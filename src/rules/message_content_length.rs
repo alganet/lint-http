@@ -24,72 +24,35 @@ impl Rule for MessageContentLength {
         _previous: Option<&crate::http_transaction::HttpTransaction>,
         config: &Self::Config,
     ) -> Option<Violation> {
-        // Helper checks a HeaderMap for Content-Length problems
         let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
-            let entries: Vec<_> = headers
-                .get_all(hyper::header::CONTENT_LENGTH)
-                .iter()
-                .map(|v| v.to_owned())
-                .collect();
+            match crate::helpers::headers::validate_content_length(headers) {
+                Ok(_) => None,
+                Err(e) => {
+                    let message = match e {
+                        crate::helpers::headers::ContentLengthError::NonUtf8 => {
+                            "Invalid Content-Length value (non-UTF8)".into()
+                        }
+                        crate::helpers::headers::ContentLengthError::InvalidCharacter(s) => {
+                            format!("Invalid Content-Length value: '{}'", s)
+                        }
+                        crate::helpers::headers::ContentLengthError::TooLarge(s) => {
+                            format!("Content-Length value too large: '{}'", s)
+                        }
+                        crate::helpers::headers::ContentLengthError::MultipleValuesDiffer(a, b) => {
+                            format!(
+                                "Multiple Content-Length headers with differing values: '{}' vs '{}'",
+                                a, b
+                            )
+                        }
+                    };
 
-            if entries.is_empty() {
-                return None;
-            }
-
-            // Parse and validate each value
-            let mut nums: Vec<Option<u128>> = Vec::with_capacity(entries.len());
-            let mut raw_values: Vec<String> = Vec::with_capacity(entries.len());
-            for hv in &entries {
-                let s = match hv.to_str() {
-                    Ok(s) => s,
-                    Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: "Invalid Content-Length value (non-UTF8)".into(),
-                        })
-                    }
-                };
-                raw_values.push(s.to_string());
-                let t = s.trim();
-                if t.is_empty() || !t.chars().all(|c| c.is_ascii_digit()) {
-                    return Some(Violation {
+                    Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
-                        message: format!("Invalid Content-Length value: '{}'", s),
-                    });
-                }
-                // Explicitly check for parse overflow (too large values)
-                match t.parse::<u128>() {
-                    Ok(n) => nums.push(Some(n)),
-                    Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!("Content-Length value too large: '{}'", s),
-                        })
-                    }
+                        message,
+                    })
                 }
             }
-
-            // If multiple entries present ensure they are consistent
-            if nums.len() > 1 {
-                let first = nums[0];
-                for (i, n) in nums.iter().enumerate().skip(1) {
-                    if n.is_none() || first.is_none() || n != &first {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!(
-                            "Multiple Content-Length headers with differing values: '{}' vs '{}'",
-                            raw_values[0], raw_values[i]
-                        ),
-                        });
-                    }
-                }
-            }
-
-            None
         };
 
         // Request
@@ -130,10 +93,8 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageContentLength;
 
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = hyper::HeaderMap::new();
-        hm.insert(hyper::header::CONTENT_LENGTH, HeaderValue::from_str(value)?);
-        tx.request.headers = hm;
+        let tx =
+            crate::test_helpers::make_test_transaction_with_headers(&[("content-length", value)]);
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {
@@ -159,15 +120,10 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageContentLength;
 
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let mut hm = hyper::HeaderMap::new();
-        hm.insert(hyper::header::CONTENT_LENGTH, HeaderValue::from_str(value)?);
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-            body_length: None,
-        });
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-length", value)],
+        );
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {
@@ -193,12 +149,8 @@ mod tests {
         let rule = MessageContentLength;
 
         // request
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = hyper::HeaderMap::new();
-        for v in &values {
-            hm.append(hyper::header::CONTENT_LENGTH, HeaderValue::from_str(v)?);
-        }
-        tx.request.headers = hm;
+        let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("content-length", *v)).collect();
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&pairs);
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if expect_violation {

@@ -90,8 +90,11 @@ impl Rule for ServerXContentTypeOptions {
 
         // Get the response's content-type (without parameters)
         let content_type_header =
-            crate::helpers::headers::get_header_str(&resp.headers, "content-type")
-                .map(|s| s.split(';').next().unwrap_or(s).trim().to_ascii_lowercase());
+            crate::helpers::headers::get_header_str(&resp.headers, "content-type").and_then(|s| {
+                crate::helpers::headers::parse_semicolon_list(s)
+                    .next()
+                    .map(|v| v.to_ascii_lowercase())
+            });
 
         if let Some(content_type) = content_type_header {
             if (200..300).contains(&resp.status)

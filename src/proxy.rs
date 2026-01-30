@@ -1149,7 +1149,7 @@ mod tests {
                 builder = builder.header(*k, *v);
             }
         }
-        Ok(builder.body(boxed_empty()).unwrap())
+        Ok(builder.body(boxed_empty())?)
     }
 
     async fn read_capture(path: &str) -> anyhow::Result<Vec<serde_json::Value>> {

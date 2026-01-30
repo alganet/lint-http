@@ -52,8 +52,13 @@ impl StateStore {
             resource: tx.request.uri.clone(),
         };
 
-        if let Ok(mut store) = self.store.write() {
-            store.insert(key, tx.clone());
+        match self.store.write() {
+            Ok(mut store) => {
+                store.insert(key, tx.clone());
+            }
+            Err(_) => {
+                tracing::warn!("StateStore lock poisoned during write");
+            }
         }
     }
 
@@ -68,27 +73,33 @@ impl StateStore {
             resource: resource.to_string(),
         };
 
-        if let Ok(store) = self.store.read() {
-            store.get(&key).cloned()
-        } else {
-            tracing::warn!("StateStore lock poisoned during read");
-            None
+        match self.store.read() {
+            Ok(store) => store.get(&key).cloned(),
+            Err(_) => {
+                tracing::warn!("StateStore lock poisoned during read");
+                None
+            }
         }
     }
 
     /// Remove expired entries from the store.
     pub fn cleanup_expired(&self) {
-        if let Ok(mut store) = self.store.write() {
-            let ttl_chrono = chrono::Duration::from_std(self.ttl)
-                .unwrap_or_else(|_| chrono::Duration::seconds(0));
-            store.retain(|_, tx| {
-                let age = Utc::now().signed_duration_since(tx.timestamp);
-                // If timestamp is in the future (age < 0), treat as expired (remove)
-                if age < chrono::Duration::zero() {
-                    return false;
-                }
-                age <= ttl_chrono
-            });
+        match self.store.write() {
+            Ok(mut store) => {
+                let ttl_chrono = chrono::Duration::from_std(self.ttl)
+                    .unwrap_or_else(|_| chrono::Duration::seconds(0));
+                store.retain(|_, tx| {
+                    let age = Utc::now().signed_duration_since(tx.timestamp);
+                    // If timestamp is in the future (age < 0), treat as expired (remove)
+                    if age < chrono::Duration::zero() {
+                        return false;
+                    }
+                    age <= ttl_chrono
+                });
+            }
+            Err(_) => {
+                tracing::warn!("StateStore lock poisoned during cleanup");
+            }
         }
     }
 

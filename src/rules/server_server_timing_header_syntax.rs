@@ -29,21 +29,17 @@ impl Rule for ServerServerTimingHeaderSyntax {
         _previous: Option<&crate::http_transaction::HttpTransaction>,
         config: &Self::Config,
     ) -> Option<Violation> {
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
+        let Some(resp) = &tx.response else {
+            return None;
         };
 
-        for hv in resp.headers.get_all("Server-Timing").iter() {
-            let s = match hv.to_str() {
-                Ok(s) => s,
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Server-Timing header contains non-UTF8 value".into(),
-                    })
-                }
+        for hv in resp.headers.get_all("Server-Timing") {
+            let Ok(s) = hv.to_str() else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Server-Timing header contains non-UTF8 value".into(),
+                });
             };
 
             // detect empty metric tokens such as trailing commas or consecutive commas
@@ -60,7 +56,10 @@ impl Rule for ServerServerTimingHeaderSyntax {
             for metric in crate::helpers::headers::parse_list_header(s) {
                 // Metric has form: name *(";" param)
                 let mut parts = metric.split(';');
-                let name = parts.next().unwrap().trim();
+                let name = parts
+                    .next()
+                    .expect("split always yields at least one item")
+                    .trim();
                 if name.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -74,14 +73,12 @@ impl Rule for ServerServerTimingHeaderSyntax {
                         rule: self.id().into(),
                         severity: config.severity,
                         message: format!(
-                            "Server-Timing metric name contains invalid token character: '{}'",
-                            c
+                            "Server-Timing metric name contains invalid token character: '{c}'"
                         ),
                     });
                 }
 
-                use std::collections::HashSet;
-                let mut seen_params = HashSet::new();
+                let mut seen_params = std::collections::HashSet::new();
 
                 for raw_param in parts {
                     let raw_param = raw_param.trim();
@@ -92,7 +89,10 @@ impl Rule for ServerServerTimingHeaderSyntax {
 
                     // Must be name=value
                     let mut nv = raw_param.splitn(2, '=');
-                    let pname = nv.next().unwrap().trim();
+                    let pname = nv
+                        .next()
+                        .expect("splitn always returns at least one item")
+                        .trim();
                     if pname.is_empty() {
                         // skip empty param names per spec guidance
                         continue;
@@ -101,10 +101,7 @@ impl Rule for ServerServerTimingHeaderSyntax {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: config.severity,
-                            message: format!(
-                                "Server-Timing parameter name contains invalid token character: '{}'",
-                                c
-                            ),
+                            message: format!("Server-Timing parameter name contains invalid token character: '{c}'"),
                         });
                     }
 
@@ -121,8 +118,7 @@ impl Rule for ServerServerTimingHeaderSyntax {
                                 rule: self.id().into(),
                                 severity: config.severity,
                                 message: format!(
-                                    "Server-Timing parameter '{}' missing '=' or value",
-                                    pname
+                                    "Server-Timing parameter '{pname}' missing '=' or value"
                                 ),
                             })
                         }
@@ -132,7 +128,7 @@ impl Rule for ServerServerTimingHeaderSyntax {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: config.severity,
-                            message: format!("Server-Timing parameter '{}' has empty value", pname),
+                            message: format!("Server-Timing parameter '{pname}' has empty value"),
                         });
                     }
 
@@ -143,8 +139,7 @@ impl Rule for ServerServerTimingHeaderSyntax {
                                 rule: self.id().into(),
                                 severity: config.severity,
                                 message: format!(
-                                    "Server-Timing parameter '{}' quoted-string error: {}",
-                                    pname, msg
+                                    "Server-Timing parameter '{pname}' quoted-string error: {msg}"
                                 ),
                             });
                         }
@@ -164,8 +159,7 @@ impl Rule for ServerServerTimingHeaderSyntax {
                                     rule: self.id().into(),
                                     severity: config.severity,
                                     message: format!(
-                                        "Server-Timing 'dur' parameter is not a number: '{}'",
-                                        inner
+                                        "Server-Timing 'dur' parameter is not a number: '{inner}'"
                                     ),
                                 });
                             }
@@ -176,10 +170,7 @@ impl Rule for ServerServerTimingHeaderSyntax {
                             return Some(Violation {
                                 rule: self.id().into(),
                                 severity: config.severity,
-                                message: format!(
-                                    "Server-Timing parameter value contains invalid token character: '{}'",
-                                    c
-                                ),
+                                message: format!("Server-Timing parameter value contains invalid token character: '{c}'"),
                             });
                         }
 
@@ -188,8 +179,7 @@ impl Rule for ServerServerTimingHeaderSyntax {
                                 rule: self.id().into(),
                                 severity: config.severity,
                                 message: format!(
-                                    "Server-Timing 'dur' parameter is not a number: '{}'",
-                                    rhs
+                                    "Server-Timing 'dur' parameter is not a number: '{rhs}'"
                                 ),
                             });
                         }
@@ -284,21 +274,15 @@ mod tests {
 
     #[test]
     fn multiple_header_fields_merged() {
-        use hyper::header::HeaderValue;
-        use hyper::HeaderMap;
         let rule = ServerServerTimingHeaderSyntax;
 
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = HeaderMap::new();
-        hm.append("Server-Timing", HeaderValue::from_static("miss, db;dur=53"));
-        hm.append("Server-Timing", HeaderValue::from_static("app;dur=47.2"));
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-
-            body_length: None,
-        });
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("Server-Timing", "miss, db;dur=53"),
+                ("Server-Timing", "app;dur=47.2"),
+            ],
+        );
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(v.is_none());

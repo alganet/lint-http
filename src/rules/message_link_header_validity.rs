@@ -85,13 +85,11 @@ impl Rule for MessageLinkHeaderValidity {
 
                 if !params.is_empty() {
                     // params are semicolon-separated
-                    for p in params
-                        .split(';')
-                        .map(|s| s.trim())
-                        .filter(|s| !s.is_empty())
-                    {
+                    for p in crate::helpers::headers::parse_semicolon_list(params) {
                         let mut nv = p.splitn(2, '=').map(|s| s.trim());
-                        let name = nv.next().unwrap();
+                        let name = nv.next().expect(
+                            "splitn(2, '=') over a parameter always yields at least one segment",
+                        );
 
                         // validate token characters in param name
                         if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {

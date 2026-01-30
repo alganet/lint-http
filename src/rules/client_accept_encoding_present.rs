@@ -46,12 +46,11 @@ mod tests {
     #[case(false)]
     fn check_request_accept_encoding_header(#[case] header_present: bool) -> anyhow::Result<()> {
         let rule = ClientAcceptEncodingPresent;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        if header_present {
-            tx.request
-                .headers
-                .insert("accept-encoding", "gzip".parse()?);
-        }
+        let tx = if header_present {
+            crate::test_helpers::make_test_transaction_with_headers(&[("accept-encoding", "gzip")])
+        } else {
+            crate::test_helpers::make_test_transaction()
+        };
         let violation =
             rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         if header_present {

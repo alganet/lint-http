@@ -189,21 +189,11 @@ mod tests {
 
     #[test]
     fn multiple_header_fields_all_valid() -> anyhow::Result<()> {
-        use hyper::header::HeaderValue;
-        use hyper::HeaderMap;
-
         let rule = MessageRefreshHeaderSyntaxValid;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = HeaderMap::new();
-        hm.append("refresh", HeaderValue::from_static("5"));
-        hm.append("refresh", HeaderValue::from_static("10; url=/x"));
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-
-            body_length: None,
-        });
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("refresh", "5"), ("refresh", "10; url=/x")],
+        );
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(v.is_none());
@@ -212,21 +202,11 @@ mod tests {
 
     #[test]
     fn multiple_header_fields_one_invalid_reports_violation() -> anyhow::Result<()> {
-        use hyper::header::HeaderValue;
-        use hyper::HeaderMap;
-
         let rule = MessageRefreshHeaderSyntaxValid;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = HeaderMap::new();
-        hm.append("refresh", HeaderValue::from_static("5"));
-        hm.append("refresh", HeaderValue::from_static("bad"));
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-
-            body_length: None,
-        });
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("refresh", "5"), ("refresh", "bad")],
+        );
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(v.is_some());

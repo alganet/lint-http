@@ -54,8 +54,8 @@ pub fn validate_cookie_domain(s: &str) -> Result<(), String> {
         if label.len() > 63 {
             return Err("domain label exceeds 63 characters".into());
         }
-        let first = label.chars().next().unwrap();
-        let last = label.chars().next_back().unwrap();
+        let first = label.chars().next().expect("label verified non-empty");
+        let last = label.chars().next_back().expect("label verified non-empty");
         if first == '-' || last == '-' {
             return Err("domain label must not start or end with '-'".into());
         }

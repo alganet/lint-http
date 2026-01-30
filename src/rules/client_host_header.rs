@@ -205,9 +205,7 @@ mod tests {
         #[case] expected_message: Option<&str>,
     ) -> anyhow::Result<()> {
         let rule = ClientHostHeader;
-        use crate::test_helpers::make_test_transaction;
-        let mut tx = make_test_transaction();
-        tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&header_pairs);
         let violation =
             rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
 
@@ -225,12 +223,10 @@ mod tests {
     #[test]
     fn multiple_host_headers_produced_violation() -> anyhow::Result<()> {
         let rule = ClientHostHeader;
-        use crate::test_helpers::make_test_transaction;
-        use hyper::header::HeaderValue;
-        let mut tx = make_test_transaction();
-        let mut hm = crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
-        hm.append("host", HeaderValue::from_static("other.example.com"));
-        tx.request.headers = hm;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[
+            ("host", "example.com"),
+            ("host", "other.example.com"),
+        ]);
         let violation =
             rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(violation.is_some());

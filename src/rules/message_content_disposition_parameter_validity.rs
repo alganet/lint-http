@@ -55,11 +55,7 @@ impl Rule for MessageContentDispositionParameterValidity {
             // Track parameter names (case-insensitive) to detect duplicates
             let mut seen: HashSet<String> = HashSet::new();
 
-            for raw in params_part.split(';') {
-                let p = raw.trim();
-                if p.is_empty() {
-                    continue;
-                }
+            for p in crate::helpers::headers::parse_semicolon_list(params_part) {
                 let eq = p.find('=');
                 if eq.is_none() {
                     return Some(Violation {

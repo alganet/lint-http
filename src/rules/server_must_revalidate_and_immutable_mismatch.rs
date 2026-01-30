@@ -55,7 +55,11 @@ impl Rule for ServerMustRevalidateAndImmutableMismatch {
                     continue;
                 }
                 // directive may be token or token=...; take token name
-                let name = member.split('=').next().unwrap().trim();
+                let name = member
+                    .split('=')
+                    .next()
+                    .expect("split always yields at least one item")
+                    .trim();
                 let lname = name.to_ascii_lowercase();
                 if lname == "must-revalidate" {
                     found_must_revalidate = true;

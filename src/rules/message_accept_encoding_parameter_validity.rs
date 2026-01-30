@@ -30,7 +30,7 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                 // For each comma-separated member
                 for part in crate::helpers::headers::parse_list_header(val) {
                     // Split into token and optional params
-                    let mut iter = part.split(';').map(|s| s.trim());
+                    let mut iter = crate::helpers::headers::parse_semicolon_list(part);
                     if let Some(primary) = iter.next() {
                         // primary may be '*' or token
                         if primary != "*" {

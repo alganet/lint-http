@@ -59,7 +59,10 @@ impl Rule for ServerAltSvcHeaderSyntax {
             for entry in crate::helpers::headers::parse_list_header(s) {
                 // split off params after first ';'
                 let mut parts = entry.splitn(2, ';');
-                let proto_auth = parts.next().unwrap().trim();
+                let proto_auth = parts
+                    .next()
+                    .expect("splitn always yields at least one item")
+                    .trim();
                 if proto_auth.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -81,7 +84,8 @@ impl Rule for ServerAltSvcHeaderSyntax {
                     });
                 }
 
-                let (protocol, auth_raw) = proto_auth.split_at(eq_idx.unwrap());
+                let (protocol, auth_raw) =
+                    proto_auth.split_at(eq_idx.expect("checked for none above"));
                 let protocol = protocol.trim();
                 let auth = auth_raw[1..].trim(); // skip '='
 

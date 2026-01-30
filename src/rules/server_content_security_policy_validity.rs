@@ -77,7 +77,9 @@ impl Rule for ServerContentSecurityPolicyValidity {
 
                 // Directive name is the first token up to whitespace
                 let mut parts = dir.split_whitespace();
-                let name = parts.next().unwrap();
+                let name = parts
+                    .next()
+                    .expect("split_whitespace yields at least one item since dir is not empty");
 
                 if let Some(c) = find_invalid_token_char(name) {
                     return Some(Violation {
