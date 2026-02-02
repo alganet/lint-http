@@ -292,27 +292,33 @@ pub fn validate_quoted_string(val: &str) -> Result<(), String> {
 /// input is not a well-formed quoted-string. This is useful for treating
 /// quoted-empty values (e.g., `""` or `"   "`) as empty for presence checks.
 pub fn quoted_string_inner_trimmed_is_empty(val: &str) -> Result<bool, String> {
-    let bytes = val.as_bytes();
-    if bytes.len() < 2 || bytes[0] != b'"' || bytes[bytes.len() - 1] != b'"' {
-        return Err(format!("Quoted-string not properly quoted: '{}'", val));
+    // Reuse `unescape_quoted_string` to perform unescaping and validation
+    match unescape_quoted_string(val) {
+        Ok(s) => Ok(s.trim().is_empty()),
+        Err(e) => Err(e),
     }
+}
 
-    let mut inner = String::with_capacity(bytes.len());
-    let mut i = 1usize;
+/// Unescape a well-formed HTTP `quoted-string` value and return its inner contents.
+/// - Input must include surrounding DQUOTE characters (e.g., `"a\"b"`).
+/// - Returns `Ok(inner_string)` on success or `Err(msg)` if the input is not a valid quoted-string.
+///
+/// This helper centralizes quoted-string unescaping to avoid duplication across rules.
+pub fn unescape_quoted_string(val: &str) -> Result<String, String> {
+    validate_quoted_string(val)?;
+    let bytes = val.as_bytes();
+    let mut out = String::with_capacity(bytes.len());
+    let mut i = 1usize; // skip leading DQUOTE
     let mut prev_backslash = false;
     while i + 1 < bytes.len() {
         let b = bytes[i];
         if prev_backslash {
-            inner.push(b as char);
+            out.push(b as char);
             prev_backslash = false;
         } else if b == b'\\' {
             prev_backslash = true;
-        } else if b == b'"' {
-            return Err(format!("Unescaped quote in quoted-string: '{}'", val));
-        } else if (b < 0x20 && b != b'\t') || b == 0x7f {
-            return Err(format!("Control character in quoted-string: '{}'", val));
         } else {
-            inner.push(b as char);
+            out.push(b as char);
         }
         i += 1;
     }
@@ -324,7 +330,7 @@ pub fn quoted_string_inner_trimmed_is_empty(val: &str) -> Result<bool, String> {
         ));
     }
 
-    Ok(inner.trim().is_empty())
+    Ok(out)
 }
 
 /// Validate qvalue syntax: 0, 1, 0.5, 0.123, 1.0, 0.000, etc. up to 3 decimals
@@ -885,6 +891,21 @@ mod tests {
     fn quoted_string_inner_trimmed_is_empty_true_cases() {
         assert!(quoted_string_inner_trimmed_is_empty("\"\"").unwrap());
         assert!(quoted_string_inner_trimmed_is_empty("\"   \"").unwrap());
+    }
+
+    #[test]
+    fn unescape_quoted_string_basic_cases() {
+        assert_eq!(unescape_quoted_string("\"\"").unwrap(), "");
+        assert_eq!(unescape_quoted_string("\"a\"").unwrap(), "a");
+        assert_eq!(unescape_quoted_string("\"a\\\"b\"").unwrap(), "a\"b");
+        assert_eq!(unescape_quoted_string("\"a\\\\b\"").unwrap(), "a\\b");
+    }
+
+    #[test]
+    fn unescape_quoted_string_invalid_cases() {
+        assert!(unescape_quoted_string("\"unterminated").is_err());
+        assert!(unescape_quoted_string("\"bad\x01\"").is_err()); // control char
+        assert!(unescape_quoted_string("\"a\"b\"").is_err()); // unescaped quote
     }
 
     #[test]
