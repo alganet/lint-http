@@ -314,6 +314,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_content_location_and_uri_consistency]
+enabled = true
+severity = "warn"
+
 [rules.message_well_known_uri_format]
 enabled = true
 severity = "warn"

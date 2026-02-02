@@ -317,6 +317,7 @@ pub mod message_content_encoding_and_type_consistency;
 pub mod message_content_encoding_iana_registered;
 pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
+pub mod message_content_location_and_uri_consistency;
 pub mod message_content_security_policy_and_frame_options_consistency;
 pub mod message_content_transfer_encoding_valid;
 pub mod message_content_type_iana_registered;
@@ -525,6 +526,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_origin_isolated_header_validity::MessageOriginIsolatedHeaderValidity,
     &message_cross_origin_embedder_policy_valid::MessageCrossOriginEmbedderPolicyValid,
     &message_referer_uri_valid::MessageRefererUriValid,
+    &message_content_location_and_uri_consistency::MessageContentLocationAndUriConsistency,
     &message_well_known_uri_format::MessageWellKnownUriFormat,
     &message_link_header_validity::MessageLinkHeaderValidity,
     &message_from_header_email_syntax::MessageFromHeaderEmailSyntax,
