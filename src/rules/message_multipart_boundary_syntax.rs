@@ -86,30 +86,20 @@ fn check_multipart_boundary(
 
                         // If quoted-string, validate quoted-string and unescape
                         let boundary_unquoted = if value.starts_with('"') {
-                            if let Err(e) = crate::helpers::headers::validate_quoted_string(value) {
-                                return Some(Violation {
-                                    rule: MessageMultipartBoundarySyntax.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "Invalid multipart Content-Type in {}: boundary quoted-string invalid: {}",
-                                        which, e
-                                    ),
-                                });
-                            }
-                            // Unescape quoted-string interior
-                            let inner = &value[1..value.len() - 1];
-                            let mut res = String::new();
-                            let mut chars = inner.chars();
-                            while let Some(c) = chars.next() {
-                                if c == '\\' {
-                                    if let Some(next) = chars.next() {
-                                        res.push(next);
-                                    }
-                                } else {
-                                    res.push(c);
+                            // Unescape quoted-string interior using helper
+                            match crate::helpers::headers::unescape_quoted_string(value) {
+                                Ok(u) => u,
+                                Err(e) => {
+                                    return Some(Violation {
+                                        rule: MessageMultipartBoundarySyntax.id().into(),
+                                        severity: config.severity,
+                                        message: format!(
+                                            "Invalid multipart Content-Type in {}: boundary quoted-string invalid: {}",
+                                            which, e
+                                        ),
+                                    })
                                 }
                             }
-                            res
                         } else {
                             // unquoted token: ensure token characters
                             if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {

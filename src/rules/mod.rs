@@ -380,6 +380,7 @@ pub mod message_www_authenticate_challenge_syntax;
 pub mod message_x_forwarded_consistency;
 pub mod server_accept_ranges_values_valid;
 pub mod server_alt_svc_header_syntax;
+pub mod server_authentication_challenge_validity;
 pub mod server_cache_control_present;
 pub mod server_charset_specification;
 pub mod server_clear_site_data;
@@ -474,6 +475,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_digest_header_syntax::MessageDigestHeaderSyntax,
     &message_warning_header_syntax::MessageWarningHeaderSyntax,
     &message_www_authenticate_challenge_syntax::MessageWwwAuthenticateChallengeSyntax,
+    &server_authentication_challenge_validity::ServerAuthenticationChallengeValidity,
     &message_authorization_credentials_present::MessageAuthorizationCredentialsPresent,
     &message_digest_auth_validity::MessageDigestAuthValidity,
     &message_bearer_token_format_validity::MessageBearerTokenFormatValidity,

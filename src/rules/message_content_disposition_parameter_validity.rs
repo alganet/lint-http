@@ -157,21 +157,21 @@ impl Rule for MessageContentDispositionParameterValidity {
                 } else if name.eq_ignore_ascii_case("size") {
                     // allow token or quoted-string with digits only
                     let raw_val = if val.starts_with('"') {
-                        if let Err(e) = crate::helpers::headers::validate_quoted_string(val) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "{} size parameter invalid quoted-string: {}",
-                                    hdr_name, e
-                                ),
-                            });
+                        match crate::helpers::headers::unescape_quoted_string(val) {
+                            Ok(u) => u.trim().to_string(),
+                            Err(e) => {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: config.severity,
+                                    message: format!(
+                                        "{} size parameter invalid quoted-string: {}",
+                                        hdr_name, e
+                                    ),
+                                })
+                            }
                         }
-                        // strip quotes
-                        let inner = &val[1..val.len() - 1];
-                        inner.trim()
                     } else {
-                        val
+                        val.to_string()
                     };
 
                     if !raw_val.chars().all(|c| c.is_ascii_digit()) {
