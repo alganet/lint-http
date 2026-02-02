@@ -86,44 +86,11 @@ pub(crate) fn validate_expect_member(member: &str) -> Option<String> {
             return Some("Empty expectation parameter in Expect header".into());
         }
         if rhs.starts_with('"') {
-            // Parse quoted-string with support for quoted-pair escapes ("\\") per RFC 9110.
-            // Ensure the quoted-string ends with an unescaped '"' and contains no unescaped
-            // control characters (except HTAB). Quoted-pairs (backslash escapes) allow
-            // the inclusion of otherwise-prohibited characters by escaping them.
-            let mut prev_backslash = false;
-            let mut terminated = false;
-            // iterate over characters after the opening quote
-            for c in rhs.chars().skip(1) {
-                if prev_backslash {
-                    prev_backslash = false;
-                    continue;
-                }
-                if c == '\\' {
-                    prev_backslash = true;
-                    continue;
-                }
-                if c == '"' {
-                    terminated = true;
-                    break;
-                }
-                if c.is_ascii_control() && c != '\t' {
-                    return Some(format!(
-                        "Invalid control char in Expect header parameter: '{}'",
-                        rhs
-                    ));
-                }
-            }
-            if !terminated {
-                return Some(format!(
-                    "Expect header quoted-string not terminated: '{}'",
-                    rhs
-                ));
-            }
-            // Ensure there's nothing after the terminating quote
-            // Find index of terminating unescaped quote using bytes to get position
+            // Locate the terminating unescaped quote and validate the quoted-string slice
             let bytes = rhs.as_bytes();
             let mut i = 1usize; // skip opening quote
             let mut prev_backslash = false;
+            let mut found_end = None;
             while i < bytes.len() {
                 let b = bytes[i];
                 if prev_backslash {
@@ -131,18 +98,33 @@ pub(crate) fn validate_expect_member(member: &str) -> Option<String> {
                 } else if b == b'\\' {
                     prev_backslash = true;
                 } else if b == b'"' {
+                    found_end = Some(i);
                     break;
                 }
                 i += 1;
             }
-            if i >= bytes.len() || bytes[i] != b'"' {
-                // Shouldn't happen because we checked 'terminated' above, but be defensive
+            if found_end.is_none() {
                 return Some(format!(
                     "Expect header quoted-string not terminated: '{}'",
                     rhs
                 ));
             }
-            if i + 1 != bytes.len() {
+            let qend = found_end.unwrap();
+            let qstr = &rhs[..=qend];
+            if let Err(e) = crate::helpers::headers::validate_quoted_string(qstr) {
+                // preserve previous test messaging for control characters
+                if e.contains("Control character") {
+                    return Some(format!(
+                        "Invalid control char in Expect header parameter: '{}'",
+                        rhs
+                    ));
+                }
+                return Some(format!(
+                    "Invalid quoted-string in Expect header parameter: {}",
+                    e
+                ));
+            }
+            if qend + 1 != rhs.len() {
                 return Some(format!(
                     "Invalid characters after quoted-string in Expect header parameter: '{}'",
                     rhs

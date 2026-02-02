@@ -87,7 +87,7 @@ impl Rule for MessageCharsetIanaRegistered {
         _previous: Option<&crate::http_transaction::HttpTransaction>,
         config: &Self::Config,
     ) -> Option<Violation> {
-        use crate::helpers::headers::{parse_media_type, validate_quoted_string};
+        use crate::helpers::headers::parse_media_type;
 
         let check_header = |which: &str, val: &str| -> Option<Violation> {
             let parsed = match parse_media_type(val) {
@@ -104,7 +104,7 @@ impl Rule for MessageCharsetIanaRegistered {
                     if let Some(eq) = p.find('=') {
                         let (name, value) = p.split_at(eq);
                         let name = name.trim();
-                        let mut value = value[1..].trim(); // skip '='
+                        let value = value[1..].trim(); // skip '='
                         if name.eq_ignore_ascii_case("charset") {
                             if value.is_empty() {
                                 return Some(Violation {
@@ -117,21 +117,21 @@ impl Rule for MessageCharsetIanaRegistered {
                                 });
                             }
 
-                            // Quoted-string handling
+                            // Quoted-string handling: allow escaped characters via helper
+                            let mut value_owned: Option<String> = None;
                             if value.starts_with('"') {
-                                if let Err(e) = validate_quoted_string(value) {
-                                    return Some(Violation {
-                                        rule: MessageCharsetIanaRegistered.id().into(),
-                                        severity: config.severity,
-                                        message: format!(
-                                            "Invalid Content-Type in {}: 'charset' quoted-string invalid: {}",
-                                            which, e
-                                        ),
-                                    });
-                                }
-                                // remove surrounding quotes
-                                if value.len() >= 2 && value.ends_with('"') {
-                                    value = &value[1..value.len() - 1];
+                                match crate::helpers::headers::unescape_quoted_string(value) {
+                                    Ok(u) => value_owned = Some(u),
+                                    Err(e) => {
+                                        return Some(Violation {
+                                            rule: MessageCharsetIanaRegistered.id().into(),
+                                            severity: config.severity,
+                                            message: format!(
+                                                "Invalid Content-Type in {}: 'charset' quoted-string invalid: {}",
+                                                which, e
+                                            ),
+                                        })
+                                    }
                                 }
                             } else {
                                 // validate token characters
@@ -148,6 +148,7 @@ impl Rule for MessageCharsetIanaRegistered {
                                     });
                                 }
                             }
+                            let value = value_owned.as_deref().unwrap_or(value);
 
                             if value.is_empty() {
                                 return Some(Violation {

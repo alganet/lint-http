@@ -134,7 +134,42 @@ impl Rule for ServerServerTimingHeaderSyntax {
 
                     // value can be token or quoted-string
                     if rhs.starts_with('"') {
-                        if let Err(msg) = crate::helpers::headers::validate_quoted_string(rhs) {
+                        // For `dur` we need the unescaped inner value; use `unescape_quoted_string` as
+                        // the single validation + unescape step to avoid validating twice. For other
+                        // params only validate the quoted-string syntactically.
+                        if pname.eq_ignore_ascii_case("dur") {
+                            match crate::helpers::headers::unescape_quoted_string(rhs) {
+                                Ok(inner) => {
+                                    if inner.is_empty() {
+                                        return Some(Violation {
+                                            rule: self.id().into(),
+                                            severity: config.severity,
+                                            message: "Server-Timing 'dur' parameter has empty value".into(),
+                                        });
+                                    }
+                                    if inner.parse::<f64>().is_err() {
+                                        return Some(Violation {
+                                            rule: self.id().into(),
+                                            severity: config.severity,
+                                            message: format!(
+                                                "Server-Timing 'dur' parameter is not a number: '{inner}'"
+                                            ),
+                                        });
+                                    }
+                                }
+                                Err(e) => {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: config.severity,
+                                        message: format!(
+                                            "Server-Timing parameter '{pname}' quoted-string error: {e}"
+                                        ),
+                                    })
+                                }
+                            }
+                        } else if let Err(msg) =
+                            crate::helpers::headers::validate_quoted_string(rhs)
+                        {
                             return Some(Violation {
                                 rule: self.id().into(),
                                 severity: config.severity,
@@ -142,27 +177,6 @@ impl Rule for ServerServerTimingHeaderSyntax {
                                     "Server-Timing parameter '{pname}' quoted-string error: {msg}"
                                 ),
                             });
-                        }
-
-                        // If dur is quoted, try parsing the inside as float; tolerate quoted dur per lenient parsing
-                        if pname.eq_ignore_ascii_case("dur") {
-                            let inner = &rhs[1..rhs.len() - 1];
-                            if inner.is_empty() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: "Server-Timing 'dur' parameter has empty value".into(),
-                                });
-                            }
-                            if inner.parse::<f64>().is_err() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "Server-Timing 'dur' parameter is not a number: '{inner}'"
-                                    ),
-                                });
-                            }
                         }
                     } else {
                         // token value
