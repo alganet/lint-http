@@ -158,6 +158,56 @@ pub fn extract_path_from_request_target(s: &str) -> Option<String> {
     None
 }
 
+/// Extract the path and query component from a request-target or absolute URI,
+/// preserving the query string (but ignoring any fragment).
+///
+/// - If `s` is an absolute URI (`scheme://host[:port]/path?...`), returns the
+///   serialized path and query (e.g., `/foo?x=1`), or `/` (or `/?q=...`) if no
+///   path segment is present but a query exists.
+/// - If `s` is an origin-form request-target (starts with `/`), returns the
+///   path and query portion up to, but not including, the `#` character.
+/// - For authority-form (CONNECT) or asterisk-form (`*`) request-targets,
+///   returns `None` since they do not carry a path to validate.
+pub fn extract_path_and_query_from_request_target(s: &str) -> Option<String> {
+    let s_trim = s.trim();
+
+    if s_trim == "*" {
+        return None;
+    }
+
+    // Absolute-form: find scheme marker '://', then the first '/' after authority
+    if let Some(idx) = s_trim.find("://") {
+        let after = &s_trim[idx + 3..];
+        // find first '/' which marks start of path
+        if let Some(pos) = after.find('/') {
+            let pathq = &after[pos..];
+            // strip fragment only, keep query
+            let end = pathq.find('#').unwrap_or(pathq.len());
+            return Some(pathq[..end].to_string());
+        } else {
+            // no '/', path is root, but there still might be a query after authority
+            if let Some(qpos) = after.find('?') {
+                // include leading '/' plus query
+                let q = &after[qpos..];
+                let end = q.find('#').unwrap_or(q.len());
+                // keep leading '?', so prefix with '/' to yield '/?x=1'
+                return Some(format!("/{}", &q[..end]));
+            }
+            return Some("/".into());
+        }
+    }
+
+    // Origin-form: must start with '/'
+    if s_trim.starts_with('/') {
+        // keep query, strip fragment
+        let end_idx = s_trim.find('#').unwrap_or(s_trim.len());
+        return Some(s_trim[..end_idx].to_string());
+    }
+
+    // authority-form (host:port) or unknown forms are not path-bearing
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,6 +268,35 @@ mod tests {
         );
         assert_eq!(extract_path_from_request_target("*"), None);
         assert_eq!(extract_path_from_request_target("example.com:443"), None);
+    }
+
+    #[test]
+    fn extract_path_and_query_from_request_target_cases() {
+        assert_eq!(
+            extract_path_and_query_from_request_target("/"),
+            Some("/".into())
+        );
+        assert_eq!(
+            extract_path_and_query_from_request_target("/foo/bar?x=1#z"),
+            Some("/foo/bar?x=1".into())
+        );
+        assert_eq!(
+            extract_path_and_query_from_request_target("http://example.com/.well-known/foo?x=1"),
+            Some("/.well-known/foo?x=1".into())
+        );
+        assert_eq!(
+            extract_path_and_query_from_request_target("https://example.com"),
+            Some("/".into())
+        );
+        assert_eq!(
+            extract_path_and_query_from_request_target("https://example.com?x=1"),
+            Some("/?x=1".into())
+        );
+        assert_eq!(extract_path_and_query_from_request_target("*"), None);
+        assert_eq!(
+            extract_path_and_query_from_request_target("example.com:443"),
+            None
+        );
     }
 
     #[test]
