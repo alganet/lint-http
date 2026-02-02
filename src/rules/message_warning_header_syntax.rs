@@ -146,13 +146,13 @@ fn check_warning_value_str(val: &str) -> Option<String> {
                 return Some("Warning warn-date quoted-string not terminated".into());
             }
             let date_q = &s[j..=end_date.unwrap()];
-            if let Err(e) = crate::helpers::headers::validate_quoted_string(date_q) {
-                return Some(format!("Invalid quoted-string in warn-date: {}", e));
-            }
-            // strip the quotes and validate HTTP-date inside
-            let inner = &date_q[1..date_q.len() - 1];
-            if !crate::http_date::is_valid_http_date(inner) {
-                return Some(format!("Warn-date is not a valid HTTP-date: '{}'", inner));
+            match crate::helpers::headers::unescape_quoted_string(date_q) {
+                Ok(inner) => {
+                    if !crate::http_date::is_valid_http_date(&inner) {
+                        return Some(format!("Warn-date is not a valid HTTP-date: '{}'", inner));
+                    }
+                }
+                Err(e) => return Some(format!("Invalid quoted-string in warn-date: {}", e)),
             }
 
             // ensure nothing else after date except whitespace

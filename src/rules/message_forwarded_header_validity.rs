@@ -87,7 +87,7 @@ impl Rule for MessageForwardedHeaderValidity {
                 }
 
                 let name_lc = name.to_ascii_lowercase();
-                let mut value = val.unwrap();
+                let value = val.unwrap();
                 let raw_value = value;
 
                 if raw_value.is_empty() {
@@ -98,29 +98,36 @@ impl Rule for MessageForwardedHeaderValidity {
                     });
                 }
 
-                // If quoted-string, validate and unquote for further checks
+                // If quoted-string, validate and unquote (with unescaping) for further checks
+                let mut value_owned: Option<String> = None;
                 if value.starts_with('"') {
-                    if let Err(e) = crate::helpers::headers::validate_quoted_string(value) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!(
-                                "Invalid quoted-string in Forwarded parameter '{}': {}",
-                                name, e
-                            ),
-                        });
-                    }
-                    // strip outer quotes; validated above
-                    value = &value[1..value.len() - 1];
-                    // If an empty quoted-string was provided (e.g., for=""), report a clearer message
-                    if value.is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!("Empty value in Forwarded '{}' parameter", name),
-                        });
+                    match crate::helpers::headers::unescape_quoted_string(value) {
+                        Ok(u) => {
+                            if u.is_empty() {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: config.severity,
+                                    message: format!(
+                                        "Empty value in Forwarded '{}' parameter",
+                                        name
+                                    ),
+                                });
+                            }
+                            value_owned = Some(u);
+                        }
+                        Err(e) => {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: config.severity,
+                                message: format!(
+                                    "Invalid quoted-string in Forwarded parameter '{}': {}",
+                                    name, e
+                                ),
+                            })
+                        }
                     }
                 }
+                let value = value_owned.as_deref().unwrap_or(raw_value);
 
                 if name_lc == "for" || name_lc == "by" {
                     // value may be 'unknown', an obfuscated token, or an addr (IPv4/IPv6) optionally with port

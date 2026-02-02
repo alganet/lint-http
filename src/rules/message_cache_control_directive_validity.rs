@@ -135,21 +135,28 @@ fn check_cache_control_directives(s: &str) -> Option<String> {
                 "private" | "no-cache" => {
                     // optional list of field-names (comma-separated tokens) or quoted-string
                     if vpart.starts_with('"') {
-                        if let Err(e) = crate::helpers::headers::validate_quoted_string(vpart) {
-                            return Some(format!("Invalid quoted-string in {} value: {}", name, e));
-                        }
-                        // strip quotes and split on commas
-                        let inner = &vpart[1..vpart.len() - 1];
-                        for field in inner.split(',') {
-                            let f = field.trim();
-                            if f.is_empty() {
-                                return Some(format!("Empty field-name in {} value", name));
+                        match crate::helpers::headers::unescape_quoted_string(vpart) {
+                            Ok(inner) => {
+                                for field in inner.split(',') {
+                                    let f = field.trim();
+                                    if f.is_empty() {
+                                        return Some(format!("Empty field-name in {} value", name));
+                                    }
+                                    if let Some(c) =
+                                        crate::helpers::token::find_invalid_token_char(f)
+                                    {
+                                        return Some(format!(
+                                            "{} includes invalid field-name character: '{}'",
+                                            name, c
+                                        ));
+                                    }
+                                }
                             }
-                            if let Some(c) = crate::helpers::token::find_invalid_token_char(f) {
+                            Err(e) => {
                                 return Some(format!(
-                                    "{} includes invalid field-name character: '{}'",
-                                    name, c
-                                ));
+                                    "Invalid quoted-string in {} value: {}",
+                                    name, e
+                                ))
                             }
                         }
                     } else {

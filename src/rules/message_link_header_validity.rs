@@ -117,22 +117,24 @@ impl Rule for MessageLinkHeaderValidity {
                         if name.eq_ignore_ascii_case("rel") {
                             has_rel = true;
                             // rel may contain space-separated relation-types or be a quoted-string
-                            let rel_value = if v.starts_with('"') {
-                                if let Err(e) = crate::helpers::headers::validate_quoted_string(v) {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: config.severity,
-                                        message: format!("Link rel quoted-string invalid: {}", e),
-                                    });
-                                }
-                                if v.len() >= 2 && v.ends_with('"') {
-                                    &v[1..v.len() - 1]
-                                } else {
-                                    v
+                            let rel_value_owned: Option<String> = if v.starts_with('"') {
+                                match crate::helpers::headers::unescape_quoted_string(v) {
+                                    Ok(u) => Some(u),
+                                    Err(e) => {
+                                        return Some(Violation {
+                                            rule: self.id().into(),
+                                            severity: config.severity,
+                                            message: format!(
+                                                "Link rel quoted-string invalid: {}",
+                                                e
+                                            ),
+                                        })
+                                    }
                                 }
                             } else {
-                                v
+                                None
                             };
+                            let rel_value = rel_value_owned.as_deref().unwrap_or(v);
                             for rel in rel_value.split_whitespace() {
                                 if let Some(c) = crate::helpers::token::find_invalid_token_char(rel)
                                 {

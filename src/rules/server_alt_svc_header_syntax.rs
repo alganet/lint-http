@@ -105,12 +105,22 @@ impl Rule for ServerAltSvcHeaderSyntax {
                     });
                 }
 
-                // authority may be quoted
-                let auth = if auth.starts_with('"') && auth.ends_with('"') && auth.len() >= 2 {
-                    &auth[1..auth.len() - 1]
+                // authority may be quoted; unescape quoted-string if present
+                let auth_owned: Option<String> = if auth.starts_with('"') {
+                    match crate::helpers::headers::unescape_quoted_string(auth) {
+                        Ok(u) => Some(u),
+                        Err(e) => {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: config.severity,
+                                message: format!("Alt-Svc authority quoted-string invalid: {}", e),
+                            })
+                        }
+                    }
                 } else {
-                    auth
+                    None
                 };
+                let auth = auth_owned.as_deref().unwrap_or(auth);
 
                 if auth.trim().is_empty() {
                     return Some(Violation {
