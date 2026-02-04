@@ -592,6 +592,17 @@ mod tests {
     }
 
     #[test]
+    fn response_unknown_param_value_invalid_token_char() {
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("forwarded", "foo=bad@value")],
+        );
+        let rule = MessageForwardedHeaderValidity;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
     fn valid_forwarded_quoted_ipv6_with_port() {
         let tx = make_tx_with_forwarded("for=\"[2001:db8::1]:1234\"");
         let rule = MessageForwardedHeaderValidity;
@@ -794,6 +805,30 @@ mod tests {
     }
 
     #[test]
+    fn invalid_forwarded_for_missing_closing_bracket() {
+        let tx = make_tx_with_forwarded("for=[2001:db8::1");
+        let rule = MessageForwardedHeaderValidity;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn invalid_forwarded_for_non_colon_after_bracket() {
+        let tx = make_tx_with_forwarded("for=[2001:db8::1]x");
+        let rule = MessageForwardedHeaderValidity;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn invalid_forwarded_host_non_colon_after_bracket() {
+        let tx = make_tx_with_forwarded("host=[2001:db8::1]x");
+        let rule = MessageForwardedHeaderValidity;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
     fn invalid_forwarded_empty_header_value() {
         let tx = make_tx_with_forwarded("");
         let rule = MessageForwardedHeaderValidity;
@@ -834,6 +869,82 @@ mod tests {
         let rule = MessageForwardedHeaderValidity;
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(v.is_none());
+    }
+
+    #[test]
+    fn valid_forwarded_host_ipv4_with_port() {
+        let tx = make_tx_with_forwarded("host=192.0.2.1:80");
+        let rule = MessageForwardedHeaderValidity;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn valid_forwarded_host_bracketed_no_port() {
+        let tx = make_tx_with_forwarded("host=[2001:db8::1]");
+        let rule = MessageForwardedHeaderValidity;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn forwarded_host_empty_port_is_accepted() {
+        let tx = make_tx_with_forwarded("host=example.com:");
+        let rule = MessageForwardedHeaderValidity;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        // Empty port after ':' is accepted (treated as absent) by the implementation
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn invalid_forwarded_host_with_at() {
+        let tx = make_tx_with_forwarded("host=user@host");
+        let rule = MessageForwardedHeaderValidity;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn invalid_forwarded_quoted_string_control_char() -> anyhow::Result<()> {
+        let rule = MessageForwardedHeaderValidity;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        // Try to construct a header containing an embedded control character inside a quoted-string.
+        // If `HeaderValue::from_bytes` refuses it, that's acceptable; otherwise the rule should report a violation.
+        match HeaderValue::from_bytes(b"for=\"bad\x01\"") {
+            Ok(bad) => {
+                let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+                hm.append("forwarded", bad);
+                tx.request.headers = hm;
+                let v = rule.check_transaction(
+                    &tx,
+                    None,
+                    &crate::test_helpers::make_test_rule_config(),
+                );
+                assert!(v.is_some());
+            }
+            Err(_) => {
+                // Header construction failed (control characters not allowed) — still a valid outcome for this test
+                // Nothing to assert; header construction failure is an acceptable outcome.
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_forwarded_host_empty_brackets() {
+        let tx = make_tx_with_forwarded("host=[]");
+        let rule = MessageForwardedHeaderValidity;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn invalid_forwarded_ipv4_port_non_numeric() {
+        let tx = make_tx_with_forwarded("for=192.0.2.1:xyz");
+        let rule = MessageForwardedHeaderValidity;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
     }
 
     #[test]

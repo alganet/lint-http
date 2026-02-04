@@ -298,6 +298,42 @@ mod tests {
     }
 
     #[test]
+    fn whitespace_only_request_is_violation() -> anyhow::Result<()> {
+        let rule = MessageCacheControlDirectiveValidity;
+        let tx = make_req("   ");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(
+            v.is_some(),
+            "whitespace-only request header should be a violation"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn whitespace_only_response_is_violation() -> anyhow::Result<()> {
+        let rule = MessageCacheControlDirectiveValidity;
+        let tx = make_resp("   ");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(
+            v.is_some(),
+            "whitespace-only response header should be a violation"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn private_unterminated_quoted_reports_violation() -> anyhow::Result<()> {
+        let rule = MessageCacheControlDirectiveValidity;
+        let tx = make_req("private=\"unterminated");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(
+            v.is_some(),
+            "unterminated quoted-string in private value should be a violation"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn empty_member_is_violation() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let mut tx = crate::test_helpers::make_test_transaction();

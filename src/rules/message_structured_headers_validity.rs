@@ -566,6 +566,27 @@ mod tests {
     }
 
     #[rstest]
+    fn unrecognized_value_reports_violation() {
+        // Value that is neither a valid Item, List nor Dictionary should be rejected
+        let v = validate_structured_field("foo bar");
+        assert!(v.is_some());
+    }
+
+    #[rstest]
+    fn inner_list_param_invalid_key_is_rejected() {
+        // inner-list with an invalid parameter key (digit) should be rejected
+        let v = validate_structured_field("(foo);1=1");
+        assert!(v.is_some());
+    }
+
+    #[rstest]
+    fn inner_list_member_starting_with_digit_is_rejected() {
+        // inner-list member starting with a digit is invalid as an item head
+        let v = validate_structured_field("a=(1abc)");
+        assert!(v.is_some());
+    }
+
+    #[rstest]
     fn quoted_param_with_escaped_quote_is_ok() {
         let v = validate_structured_field("foo;bar=\"a\\\"b\"");
         assert!(v.is_none());
@@ -932,5 +953,56 @@ mod tests {
         // '=' outside quotes should be found at its position
         let s2 = "a=1,b=2";
         assert_eq!(find_char_outside_quotes(s2, '='), Some(1));
+    }
+
+    #[rstest]
+    fn invalid_list_member_without_eq_is_rejected() {
+        // list member that is neither an item nor a key=value should be rejected
+        let v = validate_structured_field("a, ???");
+        assert!(v.is_some());
+        if let Some(msg) = v {
+            assert!(msg.contains("invalid list member"));
+        }
+    }
+
+    #[rstest]
+    fn parse_item_invalid_item_reports_invalid_item_message() {
+        // parse_item_with_params should return an "invalid item" message for unknown heads
+        let v = parse_item_with_params("@foo");
+        assert!(v.is_some());
+        let msg = v.unwrap();
+        assert!(msg.contains("invalid item"));
+    }
+
+    #[rstest]
+    fn parse_item_empty_parameter_is_rejected() {
+        // trailing semicolon after an item should be treated as an empty parameter
+        let v = parse_item_with_params("foo;");
+        assert!(v.is_some());
+        let msg = v.unwrap();
+        assert!(msg.contains("empty parameter"));
+    }
+
+    #[rstest]
+    fn empty_input_is_rejected() {
+        // empty value should not be accepted as a structured field
+        let v = validate_structured_field("");
+        assert!(v.is_some());
+    }
+
+    #[rstest]
+    fn single_comma_is_rejected_as_empty_list_members() {
+        let v = validate_structured_field(",");
+        assert!(v.is_some());
+        if let Some(msg) = v {
+            assert!(msg.contains("empty list member") || msg.contains("empty dictionary member"));
+        }
+    }
+
+    #[rstest]
+    fn item_param_with_empty_key_is_rejected() {
+        // parameter name after semicolon cannot be empty when expressed as key=value
+        let v = validate_structured_field("a=1;=1");
+        assert!(v.is_some());
     }
 }

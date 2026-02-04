@@ -440,4 +440,18 @@ mod tests {
         let msg = v.unwrap().message;
         assert!(msg.contains("missing cookie-pair"));
     }
+
+    #[test]
+    fn domain_empty_reports_violation() {
+        let v = check_set_cookie("SID=1; Domain=");
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("must not be empty"));
+    }
+
+    #[test]
+    fn max_age_negative_is_accepted() {
+        let v = check_set_cookie("SID=1; Max-Age=-10");
+        assert!(v.is_none());
+    }
 }

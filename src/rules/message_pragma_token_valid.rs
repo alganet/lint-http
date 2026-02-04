@@ -207,6 +207,54 @@ mod tests {
     }
 
     #[test]
+    fn trailing_comma_reports_violation() {
+        let rule = MessagePragmaTokenValid;
+        let tx = make_req("no-cache,");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn directive_name_invalid_char_reports_violation() {
+        let rule = MessagePragmaTokenValid;
+        let tx = make_req("n@me=1");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn token_value_invalid_char_reports_violation() {
+        let rule = MessagePragmaTokenValid;
+        let tx = make_req("foo=ba@d");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn quoted_value_unterminated_reports_violation() {
+        let rule = MessagePragmaTokenValid;
+        let tx = make_req("foo=\"unterminated");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn empty_directive_value_is_accepted() {
+        let rule = MessagePragmaTokenValid;
+        let tx = make_req("foo=");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn list_with_invalid_middle_member_reports_violation() {
+        let rule = MessagePragmaTokenValid;
+        let tx = make_req("no-cache, bad@name=1, max-age=0");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
     fn non_utf8_value_is_violation() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = MessagePragmaTokenValid;
@@ -218,6 +266,52 @@ mod tests {
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
         assert!(v.is_some());
         Ok(())
+    }
+
+    #[test]
+    fn quoted_string_with_extra_chars_reports_violation() {
+        let rule = MessagePragmaTokenValid;
+        let tx = make_req("foo=\"bar\"x");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn response_non_utf8_value_is_violation() -> anyhow::Result<()> {
+        use hyper::header::HeaderValue;
+        let rule = MessagePragmaTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        let mut hm = hyper::HeaderMap::new();
+        hm.insert("pragma", bad);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hm,
+            body_length: None,
+        });
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn empty_directive_value_in_response_is_accepted() {
+        let rule = MessagePragmaTokenValid;
+        let tx = make_resp("foo=");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn multiple_header_fields_merged_are_checked() {
+        let rule = MessagePragmaTokenValid;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[
+            ("pragma", "no-cache"),
+            ("pragma", "foo=bar"),
+        ]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_none());
     }
 
     #[test]

@@ -270,6 +270,66 @@ mod tests {
     }
 
     #[test]
+    fn empty_content_length_value_reports_invalid() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "")]),
+            body_length: Some(0),
+        });
+
+        let rule = MessageResponseBodyLengthAccuracy;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(
+            v.is_some(),
+            "empty Content-Length should be reported as invalid"
+        );
+        assert!(v.unwrap().message.contains("Invalid Content-Length"));
+    }
+
+    #[test]
+    fn content_length_value_too_large_reports_violation() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        // a value larger than u128 max will fail to parse
+        let big = "340282366920938463463374607431768211456"; // 2^128
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", big)]),
+            body_length: Some(1),
+        });
+
+        let rule = MessageResponseBodyLengthAccuracy;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some(), "overflowing Content-Length should be reported");
+        let msg = v.unwrap().message;
+        assert!(msg.contains("too large"));
+    }
+
+    #[test]
+    fn multiple_identical_content_length_headers_no_violation() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        use hyper::header::HeaderValue;
+        hm.append("content-length", HeaderValue::from_static("3"));
+        hm.append("content-length", HeaderValue::from_static("3"));
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hm,
+            body_length: Some(3),
+        });
+
+        let rule = MessageResponseBodyLengthAccuracy;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(
+            v.is_none(),
+            "identical multiple Content-Length headers should not be a violation"
+        );
+    }
+
+    #[test]
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "message_response_body_length_accuracy");

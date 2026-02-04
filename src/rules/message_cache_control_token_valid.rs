@@ -222,6 +222,60 @@ mod tests {
     }
 
     #[test]
+    fn response_multiple_headers_merged_are_valid() -> anyhow::Result<()> {
+        let rule = MessageCacheControlTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("cache-control", "no-cache"),
+            ("cache-control", "max-age=60"),
+        ]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn quoted_string_with_extra_chars_reports_violation() -> anyhow::Result<()> {
+        let rule = MessageCacheControlTokenValid;
+        let tx = make_req("foo=\"bar\"x");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn quoted_value_unterminated_reports_violation() -> anyhow::Result<()> {
+        let rule = MessageCacheControlTokenValid;
+        let tx = make_req("foo=\"unterminated");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn empty_directive_value_is_accepted() -> anyhow::Result<()> {
+        let rule = MessageCacheControlTokenValid;
+        let tx = make_req("foo=");
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn response_non_utf8_value_is_violation() -> anyhow::Result<()> {
+        use hyper::header::HeaderValue;
+        let rule = MessageCacheControlTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        let mut hm = hyper::HeaderMap::new();
+        hm.insert("cache-control", bad);
+        tx.response.as_mut().unwrap().headers = hm;
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
     fn empty_member_is_violation() -> anyhow::Result<()> {
         let rule = MessageCacheControlTokenValid;
         let mut tx = crate::test_helpers::make_test_transaction();
