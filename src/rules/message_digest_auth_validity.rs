@@ -337,6 +337,44 @@ mod tests {
     }
 
     #[test]
+    fn invalid_quoted_string_reports_specific_message() -> anyhow::Result<()> {
+        let rule = MessageDigestAuthValidity;
+        let cfg = crate::test_helpers::make_test_rule_config();
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        // username quoted-string missing closing quote should trigger quoted-string validation error
+        tx.request.headers.append(
+            "authorization",
+            "Digest username=\"Mufasa, realm=test, nonce=abc, uri=/, response=d"
+                .parse()
+                .unwrap(),
+        );
+
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(
+            msg.contains("Invalid quoted-string")
+                || msg.contains("Invalid Digest auth parameters")
+                || msg.contains("missing or empty required parameter")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn header_value_construction_rejects_control_chars() -> anyhow::Result<()> {
+        // Hyper's HeaderValue validation rejects control characters in header values (as per the HTTP
+        // specification). Therefore it's not possible to construct a header containing LF/CR to feed
+        // through the normal header pipeline; the constructor will return an error. Assert that
+        // behavior here so we don't rely on impossible-to-construct inputs.
+        use hyper::header::HeaderValue;
+        let raw = b"Digest username=Mufasa, realm=test, nonce=abc, uri=/bad\n, response=d";
+        let hv = HeaderValue::from_bytes(raw);
+        assert!(hv.is_err());
+        Ok(())
+    }
+
+    #[test]
     fn digest_scheme_with_whitespace_but_no_params_reports_invalid_params() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
@@ -368,6 +406,51 @@ mod tests {
         assert!(v.is_some());
         let v = v.unwrap();
         assert!(v.message.contains("missing parameters"));
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_response_value_token_char_reports_violation() -> anyhow::Result<()> {
+        let rule = MessageDigestAuthValidity;
+        let cfg = crate::test_helpers::make_test_rule_config();
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.append(
+            "authorization",
+            "Digest username=Mufasa, realm=test, nonce=abc, uri=/, response=ab@d"
+                .parse()
+                .unwrap(),
+        );
+
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(
+            msg.contains("Invalid character") || msg.contains("Invalid Digest auth parameters")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_quoted_string_extra_chars_reports_violation() -> anyhow::Result<()> {
+        let rule = MessageDigestAuthValidity;
+        let cfg = crate::test_helpers::make_test_rule_config();
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        // username quoted-string followed by extra chars should trigger quoted-string validation error
+        tx.request.headers.append(
+            "authorization",
+            "Digest username=\"Mufasa\"x, realm=test, nonce=abc, uri=/, response=d"
+                .parse()
+                .unwrap(),
+        );
+
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(
+            msg.contains("Invalid quoted-string") || msg.contains("Invalid Digest auth parameters")
+        );
         Ok(())
     }
 
@@ -418,6 +501,130 @@ mod tests {
         assert!(
             v.message.contains("missing or empty required parameter")
                 || v.message.contains("Invalid Digest auth parameters")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn multiple_digest_headers_one_invalid_after_valid_triggers_violation() -> anyhow::Result<()> {
+        let rule = MessageDigestAuthValidity;
+        let cfg = crate::test_helpers::make_test_rule_config();
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        // first a valid Digest, then an invalid Digest (empty response)
+        tx.request.headers.append(
+            "authorization",
+            "Digest username=Alice, realm=test, nonce=abc, uri=/, response=resp1"
+                .parse()
+                .unwrap(),
+        );
+        tx.request.headers.append(
+            "authorization",
+            "Digest username=Bob, realm=test, nonce=abc, uri=/, response="
+                .parse()
+                .unwrap(),
+        );
+
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn multiple_digest_headers_all_valid_no_violation() -> anyhow::Result<()> {
+        let rule = MessageDigestAuthValidity;
+        let cfg = crate::test_helpers::make_test_rule_config();
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.append(
+            "authorization",
+            "Digest username=Alice, realm=test, nonce=abc, uri=/, response=resp1"
+                .parse()
+                .unwrap(),
+        );
+        tx.request.headers.append(
+            "authorization",
+            "Digest username=Bob, realm=test, nonce=def, uri=/, response=resp2"
+                .parse()
+                .unwrap(),
+        );
+
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn empty_authorization_header_ignored() {
+        let rule = MessageDigestAuthValidity;
+        let cfg = crate::test_helpers::make_test_rule_config();
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        // An empty Authorization value should be ignored
+        tx.request
+            .headers
+            .append("authorization", "".parse().unwrap());
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn unquoted_username_with_space_reports_violation() -> anyhow::Result<()> {
+        let rule = MessageDigestAuthValidity;
+        let cfg = crate::test_helpers::make_test_rule_config();
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.append(
+            "authorization",
+            "Digest username=Mu fasa, realm=test, nonce=abc, uri=/, response=d"
+                .parse()
+                .unwrap(),
+        );
+
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn quoted_string_ends_with_escape_reports_violation() -> anyhow::Result<()> {
+        let rule = MessageDigestAuthValidity;
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.append(
+            "authorization",
+            "Digest username=\"Mu\\\", realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"d\""
+                .parse()
+                .unwrap(),
+        );
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(
+            msg.contains("Invalid quoted-string")
+                || msg.contains("Invalid Digest auth parameters")
+                || msg.contains("missing or empty required parameter")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn required_param_unquoted_empty_reports_violation() -> anyhow::Result<()> {
+        let rule = MessageDigestAuthValidity;
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.append(
+            "authorization",
+            "Digest username=, realm=test, nonce=abc, uri=/, response=d"
+                .parse()
+                .unwrap(),
+        );
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(
+            msg.contains("missing or empty required parameter")
+                || msg.contains("Invalid Digest auth parameters")
         );
         Ok(())
     }

@@ -213,7 +213,16 @@ mod tests {
             "Content-Encoding header value is not valid UTF-8"
         );
     }
-
+    #[test]
+    fn request_trailing_comma_accepted() {
+        let rule = MessageContentEncodingAndTypeConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "gzip, ")]);
+        let violation =
+            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(violation.is_none());
+    }
     #[test]
     fn content_encoding_wildcard_reports_violation() -> anyhow::Result<()> {
         let rule = MessageContentEncodingAndTypeConsistency;
@@ -275,5 +284,53 @@ mod tests {
     fn scope_is_both() {
         let rule = MessageContentEncodingAndTypeConsistency;
         assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
+
+    #[test]
+    fn empty_list_member_reports_violation() -> anyhow::Result<()> {
+        let rule = MessageContentEncodingAndTypeConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        // include a semicolon-only member (";") between commas which will leave a non-empty
+        // part but its token before the ';' is empty -> triggers the rule
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "gzip,;,br")]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn request_non_utf8_value_reports_violation() -> anyhow::Result<()> {
+        let rule = MessageContentEncodingAndTypeConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        tx.request
+            .headers
+            .append("content-encoding", HeaderValue::from_bytes(&[0xff])?);
+
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        let v = v.unwrap();
+        assert_eq!(
+            v.message,
+            "Content-Encoding header value is not valid UTF-8"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn response_no_body_status_with_encoding_reports_violation() -> anyhow::Result<()> {
+        let rule = MessageContentEncodingAndTypeConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(100, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "gzip")]);
+
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        let v = v.unwrap();
+        assert!(v
+            .message
+            .contains("must not have a Content-Encoding header"));
+        Ok(())
     }
 }

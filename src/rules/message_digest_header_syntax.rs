@@ -557,6 +557,15 @@ mod tests {
     }
 
     #[test]
+    fn want_digest_empty_member_is_violation() {
+        let rule = MessageDigestHeaderSyntax;
+        let tx = make_req_want_digest("sha-256=, , sha-512");
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+    }
+
+    #[test]
     fn want_digest_deprecation_is_reported() {
         let rule = MessageDigestHeaderSyntax;
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -717,6 +726,48 @@ mod tests {
             200,
             &[("content-digest", "sha-256=:not-base64!:")],
         );
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn response_legacy_digest_deprecation_is_reported() {
+        let rule = MessageDigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("digest", "SHA-256=YWJj")],
+        );
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("obsoleted") || msg.contains("prefer Content-Digest"));
+    }
+
+    #[test]
+    fn content_digest_structured_syntax_invalid_base64_in_request() {
+        let rule = MessageDigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "content-digest",
+            "sha-256=:not-base64!:",
+        )]);
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("Invalid Content-Digest header") && msg.contains("RFC 9530"));
+    }
+
+    #[test]
+    fn content_digest_trailing_comma_in_request_is_violation() {
+        let rule = MessageDigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "content-digest",
+            "sha-256=:dGVzdA==:,",
+        )]);
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(&tx, None, &cfg);
         assert!(v.is_some());
@@ -1042,6 +1093,39 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn want_repr_digest_response_non_utf8_is_violation() -> anyhow::Result<()> {
+        let rule = MessageDigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("want-repr-digest", bad);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hm,
+
+            body_length: None,
+        });
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn want_field_response_missing_equals_is_violation() {
+        let rule = MessageDigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("want-repr-digest", "sha-256")],
+        );
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+    }
+
     // Non-UTF8 request tests for Want-* headers (parametrized)
     #[rstest]
     #[case("want-content-digest")]
@@ -1338,6 +1422,46 @@ mod tests {
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(&tx, None, &cfg);
         assert!(v.is_some());
+    }
+
+    #[test]
+    fn want_digest_invalid_char_reports_invalid_char_in_message() {
+        let rule = MessageDigestHeaderSyntax;
+        let tx = make_req_want_digest("sha@1");
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("@") || msg.contains("invalid character"));
+    }
+
+    #[test]
+    fn content_digest_empty_inner_reports_meaningful_message() {
+        let rule = MessageDigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-digest", "sha-256=:")],
+        );
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        let msg_lc = msg.to_lowercase();
+        assert!(msg_lc.contains("empty") || msg_lc.contains("byte"));
+    }
+
+    #[test]
+    fn want_field_invalid_alg_char_reports_char_in_message() {
+        let rule = MessageDigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("want-content-digest", "sha@1=5")],
+        );
+        let cfg = crate::test_helpers::make_test_rule_config();
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("@") || msg.contains("invalid character"));
     }
 
     #[test]

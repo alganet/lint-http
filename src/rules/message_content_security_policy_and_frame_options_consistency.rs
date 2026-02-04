@@ -457,6 +457,22 @@ mod tests {
     }
 
     #[test]
+    fn allow_from_with_csp_none_reports_violation() {
+        let rule = MessageContentSecurityPolicyAndFrameOptionsConsistency;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("content-security-policy", "frame-ancestors 'none'"),
+            ("x-frame-options", "ALLOW-FROM https://example"),
+        ]);
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("permits framing") && msg.contains("'none'"));
+    }
+
+    #[test]
     fn allow_from_case_insensitive_match_with_csp_origin() {
         let rule = MessageContentSecurityPolicyAndFrameOptionsConsistency;
         let cfg = make_cfg();
@@ -465,6 +481,71 @@ mod tests {
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[
             ("content-security-policy", "frame-ancestors https://EXample"),
             ("x-frame-options", "ALLOW-FROM https://example"),
+        ]);
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn csp_origin_trailing_slash_matches_allow_from() {
+        let rule = MessageContentSecurityPolicyAndFrameOptionsConsistency;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[
+            (
+                "content-security-policy",
+                "frame-ancestors https://example/",
+            ),
+            ("x-frame-options", "ALLOW-FROM https://example"),
+        ]);
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn sameorigin_with_csp_origin_is_compatible() {
+        let rule = MessageContentSecurityPolicyAndFrameOptionsConsistency;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("content-security-policy", "frame-ancestors https://example"),
+            ("x-frame-options", "SAMEORIGIN"),
+        ]);
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn multiple_csp_headers_with_none_and_origin_allow_from_reports_violation() {
+        let rule = MessageContentSecurityPolicyAndFrameOptionsConsistency;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("content-security-policy", "frame-ancestors 'none'"),
+            ("content-security-policy", "frame-ancestors https://a"),
+            ("x-frame-options", "ALLOW-FROM https://a"),
+        ]);
+        tx.response.as_mut().unwrap().headers = headers;
+
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(
+            v.is_some(),
+            "expected violation when CSP contains 'none' and also permits an origin"
+        );
+    }
+
+    #[test]
+    fn allow_from_lowercase_is_recognized() {
+        let rule = MessageContentSecurityPolicyAndFrameOptionsConsistency;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("content-security-policy", "frame-ancestors https://example"),
+            ("x-frame-options", "allow-from https://example"),
         ]);
         let v = rule.check_transaction(&tx, None, &cfg);
         assert!(v.is_none());
@@ -529,6 +610,20 @@ mod tests {
         headers.insert("content-security-policy", bad);
         tx.response.as_mut().unwrap().headers = headers;
 
+        let v = rule.check_transaction(&tx, None, &cfg);
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn csp_present_but_no_xfo_returns_none() {
+        let rule = MessageContentSecurityPolicyAndFrameOptionsConsistency;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "content-security-policy",
+            "frame-ancestors https://example",
+        )]);
         let v = rule.check_transaction(&tx, None, &cfg);
         assert!(v.is_none());
     }

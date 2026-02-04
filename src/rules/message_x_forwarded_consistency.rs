@@ -362,4 +362,142 @@ mod tests {
         let _engine = crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
+
+    #[test]
+    fn invalid_xfh_empty_host() {
+        let rule = MessageXForwardedConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("x-forwarded-host", ":80")]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        assert!(v
+            .unwrap()
+            .message
+            .contains("Invalid X-Forwarded-Host component"));
+    }
+
+    #[test]
+    fn invalid_xfh_empty_port() {
+        let rule = MessageXForwardedConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("x-forwarded-host", "example.com:")]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn invalid_xfh_bracketed_port_non_numeric() {
+        let rule = MessageXForwardedConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("x-forwarded-host", "[::1]:notnum")]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        // message may vary depending on parsing details; ensure it indicates invalidity
+        assert!(msg.contains("Invalid") || msg.contains("port") || msg.contains("bracketed"));
+    }
+
+    #[test]
+    fn invalid_xfh_host_contains_slash() {
+        let rule = MessageXForwardedConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "x-forwarded-host",
+            "example.com/extra",
+        )]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn response_xfh_checked() {
+        let rule = MessageXForwardedConsistency;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("x-forwarded-host", "user@host")],
+        );
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn xff_empty_member_in_middle_reports_violation() {
+        let rule = MessageXForwardedConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "x-forwarded-for",
+            "203.0.113.195,bogus,198.51.100.17",
+        )]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("Invalid X-Forwarded-For"));
+    }
+
+    #[test]
+    fn xfh_invalid_ipv6_literal_reports_violation() {
+        let rule = MessageXForwardedConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("x-forwarded-host", "[::zz]:8080")]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("Invalid IPv6 literal"));
+    }
+
+    #[test]
+    fn xfh_space_in_host_reports_violation() {
+        let rule = MessageXForwardedConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("x-forwarded-host", "exa mple.com")]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn xfh_port_too_large_reports_violation() {
+        let rule = MessageXForwardedConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("x-forwarded-host", "[::1]:70000")]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("Invalid port"));
+    }
+
+    #[test]
+    fn xfp_invalid_member_after_comma_reports_violation() {
+        let rule = MessageXForwardedConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("x-forwarded-proto", "https,:")]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn xfh_tab_in_host_reports_violation() {
+        let rule = MessageXForwardedConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "x-forwarded-host",
+            "example\t.com:80",
+        )]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn xfh_user_at_host_with_port_reports_violation() {
+        let rule = MessageXForwardedConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("x-forwarded-host", "user@host:80")]);
+        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("Invalid host"));
+    }
 }
