@@ -34,6 +34,7 @@ listen = "127.0.0.1:3000"         # Address to listen on
 captures = "captures.jsonl"       # Path to capture file
 ttl_seconds = 300                 # How long to keep state records
 captures_seed = false             # Seed state from captures file on startup
+captures_include_body = false     # When true, captured bodies are included in the captures JSONL (base64). Default: false
 ```
 
 - **listen**: The IP address and port the proxy should bind to.

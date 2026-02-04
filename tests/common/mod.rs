@@ -25,7 +25,7 @@ pub async fn start_run_proxy_and_wait(
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("tmp path not utf8"))?
         .to_string();
-    let cw = CaptureWriter::new(p.clone()).await?;
+    let cw = CaptureWriter::new(p.clone(), false).await?;
 
     // Choose a free port by binding then dropping
     let listener = std::net::TcpListener::bind("127.0.0.1:0")?;

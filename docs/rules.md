@@ -42,6 +42,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [server_redirect_status_and_location_validity](rules/server_redirect_status_and_location_validity.md) - `Location` should only appear on redirect or creation responses; presence on other statuses may indicate misconfiguration. (RFC 9110 §10.2.2, §15.4)
 - [server_x_content_type_options](rules/server_x_content_type_options.md) - Checks for `X-Content-Type-Options: nosniff`.
 - [server_problem_details_content_type](rules/server_problem_details_content_type.md) - Problem Details responses SHOULD use `application/problem+json` or `application/problem+xml`. (RFC 7807)
+- [message_problem_details_structure](rules/message_problem_details_structure.md) - `application/problem+json` responses for 4xx/5xx SHOULD include a non-empty JSON problem object; when a captured or explicit `Content-Length` is zero this is likely an error. (RFC 7807 §3.1)
 - [server_x_frame_options_value_valid](rules/server_x_frame_options_value_valid.md) - `X-Frame-Options` header must be `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <origin>` and must not appear multiple times. (RFC 7034 §2.1)
 - [server_x_xss_protection_value_valid](rules/server_x_xss_protection_value_valid.md) - `X-XSS-Protection` header value should be `0` or `1; mode=block` when present (case-insensitive). (MDN)
 - [server_content_security_policy_validity](rules/server_content_security_policy_validity.md) - Validates basic `Content-Security-Policy` directive syntax and common structural issues (unterminated quotes, empty directives). (W3C CSP)

@@ -4,6 +4,7 @@
 
 //! Request/response capture writing to JSONL format.
 
+use base64::Engine;
 use std::path::PathBuf;
 use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
@@ -12,6 +13,8 @@ use tokio::sync::Mutex;
 #[derive(Clone)]
 pub struct CaptureWriter {
     file: ArcFile,
+    /// Whether to include captured bodies in the serialized output
+    pub include_body: bool,
 }
 
 #[derive(Clone)]
@@ -41,11 +44,11 @@ impl ArcFile {
 }
 
 impl CaptureWriter {
-    pub async fn new<P: Into<PathBuf>>(path: P) -> anyhow::Result<Self> {
+    pub async fn new<P: Into<PathBuf>>(path: P, include_body: bool) -> anyhow::Result<Self> {
         let path: PathBuf = path.into();
         let p = path.to_string_lossy().to_string();
         let file = ArcFile::new(&p).await?;
-        Ok(Self { file })
+        Ok(Self { file, include_body })
     }
 
     /// Write a transaction to the JSONL file
@@ -53,7 +56,59 @@ impl CaptureWriter {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
     ) -> anyhow::Result<()> {
-        let line = serde_json::to_string(tx)?;
+        // Convert transaction to a mutable JSON value to optionally insert the
+        // captured bodies (base64 encoded) when `include_body` is enabled.
+        let mut v = serde_json::to_value(tx)?;
+
+        if self.include_body {
+            if let Some(obj) = v.as_object_mut() {
+                // request body: if present as skipped field it won't be in `v` by default
+                if let Some(req_obj) = obj.get_mut("request").and_then(|r| r.as_object_mut()) {
+                    // If original transaction had a body (it is skipped by default),
+                    // try to fetch it directly from the original `tx` and insert as base64
+                    if let Some(b) = &tx.request_body {
+                        req_obj.insert(
+                            "body".to_string(),
+                            serde_json::Value::String(
+                                base64::engine::general_purpose::STANDARD.encode(b),
+                            ),
+                        );
+                    }
+                }
+                if let Some(resp_val) = obj.get_mut("response") {
+                    if resp_val.is_object() {
+                        if let Some(resp_obj) = resp_val.as_object_mut() {
+                            if let Some(_r) = &tx.response {
+                                if let Some(b) = &tx.response_body {
+                                    resp_obj.insert(
+                                        "body".to_string(),
+                                        serde_json::Value::String(
+                                            base64::engine::general_purpose::STANDARD.encode(b),
+                                        ),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Ensure body fields are not present in serialized output (defensive)
+            if let Some(obj) = v.as_object_mut() {
+                if let Some(req_obj) = obj.get_mut("request").and_then(|r| r.as_object_mut()) {
+                    req_obj.remove("body");
+                }
+                if let Some(resp_val) = obj.get_mut("response") {
+                    if resp_val.is_object() {
+                        if let Some(resp_obj) = resp_val.as_object_mut() {
+                            resp_obj.remove("body");
+                        }
+                    }
+                }
+            }
+        }
+
+        let line = serde_json::to_string(&v)?;
         self.file.write_line(&line).await?;
         Ok(())
     }
@@ -110,7 +165,7 @@ mod tests {
             .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
             .to_string();
 
-        let cw = CaptureWriter::new(p.clone()).await?;
+        let cw = CaptureWriter::new(p.clone(), false).await?;
 
         let mut req_headers = HeaderMap::new();
         req_headers.insert("x-test", "1".parse()?);
@@ -144,6 +199,59 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn write_transaction_includes_bodies_when_enabled() -> anyhow::Result<()> {
+        let tmp =
+            std::env::temp_dir().join(format!("lint_capture_bodies_test_{}.jsonl", Uuid::new_v4()));
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+
+        // Create writer that includes bodies
+        let cw = CaptureWriter::new(p.clone(), true).await?;
+
+        use crate::test_helpers::make_test_transaction_with_response;
+        let mut tx = make_test_transaction_with_response(
+            400,
+            &[("content-type", "application/problem+json")],
+        );
+        tx.request_body = Some(bytes::Bytes::from_static(b"req-body"));
+        tx.request.body_length = Some(8);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 400,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[(
+                "content-type",
+                "application/problem+json",
+            )]),
+            body_length: Some(13),
+        });
+        tx.response_body = Some(bytes::Bytes::from_static(b"{\"type\":\"x\"}"));
+
+        cw.write_transaction(&tx).await?;
+
+        let s = fs::read_to_string(&tmp).await?;
+        let v: Value = serde_json::from_str(s.trim())?;
+        // request body should be base64 string
+        assert!(v["request"]["body"].is_string());
+        let req_b64 = v["request"]["body"].as_str().unwrap();
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD.decode(req_b64)?,
+            b"req-body"
+        );
+        // response body should be base64 string
+        assert!(v["response"]["body"].is_string());
+        let resp_b64 = v["response"]["body"].as_str().unwrap();
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD.decode(resp_b64)?,
+            b"{\"type\":\"x\"}"
+        );
+
+        fs::remove_file(&tmp).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn load_captures_reads_jsonl() -> anyhow::Result<()> {
         let tmp = std::env::temp_dir().join(format!("lint_load_test_{}.jsonl", Uuid::new_v4()));
         let p = tmp
@@ -152,7 +260,7 @@ mod tests {
             .to_string();
 
         // Write some sample transaction records
-        let cw = CaptureWriter::new(p.clone()).await?;
+        let cw = CaptureWriter::new(p.clone(), false).await?;
 
         let mut req_headers = HeaderMap::new();
         req_headers.insert("user-agent", "test-client".parse()?);
@@ -299,7 +407,7 @@ mod tests {
     async fn capture_new_with_directory_errors() -> anyhow::Result<()> {
         let dir = std::env::temp_dir().join(format!("lint_capture_dir_{}", Uuid::new_v4()));
         tokio::fs::create_dir(&dir).await?;
-        let res = CaptureWriter::new(dir.clone()).await;
+        let res = CaptureWriter::new(dir.clone(), false).await;
         assert!(res.is_err());
         tokio::fs::remove_dir(&dir).await?;
         Ok(())

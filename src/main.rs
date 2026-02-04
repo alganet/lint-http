@@ -24,7 +24,11 @@ async fn run_app(args: Args) -> anyhow::Result<()> {
     let engine = std::sync::Arc::new(engine);
 
     let addr: SocketAddr = cfg.general.listen.parse()?;
-    let capture_writer = capture::CaptureWriter::new(cfg.general.captures.clone()).await?;
+    let capture_writer = capture::CaptureWriter::new(
+        cfg.general.captures.clone(),
+        cfg.general.captures_include_body,
+    )
+    .await?;
 
     // Start proxy and return its result (no signal handling here).
     proxy::run_proxy(addr, capture_writer, cfg, engine).await
@@ -41,7 +45,11 @@ async fn run_app_with_limit(args: Args, accept_limit: Option<usize>) -> anyhow::
     let engine = std::sync::Arc::new(engine);
 
     let addr: SocketAddr = cfg.general.listen.parse()?;
-    let capture_writer = capture::CaptureWriter::new(cfg.general.captures.clone()).await?;
+    let capture_writer = capture::CaptureWriter::new(
+        cfg.general.captures.clone(),
+        cfg.general.captures_include_body,
+    )
+    .await?;
 
     // Start proxy with an accept limit for testing
     crate::proxy::run_proxy_with_limit(addr, capture_writer, cfg, engine, accept_limit).await

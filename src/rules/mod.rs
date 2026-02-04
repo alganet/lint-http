@@ -354,6 +354,7 @@ pub mod message_pragma_token_valid;
 pub mod message_prefer_header_valid;
 pub mod message_preference_applied_header_valid;
 pub mod message_priority_header_syntax;
+pub mod message_problem_details_structure;
 pub mod message_range_and_content_range_consistency;
 pub mod message_referer_uri_valid;
 pub mod message_refresh_header_syntax_valid;
@@ -443,6 +444,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_deprecation_header_syntax::ServerDeprecationHeaderSyntax,
     &server_alt_svc_header_syntax::ServerAltSvcHeaderSyntax,
     &server_problem_details_content_type::ServerProblemDetailsContentType,
+    &message_problem_details_structure::MessageProblemDetailsStructure,
     &client_request_method_token_valid::ClientRequestMethodTokenValid,
     &client_request_method_body_consistency::ClientRequestMethodBodyConsistency,
     &client_request_origin_header_present_for_cors::ClientRequestOriginHeaderPresentForCors,
