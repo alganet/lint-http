@@ -25,7 +25,7 @@ async fn test_suppress_headers() -> anyhow::Result<()> {
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("temp_capture path not utf8"))?
         .to_string();
-    let cw = lint_http::capture::CaptureWriter::new(tmp_capture_str).await?;
+    let cw = lint_http::capture::CaptureWriter::new(tmp_capture_str, false).await?;
 
     let mut cfg = lint_http::config::Config::default();
     cfg.tls.suppress_headers = vec!["x-secret".to_string()];
@@ -118,7 +118,7 @@ async fn test_passthrough_domains() -> anyhow::Result<()> {
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("temp_capture path not utf8"))?
         .to_string();
-    let cw = lint_http::capture::CaptureWriter::new(tmp_capture_str).await?;
+    let cw = lint_http::capture::CaptureWriter::new(tmp_capture_str, false).await?;
 
     let mut cfg = lint_http::config::Config::default();
     cfg.tls.enabled = true;

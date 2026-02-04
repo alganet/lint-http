@@ -341,6 +341,7 @@ where
         status: u16,
         response_headers: Option<hyper::HeaderMap<hyper::header::HeaderValue>>,
         duration_ms: u64,
+        req_body: Option<bytes::Bytes>,
     ) -> anyhow::Result<()> {
         let mut tx = crate::http_transaction::HttpTransaction::new(
             client_id.clone(),
@@ -349,6 +350,10 @@ where
         );
         tx.request.headers = req_headers.clone();
         tx.request.version = req_version;
+        if let Some(b) = req_body {
+            tx.request.body_length = Some(b.len() as u64);
+            tx.request_body = Some(b);
+        }
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
             version: "HTTP/1.1".into(),
@@ -431,13 +436,14 @@ where
                 500,
                 None,
                 duration,
+                None,
             )
             .await;
             return Ok(resp);
         }
     };
 
-    let upstream_req = match builder.body(Full::new(body_bytes)) {
+    let upstream_req = match builder.body(Full::new(body_bytes.clone())) {
         Ok(r) => r,
         Err(e) => {
             error!("failed to build upstream request: {}", e);
@@ -460,6 +466,7 @@ where
                 500,
                 None,
                 duration,
+                Some(body_bytes.clone()),
             )
             .await;
             return Ok(resp);
@@ -486,6 +493,7 @@ where
                 502,
                 None,
                 duration,
+                Some(body_bytes.clone()),
             )
             .await;
             return Ok(resp);
@@ -522,6 +530,7 @@ where
                 500,
                 None,
                 duration,
+                Some(body_bytes.clone()),
             )
             .await;
             return Ok(resp);
@@ -537,12 +546,17 @@ where
     );
     tx.request.headers = req_headers.clone();
     tx.request.version = req_version.clone();
+    // record request body and length
+    tx.request.body_length = Some(body_bytes.len() as u64);
+    tx.request_body = Some(body_bytes.clone());
+
     tx.response = Some(crate::http_transaction::ResponseInfo {
         status,
         version: resp_ver,
         headers: headers.clone(),
         body_length: Some(resp_body_bytes.len() as u64),
     });
+    tx.response_body = Some(resp_body_bytes.clone());
     tx.timing = crate::http_transaction::TimingInfo {
         duration_ms: duration,
     };
@@ -1105,7 +1119,7 @@ mod tests {
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
             .to_string();
-        let cw = CaptureWriter::new(p.clone()).await?;
+        let cw = CaptureWriter::new(p.clone(), false).await?;
 
         let https = HttpsConnectorBuilder::new()
             .with_native_roots()?

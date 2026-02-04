@@ -7,6 +7,10 @@ listen = "127.0.0.1:3000"
 captures = "captures.jsonl"
 ttl_seconds = 300
 captures_seed = false
+# When true, captured request/response bodies are included in the captures JSONL
+# file as base64 strings. Bodies are still captured in memory for rules; this
+# option only affects serialization to the captures file.
+captures_include_body = false
 
 [tls]
 enabled = true
@@ -183,6 +187,10 @@ enabled = true
 severity = "warn"
 
 [rules.server_problem_details_content_type]
+enabled = true
+severity = "warn"
+
+[rules.message_problem_details_structure]
 enabled = true
 severity = "warn"
 

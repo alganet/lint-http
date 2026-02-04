@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use hyper::HeaderMap;
 use serde::{Deserialize, Serialize};
 
+use bytes::Bytes;
 use uuid::Uuid;
 
 /// Subset of timing information for the transaction.
@@ -60,6 +61,16 @@ pub struct HttpTransaction {
     pub request: RequestInfo,
     pub response: Option<ResponseInfo>,
 
+    /// Captured decoded request body bytes. Skipped during normal serialization; the
+    /// capture writer may include these when configured to do so.
+    #[serde(skip)]
+    pub request_body: Option<Bytes>,
+
+    /// Captured decoded response body bytes. Skipped during normal serialization; the
+    /// capture writer may include these when configured to do so.
+    #[serde(skip)]
+    pub response_body: Option<Bytes>,
+
     pub timing: TimingInfo,
 
     pub violations: Vec<Violation>,
@@ -79,6 +90,8 @@ impl HttpTransaction {
                 headers: HeaderMap::new(),
                 body_length: None,
             },
+            request_body: None,
+            response_body: None,
             response: None,
             timing: TimingInfo { duration_ms: 0 },
             violations: Vec::new(),

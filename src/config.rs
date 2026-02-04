@@ -22,10 +22,20 @@ pub struct GeneralConfig {
     /// Whether to seed StateStore from captures file on startup
     #[serde(default = "default_captures_seed")]
     pub captures_seed: bool,
+
+    /// Whether captured bodies should be included in the serialized captures file.
+    /// Bodies are still captured in memory for rules; this flag controls whether
+    /// bodies are written into `captures` (default: false).
+    #[serde(default = "default_captures_include_body")]
+    pub captures_include_body: bool,
 }
 
 fn default_ttl() -> u64 {
     300
+}
+
+const fn default_captures_include_body() -> bool {
+    false
 }
 
 fn default_listen() -> String {
@@ -47,6 +57,7 @@ impl Default for GeneralConfig {
             captures: default_captures(),
             ttl_seconds: default_ttl(),
             captures_seed: default_captures_seed(),
+            captures_include_body: default_captures_include_body(),
         }
     }
 }
