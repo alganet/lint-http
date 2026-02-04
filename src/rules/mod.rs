@@ -395,6 +395,7 @@ pub mod server_must_revalidate_and_immutable_mismatch;
 pub mod server_no_body_for_1xx_204_304;
 pub mod server_patch_accept_patch_header;
 pub mod server_problem_details_content_type;
+pub mod server_redirect_status_and_location_validity;
 pub mod server_response_405_allow;
 pub mod server_response_location_on_redirect;
 pub mod server_server_timing_header_syntax;
@@ -414,6 +415,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_last_modified_rfc1123_format::ServerLastModifiedRfc1123Format,
     &server_location_header_uri_valid::ServerLocationHeaderUriValid,
     &server_response_location_on_redirect::ServerResponseLocationOnRedirect,
+    &server_redirect_status_and_location_validity::ServerRedirectStatusAndLocationValidity,
     &server_x_content_type_options::ServerXContentTypeOptions,
     &server_x_frame_options_value_valid::ServerXFrameOptionsValueValid,
     &server_x_xss_protection_value_valid::ServerXXssProtectionValueValid,

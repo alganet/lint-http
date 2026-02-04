@@ -62,6 +62,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.server_redirect_status_and_location_validity]
+enabled = true
+severity = "warn"
+
 [rules.server_x_content_type_options]
 enabled = true
 severity = "warn"
