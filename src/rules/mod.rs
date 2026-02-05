@@ -281,6 +281,7 @@ pub mod client_accept_ranges_on_partial_content;
 pub mod client_cache_respect;
 pub mod client_expect_header_valid;
 pub mod client_host_header;
+pub mod client_patch_method_content_type_match;
 pub mod client_range_header_syntax_valid;
 pub mod client_request_method_body_consistency;
 pub mod client_request_method_token_valid;
@@ -447,6 +448,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_problem_details_structure::MessageProblemDetailsStructure,
     &client_request_method_token_valid::ClientRequestMethodTokenValid,
     &client_request_method_body_consistency::ClientRequestMethodBodyConsistency,
+    &client_patch_method_content_type_match::ClientPatchMethodContentTypeMatch,
     &client_request_origin_header_present_for_cors::ClientRequestOriginHeaderPresentForCors,
     &client_expect_header_valid::ClientExpectHeaderValid,
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,

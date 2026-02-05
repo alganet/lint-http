@@ -121,6 +121,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.client_patch_method_content_type_match]
+enabled = true
+severity = "warn"
+
 [rules.message_user_agent_token_valid]
 enabled = true
 severity = "warn"

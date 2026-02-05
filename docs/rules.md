@@ -22,6 +22,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [client_host_header](rules/client_host_header.md) - Ensures `Host` header is present and valid: presence, port numeric/range, IPv6 bracket rules, and no userinfo.
 - [client_request_method_token_valid](rules/client_request_method_token_valid.md) - Method token must match the `token` grammar with uppercase alphabetic characters. (RFC 9112 §5.1)
 - [client_request_method_body_consistency](rules/client_request_method_body_consistency.md) - Flags unexpected request message bodies on safe methods (GET, HEAD). (RFC 9110 §6.3)
+- [client_patch_method_content_type_match](rules/client_patch_method_content_type_match.md) - If previous response advertised `Accept-Patch`, `PATCH` requests SHOULD use `Content-Type` matching one of the advertised media types. (RFC 5789 §2.2)
 - [client_expect_header_valid](rules/client_expect_header_valid.md) - `Expect` header members must be syntactically valid; `100-continue` must not have parameters. (RFC 9110 §10.1.1)
 - [client_request_target_no_fragment](rules/client_request_target_no_fragment.md) - Request-target MUST NOT include a URI fragment (`#`) in origin-form.
 - [client_request_target_form_checks](rules/client_request_target_form_checks.md) - Enforce correct request-target forms: `CONNECT` uses authority-form; `*` only valid for `OPTIONS`. (RFC 9112 §2.7).
