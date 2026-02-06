@@ -639,6 +639,50 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
     })
 }
 
+/// Extract the value of a `boundary` parameter from a `multipart/*` Content-Type header.
+/// - Returns `Some(boundary)` unquoted/unescaped when present and well-structured, `None` otherwise.
+/// - This helper is intentionally conservative: it returns `None` when the Content-Type cannot be
+///   parsed or the boundary parameter is missing or not well-formed (e.g., invalid quoted-string).
+pub fn extract_multipart_boundary(val: &str) -> Option<String> {
+    let parsed = parse_media_type(val).ok()?;
+    if !parsed.type_.eq_ignore_ascii_case("multipart") {
+        return None;
+    }
+    let params = parsed.params?;
+    for raw in params.split(';') {
+        let p = raw.trim();
+        if p.is_empty() {
+            continue;
+        }
+        if let Some(eq) = p.find('=') {
+            let (name, value) = p.split_at(eq);
+            let name = name.trim();
+            let value = value[1..].trim(); // skip '='
+            if name.eq_ignore_ascii_case("boundary") {
+                if value.is_empty() {
+                    return None;
+                }
+                if value.starts_with('"') {
+                    // quoted-string: unescape using existing helper; if it fails, treat as missing
+                    match unescape_quoted_string(value) {
+                        Ok(u) => {
+                            // Empty boundary (after unquoting) is invalid -> treat as missing
+                            if u.trim().is_empty() {
+                                return None;
+                            }
+                            return Some(u);
+                        }
+                        Err(_) => return None,
+                    }
+                } else {
+                    return Some(value.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Return the structured-syntax suffix part of a subtype if present (the part after the last `+`).
 /// For example, `ld+json` -> `json`. This is a small helper for rules that need to inspect
 /// subtype suffixes. Returns `None` for subtypes with no `+`.
@@ -772,6 +816,44 @@ mod tests {
         assert_eq!(media_type_subtype_suffix("foo+"), Some(""));
         // Multiple plus (take last)
         assert_eq!(media_type_subtype_suffix("a+b+json"), Some("json"));
+    }
+
+    #[test]
+    fn extract_multipart_boundary_basic() {
+        assert_eq!(
+            extract_multipart_boundary("multipart/mixed; boundary=gc0p4Jq0M2Yt08j34c0p"),
+            Some("gc0p4Jq0M2Yt08j34c0p".to_string())
+        );
+        assert_eq!(
+            extract_multipart_boundary("multipart/mixed; boundary=\"a b\""),
+            Some("a b".to_string())
+        );
+        assert_eq!(extract_multipart_boundary("text/plain; boundary=abc"), None);
+        assert_eq!(extract_multipart_boundary("multipart/mixed"), None);
+    }
+
+    #[test]
+    fn extract_multipart_boundary_edge_cases() {
+        // quoted empty boundary -> treated as missing
+        assert_eq!(
+            extract_multipart_boundary("multipart/mixed; boundary=\"\""),
+            None
+        );
+        // unquoted empty boundary -> treated as missing
+        assert_eq!(
+            extract_multipart_boundary("multipart/mixed; boundary="),
+            None
+        );
+        // malformed quoted-string -> treated as missing
+        assert_eq!(
+            extract_multipart_boundary("multipart/mixed; boundary=\"unterminated"),
+            None
+        );
+        // multiple params and surrounding whitespace
+        assert_eq!(
+            extract_multipart_boundary("multipart/mixed; foo=bar; boundary=abc ; baz=1"),
+            Some("abc".to_string())
+        );
     }
 
     #[test]
