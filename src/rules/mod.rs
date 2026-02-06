@@ -349,6 +349,7 @@ pub mod message_link_header_validity;
 pub mod message_max_forwards_numeric;
 pub mod message_media_type_suffix_validity;
 pub mod message_multipart_boundary_syntax;
+pub mod message_multipart_content_type_and_body_consistency;
 pub mod message_origin_isolated_header_validity;
 pub mod message_permissions_policy_directives_valid;
 pub mod message_pragma_token_valid;
@@ -467,6 +468,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_media_type_suffix_validity::MessageMediaTypeSuffixValidity,
     &message_charset_iana_registered::MessageCharsetIanaRegistered,
     &message_multipart_boundary_syntax::MessageMultipartBoundarySyntax,
+    &message_multipart_content_type_and_body_consistency::MessageMultipartContentTypeAndBodyConsistency,
     &message_content_disposition_token_valid::MessageContentDispositionTokenValid,
     &message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity,
     &message_accept_header_media_type_syntax::MessageAcceptHeaderMediaTypeSyntax,

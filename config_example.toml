@@ -502,6 +502,10 @@ severity = "error"
 enabled = true
 severity = "error"
 
+[rules.message_multipart_content_type_and_body_consistency]
+enabled = true
+severity = "warn"
+
 [rules.message_header_field_names_token]
 enabled = true
 severity = "warn"
