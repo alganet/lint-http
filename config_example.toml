@@ -551,6 +551,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.client_prefer_header_and_preference_applied]
+enabled = true
+severity = "warn"
+
 [rules.message_max_forwards_numeric]
 enabled = true
 severity = "warn"

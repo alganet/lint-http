@@ -154,5 +154,6 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_refresh_header_syntax_valid](rules/message_refresh_header_syntax_valid.md) - `Refresh` header (non-standard) must be `delta-seconds` or `delta-seconds; url=<URI>` and follow URI syntax for `url` parameter. (MDN)
 - [message_prefer_header_valid](rules/message_prefer_header_valid.md) - `Prefer` header directives and parameters must be syntactically valid. (RFC 7240 §2)
 - [message_preference_applied_header_valid](rules/message_preference_applied_header_valid.md) - `Preference-Applied` header must list preferences that were present in the request's `Prefer` header; parameters are not allowed. (RFC 7240 §3)
+- [client_prefer_header_and_preference_applied](rules/client_prefer_header_and_preference_applied.md) - When a request includes `Prefer`, responses should include `Preference-Applied` to indicate which preferences were applied (RFC 7240 §3). (Best-practice)
 - [message_allow_header_method_tokens](rules/message_allow_header_method_tokens.md) - `Allow` header must contain valid HTTP method tokens. (RFC 9110 §7.1.1)
 - [message_age_header_numeric](rules/message_age_header_numeric.md) - `Age` header value must be a non-negative integer (delta-seconds).
