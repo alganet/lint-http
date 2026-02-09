@@ -29,6 +29,10 @@ severity = "info"
 enabled = true
 severity = "info"
 
+[rules.client_sec_websocket_headers_consistency]
+enabled = false
+severity = "warn"
+
 [rules.client_cache_respect]
 enabled = true
 severity = "warn"
