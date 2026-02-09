@@ -108,7 +108,11 @@ fn check_content_type(
 
     // If parameters exist, do a basic validation: name=value pairs, name token, value token or quoted-string
     if let Some(params) = parsed.params {
-        for p in crate::helpers::headers::parse_semicolon_list(params) {
+        for p_raw in crate::helpers::headers::split_semicolons_respecting_quotes(params) {
+            let p = p_raw.trim();
+            if p.is_empty() {
+                continue;
+            }
             if let Some(eq) = p.find('=') {
                 let (name, value) = p.split_at(eq);
                 let name = name.trim();
@@ -172,6 +176,7 @@ mod tests {
     #[case("application/json", false)]
     #[case("application/json; charset=utf-8", false)]
     #[case("text/html; charset=\"utf-8\"", false)]
+    #[case("text/plain; foo=\"a;b\"", false)]
     #[case("image/vnd.example+json; charset=utf-8; foo=bar", false)]
     #[case("text", true)]
     #[case("text/", true)]

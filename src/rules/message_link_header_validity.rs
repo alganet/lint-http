@@ -85,12 +85,16 @@ impl Rule for MessageLinkHeaderValidity {
 
                 if !params.is_empty() {
                     // params are semicolon-separated
-                    for p in crate::helpers::headers::parse_semicolon_list(params) {
+                    for p_raw in crate::helpers::headers::split_semicolons_respecting_quotes(params)
+                    {
+                        let p = p_raw.trim();
+                        if p.is_empty() {
+                            continue;
+                        }
                         let mut nv = p.splitn(2, '=').map(|s| s.trim());
                         let name = nv.next().expect(
                             "splitn(2, '=') over a parameter always yields at least one segment",
                         );
-
                         // validate token characters in param name
                         if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
                             return Some(Violation {
@@ -228,6 +232,7 @@ mod tests {
     #[case(Some(("Link", "<https://example.com/>; rel=preload")), true)]
     #[case(Some(("Link", "<https://example.com/>; rel=preload; as=script")), false)]
     #[case(Some(("Link", "<https://example.com/>; rel=\"next\"; title=\"Home\"")), false)]
+    #[case(Some(("Link", "<https://example.com/>; title=\"a;b\"")), false)]
     #[case(Some(("Link", "<https://example.com/>; bad@=1")), true)]
     fn check_link_cases(#[case] header: Option<(&str, &str)>, #[case] expect_violation: bool) {
         let rule = MessageLinkHeaderValidity;
