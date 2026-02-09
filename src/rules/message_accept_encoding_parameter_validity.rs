@@ -30,7 +30,9 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                 // For each comma-separated member
                 for part in crate::helpers::headers::parse_list_header(val) {
                     // Split into token and optional params
-                    let mut iter = crate::helpers::headers::parse_semicolon_list(part);
+                    let mut iter =
+                        crate::helpers::headers::split_semicolons_respecting_quotes(part)
+                            .into_iter();
                     if let Some(primary) = iter.next() {
                         // primary may be '*' or token
                         if primary != "*" {
@@ -48,6 +50,7 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                         }
 
                         for param in iter {
+                            let param = param.trim();
                             if param.is_empty() {
                                 continue;
                             }
@@ -190,6 +193,7 @@ mod tests {
     #[rstest]
     #[case(Some("gzip;param=token"), false)]
     #[case(Some("gzip;param=\"ok\""), false)]
+    #[case(Some("gzip;param=\"a;b\""), false)]
     #[case(Some("gzip;param=bad value"), true)]
     #[case(Some("gzip;param=\"unterminated"), true)]
     #[case(Some("gzip;#=1"), false)]

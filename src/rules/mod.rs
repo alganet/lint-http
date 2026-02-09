@@ -335,6 +335,7 @@ pub mod message_early_data_header_safe_method;
 pub mod message_etag_syntax;
 pub mod message_expires_and_cache_control_consistency;
 pub mod message_extension_headers_registered;
+pub mod message_form_data_content_disposition_valid;
 pub mod message_forwarded_header_validity;
 pub mod message_from_header_email_syntax;
 pub mod message_header_field_names_token;
@@ -473,6 +474,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_multipart_content_type_and_body_consistency::MessageMultipartContentTypeAndBodyConsistency,
     &message_content_disposition_token_valid::MessageContentDispositionTokenValid,
     &message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity,
+    &message_form_data_content_disposition_valid::MessageFormDataContentDispositionValid,
     &message_accept_header_media_type_syntax::MessageAcceptHeaderMediaTypeSyntax,
     &message_accept_and_content_type_negotiation::MessageAcceptAndContentTypeNegotiation,
     &message_language_tag_format_valid::MessageLanguageTagFormatValid,

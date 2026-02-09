@@ -79,7 +79,15 @@ pub fn parse_list_header(val: &str) -> impl Iterator<Item = &str> {
 /// Parse a semicolon-separated list of directive values.
 ///
 /// This iterator splits by semicolon, trims whitespace, and skips empty parts.
-/// Similar to `parse_list_header` but for semicolon-delimited lists.
+/// IMPORTANT: This is a *naive* splitter that simply calls `split(';')` and does
+/// NOT respect quoted-strings. Do NOT use this helper for header parameter
+/// parsing where quoted-string values may themselves contain semicolons
+/// (for example, `Content-Disposition` parameters). For quote-aware splitting,
+/// use `split_semicolons_respecting_quotes` which understands DQUOTE quoting and
+/// backslash escapes.
+///
+/// Use `parse_semicolon_list` only for simple cases where you are certain
+/// values cannot include quoted semicolons.
 pub fn parse_semicolon_list(val: &str) -> impl Iterator<Item = &str> {
     val.split(';').map(|s| s.trim()).filter(|s| !s.is_empty())
 }
@@ -1157,6 +1165,25 @@ mod tests {
             let exp: Vec<String> = expected.iter().map(|s| s.trim().to_string()).collect();
             assert_eq!(got, exp, "input: {:?}", input);
         }
+    }
+
+    #[test]
+    fn test_parse_semicolon_list_basic_cases() {
+        let got: Vec<&str> = parse_semicolon_list("a; b; ; c; ").collect();
+        assert_eq!(got, vec!["a", "b", "c"]);
+
+        let got2: Vec<&str> = parse_semicolon_list("   ").collect();
+        assert!(got2.is_empty());
+    }
+
+    #[test]
+    fn test_parse_semicolon_list_unsafe_for_quoted_strings() {
+        // Demonstrate that the naive parser does not respect quoted-strings.
+        // This shows why callers that parse header parameters with quoted values
+        // should prefer `split_semicolons_respecting_quotes`.
+        let got: Vec<&str> = parse_semicolon_list("token=\"a;b\";x").collect();
+        // naive split will break the quoted-string into multiple parts
+        assert_eq!(got, vec!["token=\"a", "b\"", "x"]);
     }
 
     #[test]
