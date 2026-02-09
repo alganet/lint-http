@@ -381,6 +381,7 @@ pub mod message_warning_header_syntax;
 pub mod message_well_known_uri_format;
 pub mod message_www_authenticate_challenge_syntax;
 pub mod message_x_forwarded_consistency;
+pub mod server_3xx_vs_request_method;
 pub mod server_accept_ranges_values_valid;
 pub mod server_alt_svc_header_syntax;
 pub mod server_authentication_challenge_validity;
@@ -419,6 +420,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_location_header_uri_valid::ServerLocationHeaderUriValid,
     &server_response_location_on_redirect::ServerResponseLocationOnRedirect,
     &server_redirect_status_and_location_validity::ServerRedirectStatusAndLocationValidity,
+    &server_3xx_vs_request_method::Server3xxVsRequestMethod,
     &server_x_content_type_options::ServerXContentTypeOptions,
     &server_x_frame_options_value_valid::ServerXFrameOptionsValueValid,
     &server_x_xss_protection_value_valid::ServerXXssProtectionValueValid,

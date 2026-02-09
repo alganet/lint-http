@@ -70,6 +70,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.server_3xx_vs_request_method]
+enabled = true
+severity = "warn"
+
 [rules.server_x_content_type_options]
 enabled = true
 severity = "warn"
