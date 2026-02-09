@@ -282,6 +282,7 @@ pub mod client_cache_respect;
 pub mod client_expect_header_valid;
 pub mod client_host_header;
 pub mod client_patch_method_content_type_match;
+pub mod client_prefer_header_and_preference_applied;
 pub mod client_range_header_syntax_valid;
 pub mod client_request_method_body_consistency;
 pub mod client_request_method_token_valid;
@@ -526,6 +527,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_cache_control_and_pragma_consistency::MessageCacheControlAndPragmaConsistency,
     &message_pragma_token_valid::MessagePragmaTokenValid,
     &message_preference_applied_header_valid::MessagePreferenceAppliedHeaderValid,
+    &client_prefer_header_and_preference_applied::ClientPreferHeaderAndPreferenceApplied,
     &message_max_forwards_numeric::MessageMaxForwardsNumeric,
     &message_age_header_numeric::MessageAgeHeaderNumeric,
     &message_allow_header_method_tokens::MessageAllowHeaderMethodTokens,
