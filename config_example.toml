@@ -178,6 +178,10 @@ enabled = true
 severity = "warn"
 max_timeout_seconds = 3600
 
+[rules.server_200_vs_204_body_consistency]
+enabled = true
+severity = "warn"
+
 [rules.message_sec_fetch_user_value_valid]
 enabled = true
 severity = "warn"

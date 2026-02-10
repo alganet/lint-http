@@ -55,6 +55,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [server_charset_specification](rules/server_charset_specification.md) - Checks text-based `Content-Type` headers include charset parameter.
 - [server_clear_site_data](rules/server_clear_site_data.md) - Checks logout endpoints include `Clear-Site-Data` header (configurable paths).
 - [server_no_body_for_1xx_204_304](rules/server_no_body_for_1xx_204_304.md) - Flags responses with status 1xx, 204, or 304 that appear to include a message body.
+- [server_200_vs_204_body_consistency](rules/server_200_vs_204_body_consistency.md) - Warn when a 200 (OK) response contains no body (e.g., `Content-Length: 0`); consider using `204 No Content` instead. (RFC 9110 §15.3.1)
 - [server_status_code_valid_range](rules/server_status_code_valid_range.md) - HTTP response status codes must be in the range 100–599.
 - [server_content_type_present](rules/server_content_type_present.md) - Ensure responses that likely contain a body include `Content-Type`.
 - [server_accept_ranges_values_valid](rules/server_accept_ranges_values_valid.md) - `Accept-Ranges` should be either `bytes` or `none` and `none` must not be combined with other values. (RFC 9110 §7.3.4)

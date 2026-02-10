@@ -384,6 +384,7 @@ pub mod message_warning_header_syntax;
 pub mod message_well_known_uri_format;
 pub mod message_www_authenticate_challenge_syntax;
 pub mod message_x_forwarded_consistency;
+pub mod server_200_vs_204_body_consistency;
 pub mod server_3xx_vs_request_method;
 pub mod server_accept_ranges_values_valid;
 pub mod server_alt_svc_header_syntax;
@@ -538,6 +539,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_last_modified_rfc1123_format::ServerLastModifiedRfc1123Format,
     &server_location_header_uri_valid::ServerLocationHeaderUriValid,
     &server_must_revalidate_and_immutable_mismatch::ServerMustRevalidateAndImmutableMismatch,
+    &server_200_vs_204_body_consistency::Server200Vs204BodyConsistency,
     &server_no_body_for_1xx_204_304::ServerNoBodyFor1xx204304,
     &server_patch_accept_patch_header::ServerPatchAcceptPatchHeader,
     &server_problem_details_content_type::ServerProblemDetailsContentType,
