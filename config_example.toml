@@ -141,6 +141,10 @@ severity = "warn"
 enabled = true
 severity = "error"
 
+[rules.client_expect_100_continue_stateful]
+enabled = true
+severity = "warn"
+
 [rules.client_request_target_no_fragment]
 enabled = true
 severity = "error"
