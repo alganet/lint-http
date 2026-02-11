@@ -321,6 +321,7 @@ pub mod message_content_encoding_iana_registered;
 pub mod message_content_length;
 pub mod message_content_length_vs_transfer_encoding;
 pub mod message_content_location_and_uri_consistency;
+pub mod message_content_md5_vs_digest_preference;
 pub mod message_content_security_policy_and_frame_options_consistency;
 pub mod message_content_transfer_encoding_valid;
 pub mod message_content_type_iana_registered;
@@ -463,13 +464,14 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
     &message_content_length::MessageContentLength,
     &message_content_location_and_uri_consistency::MessageContentLocationAndUriConsistency,
+    &message_content_md5_vs_digest_preference::MessageContentMd5VsDigestPreference,
     &message_content_security_policy_and_frame_options_consistency::MessageContentSecurityPolicyAndFrameOptionsConsistency,
     &message_content_transfer_encoding_valid::MessageContentTransferEncodingValid,
     &message_content_type_iana_registered::MessageContentTypeIanaRegistered,
     &message_content_type_well_formed::MessageContentTypeWellFormed,
     &message_cookie_attribute_consistency::MessageCookieAttributeConsistency,
-    &message_cookie_path_validity::MessageCookiePathValidity,
     &message_cookie_domain_validity::MessageCookieDomainValidity,
+    &message_cookie_path_validity::MessageCookiePathValidity,
     &message_cross_origin_embedder_policy_valid::MessageCrossOriginEmbedderPolicyValid,
     &message_cross_origin_opener_policy_valid::MessageCrossOriginOpenerPolicyValid,
     &message_cross_origin_resource_policy_valid::MessageCrossOriginResourcePolicyValid,
