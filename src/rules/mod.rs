@@ -402,6 +402,7 @@ pub mod server_location_header_uri_valid;
 pub mod server_must_revalidate_and_immutable_mismatch;
 pub mod server_no_body_for_1xx_204_304;
 pub mod server_patch_accept_patch_header;
+pub mod server_priority_and_cacheability_consistency;
 pub mod server_problem_details_content_type;
 pub mod server_redirect_status_and_location_validity;
 pub mod server_response_405_allow;
@@ -524,6 +525,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_well_known_uri_format::MessageWellKnownUriFormat,
     &message_www_authenticate_challenge_syntax::MessageWwwAuthenticateChallengeSyntax,
     &message_x_forwarded_consistency::MessageXForwardedConsistency,
+    &server_200_vs_204_body_consistency::Server200Vs204BodyConsistency,
     &server_3xx_vs_request_method::Server3xxVsRequestMethod,
     &server_accept_ranges_values_valid::ServerAcceptRangesValuesValid,
     &server_alt_svc_header_syntax::ServerAltSvcHeaderSyntax,
@@ -539,9 +541,9 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_last_modified_rfc1123_format::ServerLastModifiedRfc1123Format,
     &server_location_header_uri_valid::ServerLocationHeaderUriValid,
     &server_must_revalidate_and_immutable_mismatch::ServerMustRevalidateAndImmutableMismatch,
-    &server_200_vs_204_body_consistency::Server200Vs204BodyConsistency,
     &server_no_body_for_1xx_204_304::ServerNoBodyFor1xx204304,
     &server_patch_accept_patch_header::ServerPatchAcceptPatchHeader,
+    &server_priority_and_cacheability_consistency::ServerPriorityAndCacheabilityConsistency,
     &server_problem_details_content_type::ServerProblemDetailsContentType,
     &server_redirect_status_and_location_validity::ServerRedirectStatusAndLocationValidity,
     &server_response_405_allow::ServerResponse405Allow,
