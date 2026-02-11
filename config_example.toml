@@ -474,6 +474,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_cookie_path_validity]
+enabled = true
+severity = "warn"
+
 [rules.message_cookie_domain_validity]
 enabled = true
 severity = "warn"

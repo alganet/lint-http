@@ -327,6 +327,7 @@ pub mod message_content_type_iana_registered;
 pub mod message_content_type_well_formed;
 pub mod message_cookie_attribute_consistency;
 pub mod message_cookie_domain_validity;
+pub mod message_cookie_path_validity;
 pub mod message_cross_origin_embedder_policy_valid;
 pub mod message_cross_origin_opener_policy_valid;
 pub mod message_cross_origin_resource_policy_valid;
@@ -467,6 +468,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_content_type_iana_registered::MessageContentTypeIanaRegistered,
     &message_content_type_well_formed::MessageContentTypeWellFormed,
     &message_cookie_attribute_consistency::MessageCookieAttributeConsistency,
+    &message_cookie_path_validity::MessageCookiePathValidity,
     &message_cookie_domain_validity::MessageCookieDomainValidity,
     &message_cross_origin_embedder_policy_valid::MessageCrossOriginEmbedderPolicyValid,
     &message_cross_origin_opener_policy_valid::MessageCrossOriginOpenerPolicyValid,
