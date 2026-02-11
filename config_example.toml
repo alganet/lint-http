@@ -443,6 +443,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_content_md5_vs_digest_preference]
+enabled = true
+severity = "warn"
+
 [rules.message_warning_header_syntax]
 enabled = true
 severity = "warn"
