@@ -375,6 +375,7 @@ pub mod message_sec_fetch_user_value_valid;
 pub mod message_server_header_product_valid;
 pub mod message_strict_transport_security_validity;
 pub mod message_structured_headers_validity;
+pub mod message_sunset_and_deprecation_consistency;
 pub mod message_te_header_constraints;
 pub mod message_timing_allow_origin_validity;
 pub mod message_trailer_headers_valid;
@@ -478,6 +479,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_cross_origin_opener_policy_valid::MessageCrossOriginOpenerPolicyValid,
     &message_cross_origin_resource_policy_valid::MessageCrossOriginResourcePolicyValid,
     &message_date_and_time_headers_consistency::MessageDateAndTimeHeadersConsistency,
+    &message_sunset_and_deprecation_consistency::MessageSunsetAndDeprecationConsistency,
     &message_digest_auth_validity::MessageDigestAuthValidity,
     &message_digest_header_syntax::MessageDigestHeaderSyntax,
     &message_early_data_header_safe_method::MessageEarlyDataHeaderSafeMethod,

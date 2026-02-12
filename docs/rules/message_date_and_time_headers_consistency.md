@@ -34,7 +34,7 @@ severity = "warn"
 HTTP/1.1 200 OK
 Date: Wed, 21 Oct 2015 07:28:00 GMT
 Last-Modified: Wed, 21 Oct 2015 07:20:00 GMT
-Sunset: Fri, 01 Jan 2030 00:00:00 GMT
+Sunset: Tue, 01 Jan 2030 00:00:00 GMT
 ```
 
 ### ❌ Bad

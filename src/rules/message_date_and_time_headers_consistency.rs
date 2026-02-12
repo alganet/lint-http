@@ -364,7 +364,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
             "sunset",
-            "Fri, 01 Jan 2030 00:00:00 GMT",
+            "Tue, 01 Jan 2030 00:00:00 GMT",
         )]);
 
         let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
