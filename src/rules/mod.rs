@@ -390,6 +390,7 @@ pub mod server_200_vs_204_body_consistency;
 pub mod server_3xx_vs_request_method;
 pub mod server_accept_ranges_values_valid;
 pub mod server_alt_svc_header_syntax;
+pub mod server_alt_svc_protocol_iana_registered;
 pub mod server_authentication_challenge_validity;
 pub mod server_cache_control_present;
 pub mod server_charset_specification;
@@ -533,6 +534,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_3xx_vs_request_method::Server3xxVsRequestMethod,
     &server_accept_ranges_values_valid::ServerAcceptRangesValuesValid,
     &server_alt_svc_header_syntax::ServerAltSvcHeaderSyntax,
+    &server_alt_svc_protocol_iana_registered::ServerAltSvcProtocolIanaRegistered,
     &server_authentication_challenge_validity::ServerAuthenticationChallengeValidity,
     &server_cache_control_present::ServerCacheControlPresent,
     &server_charset_specification::ServerCharsetSpecification,
