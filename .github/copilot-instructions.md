@@ -21,7 +21,7 @@ Short, actionable tips for AI agents and contributors working on `lint-http`: wh
 - Note: for minimum supported Rust version and other tooling settings, rely on repo files like `Cargo.toml` and `.cargo/config.toml` as the sources of truth.
 
 ## How rules are added and validated (do this exactly) 🧩
-1. Add a file: `src/rules/<client|server>_<name>.rs` (name → rule id returned by `id()`).
+1. Add a file: `src/rules/<client|server|semantic>_<name>.rs` (name → rule id returned by `id()`).
 2. Implement the `Rule` trait (see `src/rules/mod.rs` for the trait signature and `RuleScope`).
    - If your rule needs custom config, override `validate_and_box` to return a parsed config type.
 3. Register the rule in `src/rules/mod.rs` (add module and append to `RULES`).
