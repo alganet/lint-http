@@ -206,6 +206,11 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.server_alt_svc_protocol_iana_registered]
+enabled = true
+severity = "warn"
+allowed = ["h2", "h3", "h2c", "ws", "wss"]
+
 [rules.server_problem_details_content_type]
 enabled = true
 severity = "warn"
