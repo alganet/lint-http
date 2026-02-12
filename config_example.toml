@@ -177,6 +177,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.semantic_status_code_semantics]
+enabled = true
+severity = "warn"
+
 [rules.server_keep_alive_timeout_reasonable]
 enabled = true
 severity = "warn"
