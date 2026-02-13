@@ -420,6 +420,7 @@ pub mod server_vary_header_valid;
 pub mod server_x_content_type_options;
 pub mod server_x_frame_options_value_valid;
 pub mod server_x_xss_protection_value_valid;
+pub mod stateful_conditional_request_handling;
 
 pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_accept_encoding_present::ClientAcceptEncodingPresent,
@@ -458,6 +459,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_charset_iana_registered::MessageCharsetIanaRegistered,
     &message_compression_and_transfer_encoding_consistency::MessageCompressionAndTransferEncodingConsistency,
     &message_conditional_headers_consistency::MessageConditionalHeadersConsistency,
+    &stateful_conditional_request_handling::StatefulConditionalRequestHandling,
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity,

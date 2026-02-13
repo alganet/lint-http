@@ -20,6 +20,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [client_user_agent_present](rules/client_user_agent_present.md) - Checks if `User-Agent` header is present.
 - [client_sec_websocket_headers_consistency](rules/client_sec_websocket_headers_consistency.md) - Validates WebSocket handshake request headers: `Upgrade`, `Connection`, `Sec-WebSocket-Key` and `Sec-WebSocket-Version` (RFC 6455).
 - [client_cache_respect](rules/client_cache_respect.md) - Verifies clients send conditional headers when re-requesting cached resources.
+- [stateful_conditional_request_handling](rules/stateful_conditional_request_handling.md) - Ensure conditional requests are only sent after observing validators (ETag/Last-Modified); recommend `304` for conditional `GET`/`HEAD` when validators match. (RFC 9110 §7.8)
 - [client_host_header](rules/client_host_header.md) - Ensures `Host` header is present and valid: presence, port numeric/range, IPv6 bracket rules, and no userinfo.
 - [client_request_method_token_valid](rules/client_request_method_token_valid.md) - Method token must match the `token` grammar with uppercase alphabetic characters. (RFC 9112 §5.1)
 - [client_request_method_body_consistency](rules/client_request_method_body_consistency.md) - Flags unexpected request message bodies on safe methods (GET, HEAD). (RFC 9110 §6.3)
