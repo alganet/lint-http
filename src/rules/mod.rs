@@ -387,6 +387,7 @@ pub mod message_warning_header_syntax;
 pub mod message_well_known_uri_format;
 pub mod message_www_authenticate_challenge_syntax;
 pub mod message_x_forwarded_consistency;
+pub mod semantic_head_response_headers_match_get;
 pub mod semantic_status_code_semantics;
 pub mod server_200_vs_204_body_consistency;
 pub mod server_3xx_vs_request_method;
@@ -537,6 +538,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_well_known_uri_format::MessageWellKnownUriFormat,
     &message_www_authenticate_challenge_syntax::MessageWwwAuthenticateChallengeSyntax,
     &semantic_status_code_semantics::SemanticStatusCodeSemantics,
+    &semantic_head_response_headers_match_get::SemanticHeadResponseHeadersMatchGet,
     &message_x_forwarded_consistency::MessageXForwardedConsistency,
     &server_200_vs_204_body_consistency::Server200Vs204BodyConsistency,
     &server_3xx_vs_request_method::Server3xxVsRequestMethod,
