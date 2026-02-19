@@ -421,6 +421,7 @@ pub mod server_x_content_type_options;
 pub mod server_x_frame_options_value_valid;
 pub mod server_x_xss_protection_value_valid;
 pub mod stateful_conditional_request_handling;
+pub mod stateful_redirect_chain_validity;
 
 pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_accept_encoding_present::ClientAcceptEncodingPresent,
@@ -460,6 +461,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_compression_and_transfer_encoding_consistency::MessageCompressionAndTransferEncodingConsistency,
     &message_conditional_headers_consistency::MessageConditionalHeadersConsistency,
     &stateful_conditional_request_handling::StatefulConditionalRequestHandling,
+    &stateful_redirect_chain_validity::StatefulRedirectChainValidity,
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity,

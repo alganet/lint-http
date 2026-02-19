@@ -43,6 +43,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [server_location_header_uri_valid](rules/server_location_header_uri_valid.md) - `Location` header value should be a valid URI-reference.
 - [server_response_location_on_redirect](rules/server_response_location_on_redirect.md) - Redirect responses SHOULD include `Location` header when semantics require it (RFC 9110 §10.2.2, §15.4).
 - [server_redirect_status_and_location_validity](rules/server_redirect_status_and_location_validity.md) - `Location` should only appear on redirect or creation responses; presence on other statuses may indicate misconfiguration. (RFC 9110 §10.2.2, §15.4)
+- [stateful_redirect_chain_validity](rules/stateful_redirect_chain_validity.md) - Detect circular redirects and repeated redirect targets for the same client+resource; helps identify redirect loops and misconfigurations. (RFC 9110 §6.4)
 - [server_3xx_vs_request_method](rules/server_3xx_vs_request_method.md) - When responding to unsafe request methods (POST/PUT/PATCH/DELETE), prefer 303 to redirect-to-GET or 307/308 to preserve method and body; 301/302 are historically ambiguous. (RFC 9110 §6.4)
 - [server_x_content_type_options](rules/server_x_content_type_options.md) - Checks for `X-Content-Type-Options: nosniff`.
 - [server_problem_details_content_type](rules/server_problem_details_content_type.md) - Problem Details responses SHOULD use `application/problem+json` or `application/problem+xml`. (RFC 7807)
