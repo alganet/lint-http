@@ -413,6 +413,7 @@ pub mod server_problem_details_content_type;
 pub mod server_redirect_status_and_location_validity;
 pub mod server_response_405_allow;
 pub mod server_response_location_on_redirect;
+pub mod server_retry_after_status_validity;
 pub mod server_server_timing_header_syntax;
 pub mod server_status_and_caching_semantics;
 pub mod server_status_code_valid_range;
@@ -566,6 +567,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_redirect_status_and_location_validity::ServerRedirectStatusAndLocationValidity,
     &server_response_405_allow::ServerResponse405Allow,
     &server_response_location_on_redirect::ServerResponseLocationOnRedirect,
+    &server_retry_after_status_validity::ServerRetryAfterStatusValidity,
     &server_server_timing_header_syntax::ServerServerTimingHeaderSyntax,
     &server_status_and_caching_semantics::ServerStatusAndCachingSemantics,
     &server_status_code_valid_range::ServerStatusCodeValidRange,
