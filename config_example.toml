@@ -194,6 +194,10 @@ enabled = true
 severity = "warn"
 headers = ["etag", "content-type", "content-length"]
 
+[rules.semantic_trace_method_echo]
+enabled = true
+severity = "warn"
+
 [rules.server_keep_alive_timeout_reasonable]
 enabled = true
 severity = "warn"
