@@ -13,6 +13,7 @@ pub mod domain;
 pub mod headers;
 pub mod ipv6;
 pub mod language;
+pub mod status;
 pub mod structured_fields;
 pub mod token;
 pub mod uri;

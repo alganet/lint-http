@@ -589,6 +589,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.server_retry_after_status_validity]
+enabled = true
+severity = "warn"
+
 [rules.message_refresh_header_syntax_valid]
 enabled = true
 severity = "warn"
