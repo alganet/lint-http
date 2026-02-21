@@ -284,12 +284,12 @@ pub mod client_host_header;
 pub mod client_patch_method_content_type_match;
 pub mod client_prefer_header_and_preference_applied;
 pub mod client_range_header_syntax_valid;
-pub mod client_request_method_body_consistency;
 pub mod client_request_method_token_valid;
 pub mod client_request_origin_header_present_for_cors;
 pub mod client_request_target_form_checks;
 pub mod client_request_target_no_fragment;
 pub mod client_request_uri_percent_encoding_valid;
+pub mod client_request_version_method_validity;
 pub mod client_sec_websocket_headers_consistency;
 pub mod client_user_agent_present;
 pub mod message_accept_and_content_type_negotiation;
@@ -441,7 +441,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_patch_method_content_type_match::ClientPatchMethodContentTypeMatch,
     &client_prefer_header_and_preference_applied::ClientPreferHeaderAndPreferenceApplied,
     &client_range_header_syntax_valid::ClientRangeHeaderSyntaxValid,
-    &client_request_method_body_consistency::ClientRequestMethodBodyConsistency,
+    &client_request_version_method_validity::ClientRequestVersionMethodValidity,
     &client_request_method_token_valid::ClientRequestMethodTokenValid,
     &client_request_origin_header_present_for_cors::ClientRequestOriginHeaderPresentForCors,
     &client_request_target_form_checks::ClientRequestTargetFormChecks,
