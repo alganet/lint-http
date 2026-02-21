@@ -145,6 +145,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.semantic_patch_partial_update]
+enabled = true
+severity = "warn"
+
 [rules.message_user_agent_token_valid]
 enabled = true
 severity = "warn"
