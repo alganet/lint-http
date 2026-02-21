@@ -428,6 +428,7 @@ pub mod server_x_xss_protection_value_valid;
 pub mod stateful_103_early_hints_before_final;
 pub mod stateful_conditional_request_handling;
 pub mod stateful_redirect_chain_validity;
+pub mod stateful_websocket_handshake_validity;
 
 pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_accept_encoding_present::ClientAcceptEncodingPresent,
@@ -469,6 +470,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_conditional_headers_consistency::MessageConditionalHeadersConsistency,
     &stateful_conditional_request_handling::StatefulConditionalRequestHandling,
     &stateful_redirect_chain_validity::StatefulRedirectChainValidity,
+    &stateful_websocket_handshake_validity::StatefulWebsocketHandshakeValidity,
     &stateful_103_early_hints_before_final::Stateful103EarlyHintsBeforeFinal,
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &message_connection_upgrade::MessageConnectionUpgrade,
