@@ -41,6 +41,7 @@ pem = "3.0"
 base64 = "0.22"
 bytes = "1"
 http-body-util = "0.1"
+sha1 = "0.10"
 
 
 [dev-dependencies]
