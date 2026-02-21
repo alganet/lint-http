@@ -272,6 +272,10 @@ severity = "error"
 enabled = true
 severity = "warn"
 
+[rules.semantic_origin_matching_for_cors]
+enabled = true
+severity = "warn"
+
 [rules.server_content_type_present]
 enabled = true
 severity = "warn"

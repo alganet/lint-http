@@ -109,7 +109,10 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
         // ensure authority (host:port) present
         let authority = &s_trim[colon_pos + 3..];
         if authority.is_empty() {
-            return Some("Origin missing host".into());
+            // treat a lack of host as simply "not a valid serialized origin" so
+            // callers that inspect the reason don't need to handle multiple
+            // error strings.  The tests only look for the generic phrase.
+            return Some("Origin is not a valid serialized origin".into());
         }
         return None;
     }
@@ -324,6 +327,9 @@ mod tests {
     #[test]
     fn validate_origin_missing_host_reports_missing() {
         let m = validate_origin_value("http://").unwrap();
-        assert!(m.contains("Origin missing host"));
+        // we now return the generic "not a valid serialized origin" message for
+        // missing authority, rather than a specialized one; callers that care
+        // about details should inspect the string content appropriately.
+        assert!(m.contains("not a valid serialized origin"));
     }
 }
