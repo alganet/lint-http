@@ -388,6 +388,7 @@ pub mod message_well_known_uri_format;
 pub mod message_www_authenticate_challenge_syntax;
 pub mod message_x_forwarded_consistency;
 pub mod semantic_head_response_headers_match_get;
+pub mod semantic_options_method_capabilities;
 pub mod semantic_origin_matching_for_cors;
 pub mod semantic_status_code_semantics;
 pub mod semantic_trace_method_echo;
@@ -545,6 +546,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_www_authenticate_challenge_syntax::MessageWwwAuthenticateChallengeSyntax,
     &semantic_status_code_semantics::SemanticStatusCodeSemantics,
     &semantic_head_response_headers_match_get::SemanticHeadResponseHeadersMatchGet,
+    &semantic_options_method_capabilities::SemanticOptionsMethodCapabilities,
     &semantic_trace_method_echo::SemanticTraceMethodEcho,
     &message_x_forwarded_consistency::MessageXForwardedConsistency,
     &server_200_vs_204_body_consistency::Server200Vs204BodyConsistency,
