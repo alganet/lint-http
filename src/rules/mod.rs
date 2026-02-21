@@ -388,6 +388,7 @@ pub mod message_well_known_uri_format;
 pub mod message_www_authenticate_challenge_syntax;
 pub mod message_x_forwarded_consistency;
 pub mod semantic_head_response_headers_match_get;
+pub mod semantic_origin_matching_for_cors;
 pub mod semantic_status_code_semantics;
 pub mod semantic_trace_method_echo;
 pub mod server_200_vs_204_body_consistency;
@@ -451,6 +452,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_accept_ranges_and_206_consistency::MessageAcceptRangesAnd206Consistency,
     &message_access_control_allow_credentials_when_origin::MessageAccessControlAllowCredentialsWhenOrigin,
     &message_access_control_allow_origin_valid::MessageAccessControlAllowOriginValid,
+    &semantic_origin_matching_for_cors::SemanticOriginMatchingForCors,
     &message_age_header_numeric::MessageAgeHeaderNumeric,
     &message_allow_header_method_tokens::MessageAllowHeaderMethodTokens,
     &message_auth_scheme_iana_registered::MessageAuthSchemeIanaRegistered,
