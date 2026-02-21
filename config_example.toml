@@ -137,7 +137,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.client_request_method_body_consistency]
+[rules.client_request_version_method_validity]
 enabled = true
 severity = "warn"
 

@@ -5,13 +5,31 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-pub struct ClientRequestMethodBodyConsistency;
+/// Ensure that the request method makes sense for the advertised HTTP version and
+/// that it is appropriate for the presence (or absence) of a message body.
+///
+/// RFC 9110 gives explicit guidance about which methods are allowed to carry a
+/// request body and even obliges clients to avoid sending bodies when the
+/// semantics are undefined or explicitly forbidden (e.g. GET, HEAD, TRACE,
+/// CONNECT).  This rule flags requests that claim to have a body while using a
+/// method whose semantics do not allow it.  It also provides a later extension
+/// point for version-specific method validity checks.
+///
+/// For now we only check the body-related semantics because that is the
+/// "HTTP correctness" issue captured in `NEXT.md`.  GET/HEAD/DELETE/TRACE/
+/// CONNECT requests with non-zero content are considered violations.  All other
+/// methods are assumed to permit a body (POST, PUT, PATCH, OPTIONS, etc.).
+///
+/// The rule name includes "version" to leave room for future additions such as
+/// warning about methods that predate or postdate the declared HTTP version.
+///
+pub struct ClientRequestVersionMethodValidity;
 
-impl Rule for ClientRequestMethodBodyConsistency {
+impl Rule for ClientRequestVersionMethodValidity {
     type Config = crate::rules::RuleConfig;
 
     fn id(&self) -> &'static str {
-        "client_request_method_body_consistency"
+        "client_request_version_method_validity"
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
@@ -26,46 +44,34 @@ impl Rule for ClientRequestMethodBodyConsistency {
     ) -> Option<Violation> {
         let method = tx.request.method.as_str();
 
-        // Only apply to GET and HEAD for now: these methods have no defined request payload semantics
-        if !(method.eq_ignore_ascii_case("GET") || method.eq_ignore_ascii_case("HEAD")) {
-            return None;
+        // Determine whether the request seems to include a body by looking at
+        // the headers.  We intentionally mirror the logic used by the earlier
+        // `client_request_method_body_consistency` rule for consistency.
+        if !crate::helpers::headers::has_request_body(&tx.request.headers) {
+            return None; // no body claimed, nothing to check
         }
 
-        // Transfer-Encoding presence indicates a request body (flagged as unexpected rather than normative)
-        if tx.request.headers.contains_key("transfer-encoding") {
+        // Methods that do *not* define request-content semantics and which RFC
+        // 9110 either forbids or discourages from carrying a body.
+        let method_upper = method.to_ascii_uppercase();
+        if method_upper == "GET"
+            || method_upper == "HEAD"
+            || method_upper == "DELETE"
+            || method_upper == "TRACE"
+            || method_upper == "CONNECT"
+        {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
                 message: format!(
-                    "{} request contains an unexpected message body (Transfer-Encoding present)",
+                    "{} request contains an unexpected message body (method does not allow content according to RFC 9110)",
                     method
                 ),
             });
         }
 
-        // Content-Length: treat numeric, non-negative values > 0 as an unexpected body.
-        // Invalid or non-digit values are delegated to `message_content_length` and are not flagged here.
-        if let Some(cl_raw) =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "content-length")
-        {
-            let cl = cl_raw.trim();
-            if !cl.is_empty() && cl.chars().all(|c| c.is_ascii_digit()) {
-                if let Ok(n) = cl.parse::<u128>() {
-                    if n > 0 {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!(
-                                "{} request contains an unexpected message body (Content-Length {})",
-                                method, n
-                            ),
-                        });
-                    }
-                }
-                // If parse overflow / too large, let message_content_length rule handle it.
-            }
-            // Non-digit or empty values are validated by `message_content_length` rule; do nothing here.
-        }
+        // Future: could also validate method applicability based on
+        // `tx.request.version` here.
 
         None
     }
@@ -89,18 +95,19 @@ mod tests {
     #[rstest]
     #[case("GET", vec![], false)]
     #[case("GET", vec![("content-length", "0")], false)]
-    #[case("GET", vec![("content-length", " 0 ")], false)]
     #[case("GET", vec![("content-length", "10")], true)]
-    #[case("GET", vec![("transfer-encoding", "chunked")], true)]
     #[case("HEAD", vec![("content-length", "1")], true)]
-    #[case("HEAD", vec![("transfer-encoding", "chunked")], true)]
-    #[case("POST", vec![("content-length", "10")], false)]
+    #[case("DELETE", vec![("transfer-encoding", "chunked")], true)]
+    #[case("TRACE", vec![("content-length", "1")], true)]
+    #[case("CONNECT", vec![("content-length", "1")], true)]
+    #[case("POST", vec![("content-length", "1")], false)]
+    #[case("PUT", vec![("transfer-encoding", "chunked")], false)]
     fn method_body_cases(
         #[case] method: &str,
         #[case] headers: Vec<(&str, &str)>,
         #[case] expect_violation: bool,
     ) {
-        let rule = ClientRequestMethodBodyConsistency;
+        let rule = ClientRequestVersionMethodValidity;
         let tx = make_tx_with_req(method, headers);
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(&tx, None, &cfg);
@@ -113,70 +120,56 @@ mod tests {
     }
 
     #[test]
-    fn invalid_content_length_is_violation() {
-        let rule = ClientRequestMethodBodyConsistency;
+    fn invalid_content_length_is_ignored() {
+        let rule = ClientRequestVersionMethodValidity;
         let tx = make_tx_with_req("GET", vec![("content-length", "not-a-number")]);
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(&tx, None, &cfg);
-        // Invalid Content-Length parsing is delegated to `message_content_length` rule; this rule should not flag it as a body.
         assert!(v.is_none());
     }
 
     #[test]
-    fn content_length_overflow_is_delegated() {
-        let rule = ClientRequestMethodBodyConsistency;
-        let huge = "9".repeat(100); // > u128::MAX digits to force parse overflow
+    fn content_length_overflow_is_ignored() {
+        let rule = ClientRequestVersionMethodValidity;
+        let huge = "9".repeat(100);
         let tx = make_tx_with_req("GET", vec![("content-length", huge.as_str())]);
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(&tx, None, &cfg);
-        // Overflowing Content-Length should be validated by `message_content_length` and not treated as a body here.
-        assert!(
-            v.is_none(),
-            "expected no violation for overflowed Content-Length; got {:?}",
-            v
-        );
+        assert!(v.is_none());
     }
 
     #[test]
     fn empty_or_whitespace_content_length_is_ignored() {
-        let rule = ClientRequestMethodBodyConsistency;
+        let rule = ClientRequestVersionMethodValidity;
         let tx_empty = make_tx_with_req("GET", vec![("content-length", "")]);
         let tx_space = make_tx_with_req("GET", vec![("content-length", "   ")]);
         let cfg = crate::test_helpers::make_test_rule_config();
 
         let v_empty = rule.check_transaction(&tx_empty, None, &cfg);
-        assert!(
-            v_empty.is_none(),
-            "expected no violation for empty Content-Length; got {:?}",
-            v_empty
-        );
+        assert!(v_empty.is_none());
 
         let v_space = rule.check_transaction(&tx_space, None, &cfg);
-        assert!(
-            v_space.is_none(),
-            "expected no violation for whitespace Content-Length; got {:?}",
-            v_space
-        );
+        assert!(v_space.is_none());
     }
 
     #[test]
     fn violation_messages_are_informative() {
-        let rule = ClientRequestMethodBodyConsistency;
+        let rule = ClientRequestVersionMethodValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
 
         let tx = make_tx_with_req("GET", vec![("content-length", "10")]);
         let v = rule.check_transaction(&tx, None, &cfg).unwrap();
-        assert!(v.message.contains("Content-Length 10"));
+        assert!(v.message.contains("GET request"));
 
-        let tx2 = make_tx_with_req("HEAD", vec![("transfer-encoding", "chunked")]);
+        let tx2 = make_tx_with_req("TRACE", vec![("transfer-encoding", "chunked")]);
         let v2 = rule.check_transaction(&tx2, None, &cfg).unwrap();
-        assert!(v2.message.contains("Transfer-Encoding present"));
+        assert!(v2.message.contains("TRACE request"));
     }
 
     #[test]
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "client_request_method_body_consistency");
+        crate::test_helpers::enable_rule(&mut cfg, "client_request_version_method_validity");
         let _engine = crate::rules::validate_rules(&cfg)?;
         Ok(())
     }

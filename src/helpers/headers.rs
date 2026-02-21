@@ -92,6 +92,87 @@ pub fn parse_semicolon_list(val: &str) -> impl Iterator<Item = &str> {
     val.split(';').map(|s| s.trim()).filter(|s| !s.is_empty())
 }
 
+/// Determine whether the given headers indicate the presence of a request body.
+///
+/// We consider a body to be present if a `Transfer-Encoding` header is present
+/// or if a valid, non-negative `Content-Length` header value greater than zero
+/// is supplied. Invalid `Content-Length` values are not considered here because
+/// other rules (`message_content_length`) are responsible for handling them.
+///
+/// This helper centralizes the logic previously duplicated in the
+/// former `client_request_method_body_consistency` rule and will also be useful for any
+/// future rules that need to detect whether a request claims to carry content.
+pub fn has_request_body(headers: &HeaderMap) -> bool {
+    if headers.contains_key("transfer-encoding") {
+        return true;
+    }
+    if let Some(cl_raw) = get_header_str(headers, "content-length") {
+        let cl = cl_raw.trim();
+        if !cl.is_empty() && cl.chars().all(|c| c.is_ascii_digit()) {
+            if let Ok(n) = cl.parse::<u128>() {
+                return n > 0;
+            }
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod has_request_body_tests {
+    use super::has_request_body;
+    use hyper::{header, HeaderMap};
+    #[test]
+    fn request_with_transfer_encoding_has_body() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::TRANSFER_ENCODING,
+            header::HeaderValue::from_static("chunked"),
+        );
+        assert!(has_request_body(&headers));
+    }
+    #[test]
+    fn request_with_nonzero_content_length_has_body() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("123"),
+        );
+        assert!(has_request_body(&headers));
+    }
+    #[test]
+    fn request_with_zero_content_length_has_no_body() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("0"),
+        );
+        assert!(!has_request_body(&headers));
+    }
+    #[test]
+    fn request_with_invalid_content_length_has_no_body() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("abc"),
+        );
+        assert!(!has_request_body(&headers));
+    }
+    #[test]
+    fn request_with_no_body_indicators_has_no_body() {
+        let headers = HeaderMap::new();
+        assert!(!has_request_body(&headers));
+    }
+    #[test]
+    fn request_with_overflowing_content_length_has_no_body() {
+        let mut headers = HeaderMap::new();
+        // u128::MAX + 1, which will fail to parse as u128
+        headers.insert(
+            header::CONTENT_LENGTH,
+            header::HeaderValue::from_static("340282366920938463463374607431768211456"),
+        );
+        assert!(!has_request_body(&headers));
+    }
+}
 /// Check whether a header name is a hop-by-hop header.
 ///
 /// Returns `true` if `name` matches a known hop-by-hop header (case-insensitive)
