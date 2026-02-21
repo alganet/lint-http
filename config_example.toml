@@ -193,6 +193,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.semantic_post_creates_resource]
+enabled = true
+severity = "warn"
+
 [rules.semantic_head_response_headers_match_get]
 enabled = true
 severity = "warn"
