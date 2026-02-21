@@ -198,6 +198,10 @@ headers = ["etag", "content-type", "content-length"]
 enabled = true
 severity = "warn"
 
+[rules.semantic_options_method_capabilities]
+enabled = true
+severity = "warn"
+
 [rules.server_keep_alive_timeout_reasonable]
 enabled = true
 severity = "warn"
