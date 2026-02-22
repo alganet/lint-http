@@ -1,0 +1,6 @@
+version = 1
+
+[[annotations]]
+path = [ ".github/PULL_REQUEST_TEMPLATE.md", ".github/ISSUE_TEMPLATE/**" ]
+SPDX-FileCopyrightText = "Alexandre Gomes Gaigalas <alganet@gmail.com>"
+SPDX-License-Identifier = "ISC"
