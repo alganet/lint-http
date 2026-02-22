@@ -1,14 +1,9 @@
 ---
-# SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
-#
-# SPDX-License-Identifier: ISC
-
 name: Bug report
 about: Create a report to help us improve
 title: ''
 labels: bug
 assignees: ''
-
 ---
 
 **Describe the bug**

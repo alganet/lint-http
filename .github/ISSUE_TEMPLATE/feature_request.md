@@ -1,14 +1,9 @@
 ---
-# SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
-#
-# SPDX-License-Identifier: ISC
-
 name: Feature request
 about: Suggest an idea for this project
 title: ''
 labels: enhancement
 assignees: ''
-
 ---
 
 **Is your feature request related to a problem? Please describe.**
