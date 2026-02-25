@@ -84,7 +84,7 @@ impl Rule for SemanticHeadResponseHeadersMatchGet {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        previous: Option<&crate::http_transaction::HttpTransaction>,
+        history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Only applies to HEAD responses with a previous GET on the same URI
@@ -97,7 +97,7 @@ impl Rule for SemanticHeadResponseHeadersMatchGet {
             None => return None,
         };
 
-        let prev = previous?;
+        let prev = history.previous()?;
         if !prev.request.method.eq_ignore_ascii_case("GET") {
             return None;
         }
@@ -292,7 +292,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &head,
-            Some(&prev),
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["etag", "content-type", "content-length"]),
         );
         assert!(v.is_none());
@@ -305,7 +305,11 @@ mod tests {
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["etag"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("missing header"));
     }
@@ -317,7 +321,11 @@ mod tests {
         let mut head = make_head_with_headers(&[("x-foo", "bar")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["x-foo"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["x-foo"]),
+        );
         assert!(v.is_some());
         assert!(v
             .unwrap()
@@ -334,7 +342,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &head,
-            Some(&prev),
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["content-length"]),
         );
         assert!(v.is_some());
@@ -350,7 +358,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &head,
-            Some(&prev),
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["content-length"]),
         );
         assert!(v.is_none());
@@ -363,7 +371,11 @@ mod tests {
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["vary"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["vary"]),
+        );
         assert!(v.is_none());
     }
 
@@ -371,7 +383,11 @@ mod tests {
     fn no_previous_does_nothing() {
         let rule = SemanticHeadResponseHeadersMatchGet;
         let head = make_head_with_headers(&[("etag", "\"v1\"")]);
-        let v = rule.check_transaction(&head, None, &make_cfg_with_headers(vec!["etag"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
         assert!(v.is_none());
     }
 
@@ -383,7 +399,11 @@ mod tests {
         // different URIs
         head.request.uri = "/other".parse().unwrap();
 
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["etag"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
         assert!(v.is_none());
     }
 
@@ -395,7 +415,11 @@ mod tests {
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["etag"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
         assert!(v.is_none());
     }
 
@@ -417,7 +441,11 @@ mod tests {
         head.request.uri = prev.request.uri.clone();
 
         // prev had non-utf8 'etag' -> treated as present -> HEAD missing it should be a violation
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["etag"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
         assert!(v.is_some());
     }
 
@@ -450,7 +478,11 @@ mod tests {
         head.request.uri = prev.request.uri.clone();
 
         // Both present but non-UTF8 -> rule should be lenient and not report a violation
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["etag"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
         assert!(v.is_none());
     }
 
@@ -461,7 +493,11 @@ mod tests {
         let mut head = make_head_with_headers(&[("etag", "\"v1\"")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["etag"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
         assert!(v.is_none());
     }
 
@@ -549,7 +585,11 @@ mod tests {
         let mut head = make_head_with_headers(&[("etag", "\"v2\"")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["etag"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Header 'etag' value differs"));
     }
@@ -562,7 +602,11 @@ mod tests {
         head.request.uri = prev.request.uri.clone();
 
         // 'x-foo' is not in the configured headers list -> should be ignored
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["etag"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
         assert!(v.is_none());
     }
 
@@ -575,7 +619,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &head,
-            Some(&prev),
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["transfer-encoding"]),
         );
         assert!(v.is_none());
@@ -590,7 +634,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &head,
-            Some(&prev),
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["transfer-encoding"]),
         );
         assert!(v.is_none());
@@ -605,7 +649,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &head,
-            Some(&prev),
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["content-length"]),
         );
         assert!(v.is_none());
@@ -618,7 +662,11 @@ mod tests {
         let mut head = make_head_with_headers(&[("vary", "accept, accept-encoding")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["vary"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["vary"]),
+        );
         assert!(v.is_none());
     }
 
@@ -629,7 +677,11 @@ mod tests {
         let mut head = make_head_with_headers(&[("vary", "a, c")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["vary"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["vary"]),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Vary"));
     }
@@ -644,7 +696,11 @@ mod tests {
         let mut head = make_head_with_headers(&[("etag", "\"v1\"")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["etag"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
         assert!(v.is_none());
     }
 
@@ -666,7 +722,11 @@ mod tests {
         head.request.uri = prev.request.uri.clone();
 
         // presence detected, but values are not compared when one side is non-UTF8
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["etag"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
         assert!(v.is_none());
     }
 
@@ -679,7 +739,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &head,
-            Some(&prev),
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["etag", "content-type"]),
         );
         assert!(v.is_some());
@@ -695,7 +755,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &head,
-            Some(&prev),
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["accept-encoding"]),
         );
         assert!(v.is_some());
@@ -773,7 +833,11 @@ mod tests {
         head.response = None;
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["etag"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
         assert!(v.is_none());
     }
 
@@ -787,7 +851,7 @@ mod tests {
         // validate_content_length on prev will error -> rule must be lenient
         let v = rule.check_transaction(
             &head,
-            Some(&prev),
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["content-length"]),
         );
         assert!(v.is_none());
@@ -800,7 +864,11 @@ mod tests {
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(&head, Some(&prev), &make_cfg_with_headers(vec!["etag"]));
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
         assert!(v.is_none());
     }
 

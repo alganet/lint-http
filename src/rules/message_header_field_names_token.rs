@@ -21,7 +21,7 @@ impl Rule for MessageHeaderFieldNamesToken {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // token characters per RFC token (tchar) - use shared helper
@@ -95,8 +95,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
 
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
 
         if expect_violation {
             assert!(violation.is_some());
@@ -129,8 +132,11 @@ mod tests {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, header_pairs.as_slice());
 
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
 
         if expect_violation {
             assert!(violation.is_some());

@@ -19,6 +19,10 @@ pub struct GeneralConfig {
     #[serde(default = "default_ttl")]
     pub ttl_seconds: u64,
 
+    /// Maximum number of transactions to keep per (client, resource) key
+    #[serde(default = "default_max_history")]
+    pub max_history: usize,
+
     /// Whether to seed StateStore from captures file on startup
     #[serde(default = "default_captures_seed")]
     pub captures_seed: bool,
@@ -32,6 +36,10 @@ pub struct GeneralConfig {
 
 fn default_ttl() -> u64 {
     300
+}
+
+fn default_max_history() -> usize {
+    10
 }
 
 const fn default_captures_include_body() -> bool {
@@ -56,6 +64,7 @@ impl Default for GeneralConfig {
             listen: default_listen(),
             captures: default_captures(),
             ttl_seconds: default_ttl(),
+            max_history: default_max_history(),
             captures_seed: default_captures_seed(),
             captures_include_body: default_captures_include_body(),
         }

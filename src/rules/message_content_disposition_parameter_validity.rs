@@ -23,7 +23,7 @@ impl Rule for MessageContentDispositionParameterValidity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let check_value = |hdr_name: &str, val: &str| -> Option<Violation> {
@@ -322,7 +322,11 @@ mod tests {
             severity: crate::lint::Severity::Warn,
         };
 
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{:?}'", value);
         } else {
@@ -342,7 +346,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_none());
     }
 
@@ -359,7 +367,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -382,7 +394,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_some());
     }
 
@@ -398,7 +414,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_some());
     }
 
@@ -415,7 +435,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -440,7 +464,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_some());
     }
 
@@ -456,7 +484,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_none());
     }
 
@@ -472,7 +504,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_none());
     }
 
@@ -488,7 +524,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_none());
     }
 
@@ -504,7 +544,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &config,
+            )
+            .unwrap();
         assert!(v.message.contains("filename* extended value invalid"));
     }
 
@@ -520,7 +566,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &config,
+            )
+            .unwrap();
         assert!(v.message.contains("extended parameter 'title*' invalid"));
     }
 
@@ -536,7 +588,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_some());
     }
 
@@ -552,7 +608,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_some());
     }
 }

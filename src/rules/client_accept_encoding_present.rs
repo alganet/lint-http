@@ -21,7 +21,7 @@ impl Rule for ClientAcceptEncodingPresent {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         if !tx.request.headers.contains_key("accept-encoding") {
@@ -51,8 +51,11 @@ mod tests {
         } else {
             crate::test_helpers::make_test_transaction()
         };
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if header_present {
             assert!(violation.is_none());
         } else {

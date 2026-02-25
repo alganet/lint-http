@@ -21,7 +21,7 @@ impl Rule for ServerDeprecationHeaderSyntax {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Applies to responses only
@@ -109,7 +109,11 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ServerDeprecationHeaderSyntax;
         let tx = crate::test_helpers::make_test_transaction_with_response(status, hdrs);
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
 
         if expect_violation {
             assert!(v.is_some(), "expected violation for headers: {:?}", hdrs);
@@ -138,7 +142,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -158,7 +166,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("non-UTF8"));
@@ -172,7 +184,11 @@ mod tests {
             200,
             &[("deprecation", "   @1688169599   ")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -184,7 +200,11 @@ mod tests {
             200,
             &[("deprecation", "@abc")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("invalid"));
@@ -197,7 +217,11 @@ mod tests {
         let rule = ServerDeprecationHeaderSyntax;
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, &[("deprecation", "@")]);
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -209,7 +233,11 @@ mod tests {
             200,
             &[("deprecation", "@-1")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -221,7 +249,11 @@ mod tests {
             200,
             &[("deprecation", "TRUE")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("'true'"));
@@ -232,7 +264,11 @@ mod tests {
     fn no_response_no_violation() {
         let rule = ServerDeprecationHeaderSyntax;
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 

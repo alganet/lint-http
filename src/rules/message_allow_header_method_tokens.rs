@@ -22,7 +22,7 @@ impl Rule for MessageAllowHeaderMethodTokens {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let check = |headers: &HeaderMap| -> Option<Violation> {
@@ -112,7 +112,11 @@ mod tests {
             HeaderValue::from_str(allow_value).unwrap(),
         );
 
-        rule.check_transaction(&tx, None, &make_test_rule_config())
+        rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        )
     }
 
     #[rstest]
@@ -197,7 +201,11 @@ mod tests {
         let tx = make_test_transaction();
 
         // Transaction has no Allow header
-        let violation = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(violation.is_none());
     }
 

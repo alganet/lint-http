@@ -21,7 +21,7 @@ impl Rule for SemanticStatusCodeSemantics {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -91,7 +91,11 @@ mod tests {
     fn missing_www_on_401_reports_violation() {
         let rule = SemanticStatusCodeSemantics;
         let tx = crate::test_helpers::make_test_transaction_with_response(401, &[]);
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("WWW-Authenticate"));
     }
@@ -100,7 +104,11 @@ mod tests {
     fn missing_proxy_on_407_reports_violation() {
         let rule = SemanticStatusCodeSemantics;
         let tx = crate::test_helpers::make_test_transaction_with_response(407, &[]);
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Proxy-Authenticate"));
     }
@@ -112,7 +120,11 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=\"x\"")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -123,7 +135,11 @@ mod tests {
             200,
             &[("www-authenticate", "Basic realm=\"x\"")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-401"));
     }
@@ -136,7 +152,11 @@ mod tests {
             401,
             &[("WWW-AUTHENTICATE", "Basic realm=\"x\"")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -151,7 +171,11 @@ mod tests {
             HeaderValue::from_bytes(&[0xff]).unwrap(),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(
             v.is_none(),
             "non-UTF8 header value should still be treated as presence"
@@ -168,7 +192,11 @@ mod tests {
             401,
             &[("proxy-authenticate", "Basic realm=\"proxy\"")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("Proxy-Authenticate") || msg.contains("WWW-Authenticate"));
@@ -184,7 +212,11 @@ mod tests {
                 ("www-authenticate", "Basic realm=\"x\""),
             ],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("WWW-Authenticate"));
     }
@@ -196,7 +228,11 @@ mod tests {
             200,
             &[("proxy-authenticate", "Basic realm=\"x\"")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Proxy-Authenticate"));
     }

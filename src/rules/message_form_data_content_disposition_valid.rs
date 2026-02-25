@@ -21,7 +21,7 @@ impl Rule for MessageFormDataContentDispositionValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Helper that checks a single header value
@@ -186,7 +186,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-disposition", v)]);
         }
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{:?}'", cd);
         } else {
@@ -213,7 +217,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-disposition", v)]);
         }
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{:?}'", cd);
         } else {
@@ -233,7 +241,11 @@ mod tests {
         hm.insert("content-disposition", HeaderValue::from_bytes(&[0xff])?);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -248,7 +260,11 @@ mod tests {
             "content-disposition",
             "form-data; name=\"\"",
         )]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -262,7 +278,11 @@ mod tests {
             "content-disposition",
             "form-data; name=\"   \"",
         )]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -276,7 +296,11 @@ mod tests {
             "content-disposition",
             "form-data; name=\"unterminated",
         )]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -291,7 +315,11 @@ mod tests {
         hm.insert("content-disposition", HeaderValue::from_bytes(&[0xff])?);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -304,7 +332,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-disposition", "form-data")]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -318,7 +350,11 @@ mod tests {
             "content-disposition",
             "Form-Data; NAME=User",
         )]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -330,7 +366,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-disposition", "; name=user")]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -342,7 +382,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-disposition", "form-data;")]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -362,7 +406,11 @@ mod tests {
             HeaderValue::from_static("form-data; name=\"b\""),
         );
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -374,7 +422,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-disposition", "")]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -388,7 +440,11 @@ mod tests {
             "content-disposition",
             "form-data; badparam",
         )]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         // Although a parameter is present, the absence of a 'name' parameter should still be
         // treated as a violation for 'form-data' dispositions.
         assert!(v.is_some());
@@ -411,7 +467,11 @@ mod tests {
             HeaderValue::from_static("form-data; filename=example.txt"),
         );
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 

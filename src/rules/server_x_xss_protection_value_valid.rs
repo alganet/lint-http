@@ -21,7 +21,7 @@ impl Rule for ServerXXssProtectionValueValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -107,7 +107,11 @@ mod tests {
             );
         }
 
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{:?}', got none", val);
         } else {
@@ -137,7 +141,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Multiple X-XSS-Protection"));
     }
@@ -162,7 +170,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-ASCII"));
     }
@@ -177,7 +189,11 @@ mod tests {
     fn no_response_returns_none() {
         let rule = ServerXXssProtectionValueValid;
         let tx = make_test_transaction(); // no response set
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -185,7 +201,11 @@ mod tests {
     fn response_without_header_returns_none() {
         let rule = ServerXXssProtectionValueValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -196,7 +216,11 @@ mod tests {
             200,
             &[("x-xss-protection", "1")],
         );
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("1"));
@@ -210,7 +234,11 @@ mod tests {
             200,
             &[("x-xss-protection", val)],
         );
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         let m = v.unwrap().message;
         assert!(m.contains("unsupported value") && m.contains(val));
@@ -224,7 +252,11 @@ mod tests {
             200,
             &[("x-xss-protection", val)],
         );
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         let m = v.unwrap().message;
         assert!(m.contains("unsupported value") && m.contains("0, 1;mode=block"));

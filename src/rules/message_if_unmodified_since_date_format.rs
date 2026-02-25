@@ -22,7 +22,7 @@ impl Rule for MessageIfUnmodifiedSinceDateFormat {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Applies to requests only
@@ -82,7 +82,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("if-unmodified-since", h)]);
         }
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(v.is_some());
         } else {
@@ -103,7 +107,11 @@ mod tests {
         hm.insert("if-unmodified-since", bad);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -115,7 +123,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-unmodified-since", "")]);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("empty or contains only whitespace"));
@@ -139,7 +151,11 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -162,7 +178,11 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         // Using multiple valid headers is acceptable (validate each); no violation expected if all valid
         assert!(v.is_none());
         Ok(())

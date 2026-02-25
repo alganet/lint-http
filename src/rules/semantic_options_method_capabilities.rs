@@ -21,7 +21,7 @@ impl Rule for SemanticOptionsMethodCapabilities {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Only care about OPTIONS requests with a final response
@@ -91,7 +91,11 @@ mod tests {
         let rule = SemanticOptionsMethodCapabilities;
         let tx = make_opts_tx(status, header);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for status {}", status);
         } else {
@@ -109,7 +113,13 @@ mod tests {
         let rule = SemanticOptionsMethodCapabilities;
         let tx = make_opts_tx(200, None);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
         assert!(v.message.contains("Allow"));
     }
 
@@ -118,7 +128,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.method = "GET".into();
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = SemanticOptionsMethodCapabilities.check_transaction(&tx, None, &cfg);
+        let v = SemanticOptionsMethodCapabilities.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -136,7 +150,11 @@ mod tests {
         tx.request.method = "OPTIONS".into();
         tx.response = None;
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(
             v.is_none(),
             "expected no violation when no response is present"

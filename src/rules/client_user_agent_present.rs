@@ -21,7 +21,7 @@ impl Rule for ClientUserAgentPresent {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         if !tx.request.headers.contains_key("user-agent") {
@@ -52,8 +52,11 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ClientUserAgentPresent;
         let tx = crate::test_helpers::make_test_transaction_with_headers(&header_pairs);
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
 
         if expect_violation {
             assert!(violation.is_some());

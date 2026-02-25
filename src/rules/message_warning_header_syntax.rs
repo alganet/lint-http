@@ -184,7 +184,7 @@ impl Rule for MessageWarningHeaderSyntax {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Check response headers
@@ -261,7 +261,11 @@ mod tests {
             make_test_transaction()
         };
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header {:?}", header);
         } else {
@@ -285,7 +289,11 @@ mod tests {
             .unwrap()
             .headers
             .append("Warning", HeaderValue::from_bytes(&[0xff]).unwrap());
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-UTF8"));
     }
@@ -303,7 +311,11 @@ mod tests {
                 .parse::<hyper::header::HeaderValue>()
                 .unwrap(),
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
 
         // Missing space after code -> violation
@@ -312,7 +324,11 @@ mod tests {
             "Warning",
             "110-\"bad\"".parse::<hyper::header::HeaderValue>().unwrap(),
         );
-        let v2 = rule.check_transaction(&tx2, None, &crate::test_helpers::make_test_rule_config());
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v2.is_some());
         assert!(v2
             .unwrap()
@@ -349,7 +365,11 @@ mod tests {
         let rule = MessageWarningHeaderSyntax;
 
         let tx = make_test_transaction_with_response(200, &[("Warning", header)]);
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         if let Some(expect_msg) = expect {
             assert!(v.unwrap().message.contains(expect_msg));
@@ -365,7 +385,11 @@ mod tests {
             .headers
             .insert("Warning", HeaderValue::from_static(""));
         let rule = MessageWarningHeaderSyntax;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -377,7 +401,11 @@ mod tests {
             &[("Warning", "214 host \"ok\", ,214 host \"bad\"")],
         );
         let rule = MessageWarningHeaderSyntax;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("empty member"));
     }
@@ -393,7 +421,11 @@ mod tests {
             )],
         );
         let rule = MessageWarningHeaderSyntax;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v
             .unwrap()
@@ -428,7 +460,11 @@ mod tests {
             .unwrap()
             .headers
             .append("Warning", HeaderValue::from_static("110 - \"Stale\""));
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -438,7 +474,11 @@ mod tests {
         let rule = MessageWarningHeaderSyntax;
 
         let tx = make_test_transaction_with_response(200, &[("Warning", "110-\"bad\"")]);
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Missing space after warn-code"));
     }
@@ -457,7 +497,11 @@ mod tests {
             "Warning",
             HeaderValue::from_bytes(b"214 host \"abc\\\"").unwrap(),
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(

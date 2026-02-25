@@ -23,7 +23,7 @@ impl Rule for MessageEtagSyntax {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let Some(resp) = &tx.response else {
@@ -109,7 +109,11 @@ mod tests {
             severity: crate::lint::Severity::Warn,
         };
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for value={:?}", value);
         } else {
@@ -140,7 +144,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -163,7 +171,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 

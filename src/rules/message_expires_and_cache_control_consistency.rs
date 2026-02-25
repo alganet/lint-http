@@ -26,7 +26,7 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -191,7 +191,11 @@ mod tests {
         let tx = make_test_transaction_with_response(200, &headers);
         let rule = MessageExpiresAndCacheControlConsistency;
         let cfg = make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for headers={:?}", headers);
         } else {
@@ -226,7 +230,11 @@ mod tests {
         );
         let rule = MessageExpiresAndCacheControlConsistency;
         let cfg = make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -239,7 +247,11 @@ mod tests {
         );
         let rule = MessageExpiresAndCacheControlConsistency;
         let cfg = make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         // invalid Expires is left to other rules; this rule returns None
         assert!(v.is_none());
         Ok(())
@@ -257,7 +269,11 @@ mod tests {
         );
         let rule = MessageExpiresAndCacheControlConsistency;
         let cfg = make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -277,7 +293,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers = hm;
         let rule = MessageExpiresAndCacheControlConsistency;
         let cfg = make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         // non-UTF8 cache-control means cc_present stays false -> no violation
         assert!(v.is_none());
         Ok(())
@@ -295,7 +315,11 @@ mod tests {
         );
         let rule = MessageExpiresAndCacheControlConsistency;
         let cfg = make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -317,7 +341,11 @@ mod tests {
         );
         let rule = MessageExpiresAndCacheControlConsistency;
         let cfg = make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some(), "got {:?}", v);
         Ok(())
     }
@@ -355,7 +383,11 @@ mod tests {
         );
         let rule = MessageExpiresAndCacheControlConsistency;
         let cfg = make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -375,7 +407,11 @@ mod tests {
         );
         let rule = MessageExpiresAndCacheControlConsistency;
         let cfg = make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -445,7 +481,11 @@ mod tests {
 
         let rule = MessageExpiresAndCacheControlConsistency;
         let cfg = make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -462,7 +502,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers = hm;
         let rule = MessageExpiresAndCacheControlConsistency;
         let cfg = make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         // non-UTF8 expires means has_expires stays false -> no violation
         assert!(v.is_none());
         Ok(())

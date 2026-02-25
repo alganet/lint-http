@@ -21,7 +21,7 @@ impl Rule for ClientRangeHeaderSyntaxValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         use hyper::header::RANGE;
@@ -158,7 +158,11 @@ mod tests {
         tx.request.headers.insert("range", value.parse()?);
 
         let rule = ClientRangeHeaderSyntaxValid;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
 
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{}', got none", value);
@@ -185,7 +189,11 @@ mod tests {
             .append("range", "items=0-1".parse::<HeaderValue>()?);
 
         let rule = ClientRangeHeaderSyntaxValid;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -194,7 +202,11 @@ mod tests {
     fn header_absent_no_violation() -> anyhow::Result<()> {
         let tx = make_test_transaction();
         let rule = ClientRangeHeaderSyntaxValid;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -207,7 +219,11 @@ mod tests {
         tx.request.headers.insert("range", bad);
 
         let rule = ClientRangeHeaderSyntaxValid;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("non-UTF8"));

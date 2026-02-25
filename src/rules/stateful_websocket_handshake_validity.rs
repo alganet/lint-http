@@ -35,7 +35,7 @@ impl Rule for StatefulWebsocketHandshakeValidity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let req = &tx.request;
@@ -219,7 +219,13 @@ mod tests {
         );
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        assert!(rule.check_transaction(&tx, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[rstest]
@@ -236,7 +242,13 @@ mod tests {
         );
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
         assert!(v.message.contains("missing 'Sec-WebSocket-Accept'"));
     }
 
@@ -258,7 +270,13 @@ mod tests {
         );
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
         assert!(v.message.contains("does not match expected"));
     }
 
@@ -276,7 +294,13 @@ mod tests {
         );
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
         assert!(v.message.contains("missing Sec-WebSocket-Key"));
     }
 
@@ -298,7 +322,13 @@ mod tests {
         );
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
         assert!(v.message.contains("Invalid Sec-WebSocket-Key"));
     }
 
@@ -321,7 +351,13 @@ mod tests {
         );
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        assert!(rule.check_transaction(&tx, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[rstest]
@@ -342,7 +378,13 @@ mod tests {
         );
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
         assert!(v.message.contains("Expected 101"));
     }
 
@@ -363,7 +405,13 @@ mod tests {
         );
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
         assert!(v.message.contains("missing 'Connection' header"));
     }
 
@@ -385,7 +433,13 @@ mod tests {
         );
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
         assert!(v
             .message
             .contains("Upgrade header does not include 'websocket'"));
@@ -399,7 +453,13 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("upgrade", "websocket")]);
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        assert!(rule.check_transaction(&tx, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[rstest]
@@ -413,7 +473,13 @@ mod tests {
         // response absence doesn't matter since rule should bail early
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        assert!(rule.check_transaction(&tx, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[rstest]
@@ -427,7 +493,13 @@ mod tests {
         // no response recorded
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        assert!(rule.check_transaction(&tx, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[rstest]
@@ -448,7 +520,13 @@ mod tests {
         );
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
         assert!(v.message.contains("required 'Connection: Upgrade' token"));
     }
 
@@ -469,7 +547,13 @@ mod tests {
         );
         let rule = StatefulWebsocketHandshakeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
         assert!(v.message.contains("missing 'Upgrade' header"));
     }
 

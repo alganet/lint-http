@@ -22,7 +22,7 @@ impl Rule for ClientSecWebsocketHeadersConsistency {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Only consider WebSocket handshake requests: GET method and Upgrade includes 'websocket'
@@ -188,7 +188,11 @@ mod tests {
         let tx = make_ws_request(headers);
         let mut cfg = crate::test_helpers::make_test_rule_config();
         cfg.severity = crate::lint::Severity::Error;
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert_eq!(v.is_some(), expect_violation);
     }
 
@@ -201,7 +205,13 @@ mod tests {
         let rule = ClientSecWebsocketHeadersConsistency;
         let mut cfg = crate::test_helpers::make_test_rule_config();
         cfg.severity = crate::lint::Severity::Error;
-        assert!(rule.check_transaction(&tx, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[test]
@@ -211,7 +221,13 @@ mod tests {
         let rule = ClientSecWebsocketHeadersConsistency;
         let mut cfg = crate::test_helpers::make_test_rule_config();
         cfg.severity = crate::lint::Severity::Error;
-        assert!(rule.check_transaction(&tx, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[test]
@@ -225,7 +241,11 @@ mod tests {
         let rule = ClientSecWebsocketHeadersConsistency;
         let mut cfg = crate::test_helpers::make_test_rule_config();
         cfg.severity = crate::lint::Severity::Error;
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Connection: Upgrade"));
     }
@@ -240,7 +260,11 @@ mod tests {
         let rule = ClientSecWebsocketHeadersConsistency;
         let mut cfg = crate::test_helpers::make_test_rule_config();
         cfg.severity = crate::lint::Severity::Error;
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Sec-WebSocket-Version"));
     }
@@ -257,7 +281,13 @@ mod tests {
         let rule = ClientSecWebsocketHeadersConsistency;
         let mut cfg = crate::test_helpers::make_test_rule_config();
         cfg.severity = crate::lint::Severity::Error;
-        assert!(rule.check_transaction(&tx, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[test]
@@ -287,7 +317,11 @@ mod tests {
         let rule = ClientSecWebsocketHeadersConsistency;
         let mut cfg = crate::test_helpers::make_test_rule_config();
         cfg.severity = crate::lint::Severity::Error;
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Sec-WebSocket-Key"));
     }
@@ -306,7 +340,13 @@ mod tests {
         let rule = ClientSecWebsocketHeadersConsistency;
         let mut cfg = crate::test_helpers::make_test_rule_config();
         cfg.severity = crate::lint::Severity::Error;
-        assert!(rule.check_transaction(&tx, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[test]

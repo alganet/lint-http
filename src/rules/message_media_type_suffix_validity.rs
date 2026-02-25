@@ -80,7 +80,7 @@ impl Rule for MessageMediaTypeSuffixValidity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let check_media = |hdr_name: &str, val: &str| -> Option<Violation> {
@@ -181,7 +181,11 @@ mod tests {
             &[("content-type", "application/ld+json")],
         );
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check_transaction(&tx, None, &make_cfg());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
         assert!(v.is_none());
     }
 
@@ -192,7 +196,11 @@ mod tests {
             &[("content-type", "application/vnd.example+unknown")],
         );
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check_transaction(&tx, None, &make_cfg());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("+unknown"));
     }
@@ -205,7 +213,11 @@ mod tests {
             "application/vnd.foo+xml; q=0.8, application/bar+nope",
         )]);
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check_transaction(&tx, None, &make_cfg());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("+nope"));
     }
@@ -217,7 +229,11 @@ mod tests {
             &[("content-type", "application/foo+")],
         );
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check_transaction(&tx, None, &make_cfg());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("empty structured suffix"));
     }
@@ -229,7 +245,11 @@ mod tests {
             &[("content-type", "application/ld+JSON")],
         );
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check_transaction(&tx, None, &make_cfg());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
         assert!(v.is_none());
     }
 
@@ -240,7 +260,11 @@ mod tests {
             &[("content-type", "text")],
         );
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check_transaction(&tx, None, &make_cfg());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
         assert!(v.is_none());
     }
 
@@ -252,7 +276,11 @@ mod tests {
             "application/vnd.foo+unknown",
         )]);
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check_transaction(&tx, None, &make_cfg());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("+unknown"));
     }
@@ -265,7 +293,11 @@ mod tests {
             "application/example+JSON",
         )]);
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check_transaction(&tx, None, &make_cfg());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
         assert!(v.is_none());
     }
 
@@ -277,7 +309,11 @@ mod tests {
             "application/vnd.foo+JSON; q=0.8, text/html",
         )]);
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check_transaction(&tx, None, &make_cfg());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
         assert!(v.is_none());
     }
 

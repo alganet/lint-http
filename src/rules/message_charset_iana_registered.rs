@@ -84,7 +84,7 @@ impl Rule for MessageCharsetIanaRegistered {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         use crate::helpers::headers::parse_media_type;
@@ -241,7 +241,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", v)]);
         }
 
-        let violation = rule.check_transaction(&tx, None, &cfg);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(violation.is_some());
         } else {
@@ -269,7 +273,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", v)]);
         }
 
-        let violation = rule.check_transaction(&tx, None, &cfg);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(violation.is_some());
         } else {
@@ -370,7 +378,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text")]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -383,7 +395,11 @@ mod tests {
             "content-type",
             "text/plain; CHARSET = UTF-8",
         )]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -397,7 +413,11 @@ mod tests {
             "content-type",
             "text/plain; charset",
         )]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -411,7 +431,11 @@ mod tests {
             "content-type",
             "text/plain; charset",
         )]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -425,7 +449,11 @@ mod tests {
             "content-type",
             "text/plain; charset=utf-8;",
         )]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -438,7 +466,11 @@ mod tests {
             "content-type",
             "text/plain; charset=utf-8; charset=unknown-charset",
         )]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -492,7 +524,11 @@ mod tests {
             .headers
             .insert("content-type", bad);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 

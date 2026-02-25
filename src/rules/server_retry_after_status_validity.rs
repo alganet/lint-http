@@ -21,7 +21,7 @@ impl Rule for ServerRetryAfterStatusValidity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = tx.response.as_ref()?;
@@ -75,7 +75,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("retry-after", "120")]);
         }
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert_eq!(v.is_some(), expect_violation);
     }
 
@@ -84,7 +88,11 @@ mod tests {
         let rule = ServerRetryAfterStatusValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -113,7 +121,11 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("retry-after", "60")]);
 
         let v = rule
-            .check_transaction(&tx, None, &cfg)
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
             .expect("expected violation");
         assert!(v.message.contains("status 500"));
         assert!(v.message.contains("3xx redirection"));

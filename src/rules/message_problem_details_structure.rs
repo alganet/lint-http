@@ -21,7 +21,7 @@ impl Rule for MessageProblemDetailsStructure {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -148,7 +148,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for hdr={:?}", hdr);
             assert!(v.unwrap().message.contains("Problem Details response"));
@@ -176,7 +180,11 @@ mod tests {
             body_length: Some(0),
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Problem Details response"));
     }
@@ -195,7 +203,11 @@ mod tests {
             body_length: Some(10),
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -213,7 +225,11 @@ mod tests {
             body_length: Some(0),
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -232,7 +248,11 @@ mod tests {
         });
         tx.response_body = Some(bytes::Bytes::from_static(b""));
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -251,7 +271,11 @@ mod tests {
         });
         tx.response_body = Some(bytes::Bytes::from_static(b"{}"));
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -270,7 +294,11 @@ mod tests {
         });
         tx.response_body = Some(bytes::Bytes::from_static(b"{\"type\":\"x\"}"));
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -289,7 +317,11 @@ mod tests {
         });
         tx.response_body = Some(bytes::Bytes::from_static(b"not json"));
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 }

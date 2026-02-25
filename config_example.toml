@@ -560,6 +560,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.stateful_authentication_failure_loop]
+enabled = true
+severity = "warn"
+
 [rules.message_http_version_syntax_valid]
 enabled = true
 severity = "error"

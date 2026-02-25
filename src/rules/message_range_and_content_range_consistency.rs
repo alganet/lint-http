@@ -21,7 +21,7 @@ impl Rule for MessageRangeAndContentRangeConsistency {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -156,7 +156,11 @@ mod tests {
             .insert("range", "bytes=0-499".parse().unwrap());
 
         let rule = MessageRangeAndContentRangeConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -167,7 +171,11 @@ mod tests {
             .headers
             .insert("range", "bytes=0-1".parse().unwrap());
         let rule = MessageRangeAndContentRangeConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("missing Content-Range"));
     }
@@ -182,7 +190,11 @@ mod tests {
             .headers
             .insert("range", "bytes=5-3".parse().unwrap());
         let rule = MessageRangeAndContentRangeConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -193,7 +205,11 @@ mod tests {
             &[("content-range", "bytes 0-1/10")],
         );
         let rule = MessageRangeAndContentRangeConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v
             .unwrap()
@@ -214,7 +230,11 @@ mod tests {
             .headers
             .insert("range", "bytes=0-499".parse().unwrap());
         let rule = MessageRangeAndContentRangeConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Content-Length"));
     }
@@ -226,21 +246,28 @@ mod tests {
             &[("content-range", "bytes */1234")],
         );
         let rule = MessageRangeAndContentRangeConsistency;
-        let v = rule.check_transaction(&tx_ok, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx_ok,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
 
         let tx_bad = crate::test_helpers::make_test_transaction_with_response(
             416,
             &[("content-range", "bytes 0-0/1234")],
         );
-        let v2 =
-            rule.check_transaction(&tx_bad, None, &crate::test_helpers::make_test_rule_config());
+        let v2 = rule.check_transaction(
+            &tx_bad,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v2.is_some());
 
         let tx_missing = crate::test_helpers::make_test_transaction_with_response(416, &[]);
         let v3 = rule.check_transaction(
             &tx_missing,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v3.is_some());
@@ -256,7 +283,11 @@ mod tests {
             .headers
             .insert("range", "bytes=0-1".parse().unwrap());
         let rule = MessageRangeAndContentRangeConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("must not use '*'"));
     }
@@ -271,7 +302,11 @@ mod tests {
             .headers
             .insert("range", "bytes=0-1".parse().unwrap());
         let rule = MessageRangeAndContentRangeConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid Content-Length"));
     }

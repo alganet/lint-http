@@ -22,7 +22,7 @@ impl Rule for MessageDateAndTimeHeadersConsistency {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         use chrono::Duration;
@@ -214,7 +214,11 @@ mod tests {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&h);
         }
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(v.is_some());
             let m = v.unwrap().message;
@@ -234,7 +238,11 @@ mod tests {
             ("last-modified", "Wed, 21 Oct 2015 07:30:00 GMT"),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let m = v.unwrap().message;
         assert!(m.contains("Last-Modified"));
@@ -250,7 +258,11 @@ mod tests {
             ("sunset", "Wed, 21 Oct 2015 07:27:00 GMT"),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let m = v.unwrap().message;
         assert!(m.contains("Sunset"));
@@ -266,7 +278,11 @@ mod tests {
             ("if-modified-since", "Wed, 21 Oct 2015 07:30:00 GMT"),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let m = v.unwrap().message;
         assert!(m.contains("If-Modified-Since"));
@@ -284,7 +300,11 @@ mod tests {
         hm.insert("date", bad);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -298,7 +318,11 @@ mod tests {
             ("sunset", "not-a-date"),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let m = v.unwrap().message;
         assert!(m.contains("Sunset header is not a valid IMF-fixdate"));
@@ -319,7 +343,11 @@ mod tests {
         hm.insert("last-modified", bad);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let m = v.unwrap().message;
         assert!(m.contains("Last-Modified header contains non-UTF8"));
@@ -337,7 +365,11 @@ mod tests {
         hm.insert("if-modified-since", bad);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let m = v.unwrap().message;
         assert!(m.contains("If-Modified-Since header contains non-UTF8"));
@@ -351,7 +383,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("date", "not-a-date")]);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let m = v.unwrap().message;
         assert!(m.contains("Date header is not a valid IMF-fixdate"));
@@ -367,7 +403,11 @@ mod tests {
             "Tue, 01 Jan 2030 00:00:00 GMT",
         )]);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -383,7 +423,11 @@ mod tests {
         hm.insert("date", bad);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let m = v.unwrap().message;
         assert!(m.contains("Date header contains non-UTF8"));
@@ -399,7 +443,11 @@ mod tests {
             ("last-modified", "not-a-date"),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         // Parse error for Last-Modified should be ignored by this rule (other rule will report)
         assert!(v.is_none());
         Ok(())
@@ -414,7 +462,11 @@ mod tests {
             ("if-modified-since", "not-a-date"),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         // Parse error for If-Modified-Since should be ignored by this rule (other rule will report)
         assert!(v.is_none());
         Ok(())
@@ -429,7 +481,11 @@ mod tests {
             "Wed, 21 Oct 2015 07:30:00 GMT",
         )]);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         // Without a Date header to compare against, the rule should not produce a violation
         assert!(v.is_none());
         Ok(())
@@ -449,7 +505,11 @@ mod tests {
         hm.insert("sunset", bad);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let m = v.unwrap().message;
         assert!(m.contains("Sunset header contains non-UTF8"));

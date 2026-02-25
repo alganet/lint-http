@@ -24,7 +24,7 @@ impl Rule for MessageSecFetchSiteValueValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Sec-Fetch-* are request-sent headers; check only requests
@@ -111,7 +111,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-site", v)]);
         }
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header={:?}", header);
         } else {
@@ -138,7 +142,11 @@ mod tests {
 
         let cfg = crate::test_helpers::make_test_rule_config();
         // get_header_str will return None for non-utf8 and this rule treats non-UTF8 as violation
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-ASCII"));
     }
@@ -152,7 +160,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-site", "b@d")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("invalid token character"));
@@ -167,7 +179,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-site", " same-origin ")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(
             v.is_none(),
             "whitespace around token should be trimmed and accepted"
@@ -189,7 +205,11 @@ mod tests {
         tx.request.headers = hm;
 
         // Multiple header fields are always a violation (potential header injection)
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some(), "expected violation for multiple header fields");
         let msg = v.unwrap().message;
         assert!(
@@ -213,7 +233,11 @@ mod tests {
         hm.append("sec-fetch-site", HeaderValue::from_static("bad2"));
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(
             v.is_some(),
             "expected violation when all header field values are invalid"
@@ -234,7 +258,11 @@ mod tests {
         hm.append("sec-fetch-site", HeaderValue::from_static("cross-site"));
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(
             v.is_some(),
             "expected violation when multiple valid header field values are present"

@@ -21,7 +21,7 @@ impl Rule for MessageLanguageTagFormatValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Helper to validate language-tag tokens according to helpers::language
@@ -121,7 +121,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("accept-language", v)]);
         }
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some());
         } else {
@@ -146,7 +150,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-language", v)]);
         }
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some());
         } else {
@@ -187,7 +195,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("accept-language", v)]);
         }
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some());
         } else {
@@ -205,7 +217,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-language", "en, fr")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }

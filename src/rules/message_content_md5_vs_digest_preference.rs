@@ -21,7 +21,7 @@ impl Rule for MessageContentMd5VsDigestPreference {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Helper to check a header map for both Content-Digest and Content-MD5
@@ -71,7 +71,11 @@ mod tests {
             ("content-md5", "dGVzdA=="),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         let v = v.unwrap();
         assert_eq!(v.rule, "message_content_md5_vs_digest_preference");
@@ -89,7 +93,11 @@ mod tests {
             ("content-md5", "dGVzdA=="),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -104,7 +112,11 @@ mod tests {
             "sha-256=:\tdGVzdA==:",
         )]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -118,7 +130,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-md5", "dGVzdA==")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -141,7 +157,11 @@ mod tests {
             HeaderValue::from_static("sha-256=:\tdGVzdA==:"),
         );
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -167,7 +187,11 @@ mod tests {
             ("content-md5", "dGVzdA=="),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         let v = v.unwrap();
         // Ensure the message refers to the request (i.e., the rule returned early on request)

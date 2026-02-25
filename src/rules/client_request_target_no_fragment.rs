@@ -21,7 +21,7 @@ impl Rule for ClientRequestTargetNoFragment {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         if tx.request.uri.contains('#') {
@@ -57,7 +57,11 @@ mod tests {
             severity: crate::lint::Severity::Error,
         };
 
-        let violation = rule.check_transaction(&tx, None, &config);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
 
         if expect_violation {
             assert!(violation.is_some());

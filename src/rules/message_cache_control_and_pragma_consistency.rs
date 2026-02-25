@@ -21,7 +21,7 @@ impl Rule for MessageCacheControlAndPragmaConsistency {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Check requests: Pragma: no-cache vs Cache-Control: only-if-cached contradiction
@@ -107,7 +107,11 @@ mod tests {
         }
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some());
             let m = v.unwrap().message;
@@ -127,7 +131,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("pragma", "no-cache")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Pragma"));
     }
@@ -145,7 +153,11 @@ mod tests {
         tx.request.headers = hm;
 
         // Non-UTF8 values are ignored by this consistency rule; syntax/token rules should report encoding problems.
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -171,7 +183,11 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -190,7 +206,11 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -203,7 +223,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("pragma", "foo")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -225,7 +249,11 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -240,7 +268,11 @@ mod tests {
         hm.append("pragma", hyper::header::HeaderValue::from_static("bar"));
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 

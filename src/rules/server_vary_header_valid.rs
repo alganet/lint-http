@@ -23,7 +23,7 @@ impl Rule for ServerVaryHeaderValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -135,7 +135,11 @@ mod tests {
             severity: crate::lint::Severity::Warn,
         };
 
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header={:?}", header);
         } else {
@@ -157,7 +161,11 @@ mod tests {
             &[("vary", "Accept-Encoding"), ("vary", "User-Agent")],
         );
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -170,7 +178,11 @@ mod tests {
             &[("vary", "*"), ("vary", "Accept-Encoding")],
         );
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -192,7 +204,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("non-UTF8"));
@@ -217,7 +233,11 @@ mod tests {
     fn no_response_returns_none() {
         let rule = ServerVaryHeaderValid;
         let tx = crate::test_helpers::make_test_transaction(); // request-only, no response
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 }

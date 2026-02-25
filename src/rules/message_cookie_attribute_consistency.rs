@@ -21,7 +21,7 @@ impl Rule for MessageCookieAttributeConsistency {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -271,7 +271,11 @@ mod tests {
         use crate::test_helpers::make_test_transaction_with_response;
         let tx = make_test_transaction_with_response(200, &[("set-cookie", value)]);
         let rule = MessageCookieAttributeConsistency;
-        rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config())
+        rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        )
     }
 
     #[rstest]
@@ -344,7 +348,11 @@ mod tests {
             .append("set-cookie", HeaderValue::from_bytes(&[0xff])?);
 
         let rule = MessageCookieAttributeConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("not valid UTF-8"));
@@ -420,7 +428,11 @@ mod tests {
             .append("set-cookie", HeaderValue::from_static("=bad; Secure"));
 
         let rule = MessageCookieAttributeConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }

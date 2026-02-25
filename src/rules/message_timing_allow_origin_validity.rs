@@ -21,7 +21,7 @@ impl Rule for MessageTimingAllowOriginValidity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -107,7 +107,11 @@ mod tests {
     fn no_response_no_violation() {
         let rule = MessageTimingAllowOriginValidity;
         let tx = make_test_transaction();
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -118,7 +122,11 @@ mod tests {
             200,
             &[("content-type", "text/plain")],
         );
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -134,7 +142,11 @@ mod tests {
             200,
             &[("timing-allow-origin", val)],
         );
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(
             v.is_none(),
             "expected no violation for '{}': got {:?}",
@@ -163,7 +175,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-ASCII"));
     }
@@ -176,7 +192,11 @@ mod tests {
             200,
             &[("timing-allow-origin", "https://a,  ")],
         );
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(
             v.is_none(),
             "expected no violation for trailing comma: got {:?}",
@@ -192,7 +212,11 @@ mod tests {
             200,
             &[("timing-allow-origin", " ")],
         );
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("empty"));
     }
@@ -204,7 +228,11 @@ mod tests {
             200,
             &[("timing-allow-origin", "https://[::1]:8080")],
         );
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -215,7 +243,11 @@ mod tests {
             200,
             &[("timing-allow-origin", "*, https://example.com")],
         );
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -226,7 +258,11 @@ mod tests {
             200,
             &[("timing-allow-origin", "NULL")],
         );
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -237,7 +273,11 @@ mod tests {
             200,
             &[("timing-allow-origin", "https:///foo")],
         );
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("invalid origin"));
     }
@@ -259,7 +299,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(
             v.is_none(),
             "expected no violation for combined fields: got {:?}",

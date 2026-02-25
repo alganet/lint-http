@@ -21,7 +21,7 @@ impl Rule for Server200Vs204BodyConsistency {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -132,7 +132,11 @@ mod tests {
 
         let cfg = crate::test_helpers::make_test_rule_config();
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(
                 v.is_some(),
@@ -161,7 +165,11 @@ mod tests {
         let rule = Server200Vs204BodyConsistency;
         let tx = crate::test_helpers::make_test_transaction();
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -172,7 +180,11 @@ mod tests {
         let tx = make_tx_with_response(200, "GET", &[("content-length", "0")]);
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule
-            .check_transaction(&tx, None, &cfg)
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
             .expect("expected violation");
         assert!(v.message.contains("Content-Length: 0"));
         Ok(())
@@ -188,7 +200,11 @@ mod tests {
         }
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule
-            .check_transaction(&tx, None, &cfg)
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
             .expect("expected violation");
         assert!(v.message.contains("captured length 0"));
         Ok(())
@@ -223,7 +239,11 @@ mod tests {
         });
 
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }

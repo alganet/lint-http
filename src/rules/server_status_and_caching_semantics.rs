@@ -24,7 +24,7 @@ impl Rule for ServerStatusAndCachingSemantics {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -110,7 +110,11 @@ mod tests {
         use crate::test_helpers::make_test_transaction_with_response;
         let tx = make_test_transaction_with_response(status, &hdrs);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(
                 v.is_some(),
@@ -137,7 +141,11 @@ mod tests {
         hm.insert("cache-control", bad);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }

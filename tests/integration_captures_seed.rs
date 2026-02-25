@@ -62,7 +62,7 @@ enabled = false
     fs::write(&config_file, config_toml).await?;
 
     let (cfg, _engine) = lint_http::config::Config::load_from_path(&config_file).await?;
-    let state = lint_http::state::StateStore::new(cfg.general.ttl_seconds);
+    let state = lint_http::state::StateStore::new(cfg.general.ttl_seconds, cfg.general.max_history);
 
     if cfg.general.captures_seed {
         let records = lint_http::capture::load_captures(&cfg.general.captures).await?;

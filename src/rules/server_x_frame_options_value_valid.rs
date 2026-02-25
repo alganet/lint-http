@@ -21,7 +21,7 @@ impl Rule for ServerXFrameOptionsValueValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Check response headers
@@ -134,7 +134,11 @@ mod tests {
                 &[("x-frame-options", h)],
             );
         }
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         if expect_violation {
             assert!(
                 v.is_some(),
@@ -169,7 +173,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Multiple X-Frame-Options"));
     }
@@ -194,7 +202,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-ASCII"));
     }

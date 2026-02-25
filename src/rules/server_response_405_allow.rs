@@ -21,7 +21,7 @@ impl Rule for ServerResponse405Allow {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         if let Some(resp) = &tx.response {
@@ -61,8 +61,11 @@ mod tests {
             None => vec![],
         };
         let tx = make_test_transaction_with_response(status, &header_pairs);
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
 
         if expect_violation {
             assert!(violation.is_some());

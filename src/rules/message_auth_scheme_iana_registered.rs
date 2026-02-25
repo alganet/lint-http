@@ -83,7 +83,7 @@ impl Rule for MessageAuthSchemeIanaRegistered {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Helper to check a single scheme token against allowed list
@@ -206,7 +206,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("www-authenticate", v)]);
         }
 
-        let violation = rule.check_transaction(&tx, None, &cfg);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(violation.is_some());
         } else {
@@ -230,7 +234,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("authorization", v)]);
         }
 
-        let violation = rule.check_transaction(&tx, None, &cfg);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(violation.is_some());
         } else {
@@ -271,7 +279,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("www-authenticate", " realm=\"x\"")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v
             .unwrap()
@@ -296,7 +308,11 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-UTF8"));
     }
@@ -318,7 +334,11 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-UTF8"));
     }
@@ -332,7 +352,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("authorization", "Basic")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid Authorization header"));
     }
@@ -438,7 +462,11 @@ mod tests {
             "Basic realm=\"x\", NewScheme abc=",
         )]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -463,7 +491,11 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -478,7 +510,11 @@ mod tests {
             "bAsIc realm=\"x\"",
         )]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -503,7 +539,11 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -518,7 +558,11 @@ mod tests {
             "bAsIc QWxhZGRpbjpvcGVuIHNlc2FtZQ==",
         )]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -547,7 +591,11 @@ mod tests {
             "Basic realm=\"x\"",
         )]);
 
-        let v = MessageAuthSchemeIanaRegistered.check_transaction(&tx, None, &parsed);
+        let v = MessageAuthSchemeIanaRegistered.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &parsed,
+        );
         assert!(v.is_none());
         Ok(())
     }

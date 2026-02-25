@@ -21,7 +21,7 @@ impl Rule for MessagePreferHeaderValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Applies to requests only
@@ -212,7 +212,11 @@ mod tests {
     fn check_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = MessagePreferHeaderValid;
         let tx = make_req(value);
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
 
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{}'", value);
@@ -235,7 +239,11 @@ mod tests {
             ("prefer", "respond-async, wait=100"),
             ("prefer", "handling=lenient"),
         ]);
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -251,7 +259,11 @@ mod tests {
         hm.insert("prefer", bad);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -261,7 +273,11 @@ mod tests {
         // A member that starts with a semicolon or is empty should trigger an empty preference token violation
         let rule = MessagePreferHeaderValid;
         let tx = make_req(";foo");
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("Empty preference token"));
@@ -272,13 +288,21 @@ mod tests {
     fn invalid_token_char_messages_include_char() -> anyhow::Result<()> {
         let rule = MessagePreferHeaderValid;
         let tx = make_req("f@o=1");
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("'@'"));
 
         let tx2 = make_req("return=minimal; foo=bad@");
-        let v2 = rule.check_transaction(&tx2, None, &crate::test_helpers::make_test_rule_config());
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v2.is_some());
         let msg2 = v2.unwrap().message;
         assert!(msg2.contains("'@'"));

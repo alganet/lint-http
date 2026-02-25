@@ -78,7 +78,7 @@ impl Rule for ServerKeepAliveTimeoutReasonable {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let Some(resp) = &tx.response else {
@@ -202,7 +202,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("keep-alive", v)]);
         }
 
-        let v = rule.check_transaction(&tx, None, &*cfg_arc);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &*cfg_arc,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for {:?}: got {:?}", hv, v);
         } else {
@@ -242,7 +246,11 @@ mod tests {
             .downcast::<ServerKeepAliveConfig>()
             .map_err(|_| anyhow::anyhow!("downcast failed"))?;
 
-        let v = rule.check_transaction(&tx, None, &*cfg_arc);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &*cfg_arc,
+        );
         assert!(v.is_some());
         Ok(())
     }

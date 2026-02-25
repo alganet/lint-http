@@ -21,7 +21,7 @@ impl Rule for MessagePriorityHeaderSyntax {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Check request
@@ -244,7 +244,11 @@ mod tests {
         let rule = MessagePriorityHeaderSyntax;
         let tx = make_tx_with_req(value);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{}', got none", value);
         } else {
@@ -270,7 +274,11 @@ mod tests {
         let rule = MessagePriorityHeaderSyntax;
         let tx = make_tx_with_resp(value);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some());
         } else {
@@ -284,7 +292,11 @@ mod tests {
         let rule = MessagePriorityHeaderSyntax;
         let tx = make_tx_with_req("u=8");
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("urgency") || msg.contains("out of range"));
@@ -297,27 +309,51 @@ mod tests {
 
         // valid parameter on urgency
         let tx1 = make_tx_with_req("u=3;foo=bar");
-        assert!(rule.check_transaction(&tx1, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx1,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
 
         // empty parameter name is ignored (tolerant) per structured-field-like handling
         let tx2 = make_tx_with_req("u=3;;i");
-        assert!(rule.check_transaction(&tx2, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx2,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
 
         // empty member between commas
         let tx3 = make_tx_with_req("u=1, ,i");
-        let v3 = rule.check_transaction(&tx3, None, &cfg);
+        let v3 = rule.check_transaction(
+            &tx3,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v3.is_some());
         assert!(v3.unwrap().message.contains("empty member"));
 
         // param key uppercase -> violation
         let tx4 = make_tx_with_req("u=1;X=1");
-        let v4 = rule.check_transaction(&tx4, None, &cfg);
+        let v4 = rule.check_transaction(
+            &tx4,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v4.is_some());
         assert!(v4.unwrap().message.contains("invalid parameter key"));
 
         // param with empty value
         let tx5 = make_tx_with_req("u=1;foo=");
-        let v5 = rule.check_transaction(&tx5, None, &cfg);
+        let v5 = rule.check_transaction(
+            &tx5,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v5.is_some());
         if let Some(v) = v5 {
             assert!(
@@ -330,15 +366,33 @@ mod tests {
 
         // unknown key with token-like value is accepted
         let tx6 = make_tx_with_req("x=token/value");
-        assert!(rule.check_transaction(&tx6, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx6,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
 
         // i=?0 accepted
         let tx7 = make_tx_with_req("i=?0");
-        assert!(rule.check_transaction(&tx7, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx7,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
 
         // explicit boolean on unknown key accepted
         let tx8 = make_tx_with_req("y=?1");
-        assert!(rule.check_transaction(&tx8, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx8,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[test]
@@ -348,26 +402,44 @@ mod tests {
 
         // unknown key with invalid boolean -> violation
         let tx2 = make_tx_with_req("x=?2");
-        let v2 = rule.check_transaction(&tx2, None, &cfg);
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v2.is_some());
         assert!(v2.unwrap().message.contains("invalid boolean value"));
 
         // invalid member key (starts with digit)
         let tx3 = make_tx_with_req("1=3");
-        let v3 = rule.check_transaction(&tx3, None, &cfg);
+        let v3 = rule.check_transaction(
+            &tx3,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v3.is_some());
         assert!(v3.unwrap().message.contains("invalid member key"));
 
         // invalid numeric with leading plus -> violation, reported as "invalid value"
         let tx4 = make_tx_with_req("x=+1");
-        let v4 = rule.check_transaction(&tx4, None, &cfg);
+        let v4 = rule.check_transaction(
+            &tx4,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v4.is_some());
         let msg = v4.unwrap().message;
         assert!(msg.contains("invalid value"));
 
         // star key accepted
         let tx5 = make_tx_with_req("*=5");
-        assert!(rule.check_transaction(&tx5, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx5,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[test]
@@ -380,7 +452,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = hm;
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not valid UTF-8"));
         Ok(())
@@ -417,7 +493,11 @@ mod tests {
             .headers
             .append("priority", bad);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not valid UTF-8"));
         Ok(())

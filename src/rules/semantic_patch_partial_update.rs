@@ -26,7 +26,7 @@ impl Rule for SemanticPatchPartialUpdate {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         if !tx.request.method.eq_ignore_ascii_case("PATCH") {
@@ -152,7 +152,11 @@ mod tests {
         let rule = SemanticPatchPartialUpdate;
         let tx = make_tx_with_req(headers);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(
                 v.is_some(),
@@ -177,7 +181,11 @@ mod tests {
         );
         tx.request.body_length = Some(1);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         // rule should not produce a violation; malformed header handled elsewhere
         assert!(v.is_none());
     }
@@ -189,7 +197,11 @@ mod tests {
         tx.request.method = "PATCH".into();
         tx.request.body_length = Some(5);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(
             v.is_some(),
             "expected violation when body_length>0 without header"
@@ -203,7 +215,11 @@ mod tests {
         tx.request.method = "PATCH".into();
         tx.request_body = Some(Bytes::from("hello"));
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(
             v.is_some(),
             "expected violation when request_body present without header"

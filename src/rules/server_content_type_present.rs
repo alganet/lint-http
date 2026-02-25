@@ -21,7 +21,7 @@ impl Rule for ServerContentTypePresent {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let Some(resp) = &tx.response else {
@@ -103,8 +103,11 @@ mod tests {
             body_length: None,
         });
 
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
 
         if expect_violation {
             assert!(violation.is_some());
@@ -122,8 +125,11 @@ mod tests {
     fn check_missing_response() {
         let rule = ServerContentTypePresent;
         let tx = crate::test_helpers::make_test_transaction();
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(violation.is_none());
     }
 }
