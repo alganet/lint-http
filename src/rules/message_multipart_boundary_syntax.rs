@@ -21,7 +21,7 @@ impl Rule for MessageMultipartBoundarySyntax {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Check request Content-Type
@@ -250,7 +250,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", h)]);
         }
 
-        let v = MessageMultipartBoundarySyntax.check_transaction(&tx, None, &cfg);
+        let v = MessageMultipartBoundarySyntax.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for {:?}", header);
         } else {
@@ -269,7 +273,11 @@ mod tests {
             tx2.response.as_mut().unwrap().headers =
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", h)]);
         }
-        let v2 = MessageMultipartBoundarySyntax.check_transaction(&tx2, None, &cfg2);
+        let v2 = MessageMultipartBoundarySyntax.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg2,
+        );
         if expect_violation {
             assert!(v2.is_some(), "expected violation for response {:?}", header);
         } else {
@@ -289,7 +297,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "not-a-media-type")]);
-        let v = MessageMultipartBoundarySyntax.check_transaction(&tx, None, &cfg);
+        let v = MessageMultipartBoundarySyntax.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -302,7 +314,11 @@ mod tests {
             "content-type",
             "multipart/mixed; boundary=\"unfinished",
         )]);
-        let v = MessageMultipartBoundarySyntax.check_transaction(&tx, None, &cfg);
+        let v = MessageMultipartBoundarySyntax.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("boundary quoted-string invalid"));
@@ -316,7 +332,11 @@ mod tests {
             "content-type",
             "text/plain; boundary=abc",
         )]);
-        let v = MessageMultipartBoundarySyntax.check_transaction(&tx, None, &cfg);
+        let v = MessageMultipartBoundarySyntax.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -329,7 +349,11 @@ mod tests {
             "content-type",
             "multipart/mixed; boundary=\"bad$\"",
         )]);
-        let v = MessageMultipartBoundarySyntax.check_transaction(&tx, None, &cfg);
+        let v = MessageMultipartBoundarySyntax.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("boundary contains invalid character"));

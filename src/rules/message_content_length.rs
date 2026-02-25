@@ -21,7 +21,7 @@ impl Rule for MessageContentLength {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
@@ -96,7 +96,11 @@ mod tests {
         let tx =
             crate::test_helpers::make_test_transaction_with_headers(&[("content-length", value)]);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(v.is_some(), "value '{}' expected violation", value);
         } else {
@@ -125,7 +129,11 @@ mod tests {
             &[("content-length", value)],
         );
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(v.is_some(), "response value '{}' expected violation", value);
         } else {
@@ -152,7 +160,11 @@ mod tests {
         let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("content-length", *v)).collect();
         let tx = crate::test_helpers::make_test_transaction_with_headers(&pairs);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(
                 v.is_some(),
@@ -180,7 +192,11 @@ mod tests {
             body_length: None,
         });
 
-        let v2 = rule.check_transaction(&tx2, None, &crate::test_helpers::make_test_rule_config());
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(
                 v2.is_some(),
@@ -208,7 +224,11 @@ mod tests {
         hm.insert(hyper::header::CONTENT_LENGTH, bad_value);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-UTF8"));
         Ok(())

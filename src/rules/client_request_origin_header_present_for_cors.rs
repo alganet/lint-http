@@ -21,7 +21,7 @@ impl Rule for ClientRequestOriginHeaderPresentForCors {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let req = &tx.request;
@@ -98,7 +98,11 @@ mod tests {
         tx.request.method = "OPTIONS".into();
         tx.request.headers = make_headers_from_pairs(&[("access-control-request-method", "POST")]);
 
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("missing Origin"));
     }
@@ -113,7 +117,11 @@ mod tests {
             ("origin", "https://example.com"),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -127,7 +135,11 @@ mod tests {
             ("origin", "http:///bad"),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Origin header invalid"));
     }
@@ -139,7 +151,11 @@ mod tests {
         tx.request.uri = "http://other.example/resource".into();
         tx.request.headers = make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v
             .unwrap()
@@ -154,7 +170,11 @@ mod tests {
         tx.request.uri = "http://example.com/resource".into();
         tx.request.headers = make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 

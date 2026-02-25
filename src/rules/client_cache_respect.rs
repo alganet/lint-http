@@ -21,11 +21,11 @@ impl Rule for ClientCacheRespect {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        previous: Option<&crate::http_transaction::HttpTransaction>,
+        history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Use the previous transaction passed by the linter (if any)
-        let previous_tx = previous?;
+        let previous_tx = history.previous()?;
         let resp = previous_tx.response.as_ref()?;
 
         // If the previous response had validators (ETag or Last-Modified),
@@ -92,7 +92,7 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = ClientCacheRespect;
-        let store = StateStore::new(300);
+        let store = StateStore::new(300, 10);
         let client = make_client();
         let resource = "http://example.com/api/data";
 
@@ -111,12 +111,9 @@ mod tests {
         tx.request.uri = resource.to_string();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(req_headers_pairs.as_slice());
-        let previous = store.get_previous(&client, resource);
-        let violation = rule.check_transaction(
-            &tx,
-            previous.as_ref(),
-            &crate::test_helpers::make_test_rule_config(),
-        );
+        let history = crate::queries::by_resource::by_resource(&store, &client, resource);
+        let violation =
+            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
 
         if expect_violation {
             assert!(violation.is_some());
@@ -134,7 +131,7 @@ mod tests {
     #[test]
     fn previous_without_response_returns_none() -> anyhow::Result<()> {
         let rule = ClientCacheRespect;
-        let store = StateStore::new(300);
+        let store = StateStore::new(300, 10);
         let client = make_client();
         let resource = "http://example.com/api/no_resp";
 
@@ -149,12 +146,9 @@ mod tests {
         tx.client = client.clone();
         tx.request.uri = resource.to_string();
 
-        let previous = store.get_previous(&client, resource);
-        let violation = rule.check_transaction(
-            &tx,
-            previous.as_ref(),
-            &crate::test_helpers::make_test_rule_config(),
-        );
+        let history = crate::queries::by_resource::by_resource(&store, &client, resource);
+        let violation =
+            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
 
         assert!(violation.is_none());
         Ok(())

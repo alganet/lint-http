@@ -22,7 +22,7 @@ impl Rule for ClientHostHeader {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let host_values = tx.request.headers.get_all("host");
@@ -206,8 +206,11 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ClientHostHeader;
         let tx = crate::test_helpers::make_test_transaction_with_headers(&header_pairs);
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
 
         if expect_violation {
             assert!(violation.is_some());
@@ -227,8 +230,11 @@ mod tests {
             ("host", "example.com"),
             ("host", "other.example.com"),
         ]);
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(violation.is_some());
         assert_eq!(
             violation.map(|v| v.message),
@@ -250,8 +256,11 @@ mod tests {
         hm.insert("host", HeaderValue::from_bytes(&[0xff]).unwrap());
         tx.request.headers = hm;
 
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
 
         assert!(violation.is_some());
         assert_eq!(
@@ -280,8 +289,11 @@ mod tests {
             "example.com:999999999999999999999",
         )]);
 
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(violation.is_some());
         let v = violation.unwrap();
         assert!(v.message.starts_with("Host header port is invalid"));

@@ -23,7 +23,7 @@ impl Rule for ClientPatchMethodContentTypeMatch {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        previous: Option<&crate::http_transaction::HttpTransaction>,
+        history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Only applies to PATCH requests
@@ -32,7 +32,7 @@ impl Rule for ClientPatchMethodContentTypeMatch {
         }
 
         // Need a previous response to discover Accept-Patch advertisement
-        let prev = previous?;
+        let prev = history.previous()?;
         let resp = match &prev.response {
             Some(r) => r,
             None => return None,
@@ -220,8 +220,11 @@ mod tests {
             prev = Some(p);
         }
 
-        let prev_ref = prev.as_ref();
-        let v = rule.check_transaction(&tx, prev_ref, &cfg);
+        let history = match prev {
+            Some(p) => crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
+            None => crate::transaction_history::TransactionHistory::empty(),
+        };
+        let v = rule.check_transaction(&tx, &history, &cfg);
         if expect_violation {
             assert!(v.is_some());
         } else {
@@ -258,7 +261,11 @@ mod tests {
         prev.request.uri = tx.request.uri.clone();
         prev.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -281,7 +288,11 @@ mod tests {
             "application/example-patch+json",
         )]);
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("did not contain any valid media-types"));
@@ -304,7 +315,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "application/json")]);
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("empty media-type token"));
@@ -329,7 +344,11 @@ mod tests {
             "application/merge-patch+json",
         )]);
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -352,7 +371,11 @@ mod tests {
             "application/example+json",
         )]);
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -375,7 +398,11 @@ mod tests {
             "application/merge-patch+json",
         )]);
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -398,7 +425,11 @@ mod tests {
             "application/merge-patch+json",
         )]);
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -421,7 +452,11 @@ mod tests {
             "application/merge-patch+json",
         )]);
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         // whitespace-only header triggers empty token detection and thus a violation
         assert!(v.is_some());
         Ok(())
@@ -446,7 +481,11 @@ mod tests {
         hm.insert("content-type", HeaderValue::from_bytes(&[0xff]).unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -467,7 +506,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "bad")]);
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         // malformed Content-Type is delegated to other rules; this rule should not emit a violation
         assert!(v.is_none());
         Ok(())
@@ -498,7 +541,11 @@ mod tests {
             "application/example-patch+json",
         )]);
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -522,7 +569,11 @@ mod tests {
         let mut prev = make_prev_with_accept_patch(Some("application/merge-patch+json"));
         prev.request.uri = tx.request.uri.clone();
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -543,7 +594,11 @@ mod tests {
         let mut prev = crate::test_helpers::make_test_transaction();
         prev.request.uri = tx.request.uri.clone();
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }

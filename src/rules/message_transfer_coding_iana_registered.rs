@@ -82,7 +82,7 @@ impl Rule for MessageTransferCodingIanaRegistered {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // check a list-style header value (Transfer-Encoding or TE) against allowed list
@@ -181,7 +181,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("transfer-encoding", v)]);
         }
 
-        let violation = rule.check_transaction(&tx, None, &cfg);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(violation.is_some());
         } else {
@@ -208,7 +212,11 @@ mod tests {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("te", v)]);
         }
 
-        let violation = rule.check_transaction(&tx, None, &cfg);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(violation.is_some());
         } else {
@@ -226,7 +234,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("transfer-encoding", "x@bad")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         let v = v.unwrap();
         assert_eq!(v.rule, "message_transfer_coding_iana_registered");
@@ -249,14 +261,22 @@ mod tests {
             HeaderValue::from_bytes(b"\xff").unwrap(),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
 
         let mut tx2 = crate::test_helpers::make_test_transaction();
         let mut hm2 = hyper::HeaderMap::new();
         hm2.insert("te", HeaderValue::from_bytes(b"\xff").unwrap());
         tx2.request.headers = hm2;
-        let v2 = rule.check_transaction(&tx2, None, &cfg);
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v2.is_none());
     }
 
@@ -396,7 +416,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("te", "x-custom;q=0.5")]);
 
-        let v = rule.check_transaction(&tx, None, &parsed);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &parsed,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -427,7 +451,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("transfer-encoding", "x-custom")]);
 
-        let v = rule.check_transaction(&tx, None, &parsed);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &parsed,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -445,7 +473,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("transfer-encoding", "x-foo")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         let v = v.unwrap();
         assert_eq!(v.severity, crate::lint::Severity::Error);
@@ -508,7 +540,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("transfer-encoding", v)]);
         }
 
-        let violation = rule.check_transaction(&tx, None, &cfg);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(violation.is_some());
         } else {
@@ -539,7 +575,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("te", "trailers, x-custom")]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         let v = v.unwrap();
         assert!(
@@ -556,7 +596,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("transfer-encoding", "x@bad")]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         let v = v.unwrap();
         assert!(v.message.contains("Invalid token"));

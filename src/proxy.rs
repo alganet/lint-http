@@ -138,7 +138,8 @@ pub async fn run_proxy_with_limit(
     };
 
     let ttl = cfg.general.ttl_seconds;
-    let state = Arc::new(crate::state::StateStore::new(ttl));
+    let max_history = cfg.general.max_history;
+    let state = Arc::new(crate::state::StateStore::new(ttl, max_history));
 
     // Seed state from captures file if enabled
     if cfg.general.captures_seed {
@@ -1129,7 +1130,7 @@ mod tests {
             .build();
         let client: LegacyClient<_, http_body_util::Full<bytes::Bytes>> =
             LegacyClient::builder(TokioExecutor::new()).build(https);
-        let state = StdArc::new(crate::state::StateStore::new(300));
+        let state = StdArc::new(crate::state::StateStore::new(300, 10));
         let engine = engine.unwrap_or_else(|| StdArc::new(crate::rules::RuleConfigEngine::new()));
         let shared = StdArc::new(Shared {
             client,

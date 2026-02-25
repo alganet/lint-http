@@ -83,7 +83,7 @@ impl Rule for ServerAltSvcProtocolIanaRegistered {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -188,7 +188,11 @@ mod tests {
             None => crate::test_helpers::make_test_transaction_with_response(200, &[]),
         };
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header={:?}", header);
         } else {
@@ -212,7 +216,11 @@ mod tests {
                 ("alt-svc", "xproto=example.com:443"),
             ],
         );
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v
             .unwrap()
@@ -228,7 +236,11 @@ mod tests {
             200,
             &[("alt-svc", "h2example.com:443")],
         );
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         // syntax rule will report missing '='; this rule should be conservative and not panic or report
         assert!(v.is_none());
     }
@@ -251,7 +263,11 @@ mod tests {
         });
 
         let cfg = make_cfg();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }

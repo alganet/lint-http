@@ -21,7 +21,7 @@ impl Rule for ServerAuthenticationChallengeValidity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Only check response headers; ignore non-UTF8 header values
@@ -113,7 +113,11 @@ mod tests {
         let rule = ServerAuthenticationChallengeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
         let tx = make_resp("Basic realm=\"example\"");
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -122,7 +126,11 @@ mod tests {
         let rule = ServerAuthenticationChallengeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
         let tx = make_resp("Basic realm=\"a\", NewAuth realm=\"a\"");
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         let vv = v.unwrap();
         assert!(vv.message.contains("realm \"a\""));
@@ -133,7 +141,11 @@ mod tests {
         let rule = ServerAuthenticationChallengeValidity;
         let cfg = crate::test_helpers::make_test_rule_config();
         let tx = make_resp("Basic realm=\"a\", NewAuth realm=\"b\"");
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -152,7 +164,11 @@ mod tests {
             hyper::header::HeaderValue::from_static("NewAuth realm=\"a\""),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -162,7 +178,11 @@ mod tests {
         let cfg = crate::test_helpers::make_test_rule_config();
         // Basic realm="a" and NewAuth realm=a -> should be treated equal
         let tx = make_resp("Basic realm=\"a\", NewAuth realm=a");
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -179,7 +199,11 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -189,7 +213,11 @@ mod tests {
         let cfg = crate::test_helpers::make_test_rule_config();
         // realm with escaped quote inside quoted-string
         let tx = make_resp("Basic realm=\"a\\\"b\", NewAuth realm=\"a\\\"b\"");
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -199,7 +227,11 @@ mod tests {
         let cfg = crate::test_helpers::make_test_rule_config();
         // NewAuth has no realm, Basic has realm a
         let tx = make_resp("Basic realm=\"a\", NewAuth");
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 

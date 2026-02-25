@@ -22,7 +22,7 @@ impl Rule for MessageRefreshHeaderSyntaxValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -153,7 +153,11 @@ mod tests {
     fn cases(#[case] hdrs: &[(&str, &str)], #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = MessageRefreshHeaderSyntaxValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(200, hdrs);
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for {:?}", hdrs);
         } else {
@@ -180,7 +184,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("non-UTF8"));
@@ -195,7 +203,11 @@ mod tests {
             &[("refresh", "5"), ("refresh", "10; url=/x")],
         );
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -208,7 +220,11 @@ mod tests {
             &[("refresh", "5"), ("refresh", "bad")],
         );
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -218,7 +234,11 @@ mod tests {
         let rule = MessageRefreshHeaderSyntaxValid;
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, &[("refresh", "   ")]);
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("missing delta-seconds"));
@@ -231,7 +251,11 @@ mod tests {
         let rule = MessageRefreshHeaderSyntaxValid;
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, &[("refresh", "5;")]);
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -244,7 +268,11 @@ mod tests {
             200,
             &[("refresh", "5; url=/a,b")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -257,7 +285,11 @@ mod tests {
             200,
             &[("refresh", "5; url=/in valid")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("contains whitespace"));
@@ -267,7 +299,11 @@ mod tests {
             200,
             &[("refresh", "5; url=/x%G1")],
         );
-        let v2 = rule.check_transaction(&tx2, None, &crate::test_helpers::make_test_rule_config());
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v2.is_some());
         let msg2 = v2.unwrap().message;
         assert!(msg2.contains("percent-encoding"));
@@ -277,7 +313,11 @@ mod tests {
             200,
             &[("refresh", "5; url=1http://example/")],
         );
-        let v3 = rule.check_transaction(&tx3, None, &crate::test_helpers::make_test_rule_config());
+        let v3 = rule.check_transaction(
+            &tx3,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v3.is_some());
         let msg3 = v3.unwrap().message;
         assert!(msg3.contains("invalid scheme"));

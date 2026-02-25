@@ -21,7 +21,7 @@ impl Rule for MessageWellKnownUriFormat {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let path = crate::helpers::uri::extract_path_from_request_target(&tx.request.uri)?;
@@ -70,11 +70,19 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_none());
 
         tx = make_tx_with_uri("https://example.com/.well-known/security.txt");
-        let v2 = rule.check_transaction(&tx, None, &config);
+        let v2 = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v2.is_none());
     }
 
@@ -88,7 +96,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_some());
         let v = v.unwrap();
         assert_eq!(v.rule, "message_well_known_uri_format");
@@ -102,7 +114,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_some());
         let v = v.unwrap();
         assert_eq!(v.rule, "message_well_known_uri_format");
@@ -116,7 +132,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_none());
     }
 
@@ -128,7 +148,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(v.is_none());
     }
 

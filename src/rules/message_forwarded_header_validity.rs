@@ -22,7 +22,7 @@ impl Rule for MessageForwardedHeaderValidity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Helper to validate a single Forwarded element (one comma-separated member)
@@ -430,7 +430,11 @@ mod tests {
     fn valid_forwarded_simple_for_ipv4() {
         let tx = make_tx_with_forwarded("for=192.0.2.43");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -438,7 +442,11 @@ mod tests {
     fn valid_forwarded_for_ipv6_bracketed() {
         let tx = make_tx_with_forwarded("for=\"[2001:db8::1]\"");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -446,7 +454,11 @@ mod tests {
     fn valid_forwarded_with_port() {
         let tx = make_tx_with_forwarded("for=198.51.100.17:1234;proto=https;by=203.0.113.5");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -454,7 +466,11 @@ mod tests {
     fn invalid_forwarded_empty_element() {
         let tx = make_tx_with_forwarded(", ;for=192.0.2.43");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         // Leading empty list members and stray semicolons are ignored by header parsing; consider this valid
         assert!(v.is_none());
     }
@@ -463,7 +479,11 @@ mod tests {
     fn invalid_forwarded_missing_eq() {
         let tx = make_tx_with_forwarded("for");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -471,7 +491,11 @@ mod tests {
     fn invalid_forwarded_bad_ipv4() {
         let tx = make_tx_with_forwarded("for=999.999.999.999");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -479,7 +503,11 @@ mod tests {
     fn invalid_forwarded_bad_ipv6_brackets() {
         let tx = make_tx_with_forwarded("for=[2001:db8::zzz]");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -487,7 +515,11 @@ mod tests {
     fn invalid_forwarded_bad_port() {
         let tx = make_tx_with_forwarded("for=192.0.2.1:99999");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -500,7 +532,11 @@ mod tests {
         let bad = HeaderValue::from_bytes(&[0xff])?;
         hm.append("forwarded", bad);
         tx.request.headers = hm;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -512,7 +548,11 @@ mod tests {
             &[("forwarded", "for=192.0.2.4, proto=https")],
         );
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -520,7 +560,11 @@ mod tests {
     fn invalid_forwarded_obfuscated_token_invalid_char() {
         let tx = make_tx_with_forwarded("for=obf@bad");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -528,7 +572,11 @@ mod tests {
     fn invalid_forwarded_proto_token_char() {
         let tx = make_tx_with_forwarded("proto=ht@tp");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -536,7 +584,11 @@ mod tests {
     fn invalid_forwarded_host_with_large_port() {
         let tx = make_tx_with_forwarded("host=example.com:99999");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -544,7 +596,11 @@ mod tests {
     fn invalid_forwarded_host_missing_bracket() {
         let tx = make_tx_with_forwarded("host=[2001:db8::1");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -552,7 +608,11 @@ mod tests {
     fn invalid_forwarded_for_unterminated_quoted_ipv6() {
         let tx = make_tx_with_forwarded("for=\"[2001:db8::1\"");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -560,7 +620,11 @@ mod tests {
     fn forwarded_by_unknown_is_ok() {
         let tx = make_tx_with_forwarded("by=unknown");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -568,7 +632,11 @@ mod tests {
     fn forwarded_for_obfuscated_token_ok() {
         let tx = make_tx_with_forwarded("for=x-foo");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -576,7 +644,11 @@ mod tests {
     fn unknown_param_value_invalid_token_char() {
         let tx = make_tx_with_forwarded("foo=bad@value");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -587,7 +659,11 @@ mod tests {
             &[("forwarded", "for=999.999.999.999")],
         );
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -598,7 +674,11 @@ mod tests {
             &[("forwarded", "foo=bad@value")],
         );
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -606,7 +686,11 @@ mod tests {
     fn valid_forwarded_quoted_ipv6_with_port() {
         let tx = make_tx_with_forwarded("for=\"[2001:db8::1]:1234\"");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -614,7 +698,11 @@ mod tests {
     fn invalid_forwarded_quoted_ipv6_empty_inside() {
         let tx = make_tx_with_forwarded("for=\"[]\"");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -622,7 +710,11 @@ mod tests {
     fn invalid_forwarded_quoted_ipv6_bad_port_syntax() {
         let tx = make_tx_with_forwarded("for=\"[2001:db8::1]x\"");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -630,7 +722,11 @@ mod tests {
     fn valid_forwarded_host_with_port_regname() {
         let tx = make_tx_with_forwarded("host=example.com:8080");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -638,7 +734,11 @@ mod tests {
     fn invalid_forwarded_host_invalid_char() {
         let tx = make_tx_with_forwarded("host=exa mple");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -646,7 +746,11 @@ mod tests {
     fn unknown_param_quoted_string_ok() {
         let tx = make_tx_with_forwarded("foo=\"bar baz\"");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -658,7 +762,11 @@ mod tests {
             ("forwarded", "for=999.999.999.999"),
         ]);
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -666,7 +774,11 @@ mod tests {
     fn unknown_param_token_ok() {
         let tx = make_tx_with_forwarded("foo=bar");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -674,7 +786,11 @@ mod tests {
     fn invalid_forwarded_ipv6_port_non_numeric() {
         let tx = make_tx_with_forwarded("for=[2001:db8::1]:x");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -682,7 +798,11 @@ mod tests {
     fn invalid_forwarded_ipv6_port_empty() {
         let tx = make_tx_with_forwarded("for=[2001:db8::1]:");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -690,7 +810,11 @@ mod tests {
     fn invalid_forwarded_host_bracketed_port_non_numeric() {
         let tx = make_tx_with_forwarded("host=[2001:db8::1]:notnum");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -698,7 +822,11 @@ mod tests {
     fn valid_forwarded_host_bracketed_with_port() {
         let tx = make_tx_with_forwarded("host=[2001:db8::1]:8080");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -706,7 +834,11 @@ mod tests {
     fn valid_forwarded_obfuscated_with_port() {
         let tx = make_tx_with_forwarded("for=x-foo:8080");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -714,7 +846,11 @@ mod tests {
     fn invalid_forwarded_obfuscated_token_with_port_invalid_char() {
         let tx = make_tx_with_forwarded("for=obf@bad:8080");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -722,7 +858,11 @@ mod tests {
     fn quoted_unknown_ok() {
         let tx = make_tx_with_forwarded("for=\"unknown\"");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -730,7 +870,11 @@ mod tests {
     fn invalid_forwarded_bare_ipv6_no_brackets() {
         let tx = make_tx_with_forwarded("for=2001:db8::1");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -738,7 +882,11 @@ mod tests {
     fn invalid_param_name_invalid_token_char() {
         let tx = make_tx_with_forwarded("@=1");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -746,7 +894,11 @@ mod tests {
     fn invalid_forwarded_empty_value() {
         let tx = make_tx_with_forwarded("foo=");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -754,7 +906,11 @@ mod tests {
     fn invalid_forwarded_proto_quoted_with_space_is_violation() {
         let tx = make_tx_with_forwarded("proto=\"ht tp\"");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -762,7 +918,11 @@ mod tests {
     fn unknown_param_quoted_with_escaped_quote_ok() {
         let tx = make_tx_with_forwarded("foo=\"a\\\"b\"");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -770,7 +930,11 @@ mod tests {
     fn invalid_forwarded_host_with_port_and_space() {
         let tx = make_tx_with_forwarded("host=exa mple:80");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -778,7 +942,11 @@ mod tests {
     fn invalid_forwarded_empty_param_name() {
         let tx = make_tx_with_forwarded("=value");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -791,7 +959,11 @@ mod tests {
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
         hm.append("forwarded", bad);
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -800,7 +972,11 @@ mod tests {
     fn unknown_param_quoted_with_semicolon_ok() {
         let tx = make_tx_with_forwarded("foo=\"a;b\"");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -808,7 +984,11 @@ mod tests {
     fn invalid_forwarded_for_missing_closing_bracket() {
         let tx = make_tx_with_forwarded("for=[2001:db8::1");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -816,7 +996,11 @@ mod tests {
     fn invalid_forwarded_for_non_colon_after_bracket() {
         let tx = make_tx_with_forwarded("for=[2001:db8::1]x");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -824,7 +1008,11 @@ mod tests {
     fn invalid_forwarded_host_non_colon_after_bracket() {
         let tx = make_tx_with_forwarded("host=[2001:db8::1]x");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -832,7 +1020,11 @@ mod tests {
     fn invalid_forwarded_empty_header_value() {
         let tx = make_tx_with_forwarded("");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         // Empty header value is ignored by header parsing; considered valid
         assert!(v.is_none());
     }
@@ -841,7 +1033,11 @@ mod tests {
     fn invalid_forwarded_quoted_string_extra_chars() {
         let tx = make_tx_with_forwarded("foo=\"bar\"x");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -849,7 +1045,11 @@ mod tests {
     fn invalid_forwarded_empty_quoted_for() {
         let tx = make_tx_with_forwarded("for=\"\"");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let v = v.unwrap();
         assert!(v.message.contains("Empty value"));
@@ -859,7 +1059,11 @@ mod tests {
     fn valid_forwarded_quoted_ipv4_with_port() {
         let tx = make_tx_with_forwarded("for=\"192.0.2.1:8080\"");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -867,7 +1071,11 @@ mod tests {
     fn forwarded_extra_semicolon_ignored() {
         let tx = make_tx_with_forwarded("for=192.0.2.1; ;proto=https");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -875,7 +1083,11 @@ mod tests {
     fn valid_forwarded_host_ipv4_with_port() {
         let tx = make_tx_with_forwarded("host=192.0.2.1:80");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -883,7 +1095,11 @@ mod tests {
     fn valid_forwarded_host_bracketed_no_port() {
         let tx = make_tx_with_forwarded("host=[2001:db8::1]");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -891,7 +1107,11 @@ mod tests {
     fn forwarded_host_empty_port_is_accepted() {
         let tx = make_tx_with_forwarded("host=example.com:");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         // Empty port after ':' is accepted (treated as absent) by the implementation
         assert!(v.is_none());
     }
@@ -900,7 +1120,11 @@ mod tests {
     fn invalid_forwarded_host_with_at() {
         let tx = make_tx_with_forwarded("host=user@host");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -918,7 +1142,7 @@ mod tests {
                 tx.request.headers = hm;
                 let v = rule.check_transaction(
                     &tx,
-                    None,
+                    &crate::transaction_history::TransactionHistory::empty(),
                     &crate::test_helpers::make_test_rule_config(),
                 );
                 assert!(v.is_some());
@@ -935,7 +1159,11 @@ mod tests {
     fn invalid_forwarded_host_empty_brackets() {
         let tx = make_tx_with_forwarded("host=[]");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -943,7 +1171,11 @@ mod tests {
     fn invalid_forwarded_ipv4_port_non_numeric() {
         let tx = make_tx_with_forwarded("for=192.0.2.1:xyz");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 

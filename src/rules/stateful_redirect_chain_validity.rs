@@ -32,7 +32,7 @@ impl Rule for StatefulRedirectChainValidity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        previous: Option<&crate::http_transaction::HttpTransaction>,
+        history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -93,7 +93,7 @@ impl Rule for StatefulRedirectChainValidity {
         }
 
         // 2) Repeated redirect to same Location for the same client+resource
-        if let Some(prev) = previous {
+        if let Some(prev) = history.previous() {
             if let Some(prev_resp) = &prev.response {
                 if matches!(prev_resp.status, 300 | 301 | 302 | 303 | 307 | 308 | 201) {
                     if let Some(phv) = prev_resp.headers.get_all("location").iter().next() {
@@ -156,7 +156,11 @@ mod tests {
         let rule = StatefulRedirectChainValidity;
         let tx = make_resp_tx(req, 301, Some(loc));
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("circular redirect"));
     }
@@ -167,7 +171,11 @@ mod tests {
         // different host should NOT be considered circular
         let tx = make_resp_tx("http://example.com/a", 301, Some("http://other/a"));
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -182,7 +190,11 @@ mod tests {
         tx.client = crate::test_helpers::make_test_client();
 
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Repeated redirect"));
     }
@@ -208,7 +220,11 @@ mod tests {
         });
 
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not valid UTF-8"));
     }
@@ -218,7 +234,11 @@ mod tests {
         let rule = StatefulRedirectChainValidity;
         let tx = make_resp_tx("/r", 200, Some("/x"));
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         // This rule only inspects redirect/creation status codes — ignore otherwise
         assert!(v.is_none());
     }
@@ -235,7 +255,11 @@ mod tests {
 
         let cfg = crate::test_helpers::make_test_rule_config();
         // previous had non-redirect status -> should NOT trigger repeated-redirect violation
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -244,7 +268,11 @@ mod tests {
         let rule = StatefulRedirectChainValidity;
         let tx = make_resp_tx("/r", 302, None);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 

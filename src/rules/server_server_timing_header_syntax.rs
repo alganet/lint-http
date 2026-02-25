@@ -26,7 +26,7 @@ impl Rule for ServerServerTimingHeaderSyntax {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let Some(resp) = &tx.response else {
@@ -273,7 +273,11 @@ mod tests {
             severity: crate::lint::Severity::Warn,
         };
 
-        let v = rule.check_transaction(&tx, None, &config);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header={:?}", header);
         } else {
@@ -298,7 +302,11 @@ mod tests {
             ],
         );
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -320,7 +328,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("non-UTF8"));
@@ -342,7 +354,11 @@ mod tests {
             200,
             &[("Server-Timing", "db;dur=50;dur=abc")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none(), "duplicate params should be ignored");
     }
 
@@ -353,7 +369,11 @@ mod tests {
             200,
             &[("Server-Timing", "db;=5")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none(), "empty parameter name should be ignored");
     }
 
@@ -364,7 +384,11 @@ mod tests {
             200,
             &[("Server-Timing", "db;desc=\"abc\"x")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         // underlying helper reports a generic quoted-string problem
@@ -381,7 +405,11 @@ mod tests {
             200,
             &[("Server-Timing", "db;desc")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("missing '=' or value"));
@@ -394,7 +422,11 @@ mod tests {
             200,
             &[("Server-Timing", "db;desc=")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("has empty value"));
@@ -407,7 +439,11 @@ mod tests {
             200,
             &[("Server-Timing", "db;desc=bad@value")],
         );
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("parameter value contains invalid token character"));
@@ -418,7 +454,11 @@ mod tests {
         let rule = ServerServerTimingHeaderSyntax;
         let tx = crate::test_helpers::make_test_transaction();
         // tx.response is None
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 

@@ -21,7 +21,7 @@ impl Rule for MessageStrictTransportSecurityValidity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Only applicable to responses
@@ -237,7 +237,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        let got = rule.check_transaction(&tx, None, &cfg).is_some();
+        let got = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .is_some();
         assert_eq!(got, expect_violation, "value: {}", val);
         Ok(())
     }
@@ -263,7 +269,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        assert!(rule.check_transaction(&tx, None, &cfg).is_some());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_some());
     }
 
     #[test]
@@ -274,7 +286,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        assert!(rule.check_transaction(&tx, None, &cfg).is_some());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_some());
     }
 
     #[test]
@@ -285,7 +303,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        assert!(rule.check_transaction(&tx, None, &cfg).is_some());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_some());
     }
 
     #[test]
@@ -296,7 +320,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        assert!(rule.check_transaction(&tx, None, &cfg).is_some());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_some());
     }
 
     #[test]
@@ -307,7 +337,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        assert!(rule.check_transaction(&tx, None, &cfg).is_some());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_some());
     }
 
     #[test]
@@ -318,7 +354,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        assert!(rule.check_transaction(&tx, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[test]
@@ -329,7 +371,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        assert!(rule.check_transaction(&tx, None, &cfg).is_some());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_some());
     }
 
     #[test]
@@ -340,7 +388,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        assert!(rule.check_transaction(&tx, None, &cfg).is_some());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_some());
     }
 
     #[test]
@@ -351,7 +405,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        assert!(rule.check_transaction(&tx, None, &cfg).is_some());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_some());
     }
 
     #[test]
@@ -362,7 +422,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        assert!(rule.check_transaction(&tx, None, &cfg).is_some());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_some());
     }
 
     #[test]
@@ -373,7 +439,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        assert!(rule.check_transaction(&tx, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[test]
@@ -384,7 +456,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        assert!(rule.check_transaction(&tx, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[test]
@@ -406,7 +484,13 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Warn,
         };
-        assert!(rule.check_transaction(&tx, None, &cfg).is_some());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_some());
     }
 
     #[test]

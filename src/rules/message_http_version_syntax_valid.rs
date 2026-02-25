@@ -21,7 +21,7 @@ impl Rule for MessageHttpVersionSyntaxValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Check request version token (now required)
@@ -93,7 +93,11 @@ mod tests {
         });
 
         let rule = MessageHttpVersionSyntaxValid;
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -102,7 +106,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.version = "http/1.1".into();
         let rule = MessageHttpVersionSyntaxValid;
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Request HTTP-version invalid"));
     }
@@ -112,12 +120,20 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.version = "HTTP/11.0".into();
         let rule = MessageHttpVersionSyntaxValid;
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
 
         let mut tx2 = crate::test_helpers::make_test_transaction();
         tx2.request.version = "HTTP/1.10".into();
-        let v2 = rule.check_transaction(&tx2, None, &make_test_rule_config());
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v2.is_some());
     }
 
@@ -132,7 +148,11 @@ mod tests {
             body_length: None,
         });
         let rule = MessageHttpVersionSyntaxValid;
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -141,7 +161,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.version = "HTTP/1".into();
         let rule = MessageHttpVersionSyntaxValid;
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -150,7 +174,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.version = "HTTP/1.x".into();
         let rule = MessageHttpVersionSyntaxValid;
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -159,7 +187,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.version = "HTTP/1.1.1".into();
         let rule = MessageHttpVersionSyntaxValid;
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
     #[test]
@@ -175,7 +207,11 @@ mod tests {
             body_length: None,
         });
         let rule = MessageHttpVersionSyntaxValid;
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Response HTTP-version invalid"));
     }
@@ -185,7 +221,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.version = "HTTP/1.".into();
         let rule = MessageHttpVersionSyntaxValid;
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -194,7 +234,11 @@ mod tests {
         let tx = crate::test_helpers::make_test_transaction();
         let rule = MessageHttpVersionSyntaxValid;
         // make_test_transaction defaults version to "HTTP/1.1"
-        let v = rule.check_transaction(&tx, None, &make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 

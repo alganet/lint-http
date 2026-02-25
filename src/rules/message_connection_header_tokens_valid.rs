@@ -21,7 +21,7 @@ impl Rule for MessageConnectionHeaderTokensValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
@@ -100,7 +100,11 @@ mod tests {
         }
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(v.is_some(), "case '{}' expected violation", value);
         } else {
@@ -137,7 +141,11 @@ mod tests {
             body_length: None,
         });
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(v.is_some(), "case '{}' expected violation", value);
         } else {
@@ -160,7 +168,11 @@ mod tests {
         tx.request.headers = hm;
 
         assert!(rule
-            .check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config())
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_rule_config()
+            )
             .is_none());
         Ok(())
     }
@@ -180,7 +192,11 @@ mod tests {
 
         // Should report a violation due to invalid 'a/b' token
         assert!(rule
-            .check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config())
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_rule_config()
+            )
             .is_some());
         Ok(())
     }
@@ -193,7 +209,11 @@ mod tests {
         tx.request.headers = hyper::HeaderMap::new();
 
         assert!(rule
-            .check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config())
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_rule_config()
+            )
             .is_none());
         Ok(())
     }
@@ -212,7 +232,11 @@ mod tests {
         tx.request.headers = hm;
 
         assert!(rule
-            .check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config())
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_rule_config()
+            )
             .is_none());
         Ok(())
     }

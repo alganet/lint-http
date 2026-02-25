@@ -21,7 +21,7 @@ impl Rule for ServerNoBodyFor1xx204304 {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let Some(resp) = &tx.response else {
@@ -118,7 +118,11 @@ mod tests {
             enabled: true,
             severity: crate::lint::Severity::Error,
         };
-        let violation = rule.check_transaction(&tx, None, &test_rule_config);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &test_rule_config,
+        );
 
         if expect_violation {
             assert!(violation.is_some());
@@ -140,7 +144,7 @@ mod tests {
         let tx = crate::test_helpers::make_test_transaction();
         let violation = rule.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::rules::RuleConfig {
                 enabled: true,
                 severity: crate::lint::Severity::Error,

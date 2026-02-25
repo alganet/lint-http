@@ -21,7 +21,7 @@ impl Rule for SemanticPostCreatesResource {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // only consider POST requests with a response
@@ -101,7 +101,11 @@ mod tests {
         let rule = SemanticPostCreatesResource;
         let tx = make_tx(status, headers);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for status {}", status);
         } else {
@@ -119,7 +123,11 @@ mod tests {
         let rule = SemanticPostCreatesResource;
         let tx = make_tx(200, vec![("Location", "/new")]);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -135,7 +143,11 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(
             v.is_some(),
             "non-UTF8 header value should still count as presence"
@@ -149,7 +161,11 @@ mod tests {
         // presence is what matters
         let tx = make_tx(200, vec![("location", "/a"), ("location", "/b")]);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(
             v.is_some(),
             "multiple Location headers should still trigger violation"
@@ -162,7 +178,13 @@ mod tests {
         tx.request.method = "PUT".to_string();
         let rule = SemanticPostCreatesResource;
         let cfg = crate::test_helpers::make_test_rule_config();
-        assert!(rule.check_transaction(&tx, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[test]

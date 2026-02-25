@@ -21,7 +21,7 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Check request body when Content-Type is multipart
@@ -121,7 +121,11 @@ mod tests {
             b"--abc\r\nContent-Type: text/plain\r\n\r\nhi\r\n--abc--\r\n",
         ));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -133,7 +137,11 @@ mod tests {
         );
         tx.response_body = Some(Bytes::from_static(b"no boundaries here"));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("--abc"));
     }
@@ -146,7 +154,11 @@ mod tests {
         );
         tx.response_body = Some(Bytes::from_static(b"--abc\r\nPart\r\n--abc\r\n"));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("missing terminating boundary"));
     }
@@ -159,7 +171,11 @@ mod tests {
         );
         tx.response_body = Some(Bytes::from_static(b"no boundaries"));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -170,7 +186,11 @@ mod tests {
             &[("content-type", "multipart/mixed; boundary=abc")],
         );
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -183,7 +203,11 @@ mod tests {
         )]);
         tx.request_body = Some(Bytes::from_static(b"--xyz\r\nfoo\r\n--xyz--\r\n"));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -195,7 +219,11 @@ mod tests {
         );
         tx.response_body = Some(Bytes::from_static(b"--a b\r\nx\r\n--a b--\r\n"));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -207,7 +235,11 @@ mod tests {
         );
         tx.response_body = Some(Bytes::from_static(b"no boundaries"));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -220,7 +252,11 @@ mod tests {
         );
         tx.response_body = Some(Bytes::from_static(b"no boundaries"));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
 
         // malformed quoted-string -> ignored
@@ -229,7 +265,11 @@ mod tests {
             &[("content-type", "multipart/mixed; boundary=\"unterminated")],
         );
         tx2.response_body = Some(Bytes::from_static(b"no boundaries"));
-        let v2 = rule.check_transaction(&tx2, None, &crate::test_helpers::make_test_rule_config());
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v2.is_none());
     }
 
@@ -242,7 +282,11 @@ mod tests {
         )]);
         tx.request_body = Some(Bytes::from_static(b"no boundaries here"));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("--xyz"));
@@ -258,7 +302,11 @@ mod tests {
         )]);
         tx.request_body = Some(Bytes::from_static(b"--xyz\r\nPart\r\n--xyz\r\n"));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("terminating boundary"));
     }
@@ -272,7 +320,11 @@ mod tests {
         // body contains only the final boundary marker
         tx.response_body = Some(Bytes::from_static(b"--abc--\r\n"));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -285,7 +337,11 @@ mod tests {
         // unescaped boundary is: a"b
         tx.response_body = Some(Bytes::from_static(b"--a\"b\r\nx\r\n--a\"b--\r\n"));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -302,7 +358,11 @@ mod tests {
             b"--gc0pJq0M:08jU534c0p\r\npart\r\n--gc0pJq0M:08jU534c0p--\r\n",
         ));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -314,7 +374,11 @@ mod tests {
         );
         tx.response_body = Some(Bytes::from_static(b"\x00\x01--bin\x02--bin--\x03"));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 

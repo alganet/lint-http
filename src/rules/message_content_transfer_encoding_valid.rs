@@ -21,7 +21,7 @@ impl Rule for MessageContentTransferEncodingValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Allowed encodings per RFC 2045 §6
@@ -126,7 +126,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-transfer-encoding", v)]);
         }
 
-        let violation = rule.check_transaction(&tx, None, &cfg);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(violation.is_some());
         } else {
@@ -148,7 +152,11 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -162,7 +170,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-transfer-encoding", "8bit")]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
 
         // invalid request header should produce a violation
@@ -171,7 +183,11 @@ mod tests {
             "content-transfer-encoding",
             "xcodec",
         )]);
-        let v2 = rule.check_transaction(&tx2, None, &cfg);
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v2.is_some());
         Ok(())
     }
@@ -186,7 +202,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-transfer-encoding", " ")]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
 
         // multiple header fields where one is invalid -> should report violation
@@ -194,7 +214,11 @@ mod tests {
             ("content-transfer-encoding", "base64"),
             ("content-transfer-encoding", "x-bad"),
         ]);
-        let v2 = rule.check_transaction(&tx2, None, &cfg);
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v2.is_some());
         Ok(())
     }

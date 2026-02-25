@@ -21,7 +21,7 @@ impl Rule for MessageContentEncodingAndTypeConsistency {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Helper to validate a Content-Encoding-like header value (comma-separated members).
@@ -151,8 +151,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-encoding", v)]);
         }
 
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(violation.is_some());
         } else {
@@ -178,8 +181,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-encoding", v)]);
         }
 
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(violation.is_some());
         } else {
@@ -204,8 +210,11 @@ mod tests {
             HeaderValue::from_bytes(&[0xff]).unwrap(),
         );
 
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(violation.is_some());
         let v = violation.unwrap();
         assert_eq!(
@@ -219,8 +228,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "gzip, ")]);
-        let violation =
-            rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(violation.is_none());
     }
     #[test]
@@ -231,14 +243,22 @@ mod tests {
         let mut tx1 = crate::test_helpers::make_test_transaction();
         tx1.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "*")]);
-        let v1 = rule.check_transaction(&tx1, None, &crate::test_helpers::make_test_rule_config());
+        let v1 = rule.check_transaction(
+            &tx1,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v1.is_some());
 
         // response header with '*'
         let mut tx2 = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx2.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "*")]);
-        let v2 = rule.check_transaction(&tx2, None, &crate::test_helpers::make_test_rule_config());
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v2.is_some());
 
         Ok(())
@@ -253,7 +273,11 @@ mod tests {
         hm.append("content-encoding", HeaderValue::from_static("gzip"));
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -266,7 +290,11 @@ mod tests {
         hm.append("content-encoding", HeaderValue::from_static("gzip"));
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -294,7 +322,11 @@ mod tests {
         // part but its token before the ';' is empty -> triggers the rule
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "gzip,;,br")]);
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -308,7 +340,11 @@ mod tests {
             .headers
             .append("content-encoding", HeaderValue::from_bytes(&[0xff])?);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let v = v.unwrap();
         assert_eq!(
@@ -325,7 +361,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "gzip")]);
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let v = v.unwrap();
         assert!(v

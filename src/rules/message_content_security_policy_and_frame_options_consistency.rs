@@ -21,7 +21,7 @@ impl Rule for MessageContentSecurityPolicyAndFrameOptionsConsistency {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Only check responses
@@ -272,7 +272,11 @@ mod tests {
             ("x-frame-options", xfo),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(
                 v.is_some(),
@@ -306,7 +310,11 @@ mod tests {
         headers.insert("x-frame-options", bad);
         tx.response.as_mut().unwrap().headers = headers;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -322,7 +330,13 @@ mod tests {
             ("x-frame-options", "ALLOW-FROM https://example"),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &cfg).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
         assert!(v.message.contains("does not match"));
     }
 
@@ -360,7 +374,11 @@ mod tests {
             ("x-frame-options", "ALLOW-FROM https://a"),
         ]);
         tx.response.as_mut().unwrap().headers = headers;
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -375,7 +393,11 @@ mod tests {
             ("x-frame-options", "DENY"),
         ]);
         // since the directive is malformed (no members) we treat as absent and no violation
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -393,7 +415,11 @@ mod tests {
         headers.append("x-frame-options", "DENY".parse().unwrap());
         tx.response.as_mut().unwrap().headers = headers;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -407,7 +433,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://example"),
             ("x-frame-options", "ALLOW-FROM https://example/"),
         ]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -421,7 +451,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://example"),
             ("x-frame-options", "UNKNOWN https://example"),
         ]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -438,7 +472,11 @@ mod tests {
             ("x-frame-options", "ALLOW-FROM http://example"),
         ]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -452,7 +490,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://a"),
             ("x-frame-options", "ALLOW-FROM"),
         ]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -466,7 +508,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors 'none'"),
             ("x-frame-options", "ALLOW-FROM https://example"),
         ]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("permits framing") && msg.contains("'none'"));
@@ -482,7 +528,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://EXample"),
             ("x-frame-options", "ALLOW-FROM https://example"),
         ]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -499,7 +549,11 @@ mod tests {
             ),
             ("x-frame-options", "ALLOW-FROM https://example"),
         ]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -513,7 +567,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://example"),
             ("x-frame-options", "SAMEORIGIN"),
         ]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -530,7 +588,11 @@ mod tests {
         ]);
         tx.response.as_mut().unwrap().headers = headers;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(
             v.is_some(),
             "expected violation when CSP contains 'none' and also permits an origin"
@@ -547,7 +609,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://example"),
             ("x-frame-options", "allow-from https://example"),
         ]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -579,7 +645,11 @@ mod tests {
             ("x-frame-options", "SAMEORIGIN"),
         ]);
         // report-only policies should not affect framing enforcement -> ignore
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -593,7 +663,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors 'self'"),
             ("x-frame-options", "SAMEORIGIN"),
         ]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -610,7 +684,11 @@ mod tests {
         headers.insert("content-security-policy", bad);
         tx.response.as_mut().unwrap().headers = headers;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -624,7 +702,11 @@ mod tests {
             "content-security-policy",
             "frame-ancestors https://example",
         )]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 }

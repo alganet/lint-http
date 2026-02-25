@@ -21,7 +21,7 @@ impl Rule for MessageBasicAuthBase64Validity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         for hv in tx.request.headers.get_all("authorization").iter() {
@@ -85,7 +85,11 @@ mod tests {
                 .append("authorization", HeaderValue::from_str(h)?);
         }
 
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header '{:?}'", header);
         } else {
@@ -109,7 +113,11 @@ mod tests {
             HeaderValue::from_str(&format!("Basic {}", enc)).unwrap(),
         );
         let rule = MessageBasicAuthBase64Validity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("control"));
     }
@@ -126,7 +134,11 @@ mod tests {
             HeaderValue::from_static("Basic not-base64"),
         );
         let rule = MessageBasicAuthBase64Validity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
     }
 
@@ -137,7 +149,11 @@ mod tests {
             .headers
             .append("authorization", HeaderValue::from_static("Basic"));
         let rule = MessageBasicAuthBase64Validity;
-        let v1 = rule.check_transaction(&tx1, None, &crate::test_helpers::make_test_rule_config());
+        let v1 = rule.check_transaction(
+            &tx1,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v1.is_some());
         assert!(v1.unwrap().message.contains("missing credentials"));
 
@@ -145,7 +161,11 @@ mod tests {
         tx2.request
             .headers
             .append("authorization", HeaderValue::from_static("Basic "));
-        let v2 = rule.check_transaction(&tx2, None, &crate::test_helpers::make_test_rule_config());
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v2.is_some());
         assert!(v2.unwrap().message.contains("missing credentials"));
     }
@@ -158,7 +178,11 @@ mod tests {
             HeaderValue::from_bytes(b"Basic \xff").unwrap(),
         );
         let rule = MessageBasicAuthBase64Validity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-UTF8"));
     }
@@ -174,7 +198,11 @@ mod tests {
             HeaderValue::from_str(&format!("basic {}", enc)).unwrap(),
         );
         let rule = MessageBasicAuthBase64Validity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -189,7 +217,11 @@ mod tests {
             HeaderValue::from_str(&format!("Basic {}", enc)).unwrap(),
         );
         let rule = MessageBasicAuthBase64Validity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 

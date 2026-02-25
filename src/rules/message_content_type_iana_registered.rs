@@ -85,7 +85,7 @@ impl Rule for MessageContentTypeIanaRegistered {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let check_media_type =
@@ -190,7 +190,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", v)]);
         }
 
-        let violation = rule.check_transaction(&tx, None, &cfg);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(violation.is_some());
         } else {
@@ -217,7 +221,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", v)]);
         }
 
-        let violation = rule.check_transaction(&tx, None, &cfg);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(violation.is_some());
         } else {
@@ -233,7 +241,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text")]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -250,7 +262,11 @@ mod tests {
             "content-type",
             "application/vnd.unknown",
         )]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -285,14 +301,26 @@ mod tests {
         let mut tx1 = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx1.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "application/json")]);
-        assert!(rule.check_transaction(&tx1, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx1,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
 
         let mut tx2 = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx2.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
             "content-type",
             "application/ld+json",
         )]);
-        assert!(rule.check_transaction(&tx2, None, &cfg).is_none());
+        assert!(rule
+            .check_transaction(
+                &tx2,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
     }
 
     #[test]
@@ -304,7 +332,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/x-custom")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         let v = v.unwrap();
         assert_eq!(v.rule, "message_content_type_iana_registered");
@@ -420,7 +452,11 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(b"\xff").unwrap(),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
 
         // Non-utf8 request header value should be ignored
@@ -431,7 +467,11 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(b"\xff").unwrap(),
         );
         tx2.request.headers = hm2;
-        let v2 = rule.check_transaction(&tx2, None, &cfg);
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v2.is_none());
     }
 

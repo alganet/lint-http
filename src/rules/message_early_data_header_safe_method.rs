@@ -22,7 +22,7 @@ impl Rule for MessageEarlyDataHeaderSafeMethod {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Early-Data is defined as a request header (RFC 8470). If present and equal to '1',
@@ -84,7 +84,11 @@ mod tests {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("early-data", h)]);
         }
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(
                 v.is_some(),
@@ -135,7 +139,11 @@ mod tests {
         hm.append("early-data", "1".parse::<HeaderValue>().unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -152,7 +160,11 @@ mod tests {
         hm.append("early-data", bad);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 }

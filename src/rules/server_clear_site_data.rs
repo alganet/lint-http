@@ -101,7 +101,7 @@ impl Rule for ServerClearSiteData {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Only check successful responses
@@ -210,7 +210,11 @@ mod tests {
             body_length: None,
         });
 
-        let violation = rule.check_transaction(&tx, None, &config);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
 
         if expect_violation {
             let Some(v) = violation else {
@@ -367,7 +371,11 @@ mod tests {
             paths: vec!["/logout".to_string()],
             severity: crate::lint::Severity::Warn,
         };
-        let violation = rule.check_transaction(&tx, None, &config);
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
         assert!(violation.is_none());
     }
 }

@@ -24,7 +24,7 @@ impl Rule for Stateful103EarlyHintsBeforeFinal {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        previous: Option<&crate::http_transaction::HttpTransaction>,
+        history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Only applies to responses with status 103
@@ -36,7 +36,7 @@ impl Rule for Stateful103EarlyHintsBeforeFinal {
             return None;
         }
 
-        let prev = previous?;
+        let prev = history.previous()?;
 
         // Only consider the same client + same request-target (conservative stateful check)
         if prev.client != tx.client {
@@ -89,7 +89,11 @@ mod tests {
         tx.request.uri = "/x".to_string();
         tx.client = crate::test_helpers::make_test_client();
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_some());
         let m = v.unwrap().message;
         assert!(m.contains("103 Early Hints") && m.contains("must precede"));
@@ -108,7 +112,11 @@ mod tests {
         tx.request.uri = "/b".to_string();
         tx.client = crate::test_helpers::make_test_client();
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -125,7 +133,11 @@ mod tests {
         tx.request.uri = "/r".to_string();
         tx.client = crate::test_helpers::make_test_client();
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -168,7 +180,11 @@ mod tests {
         tx.request.uri = "/z".to_string();
         tx.client = crate::test_helpers::make_test_client();
 
-        let v = rule.check_transaction(&tx, Some(&prev), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 }

@@ -21,7 +21,7 @@ impl Rule for MessageContentTypeWellFormed {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Check request Content-Type
@@ -233,7 +233,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text")]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
 
         // response invalid
@@ -241,7 +245,11 @@ mod tests {
             200,
             &[("content-type", "text")],
         );
-        let v2 = rule.check_transaction(&tx2, None, &cfg);
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v2.is_some());
 
         // both valid
@@ -254,8 +262,16 @@ mod tests {
             200,
             &[("content-type", "application/json")],
         );
-        let v3 = rule.check_transaction(&tx3, None, &cfg);
-        let v4 = rule.check_transaction(&tx4, None, &cfg);
+        let v3 = rule.check_transaction(
+            &tx3,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let v4 = rule.check_transaction(
+            &tx4,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v3.is_none());
         assert!(v4.is_none());
 

@@ -21,7 +21,7 @@ impl Rule for MessageHttp2PseudoHeadersValidity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Validate request-related pseudo-header semantics using canonical transaction fields.
@@ -254,7 +254,11 @@ mod tests {
         tx.request.method = method.to_string();
         tx.request.uri = uri.to_string();
         let rule = MessageHttp2PseudoHeadersValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(v.is_some());
             if let Some(sub) = expected_contains {
@@ -276,7 +280,11 @@ mod tests {
     ) -> anyhow::Result<()> {
         let tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
         let rule = MessageHttp2PseudoHeadersValidity;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         if expect_violation {
             assert!(v.is_some());
             if let Some(sub) = expected_contains {
@@ -310,7 +318,7 @@ mod tests {
         tx.request.uri = "1http://example.com/".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -324,7 +332,7 @@ mod tests {
         tx.request.uri = "/bad%2G".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -338,7 +346,7 @@ mod tests {
         tx.request.uri = "/foo bar".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -352,7 +360,7 @@ mod tests {
         tx.request.uri = "".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -369,7 +377,7 @@ mod tests {
         tx.request.uri = "[::1".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -383,7 +391,7 @@ mod tests {
         tx.request.uri = "example.com:abc".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -397,7 +405,7 @@ mod tests {
         tx.request.uri = "example.com:70000".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -411,7 +419,7 @@ mod tests {
         tx.request.uri = "example.com:".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -425,7 +433,7 @@ mod tests {
         tx.request.uri = "user:pass@example.com".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -439,7 +447,7 @@ mod tests {
         tx.request.uri = "[::1]:443".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_none());
@@ -452,7 +460,7 @@ mod tests {
         tx.request.uri = "::1".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -466,7 +474,7 @@ mod tests {
         tx.request.uri = "fe80::1:80".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -480,7 +488,7 @@ mod tests {
         tx.request.uri = "https://example.com/path".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_none());
@@ -493,7 +501,7 @@ mod tests {
         tx.request.uri = "/ok%20here".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_none());
@@ -506,7 +514,7 @@ mod tests {
         tx.request.uri = "/".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -518,7 +526,7 @@ mod tests {
         let tx = crate::test_helpers::make_test_transaction_with_response(99, &[]);
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -532,7 +540,7 @@ mod tests {
         tx.request.uri = "https:///path".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -549,7 +557,7 @@ mod tests {
         tx.request.uri = "http://user:pass@example.com/path".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -563,7 +571,7 @@ mod tests {
         tx.request.uri = "*".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_none());
@@ -576,7 +584,7 @@ mod tests {
         tx.request.uri = "*".into();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());
@@ -588,7 +596,7 @@ mod tests {
         let tx = crate::test_helpers::make_test_transaction_with_response(700, &[]);
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            None,
+            &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_some());

@@ -21,7 +21,7 @@ impl Rule for ServerRedirectStatusAndLocationValidity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // If response has a Location header but the status code is not one
@@ -77,7 +77,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("location", l)]);
         }
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(
                 v.is_some(),
@@ -102,7 +106,11 @@ mod tests {
         let cfg = crate::test_helpers::make_test_rule_config();
 
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 

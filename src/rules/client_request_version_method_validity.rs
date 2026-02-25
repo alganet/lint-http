@@ -39,7 +39,7 @@ impl Rule for ClientRequestVersionMethodValidity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let method = tx.request.method.as_str();
@@ -110,7 +110,11 @@ mod tests {
         let rule = ClientRequestVersionMethodValidity;
         let tx = make_tx_with_req(method, headers);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
 
         if expect_violation {
             assert!(v.is_some(), "expected violation for {}", method);
@@ -124,7 +128,11 @@ mod tests {
         let rule = ClientRequestVersionMethodValidity;
         let tx = make_tx_with_req("GET", vec![("content-length", "not-a-number")]);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -134,7 +142,11 @@ mod tests {
         let huge = "9".repeat(100);
         let tx = make_tx_with_req("GET", vec![("content-length", huge.as_str())]);
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -145,10 +157,18 @@ mod tests {
         let tx_space = make_tx_with_req("GET", vec![("content-length", "   ")]);
         let cfg = crate::test_helpers::make_test_rule_config();
 
-        let v_empty = rule.check_transaction(&tx_empty, None, &cfg);
+        let v_empty = rule.check_transaction(
+            &tx_empty,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v_empty.is_none());
 
-        let v_space = rule.check_transaction(&tx_space, None, &cfg);
+        let v_space = rule.check_transaction(
+            &tx_space,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v_space.is_none());
     }
 
@@ -158,11 +178,23 @@ mod tests {
         let cfg = crate::test_helpers::make_test_rule_config();
 
         let tx = make_tx_with_req("GET", vec![("content-length", "10")]);
-        let v = rule.check_transaction(&tx, None, &cfg).unwrap();
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
         assert!(v.message.contains("GET request"));
 
         let tx2 = make_tx_with_req("TRACE", vec![("transfer-encoding", "chunked")]);
-        let v2 = rule.check_transaction(&tx2, None, &cfg).unwrap();
+        let v2 = rule
+            .check_transaction(
+                &tx2,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
         assert!(v2.message.contains("TRACE request"));
     }
 

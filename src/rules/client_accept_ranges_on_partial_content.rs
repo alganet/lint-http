@@ -21,7 +21,7 @@ impl Rule for ClientAcceptRangesOnPartialContent {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        previous: Option<&crate::http_transaction::HttpTransaction>,
+        history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Only applies to requests that contain a UTF-8 Range header we can parse.
@@ -37,7 +37,7 @@ impl Rule for ClientAcceptRangesOnPartialContent {
             }
         };
 
-        let prev = previous?;
+        let prev = history.previous()?;
 
         let resp = prev.response.as_ref()?;
 
@@ -135,18 +135,17 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("range", range_val)]);
 
-        let previous = match prev {
+        let history = match prev {
             Some((status, ar)) => {
                 let mut p = make_prev_resp(status, ar);
                 // set previous request URI to same resource to simulate stateful match
                 p.request.uri = tx.request.uri.clone();
-                Some(p)
+                crate::transaction_history::TransactionHistory::new(vec![p])
             }
-            None => None,
+            None => crate::transaction_history::TransactionHistory::empty(),
         };
 
-        let prev_ref = previous.as_ref();
-        let v = rule.check_transaction(&tx, prev_ref, &cfg);
+        let v = rule.check_transaction(&tx, &history, &cfg);
         if expect_violation {
             assert!(v.is_some());
         } else {
@@ -169,7 +168,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-1")]);
 
-        let v = rule.check_transaction(&tx, Some(&p), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
+            &cfg,
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("Invalid token"));
@@ -182,7 +185,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-1")]);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -229,7 +236,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-1")]);
 
-        let v = rule.check_transaction(&tx, Some(&p), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
+            &cfg,
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("Accept-Ranges") || msg.contains("should include"));
@@ -255,7 +266,11 @@ mod tests {
         hm.insert("range", HeaderValue::from_bytes(&[0xff]).unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, Some(&p), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
+            &cfg,
+        );
         // Be lenient: if the request Range header is non-utf8, do not raise a violation when Accept-Ranges was present
         assert!(v.is_none());
         Ok(())
@@ -280,7 +295,11 @@ mod tests {
         hm.insert("range", HeaderValue::from_bytes(&[0xff]).unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, Some(&p), &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
+            &cfg,
+        );
         // If Range header itself is not valid UTF-8, the rule should not emit a misleading violation about Accept-Ranges
         assert!(v.is_none());
         Ok(())

@@ -21,7 +21,7 @@ impl Rule for MessageResponseBodyLengthAccuracy {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let resp = match &tx.response {
@@ -127,7 +127,11 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -142,7 +146,11 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Content-Length"));
     }
@@ -158,7 +166,11 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid Content-Length"));
     }
@@ -174,7 +186,11 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -189,7 +205,11 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid Content-Length"));
     }
@@ -209,7 +229,11 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         assert!(v
             .unwrap()
@@ -232,7 +256,11 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("non-UTF8") || msg.contains("Invalid Content-Length"));
@@ -250,7 +278,11 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -265,7 +297,11 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_none());
     }
 
@@ -280,7 +316,11 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(
             v.is_some(),
             "empty Content-Length should be reported as invalid"
@@ -301,7 +341,11 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(v.is_some(), "overflowing Content-Length should be reported");
         let msg = v.unwrap().message;
         assert!(msg.contains("too large"));
@@ -322,7 +366,11 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(&tx, None, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
         assert!(
             v.is_none(),
             "identical multiple Content-Length headers should not be a violation"

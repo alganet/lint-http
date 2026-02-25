@@ -33,12 +33,32 @@ pub fn lint_transaction(
 ) -> Vec<Violation> {
     let mut out = Vec::new();
 
-    // Compute previous transaction (if any) for this client+resource and keep it alive
-    let previous = state.get_previous(&tx.client, &tx.request.uri);
+    let mut history_by_resource: Option<crate::transaction_history::TransactionHistory> = None;
+    let mut history_by_origin: Option<crate::transaction_history::TransactionHistory> = None;
+
+    // Cache origin extraction since it's used by any rule requiring ByOrigin
+    let origin = crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
 
     for rule in crate::rules::RULES {
         if cfg.is_enabled(rule.id()) {
-            out.extend(rule.check_transaction_erased(tx, previous.as_ref(), cfg, engine));
+            let query_type = crate::queries::mapping::get_query_type_for_rule(rule.id());
+
+            let history = match query_type {
+                crate::queries::mapping::QueryType::ByResource => history_by_resource
+                    .get_or_insert_with(|| {
+                        crate::queries::by_resource::by_resource(state, &tx.client, &tx.request.uri)
+                    }),
+                crate::queries::mapping::QueryType::ByOrigin => history_by_origin
+                    .get_or_insert_with(|| {
+                        if let Some(o) = &origin {
+                            crate::queries::by_origin::by_origin(state, &tx.client, o)
+                        } else {
+                            crate::transaction_history::TransactionHistory::empty()
+                        }
+                    }),
+            };
+
+            out.extend(rule.check_transaction_erased(tx, history, cfg, engine));
         }
     }
 
@@ -55,7 +75,7 @@ mod tests {
 
     #[test]
     fn lint_response_rules_emit_when_enabled() {
-        let state = crate::state::StateStore::new(300);
+        let state = crate::state::StateStore::new(300, 10);
         let cfg = make_test_config_with_enabled_rules(&[
             "server_cache_control_present",
             "server_etag_or_last_modified",
@@ -70,7 +90,7 @@ mod tests {
 
     #[test]
     fn lint_request_rules_emit_when_enabled() {
-        let state = crate::state::StateStore::new(300);
+        let state = crate::state::StateStore::new(300, 10);
         let cfg = make_test_config_with_enabled_rules(&[
             "client_user_agent_present",
             "client_accept_encoding_present",
@@ -92,7 +112,7 @@ mod tests {
 
     #[test]
     fn rule_toggles_disable_rules() {
-        let state = crate::state::StateStore::new(300);
+        let state = crate::state::StateStore::new(300, 10);
         let cfg_enabled = make_test_config_with_enabled_rules(&[
             "server_cache_control_present",
             "server_etag_or_last_modified",
@@ -114,7 +134,7 @@ mod tests {
 
     #[test]
     fn lint_transaction_handles_both_client_and_server_rules() {
-        let state = crate::state::StateStore::new(300);
+        let state = crate::state::StateStore::new(300, 10);
         let cfg = make_test_config_with_enabled_rules(&[
             "client_user_agent_present",
             "server_cache_control_present",

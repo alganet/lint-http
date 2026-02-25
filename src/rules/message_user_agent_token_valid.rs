@@ -21,7 +21,7 @@ impl Rule for MessageUserAgentTokenValid {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         let check_value = |hdr: &str, val: &str| -> Option<Violation> {
@@ -161,7 +161,11 @@ mod tests {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("user-agent", v)]);
         }
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some());
         } else {
@@ -179,13 +183,25 @@ mod tests {
         let mut tx1 = crate::test_helpers::make_test_transaction();
         tx1.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "A@gen/1.0")]);
-        assert!(rule.check_transaction(&tx1, None, &cfg).is_some());
+        assert!(rule
+            .check_transaction(
+                &tx1,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_some());
 
         // invalid character in version
         let mut tx2 = crate::test_helpers::make_test_transaction();
         tx2.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent/1@0")]);
-        assert!(rule.check_transaction(&tx2, None, &cfg).is_some());
+        assert!(rule
+            .check_transaction(
+                &tx2,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_some());
 
         Ok(())
     }
@@ -200,7 +216,13 @@ mod tests {
         hm.append("user-agent", HeaderValue::from_static("Bad@UA/1.0"));
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = hm;
-        assert!(rule.check_transaction(&tx, None, &cfg).is_some());
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_some());
 
         Ok(())
     }
@@ -215,7 +237,11 @@ mod tests {
         hm.insert("user-agent", HeaderValue::from_bytes(b"\xff").unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -229,7 +255,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Bad/UA!")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
         Ok(())
     }
@@ -244,7 +274,11 @@ mod tests {
         hm.append("user-agent", HeaderValue::from_static("Bad@UA/1.0"));
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -259,7 +293,11 @@ mod tests {
         hm.insert("user-agent", HeaderValue::from_bytes(b"\xff").unwrap());
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         if let Some(violation) = v {
             assert!(violation.message.contains("non-UTF8"));
@@ -276,7 +314,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent  /1.0")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         if let Some(violation) = v {
             assert!(violation.message.contains("empty product token"));
@@ -292,7 +334,11 @@ mod tests {
         let mut tx1 = crate::test_helpers::make_test_transaction();
         tx1.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "A@gen/1.0")]);
-        let v1 = rule.check_transaction(&tx1, None, &cfg);
+        let v1 = rule.check_transaction(
+            &tx1,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v1.is_some());
         if let Some(violation) = v1 {
             assert!(violation.message.contains("@"));
@@ -301,7 +347,11 @@ mod tests {
         let mut tx2 = crate::test_helpers::make_test_transaction();
         tx2.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent/1@0")]);
-        let v2 = rule.check_transaction(&tx2, None, &cfg);
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v2.is_some());
         if let Some(violation) = v2 {
             assert!(violation.message.contains("@"));
@@ -320,7 +370,11 @@ mod tests {
             "(compatible; something)",
         )]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         if let Some(violation) = v {
             assert!(
@@ -342,7 +396,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent (unclosed")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         if let Some(violation) = v {
             assert!(violation.message.contains("Invalid User-Agent header"));
@@ -360,7 +418,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent (incomplete")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         Ok(())
     }
@@ -376,7 +438,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent\\(1.0\\)")]);
 
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         // Parentheses are not allowed in token syntax, so we expect a violation, but the parser should
         // not treat them as comment delimiters (i.e., no parse error about unmatched comment).
         assert!(v.is_some());

@@ -32,9 +32,11 @@ pub mod http_date;
 pub mod http_transaction;
 pub mod lint;
 pub mod proxy;
+pub mod queries;
 pub mod rules;
 pub mod serde_helpers;
 pub mod state;
+pub mod transaction_history;
 
 #[cfg(test)]
 mod test_helpers;

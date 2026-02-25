@@ -83,7 +83,7 @@ impl Rule for MessageStructuredHeadersValidity {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         for hdr in &config.headers {
@@ -419,7 +419,11 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(b"\xff").unwrap(),
         );
         tx.request.headers = hm;
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         // header.to_str() will error and we expect a violation reporting invalid utf-8
         assert!(v.is_some());
     }
@@ -484,7 +488,11 @@ mod tests {
             200,
             &[("x-struct", "\"unterminated")],
         );
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -855,7 +863,11 @@ mod tests {
             hyper::header::HeaderValue::from_static("\"unterminated"),
         );
         tx.request.headers = hm;
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         if let Some(vi) = v {
             assert!(vi.message.contains("request header"));
@@ -877,7 +889,11 @@ mod tests {
         if let Some(resp) = &mut tx.response {
             resp.headers = rh;
         }
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
         if let Some(vi) = v {
             assert!(

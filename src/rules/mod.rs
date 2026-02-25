@@ -62,10 +62,12 @@ pub trait Rule: Send + Sync {
 
     /// Evaluate an entire `HttpTransaction` and return an optional violation.
     /// The `config` parameter contains the validated configuration.
+    /// `history` contains pre-queried previous transactions — rules never
+    /// access `StateStore` directly.
     fn check_transaction(
         &self,
         _tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         _config: &Self::Config,
     ) -> Option<Violation>;
 }
@@ -85,7 +87,7 @@ pub trait RuleConfigValidator: Send + Sync {
     fn check_transaction_erased(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        previous: Option<&crate::http_transaction::HttpTransaction>,
+        history: &crate::transaction_history::TransactionHistory,
         config: &crate::config::Config,
         engine: &RuleConfigEngine,
     ) -> Option<Violation>;
@@ -110,12 +112,12 @@ impl<T: Rule> RuleConfigValidator for T {
     fn check_transaction_erased(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        previous: Option<&crate::http_transaction::HttpTransaction>,
+        history: &crate::transaction_history::TransactionHistory,
         _config: &crate::config::Config,
         engine: &RuleConfigEngine,
     ) -> Option<Violation> {
         let config = engine.get_cached::<T::Config>(self.id());
-        self.check_transaction(tx, previous, &config)
+        self.check_transaction(tx, history, &config)
     }
 }
 
@@ -428,6 +430,7 @@ pub mod server_x_content_type_options;
 pub mod server_x_frame_options_value_valid;
 pub mod server_x_xss_protection_value_valid;
 pub mod stateful_103_early_hints_before_final;
+pub mod stateful_authentication_failure_loop;
 pub mod stateful_conditional_request_handling;
 pub mod stateful_redirect_chain_validity;
 pub mod stateful_websocket_handshake_validity;
@@ -476,6 +479,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &stateful_redirect_chain_validity::StatefulRedirectChainValidity,
     &stateful_websocket_handshake_validity::StatefulWebsocketHandshakeValidity,
     &stateful_103_early_hints_before_final::Stateful103EarlyHintsBeforeFinal,
+    &stateful_authentication_failure_loop::StatefulAuthenticationFailureLoop,
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity,
@@ -805,7 +809,7 @@ mod tests {
             fn check_transaction(
                 &self,
                 _tx: &crate::http_transaction::HttpTransaction,
-                _previous: Option<&crate::http_transaction::HttpTransaction>,
+                _history: &crate::transaction_history::TransactionHistory,
                 _config: &Self::Config,
             ) -> Option<Violation> {
                 None

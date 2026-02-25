@@ -27,7 +27,7 @@ impl Rule for MessageCachingDirectiveInteraction {
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        _previous: Option<&crate::http_transaction::HttpTransaction>,
+        _history: &crate::transaction_history::TransactionHistory,
         config: &Self::Config,
     ) -> Option<Violation> {
         // Helper to check a single HeaderMap for contradictions
@@ -179,7 +179,11 @@ mod tests {
         let rule = MessageCachingDirectiveInteraction;
         let cfg = crate::test_helpers::make_test_rule_config();
         let tx = make_req(val);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{}', got none", val);
         } else {
@@ -198,7 +202,11 @@ mod tests {
         let rule = MessageCachingDirectiveInteraction;
         let cfg = crate::test_helpers::make_test_rule_config();
         let tx = make_resp(val);
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{}', got none", val);
         } else {
@@ -216,7 +224,11 @@ mod tests {
         tx.request.headers = hm;
         let rule = MessageCachingDirectiveInteraction;
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -225,7 +237,11 @@ mod tests {
         let rule = MessageCachingDirectiveInteraction;
         let tx = make_req(",max-age=1");
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -234,7 +250,11 @@ mod tests {
         let rule = MessageCachingDirectiveInteraction;
         let tx = make_req("no-cache, max-age=\"0\"");
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
@@ -248,7 +268,11 @@ mod tests {
         hm.append("cache-control", HeaderValue::from_static("no-store"));
         hm.append("cache-control", HeaderValue::from_static("public"));
         tx.request.headers = hm;
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -257,7 +281,11 @@ mod tests {
         let rule = MessageCachingDirectiveInteraction;
         let tx = make_req("max-age=60, max-age=\"30\"");
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_some());
     }
 
@@ -266,7 +294,11 @@ mod tests {
         let rule = MessageCachingDirectiveInteraction;
         let tx = crate::test_helpers::make_test_transaction();
         let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&tx, None, &cfg);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
         assert!(v.is_none());
     }
 
