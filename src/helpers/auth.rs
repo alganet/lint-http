@@ -334,6 +334,19 @@ pub fn parse_auth_params(s: &str) -> Result<std::collections::HashMap<String, St
     Ok(out)
 }
 
+/// Parse the hexadecimal nonce-count value (`nc` auth-param).
+///
+/// The specification requires exactly eight hex digits, so we enforce that here
+/// and convert to a `u64` for easy comparison.  The returned error string is
+/// suitable for inclusion in violation messages.
+pub fn parse_nc_hex(s: &str) -> Result<u64, String> {
+    let s = s.trim();
+    if s.len() != 8 {
+        return Err("nc must be exactly 8 hex digits".into());
+    }
+    u64::from_str_radix(s, 16).map_err(|e| format!("invalid hex nc: {}", e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -347,6 +360,20 @@ mod tests {
     #[test]
     fn validate_authorization_basic_ok() {
         assert!(validate_authorization_syntax("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==").is_ok());
+    }
+
+    #[test]
+    fn parse_nc_hex_valid() {
+        assert_eq!(parse_nc_hex("00000001").unwrap(), 1);
+        assert_eq!(parse_nc_hex("0000000a").unwrap(), 10);
+        assert_eq!(parse_nc_hex("ffffffff").unwrap(), 0xffffffff);
+    }
+
+    #[test]
+    fn parse_nc_hex_errors() {
+        assert!(parse_nc_hex("1").is_err());
+        assert!(parse_nc_hex("0000000g").is_err());
+        assert!(parse_nc_hex("00000").is_err());
     }
 
     #[test]

@@ -432,6 +432,7 @@ pub mod server_x_xss_protection_value_valid;
 pub mod stateful_103_early_hints_before_final;
 pub mod stateful_authentication_failure_loop;
 pub mod stateful_conditional_request_handling;
+pub mod stateful_digest_auth_nonce_handling;
 pub mod stateful_redirect_chain_validity;
 pub mod stateful_websocket_handshake_validity;
 
@@ -476,6 +477,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_compression_and_transfer_encoding_consistency::MessageCompressionAndTransferEncodingConsistency,
     &message_conditional_headers_consistency::MessageConditionalHeadersConsistency,
     &stateful_conditional_request_handling::StatefulConditionalRequestHandling,
+    &stateful_digest_auth_nonce_handling::StatefulDigestAuthNonceHandling,
     &stateful_redirect_chain_validity::StatefulRedirectChainValidity,
     &stateful_websocket_handshake_validity::StatefulWebsocketHandshakeValidity,
     &stateful_103_early_hints_before_final::Stateful103EarlyHintsBeforeFinal,
