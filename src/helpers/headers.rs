@@ -69,6 +69,63 @@ pub fn get_header_str<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str>
     headers.get(name).and_then(|v| v.to_str().ok())
 }
 
+/// Extract validator values from a response's headers, **including weak
+/// ETags**.
+///
+/// This variant is appropriate for semantics that allow weak comparison
+/// (e.g. `If-None-Match` handling).  The tuple is `(etag, last_modified)` and
+/// each component is the trimmed string value if present.  No filtering of
+/// weak tags is performed; callers should apply the appropriate comparison
+/// rules themselves.
+///
+/// For rules that require *strong-only* validators (such as those dealing with
+/// `If-Range` or range revalidation), use
+/// [`extract_strong_validators_from_response`] instead.
+///
+/// See [`stateful_cache_validation_chain`] for an example consumer.
+pub fn extract_validators_from_response(headers: &HeaderMap) -> (Option<String>, Option<String>) {
+    let etag = headers
+        .get("etag")
+        .and_then(|hv| hv.to_str().ok())
+        .map(str::trim)
+        .map(ToString::to_string);
+
+    let last_modified = headers
+        .get("last-modified")
+        .and_then(|hv| hv.to_str().ok())
+        .map(str::trim)
+        .map(ToString::to_string);
+
+    (etag, last_modified)
+}
+
+/// Extract **strong** validators from a response's headers.
+///
+/// This is the original implementation of [`extract_validators_from_response`];
+/// it filters out weak ETags (`W/` prefix) because they are not suitable for
+/// certain cache validation scenarios.  Rules that do not accept weak ETags
+/// (for example, `stateful_range_request_and_caching`) should call this
+/// helper instead of `extract_validators_from_response`.
+pub fn extract_strong_validators_from_response(
+    headers: &HeaderMap,
+) -> (Option<String>, Option<String>) {
+    // ETag: pick first header, ensure UTF-8 and strong
+    let etag = headers
+        .get("etag")
+        .and_then(|hv| hv.to_str().ok())
+        .map(str::trim)
+        .filter(|s| !s.starts_with("W/"))
+        .map(ToString::to_string);
+
+    let last_modified = headers
+        .get("last-modified")
+        .and_then(|hv| hv.to_str().ok())
+        .map(str::trim)
+        .map(ToString::to_string);
+
+    (etag, last_modified)
+}
+
 /// Parse a comma-separated list of header values (e.g., Connection, Transfer-Encoding).
 ///
 /// This iterator splits by comma, trims whitespace, and skips empty parts.
@@ -171,6 +228,67 @@ mod has_request_body_tests {
             header::HeaderValue::from_static("340282366920938463463374607431768211456"),
         );
         assert!(!has_request_body(&headers));
+    }
+}
+
+#[cfg(test)]
+mod validator_extraction_tests {
+    use super::extract_strong_validators_from_response;
+    use super::extract_validators_from_response;
+    use hyper::header::HeaderValue;
+    use hyper::HeaderMap;
+
+    #[test]
+    fn strong_etag_and_last_modified_are_returned() {
+        let mut headers = HeaderMap::new();
+        headers.insert("etag", HeaderValue::from_static("\"abc\""));
+        headers.insert(
+            "last-modified",
+            HeaderValue::from_static("Wed, 21 Oct 2015 07:28:00 GMT"),
+        );
+        let (etag, lm) = extract_validators_from_response(&headers);
+        assert_eq!(etag.as_deref(), Some("\"abc\""));
+        assert_eq!(lm.as_deref(), Some("Wed, 21 Oct 2015 07:28:00 GMT"));
+    }
+
+    #[test]
+    fn weak_etag_is_returned() {
+        let mut headers = HeaderMap::new();
+        headers.insert("etag", HeaderValue::from_static("W/\"weak\""));
+        let (etag, lm) = extract_validators_from_response(&headers);
+        assert_eq!(etag.as_deref(), Some("W/\"weak\""));
+        assert!(lm.is_none());
+    }
+
+    #[test]
+    fn strong_helper_filters_weak_etag() {
+        let mut headers = HeaderMap::new();
+        headers.insert("etag", HeaderValue::from_static("W/\"weak\""));
+        let (etag, lm): (Option<String>, Option<String>) =
+            extract_strong_validators_from_response(&headers);
+        assert!(etag.is_none(), "strong helper should ignore weak etag");
+        assert!(lm.is_none());
+    }
+
+    #[test]
+    fn missing_headers_return_none() {
+        let headers = HeaderMap::new();
+        let (etag, lm) = extract_validators_from_response(&headers);
+        assert!(etag.is_none());
+        assert!(lm.is_none());
+    }
+
+    #[test]
+    fn non_utf8_headers_are_skipped() {
+        let mut headers = HeaderMap::new();
+        // create invalid bytes
+        let bad = HeaderValue::from_bytes(&[0xff]).unwrap();
+        headers.insert("etag", bad);
+        let (etag, _lm) = extract_validators_from_response(&headers);
+        assert!(
+            etag.is_none(),
+            "invalid etag should not panic or return value"
+        );
     }
 }
 /// Check whether a header name is a hop-by-hop header.

@@ -70,18 +70,8 @@ impl Rule for StatefulRangeRequestAndCaching {
 
         // determine if the prior 206 had a validator we could use
         // ignore weak ETags since they cannot be placed in If-Range.
-        let prev_etag_raw = prev_resp.headers.get("etag");
-        let prev_etag = prev_etag_raw
-            .and_then(|hv| hv.to_str().ok())
-            .map(str::trim)
-            .filter(|s| !s.starts_with("W/"))
-            .map(ToString::to_string);
-        let prev_lm = prev_resp
-            .headers
-            .get("last-modified")
-            .and_then(|hv| hv.to_str().ok())
-            .map(str::trim)
-            .map(ToString::to_string);
+        let (prev_etag, prev_lm) =
+            crate::helpers::headers::extract_strong_validators_from_response(&prev_resp.headers);
 
         // if both are present, the rule will preferentially check the ETag,
         // mirroring how caches themselves pick validators.
