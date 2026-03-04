@@ -435,6 +435,7 @@ pub mod stateful_cache_validation_chain;
 pub mod stateful_conditional_request_handling;
 pub mod stateful_cookie_lifecycle;
 pub mod stateful_digest_auth_nonce_handling;
+pub mod stateful_oauth2_code_flow;
 pub mod stateful_range_request_and_caching;
 pub mod stateful_redirect_chain_validity;
 pub mod stateful_websocket_handshake_validity;
@@ -481,6 +482,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_conditional_headers_consistency::MessageConditionalHeadersConsistency,
     &stateful_conditional_request_handling::StatefulConditionalRequestHandling,
     &stateful_cookie_lifecycle::StatefulCookieLifecycle,
+    &stateful_oauth2_code_flow::StatefulOauth2CodeFlow,
     &stateful_range_request_and_caching::StatefulRangeRequestAndCaching,
     &stateful_cache_validation_chain::StatefulCacheValidationChain,
     &stateful_digest_auth_nonce_handling::StatefulDigestAuthNonceHandling,
