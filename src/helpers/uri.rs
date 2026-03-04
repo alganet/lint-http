@@ -211,6 +211,27 @@ pub fn extract_path_and_query_from_request_target(s: &str) -> Option<String> {
     None
 }
 
+/// Parse a query string (the portion after `?`) into a vector of
+/// `(name,value)` pairs.  Percent-encoding is **not** decoded; callers can
+/// compare values verbatim.  Empty names are permitted (they may appear in
+/// malformed URIs) and missing values are treated as empty strings.
+///
+/// This simple helper is useful when rules need to examine specific
+/// parameters without importing a full URI parser dependency.
+pub fn parse_query_string(s: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for pair in s.split('&') {
+        if pair.is_empty() {
+            continue;
+        }
+        let mut kv = pair.splitn(2, '=');
+        let name = kv.next().unwrap_or("").to_string();
+        let value = kv.next().unwrap_or("").to_string();
+        out.push((name, value));
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -302,6 +323,30 @@ mod tests {
         );
     }
 
+    #[test]
+    fn parse_query_string_basic() {
+        let v = parse_query_string("");
+        assert!(v.is_empty());
+        let v = parse_query_string("a=1&b=2");
+        assert_eq!(
+            v,
+            vec![
+                ("a".to_string(), "1".to_string()),
+                ("b".to_string(), "2".to_string())
+            ]
+        );
+        let v = parse_query_string("foo");
+        assert_eq!(v, vec![("foo".to_string(), "".to_string())]);
+        let v = parse_query_string("x=&=y&z=3");
+        assert_eq!(
+            v,
+            vec![
+                ("x".to_string(), "".to_string()),
+                ("".to_string(), "y".to_string()),
+                ("z".to_string(), "3".to_string()),
+            ]
+        );
+    }
     #[test]
     fn validate_origin_value_cases() {
         assert!(validate_origin_value("null").is_none());
