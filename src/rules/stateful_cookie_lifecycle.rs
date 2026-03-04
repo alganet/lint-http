@@ -72,42 +72,9 @@ impl Rule for StatefulCookieLifecycle {
         // reasons.
         let history_items: Vec<_> = history.iter().collect();
 
-        // Build a simple cookie store by replaying history oldest-first so that
-        // later Set-Cookie headers override earlier ones.  We do *not*
-        // maintain a separate "seen" set here; when evaluating a specific
-        // cookie we will scan the history_items again to determine whether a
-        // non-live cookie ever would have matched.
-        let mut live_cookies: Vec<crate::helpers::cookie::Cookie> = Vec::new();
-
-        for prev in history_items.iter().rev() {
-            if let Some(resp) = &prev.response {
-                for hv in resp.headers.get_all("set-cookie").iter() {
-                    if let Ok(s) = hv.to_str() {
-                        if let Some(cookie) = crate::helpers::cookie::parse_set_cookie(
-                            s,
-                            &prev.request.uri,
-                            prev.timestamp,
-                        ) {
-                            // remove any existing entry for same name/domain/path
-                            live_cookies.retain(|c| {
-                                !(c.name == cookie.name
-                                    && c.domain == cookie.domain
-                                    && c.path == cookie.path)
-                            });
-
-                            // if the cookie is already expired at the time of
-                            // the response, treat as deletion (don't push).
-                            if !cookie.is_expired_at(prev.timestamp) {
-                                live_cookies.push(cookie);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // remove cookies that have expired by the time of the current request
-        live_cookies.retain(|c| !c.is_expired_at(tx.timestamp));
+        // Build live cookie store using helper; it already filters out
+        // expired entries up to the current request timestamp.
+        let live_cookies = crate::helpers::cookie::build_cookie_store(history, tx.timestamp);
 
         // Parse cookie header(s) into name/value pairs.  Multiple header
         // fields are concatenated per RFC 6265 §4.2.

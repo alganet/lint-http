@@ -49,7 +49,20 @@ pub fn validate_cookie_path(s: &str) -> Result<(), String> {
 }
 
 /// Representation of a parsed `Set-Cookie` value and some derived metadata.
-#[derive(Debug, Clone)]
+/// SameSite attribute values as defined in RFC 6265bis.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SameSite {
+    /// Explicit `SameSite=Strict`.
+    Strict,
+    /// Explicit `SameSite=Lax`.
+    Lax,
+    /// Explicit `SameSite=None`.
+    None,
+    /// Attribute not specified or unrecognized; browsers treat this as the
+    /// default (which is effectively `Lax` in modern implementations).
+    Unspecified,
+}
+
 pub struct Cookie {
     pub name: String,
     pub value: String,
@@ -61,6 +74,8 @@ pub struct Cookie {
     /// Expiration time, if known (computed from Max-Age or Expires).  A value
     /// less-or-equal to the transaction timestamp is treated as expired.
     pub expiration: Option<chrono::DateTime<chrono::Utc>>,
+    /// Parsed SameSite directive (if any).
+    pub same_site: SameSite,
 }
 
 impl Cookie {
@@ -132,6 +147,7 @@ pub fn parse_set_cookie(
     let mut secure = false;
     let mut max_age: Option<i64> = None;
     let mut expires_attr: Option<chrono::DateTime<chrono::Utc>> = None;
+    let mut same_site = SameSite::Unspecified;
 
     for attr in parts.iter().skip(1) {
         if attr.is_empty() {
@@ -174,6 +190,17 @@ pub fn parse_set_cookie(
                     if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(v) {
                         expires_attr = Some(dt);
                     }
+                }
+            }
+            "samesite" => {
+                if let Some(v) = val_opt {
+                    let norm = v.to_ascii_lowercase();
+                    same_site = match norm.as_str() {
+                        "strict" => SameSite::Strict,
+                        "lax" => SameSite::Lax,
+                        "none" => SameSite::None,
+                        _ => SameSite::Unspecified,
+                    };
                 }
             }
             _ => {}
@@ -245,6 +272,7 @@ pub fn parse_set_cookie(
         path,
         secure,
         expiration,
+        same_site,
     })
 }
 
@@ -259,6 +287,45 @@ pub fn parse_cookie_header(s: &str) -> Vec<(String, String)> {
             Some((name, value))
         })
         .collect()
+}
+
+/// Reconstruct a simple "live" cookie store from an origin-scoped history
+/// and return cookies that would be considered applicable at the given time.
+///
+/// This mirrors the logic used by the stateful rules to avoid duplicating
+/// heap allocations. `TransactionHistory::iter()` yields items in
+/// newest-first order; this helper walks them in reverse so that cookies are
+/// applied from oldest to newest.
+pub fn build_cookie_store(
+    history: &crate::transaction_history::TransactionHistory,
+    at: chrono::DateTime<chrono::Utc>,
+) -> Vec<Cookie> {
+    let history_items: Vec<_> = history.iter().collect();
+    let mut live_cookies: Vec<Cookie> = Vec::new();
+
+    for prev in history_items.iter().rev() {
+        if let Some(resp) = &prev.response {
+            for hv in resp.headers.get_all("set-cookie").iter() {
+                if let Ok(s) = hv.to_str() {
+                    if let Some(cookie) = parse_set_cookie(s, &prev.request.uri, prev.timestamp) {
+                        live_cookies.retain(|c| {
+                            !(c.name == cookie.name
+                                && c.domain == cookie.domain
+                                && c.path == cookie.path)
+                        });
+
+                        if !cookie.is_expired_at(prev.timestamp) {
+                            live_cookies.push(cookie);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // filter out cookies expired by the evaluation timestamp
+    live_cookies.retain(|c| !c.is_expired_at(at));
+    live_cookies
 }
 
 #[cfg(test)]
@@ -312,14 +379,16 @@ mod tests {
         assert_eq!(c.path, "/foo".to_string());
         assert!(!c.secure);
         assert!(c.expiration.is_none());
+        assert_eq!(c.same_site, SameSite::Unspecified);
 
         // default path when request path has only root
         let c0 = parse_set_cookie("x=1", "https://example.com/", ts).unwrap();
         assert_eq!(c0.path, "/");
+        assert_eq!(c0.same_site, SameSite::Unspecified);
 
         // explicit domain and path, secure, max-age
         let c2 = parse_set_cookie(
-            "id=1; Domain=EXAMPLE.com; Path=/; Secure; Max-Age=10",
+            "id=1; Domain=EXAMPLE.com; Path=/; Secure; Max-Age=10; SameSite=Strict",
             "https://example.com/anything",
             ts,
         )
@@ -329,6 +398,7 @@ mod tests {
         assert!(c2.secure);
         assert!(c2.expiration.is_some());
         assert!(c2.expiration.unwrap() > ts);
+        assert_eq!(c2.same_site, SameSite::Strict);
 
         // path attribute that doesn't start with slash should be ignored and
         // default-path applied instead (RFC 6265 §5.2.4).
@@ -340,6 +410,7 @@ mod tests {
         .unwrap();
         // default-path of /some
         assert_eq!(c3.path, "/some");
+        assert_eq!(c3.same_site, SameSite::Unspecified);
     }
 
     #[test]
@@ -377,10 +448,103 @@ mod tests {
     }
 
     #[test]
+    fn build_store_override_keeps_new() {
+        let ts = chrono::Utc::now();
+        let t1 = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("set-cookie", "a=one")],
+        );
+        let mut t1 = t1;
+        t1.timestamp = ts - chrono::Duration::seconds(20);
+        let t2 = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("set-cookie", "a=two")],
+        );
+        let mut t2 = t2;
+        t2.timestamp = ts - chrono::Duration::seconds(10);
+        // history newest first order is provided by constructor
+        let history =
+            crate::transaction_history::TransactionHistory::new(vec![t2.clone(), t1.clone()]);
+        let store = build_cookie_store(&history, ts);
+        assert_eq!(store.len(), 1);
+        assert_eq!(store[0].value, "two");
+    }
+
+    #[test]
+    fn build_store_domain_path_matching() {
+        let ts = chrono::Utc::now();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("set-cookie", "b=1; Domain=example.com; Path=/foo")],
+        );
+        tx.timestamp = ts - chrono::Duration::seconds(10);
+        let history = crate::transaction_history::TransactionHistory::new(vec![tx]);
+        let store = build_cookie_store(&history, ts);
+        assert_eq!(store.len(), 1);
+        let c = &store[0];
+        assert!(c.domain_matches("example.com"));
+        assert!(c.domain_matches("sub.example.com"));
+        assert!(c.path_matches("/foo/bar"));
+        assert!(!c.path_matches("/bar"));
+    }
+
+    #[test]
     fn parse_set_cookie_bad_uri_domain() {
         let ts = chrono::Utc::now();
         let c = parse_set_cookie("n=1", "not-a-uri", ts).unwrap();
         // domain falls back to empty string
         assert_eq!(c.domain, "");
+        assert_eq!(c.same_site, SameSite::Unspecified);
+    }
+
+    #[test]
+    fn build_store_filters_expired_and_overrides() {
+        let ts = chrono::Utc::now();
+        // create history with two responses that set the same name
+        let mut t1 = crate::test_helpers::make_test_transaction();
+        t1.request.uri = "https://example.com/".into();
+        t1.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[(
+                "set-cookie",
+                "a=1; Max-Age=3600",
+            )]),
+            body_length: None,
+        });
+        t1.timestamp = ts - chrono::Duration::seconds(10);
+
+        let mut t2 = crate::test_helpers::make_test_transaction();
+        t2.request.uri = "https://example.com/".into();
+        t2.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[(
+                "set-cookie",
+                "a=2; Max-Age=0",
+            )]),
+            body_length: None,
+        });
+        t2.timestamp = ts - chrono::Duration::seconds(5);
+
+        // newest-first: t2 happened later than t1
+        let history = crate::transaction_history::TransactionHistory::new(vec![t2, t1]);
+
+        let store = build_cookie_store(&history, ts);
+        // second cookie expired immediately, so no live cookies remain
+        assert!(store.is_empty());
+    }
+
+    #[test]
+    fn samesite_values_parsed() {
+        let ts = chrono::Utc::now();
+        let c_strict = parse_set_cookie("x=1; SameSite=Strict", "https://a/", ts).unwrap();
+        assert_eq!(c_strict.same_site, SameSite::Strict);
+        let c_lax = parse_set_cookie("x=1; SameSite=Lax", "https://a/", ts).unwrap();
+        assert_eq!(c_lax.same_site, SameSite::Lax);
+        let c_none = parse_set_cookie("x=1; SameSite=None", "https://a/", ts).unwrap();
+        assert_eq!(c_none.same_site, SameSite::None);
+        let c_weird = parse_set_cookie("x=1; SameSite=Weird", "https://a/", ts).unwrap();
+        assert_eq!(c_weird.same_site, SameSite::Unspecified);
     }
 }

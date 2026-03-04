@@ -434,6 +434,7 @@ pub mod stateful_authentication_failure_loop;
 pub mod stateful_cache_validation_chain;
 pub mod stateful_conditional_request_handling;
 pub mod stateful_cookie_lifecycle;
+pub mod stateful_cookie_same_site_enforcement;
 pub mod stateful_digest_auth_nonce_handling;
 pub mod stateful_oauth2_code_flow;
 pub mod stateful_range_request_and_caching;
@@ -482,6 +483,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_conditional_headers_consistency::MessageConditionalHeadersConsistency,
     &stateful_conditional_request_handling::StatefulConditionalRequestHandling,
     &stateful_cookie_lifecycle::StatefulCookieLifecycle,
+    &stateful_cookie_same_site_enforcement::StatefulCookieSameSiteEnforcement,
     &stateful_oauth2_code_flow::StatefulOauth2CodeFlow,
     &stateful_range_request_and_caching::StatefulRangeRequestAndCaching,
     &stateful_cache_validation_chain::StatefulCacheValidationChain,
