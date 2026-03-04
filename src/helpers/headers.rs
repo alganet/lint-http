@@ -69,6 +69,57 @@ pub fn get_header_str<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str>
     headers.get(name).and_then(|v| v.to_str().ok())
 }
 
+/// Collect all header values for the given name and concatenate them using
+/// ", " as a separator, trimming each entry.
+///
+/// Returns `None` if the header is absent or if any of its values are not
+/// valid UTF-8 (i.e. `HeaderValue::to_str()` fails for any of them). This
+/// avoids comparing partial header values.
+///
+/// This is handy when rules need to compare the *effective* string value of a
+/// possibly-multiple header field (e.g. cookies, Vary dimensions, etc.).
+pub fn get_all_header_values(headers: &HeaderMap, name: &str) -> Option<String> {
+    let mut iter = headers.get_all(name).iter();
+    // Return None if header is absent.
+    let first = iter.next()?;
+    let first_str = first.to_str().ok()?;
+    let mut parts = vec![first_str.trim().to_string()];
+    for hv in iter {
+        let s = hv.to_str().ok()?;
+        parts.push(s.trim().to_string());
+    }
+    Some(parts.join(", "))
+}
+
+/// Weak-compare an `If-None-Match` header value against a known ETag.
+///
+/// Returns `true` if the ETag is present in the comma-separated list of
+/// values.  The comparison ignores leading `W/` prefixes to emulate HTTP's
+/// weak comparison rules.  A lone `"*"` value is treated as **not** matching;
+/// it represents an existence condition rather than a specific validator.
+pub fn inm_matches_known(inm: &str, known: &str) -> bool {
+    fn normalize(s: &str) -> &str {
+        let s = s.trim();
+        if let Some(rest) = s.strip_prefix("W/") {
+            rest.trim()
+        } else {
+            s
+        }
+    }
+
+    let known_norm = normalize(known);
+    for member in split_commas_respecting_quotes(inm) {
+        let t = member.trim();
+        if t == "*" {
+            return false;
+        }
+        if normalize(t) == known_norm {
+            return true;
+        }
+    }
+    false
+}
+
 /// Extract validator values from a response's headers, **including weak
 /// ETags**.
 ///
@@ -289,6 +340,54 @@ mod validator_extraction_tests {
             etag.is_none(),
             "invalid etag should not panic or return value"
         );
+    }
+}
+
+#[cfg(test)]
+mod concat_header_tests {
+    use super::get_all_header_values;
+    use super::inm_matches_known;
+    use hyper::header::HeaderValue;
+    use hyper::HeaderMap;
+
+    #[test]
+    fn concat_single_value() {
+        let mut headers = HeaderMap::new();
+        headers.insert("foo", HeaderValue::from_static("bar"));
+        assert_eq!(
+            get_all_header_values(&headers, "foo"),
+            Some("bar".to_string())
+        );
+    }
+
+    #[test]
+    fn concat_multiple_values() {
+        let mut headers = HeaderMap::new();
+        headers.append("foo", HeaderValue::from_static("bar"));
+        headers.append("foo", HeaderValue::from_static("baz"));
+        assert_eq!(
+            get_all_header_values(&headers, "foo"),
+            Some("bar, baz".to_string())
+        );
+    }
+
+    #[test]
+    fn trim_and_missing() {
+        let mut headers = HeaderMap::new();
+        headers.insert("foo", HeaderValue::from_static("  bar  "));
+        assert_eq!(
+            get_all_header_values(&headers, "foo"),
+            Some("bar".to_string())
+        );
+        assert_eq!(get_all_header_values(&headers, "bar"), None);
+    }
+
+    #[test]
+    fn inm_matches_known_behaviour() {
+        assert!(inm_matches_known("\"a\"", "\"a\""));
+        assert!(inm_matches_known("W/\"a\"", "\"a\""));
+        assert!(!inm_matches_known("\"b\"", "\"a\""));
+        assert!(!inm_matches_known("*", "\"a\""));
     }
 }
 /// Check whether a header name is a hop-by-hop header.

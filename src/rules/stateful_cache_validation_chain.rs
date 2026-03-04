@@ -54,6 +54,22 @@ impl Rule for StatefulCacheValidationChain {
             return None;
         }
 
+        // If the request uses `If-None-Match: *`, it is not referring to any
+        // specific validator value and therefore cannot be matched against a
+        // previously observed ETag.  Skip the rule in that case to avoid
+        // spurious warnings.
+        if has_inm {
+            for hv in req.headers.get_all("if-none-match").iter() {
+                if let Ok(s) = hv.to_str() {
+                    for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
+                        if member.trim() == "*" {
+                            return None;
+                        }
+                    }
+                }
+            }
+        }
+
         // Determine the most recent validator seen in history.  Iterate in
         // newest-first order and stop when we have either a strong ETag or a
         // Last-Modified value.  A 304 response may include headers that update
@@ -85,33 +101,6 @@ impl Rule for StatefulCacheValidationChain {
             return None;
         }
 
-        // Helper to test whether the request's If-None-Match header value
-        // contains our known ETag (or the wildcard "*").  This comparison uses
-        // *weak* semantics: leading `W/` prefixes are ignored when comparing the
-        // opaque-tag to match the behavior of HTTP's weak comparison rules.
-        fn inm_matches_known(inm: &str, known: &str) -> bool {
-            fn normalize(s: &str) -> &str {
-                let s = s.trim();
-                if let Some(rest) = s.strip_prefix("W/") {
-                    rest.trim()
-                } else {
-                    s
-                }
-            }
-
-            let known_norm = normalize(known);
-            for member in crate::helpers::headers::split_commas_respecting_quotes(inm) {
-                let t = member.trim();
-                if t == "*" {
-                    return true;
-                }
-                if normalize(t) == known_norm {
-                    return true;
-                }
-            }
-            false
-        }
-
         // Compare depending on validator type
         if let Some(etag) = &known_etag {
             if has_inm {
@@ -124,7 +113,7 @@ impl Rule for StatefulCacheValidationChain {
                         if first_inm_val.is_none() {
                             first_inm_val = Some(inm_val.to_string());
                         }
-                        if inm_matches_known(inm_val, etag) {
+                        if crate::helpers::headers::inm_matches_known(inm_val, etag) {
                             any_match = true;
                             break;
                         }
@@ -221,6 +210,21 @@ mod tests {
         let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_rule_config(),
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn inm_wildcard_skips_chain() {
+        let rule = StatefulCacheValidationChain;
+        let prev = make_prev(200, &[("etag", "\"a\"")]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "*")]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_rule_config(),
         );
         assert!(v.is_none());
