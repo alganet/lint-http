@@ -210,7 +210,11 @@ enabled = false
         enable_rule_with_paths(&mut cfg, "test_rule", &["/logout"]);
         assert!(cfg.is_enabled("test_rule"));
     }
-
+    #[test]
+    fn get_rule_config_none_returns_none() {
+        let cfg = Config::default();
+        assert!(cfg.get_rule_config("nonexistent").is_none());
+    }
     #[test]
     fn table_without_enabled_is_disabled() {
         let mut cfg = Config::default();

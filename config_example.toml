@@ -568,6 +568,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.stateful_cookie_same_site_enforcement]
+enabled = true
+severity = "warn"
+
 [rules.stateful_oauth2_code_flow]
 enabled = true
 severity = "warn"

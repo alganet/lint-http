@@ -20,6 +20,7 @@ pub fn get_query_type_for_rule(rule_id: &str) -> QueryType {
         "stateful_authentication_failure_loop" => QueryType::ByOrigin,
         "stateful_digest_auth_nonce_handling" => QueryType::ByOrigin,
         "stateful_cookie_lifecycle" => QueryType::ByOrigin,
+        "stateful_cookie_same_site_enforcement" => QueryType::ByOrigin,
         _ => QueryType::ByResource,
     }
 }
