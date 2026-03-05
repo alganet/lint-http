@@ -534,7 +534,8 @@ mod tests {
             ("Accept-Encoding", "deflate"),
         ]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![old, good]);
+        // newest-first: later matching entry (good) must come first
+        let history = crate::transaction_history::TransactionHistory::new(vec![good, old]);
         let v = rule.check_transaction(&tx, &history, &cfg);
         assert!(v.is_some(), "should inspect later matching entry");
     }
