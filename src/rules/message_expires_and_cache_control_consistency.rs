@@ -50,11 +50,13 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
         }
 
         let mut cc_present = false;
-        // Collect Cache-Control response directives of interest
+        // Collect Cache-Control response directives of interest.  We still
+        // explicitly track `no-cache`/`no-store` because they factor into
+        // contradiction checks; the numeric values for max-age and s-maxage are
+        // obtained via helpers to centralize parsing logic.
         let mut cc_no_cache = false;
         let mut cc_no_store = false;
         let mut cc_max_age: Option<i64> = None;
-        let mut cc_s_maxage: Option<i64> = None;
 
         for hv in resp.headers.get_all("cache-control").iter() {
             if let Ok(s) = hv.to_str() {
@@ -76,18 +78,14 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
                                 }
                             }
                         }
-                        "s-maxage" => {
-                            if let Some(val) = it.next() {
-                                if let Ok(n) = val.trim().parse::<i64>() {
-                                    cc_s_maxage = Some(n);
-                                }
-                            }
-                        }
                         _ => {}
                     }
                 }
             }
         }
+        // Parse s-maxage via a shared helper after the loop so that s-maxage
+        // parsing is consistent with other uses in the codebase.
+        let cc_s_maxage = crate::helpers::headers::get_cache_control_s_maxage(&resp.headers);
 
         if !has_expires || !cc_present || expires_dt.is_none() {
             return None;

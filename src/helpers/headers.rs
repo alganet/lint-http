@@ -249,6 +249,50 @@ pub fn get_cache_control_max_age(headers: &HeaderMap) -> Option<i64> {
     None
 }
 
+/// Extract the numeric value of an `s-maxage` directive from one of the
+/// `Cache-Control` header fields, if present and syntactically valid.
+///
+/// The semantics mirror `get_cache_control_max_age` but apply to shared caches
+/// only.  Private caches must ignore `s-maxage` when computing freshness
+/// lifetime, so this helper is mainly useful for rules verifying that clients
+/// or caches are not misapplying the directive.  As with the max-age helper,
+/// directives that explicitly forbid caching (`no-store`/`no-cache`) cause the
+/// value to be ignored.
+pub fn get_cache_control_s_maxage(headers: &HeaderMap) -> Option<i64> {
+    // First, scan all Cache-Control header values for directives that forbid
+    // caching. If any header contains `no-store` or `no-cache`, the combined
+    // semantics require caches to treat the response as non-cacheable and to
+    // ignore freshness directives such as `s-maxage`.
+    for hv in headers.get_all("cache-control").iter() {
+        if let Ok(s) = hv.to_str() {
+            let l = s.to_ascii_lowercase();
+            if l.contains("no-store") || l.contains("no-cache") {
+                return None;
+            }
+        }
+    }
+    // No `no-store`/`no-cache` was found across any Cache-Control header value;
+    // now look for a syntactically valid `s-maxage` directive.
+    for hv in headers.get_all("cache-control").iter() {
+        if let Ok(s) = hv.to_str() {
+            for part in s.split(|c| [',', ';'].contains(&c)) {
+                let part = part.trim();
+                if let Some(idx) = part.find('=') {
+                    let (name, value) = part.split_at(idx);
+                    if name.trim().eq_ignore_ascii_case("s-maxage") {
+                        let eq = &value[1..];
+                        if let Ok(n) = eq.trim().parse::<i64>() {
+                            if n >= 0 {
+                                return Some(n);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
 /// Determine whether the given headers indicate the presence of a request body.
 ///
 /// We consider a body to be present if a `Transfer-Encoding` header is present
@@ -1558,6 +1602,44 @@ mod tests {
         assert!(get_cache_control_max_age(&hm).is_none());
 
         // negative values are ignored
+
+        // now exercises the new helper for s-maxage
+        use super::get_cache_control_s_maxage;
+
+        // no header
+        hm.clear();
+        assert!(get_cache_control_s_maxage(&hm).is_none());
+
+        hm.append("cache-control", "s-maxage=15".parse().unwrap());
+        assert_eq!(get_cache_control_s_maxage(&hm), Some(15));
+
+        // semicolon separators
+        hm.clear();
+        hm.append("cache-control", "public; s-maxage=7".parse().unwrap());
+        assert_eq!(get_cache_control_s_maxage(&hm), Some(7));
+
+        // case-insensitive name
+        hm.clear();
+        hm.append("cache-control", "S-MAXAGE=9".parse().unwrap());
+        assert_eq!(get_cache_control_s_maxage(&hm), Some(9));
+
+        // invalid value yields None
+        hm.clear();
+        hm.append("cache-control", "s-maxage=bad".parse().unwrap());
+        assert!(get_cache_control_s_maxage(&hm).is_none());
+
+        // negative is ignored
+        hm.clear();
+        hm.append("cache-control", "s-maxage=-1".parse().unwrap());
+        assert!(get_cache_control_s_maxage(&hm).is_none());
+
+        // no-store or no-cache cause helper to ignore
+        hm.clear();
+        hm.append("cache-control", "s-maxage=30, no-store".parse().unwrap());
+        assert!(get_cache_control_s_maxage(&hm).is_none());
+        hm.clear();
+        hm.append("cache-control", "no-cache, s-maxage=30".parse().unwrap());
+        assert!(get_cache_control_s_maxage(&hm).is_none());
         hm.clear();
         hm.append("cache-control", "max-age=-1".parse().unwrap());
         assert!(get_cache_control_max_age(&hm).is_none());
