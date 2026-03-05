@@ -396,10 +396,13 @@ mod tests {
         // short-circuit the nc validation
         let auth1 = make_auth(&nonce1, Some("00000005"), None);
         let auth2 = make_auth(&nonce1, Some("00000004"), None);
-        let history = crate::transaction_history::TransactionHistory::new(vec![
-            tx_resp_with_challenge(&make_challenge(&nonce1, None, None)),
-            tx_req_with_auth(&auth1),
-        ]);
+        // construct history with challenge first and then the corresponding
+        // authenticated request; the request has a later timestamp so the
+        // vector will be newest-first.
+        let prev_challenge = tx_resp_with_challenge(&make_challenge(&nonce1, None, None));
+        let prev_request = tx_req_with_auth(&auth1);
+        let history =
+            crate::transaction_history::TransactionHistory::new(vec![prev_request, prev_challenge]);
         let tx = tx_req_with_auth(&auth2);
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
@@ -427,10 +430,12 @@ mod tests {
     #[test]
     fn valid_sequence_passes() {
         let nonce1 = random_nonce();
-        let history = crate::transaction_history::TransactionHistory::new(vec![
-            tx_resp_with_challenge(&make_challenge(&nonce1, Some("o1"), None)),
-            tx_req_with_auth(&make_auth(&nonce1, Some("00000001"), Some("o1"))),
-        ]);
+        // build history with challenge first then the request so timestamps
+        // increase and the list is newest-first.
+        let prev_challenge = tx_resp_with_challenge(&make_challenge(&nonce1, Some("o1"), None));
+        let prev_request = tx_req_with_auth(&make_auth(&nonce1, Some("00000001"), Some("o1")));
+        let history =
+            crate::transaction_history::TransactionHistory::new(vec![prev_request, prev_challenge]);
         let tx = tx_req_with_auth(&make_auth(&nonce1, Some("00000002"), Some("o1")));
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);

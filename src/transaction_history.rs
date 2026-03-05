@@ -31,6 +31,19 @@ impl TransactionHistory {
 
     /// Create a history from a pre-sorted (newest-first) list of transactions.
     pub fn new(entries: Vec<HttpTransaction>) -> Self {
+        // callers are expected to supply entries newest-first.  in debug
+        // builds we check that invariant so regressions are caught early.
+        #[cfg(debug_assertions)]
+        {
+            for pair in entries.windows(2) {
+                if let [ref first, ref second] = pair {
+                    debug_assert!(
+                        first.timestamp >= second.timestamp,
+                        "TransactionHistory::new must be given newest-first entries"
+                    );
+                }
+            }
+        }
         Self { entries }
     }
 
@@ -73,8 +86,12 @@ mod tests {
 
     #[test]
     fn history_with_entries() {
-        let tx1 = crate::test_helpers::make_test_transaction();
+        let mut tx1 = crate::test_helpers::make_test_transaction();
         let tx2 = crate::test_helpers::make_test_transaction();
+        // ensure tx1 is treated as the most recent entry by giving it a later
+        // timestamp than tx2.  This avoids debug assertions in debug builds.
+        tx1.timestamp = tx2.timestamp + chrono::Duration::seconds(1);
+
         let h = TransactionHistory::new(vec![tx1.clone(), tx2.clone()]);
 
         assert!(!h.is_empty());

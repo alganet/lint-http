@@ -81,7 +81,8 @@ mod tests {
         let mut tx3 = crate::test_helpers::make_test_transaction_with_response(401, &[]);
         tx3.request.uri = "https://example.com/admin".to_string();
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![tx1, tx2, tx3]);
+        // supply history newest-first; tx3 is most recent
+        let history = crate::transaction_history::TransactionHistory::new(vec![tx3, tx2, tx1]);
 
         let v = rule.check_transaction(&tx, &history, &cfg);
         assert!(v.is_some());
@@ -100,7 +101,8 @@ mod tests {
         let tx3 = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let tx4 = crate::test_helpers::make_test_transaction_with_response(401, &[]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![tx1, tx2, tx3, tx4]);
+        // put newest transaction first (tx4) to satisfy TransactionHistory
+        let history = crate::transaction_history::TransactionHistory::new(vec![tx4, tx3, tx2, tx1]);
 
         let v = rule.check_transaction(&tx, &history, &cfg);
         // Only 2 consecutive 401s before the 200, so no loop
@@ -117,7 +119,8 @@ mod tests {
         let tx2 = crate::test_helpers::make_test_transaction_with_response(401, &[]);
         let tx3 = crate::test_helpers::make_test_transaction_with_response(401, &[]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![tx1, tx2, tx3]);
+        // newest-first history
+        let history = crate::transaction_history::TransactionHistory::new(vec![tx3, tx2, tx1]);
 
         let v = rule.check_transaction(&tx, &history, &cfg);
         assert!(v.is_none());
