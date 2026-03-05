@@ -592,6 +592,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.stateful_must_revalidate_enforcement]
+enabled = true
+severity = "warn"
+
 [rules.stateful_vary_header_cache_validity]
 enabled = true
 severity = "warn"
