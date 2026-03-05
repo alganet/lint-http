@@ -600,6 +600,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.stateful_no_cache_revalidation]
+enabled = true
+severity = "warn"
+
 [rules.stateful_s_max_age_enforcement]
 enabled = true
 severity = "warn"

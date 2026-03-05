@@ -438,6 +438,7 @@ pub mod stateful_cookie_same_site_enforcement;
 pub mod stateful_digest_auth_nonce_handling;
 pub mod stateful_max_age_directive_validity;
 pub mod stateful_must_revalidate_enforcement;
+pub mod stateful_no_cache_revalidation;
 pub mod stateful_no_store_enforcement;
 pub mod stateful_oauth2_code_flow;
 pub mod stateful_range_request_and_caching;
@@ -502,6 +503,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &stateful_websocket_handshake_validity::StatefulWebsocketHandshakeValidity,
     &stateful_103_early_hints_before_final::Stateful103EarlyHintsBeforeFinal,
     &stateful_authentication_failure_loop::StatefulAuthenticationFailureLoop,
+    &stateful_no_cache_revalidation::StatefulNoCacheRevalidation,
     &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
     &message_connection_upgrade::MessageConnectionUpgrade,
     &message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity,
