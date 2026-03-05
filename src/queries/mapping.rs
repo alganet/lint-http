@@ -24,6 +24,7 @@ pub fn get_query_type_for_rule(rule_id: &str) -> QueryType {
         "stateful_vary_header_cache_validity" => QueryType::ByResource,
         "stateful_max_age_directive_validity" => QueryType::ByResource,
         "stateful_must_revalidate_enforcement" => QueryType::ByResource,
+        "stateful_no_cache_revalidation" => QueryType::ByResource,
         "stateful_s_max_age_enforcement" => QueryType::ByResource,
         "stateful_no_store_enforcement" => QueryType::ByResource,
         _ => QueryType::ByResource,
