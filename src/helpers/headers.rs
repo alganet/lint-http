@@ -200,6 +200,55 @@ pub fn parse_semicolon_list(val: &str) -> impl Iterator<Item = &str> {
     val.split(';').map(|s| s.trim()).filter(|s| !s.is_empty())
 }
 
+/// Extract the numeric value of a `max-age` directive from one of the
+/// `Cache-Control` header fields, if present and syntactically valid.
+///
+/// The `Cache-Control` syntax permits multiple directives separated by commas
+/// (the canonical form) or, in some user agents, semicolons.  This helper
+/// therefore splits on both characters and returns the first `max-age` value
+/// it encounters that parses to a non-negative integer.  If multiple header
+/// fields are present the values are considered in header order.
+///
+/// The return value represents the freshness lifetime advertised by the
+/// response.  Callers needing more sophisticated freshness handling (Expires
+/// headers, heuristics, etc.) will need to layer their own logic on top of
+/// this primitive.
+///
+/// This logic was previously duplicated across several stateful caching rules;
+/// consolidating it here makes future maintenance easier.
+pub fn get_cache_control_max_age(headers: &HeaderMap) -> Option<i64> {
+    for hv in headers.get_all("cache-control").iter() {
+        if let Ok(s) = hv.to_str() {
+            // if the header value contains no-store or no-cache, we treat it as
+            // forbidding caching (RFC 9111 §5.2) and ignore any max-age that may
+            // appear alongside.  Lowercase search is sufficient for our purposes.
+            let l = s.to_ascii_lowercase();
+            if l.contains("no-store") || l.contains("no-cache") {
+                continue;
+            }
+
+            for part in s.split(|c| [',', ';'].contains(&c)) {
+                let part = part.trim();
+                // look for name=value pairs so we can compare the name without
+                // depending on the case used by the sender.  RFC9111 §5.2 says
+                // directive names are case‑insensitive.
+                if let Some(idx) = part.find('=') {
+                    let (name, value) = part.split_at(idx);
+                    if name.trim().eq_ignore_ascii_case("max-age") {
+                        let eq = &value[1..]; // drop the '='
+                        if let Ok(n) = eq.trim().parse::<i64>() {
+                            if n >= 0 {
+                                return Some(n);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Determine whether the given headers indicate the presence of a request body.
 ///
 /// We consider a body to be present if a `Transfer-Encoding` header is present
@@ -551,7 +600,22 @@ pub fn split_semicolons_respecting_quotes(s: &str) -> Vec<&str> {
     if start <= s.len() {
         res.push(&s[start..]);
     }
-    res
+    // trim whitespace from each segment before returning, leaving the string
+    // slice boundaries unaltered because trimming just adjusts the start/end
+    // indices within the slice.  This matches the expectations of callers and
+    // our tests, and avoids repeating `.trim()` everywhere.
+    res.into_iter()
+        .map(|seg| {
+            let trimmed = seg.trim();
+            // compute offset from original slice
+            let offset_start = seg.as_ptr() as usize - s.as_ptr() as usize;
+            let offset_trim = seg.find(trimmed).unwrap_or(0);
+            let new_start = offset_start + offset_trim;
+            let new_end = new_start + trimmed.len();
+            // safety: new_start/new_end are within original string bounds
+            &s[new_start..new_end]
+        })
+        .collect()
 }
 
 /// Validate a quoted-string per HTTP rules: must start and end with DQUOTE, support backslash escapes,
@@ -1447,7 +1511,7 @@ mod tests {
             ("a; b; c", vec!["a", "b", "c"]),
             (
                 "max-age=63072000; includeSubDomains; preload",
-                vec!["max-age=63072000", " includeSubDomains", " preload"],
+                vec!["max-age=63072000", "includeSubDomains", "preload"],
             ),
             ("token=\"a;b\";x", vec!["token=\"a;b\"", "x"]),
             ("a;;b", vec!["a", "", "b"]),
@@ -1458,11 +1522,50 @@ mod tests {
         for (input, expected) in cases {
             let got: Vec<String> = split_semicolons_respecting_quotes(input)
                 .iter()
-                .map(|s| s.trim().to_string())
+                .map(|s| s.to_string())
                 .collect();
-            let exp: Vec<String> = expected.iter().map(|s| s.trim().to_string()).collect();
-            assert_eq!(got, exp, "input: {:?}", input);
+            assert_eq!(got, expected);
         }
+    }
+
+    #[test]
+    fn cache_control_max_age_helper_works() {
+        use super::get_cache_control_max_age;
+
+        let mut hm = HeaderMap::new();
+        assert!(get_cache_control_max_age(&hm).is_none());
+
+        hm.clear();
+        hm.append("cache-control", "max-age=10".parse().unwrap());
+        assert_eq!(get_cache_control_max_age(&hm), Some(10));
+
+        // semicolon separators should also parse
+        hm.clear();
+        hm.append("cache-control", "private; max-age=5".parse().unwrap());
+        assert_eq!(get_cache_control_max_age(&hm), Some(5));
+
+        // directive names are case-insensitive
+        hm.clear();
+        hm.append("cache-control", "Max-Age=20".parse().unwrap());
+        assert_eq!(get_cache_control_max_age(&hm), Some(20));
+        hm.clear();
+        hm.append("cache-control", "MAX-AGE=30".parse().unwrap());
+        assert_eq!(get_cache_control_max_age(&hm), Some(30));
+
+        // invalid values produce None, not previous result
+        hm.clear();
+        hm.append("cache-control", "max-age=xyz".parse().unwrap());
+        assert!(get_cache_control_max_age(&hm).is_none());
+
+        // negative values are ignored
+        hm.clear();
+        hm.append("cache-control", "max-age=-1".parse().unwrap());
+        assert!(get_cache_control_max_age(&hm).is_none());
+
+        // directives forbidding caching return None
+        let mut hm2 = HeaderMap::new();
+        hm2.append("cache-control", "max-age=30, no-store".parse().unwrap());
+        assert!(get_cache_control_max_age(&hm2).is_none());
     }
 
     #[test]

@@ -54,7 +54,9 @@ impl Rule for StatefulMaxAgeDirectiveValidity {
         for past in history.iter() {
             if let Some(resp) = &past.response {
                 // collect max-age value (ignore bad syntax)
-                if let Some(max_age) = extract_max_age_from_headers(&resp.headers) {
+                if let Some(max_age) =
+                    crate::helpers::headers::get_cache_control_max_age(&resp.headers)
+                {
                     candidate = Some((past, max_age));
                     break;
                 }
@@ -108,7 +110,7 @@ impl Rule for StatefulMaxAgeDirectiveValidity {
                     rule: self.id().into(),
                     severity: config.severity,
                     message: format!(
-                        "Stale cached entry (age {} > max-age {}) reused without conditional request; should revalidate",
+                        "Stale cached entry (age {} >= max-age {}) reused without conditional request; should revalidate",
                         current_age, max_age
                     ),
                 });
@@ -117,42 +119,6 @@ impl Rule for StatefulMaxAgeDirectiveValidity {
 
         None
     }
-}
-
-/// Parse `Cache-Control` header values and return the first
-/// `max-age=<non-negative-int>` directive found.  Returns `None` if no
-/// suitable directive is present or if parsing fails.
-fn extract_max_age_from_headers(headers: &hyper::HeaderMap) -> Option<i64> {
-    for hv in headers.get_all("cache-control").iter() {
-        if let Ok(s) = hv.to_str() {
-            // ignore responses that forbid caching or require revalidation
-            // even if a max-age directive is present.
-            let l = s.to_ascii_lowercase();
-            if l.contains("no-store") || l.contains("no-cache") {
-                continue;
-            }
-
-            for part in crate::helpers::headers::split_commas_respecting_quotes(s) {
-                let p = part.trim();
-                if p.eq_ignore_ascii_case("max-age") {
-                    // "max-age" without value is malformed; ignore
-                    continue;
-                }
-                if let Some(idx) = p.find('=') {
-                    let name = &p[..idx].trim().to_ascii_lowercase();
-                    if name == "max-age" {
-                        let val = &p[idx + 1..].trim();
-                        if let Ok(n) = val.parse::<i64>() {
-                            if n >= 0 {
-                                return Some(n);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
 }
 
 #[cfg(test)]
@@ -431,36 +397,46 @@ mod tests {
     }
 
     #[test]
-    fn extract_max_age_helper_tests() {
+    fn cache_control_max_age_helper_tests() {
+        use crate::helpers::headers::get_cache_control_max_age;
+
         // no header
         let mut hm = hyper::HeaderMap::new();
-        assert!(extract_max_age_from_headers(&hm).is_none());
+        assert!(get_cache_control_max_age(&hm).is_none());
 
         hm.append("cache-control", "max-age=30".parse().unwrap());
-        assert_eq!(extract_max_age_from_headers(&hm), Some(30));
+        assert_eq!(get_cache_control_max_age(&hm), Some(30));
 
-        // multiple directives (extensions allowed)
+        // multiple directives (extensions allowed), comma and semicolon should both work
         hm.clear();
         hm.append("cache-control", "private, max-age=5".parse().unwrap());
-        assert_eq!(extract_max_age_from_headers(&hm), Some(5));
+        assert_eq!(get_cache_control_max_age(&hm), Some(5));
 
         // invalid number
         hm.clear();
         hm.append("cache-control", "max-age=abc".parse().unwrap());
-        assert!(extract_max_age_from_headers(&hm).is_none());
+        assert!(get_cache_control_max_age(&hm).is_none());
 
         // negative value not allowed
         hm.clear();
         hm.append("cache-control", "max-age=-1".parse().unwrap());
-        assert!(extract_max_age_from_headers(&hm).is_none());
+        assert!(get_cache_control_max_age(&hm).is_none());
 
         // explicit directives that forbid caching result in None
         hm.clear();
         hm.append("cache-control", "max-age=30, no-store".parse().unwrap());
-        assert!(extract_max_age_from_headers(&hm).is_none());
+        assert!(get_cache_control_max_age(&hm).is_none());
         hm.clear();
         hm.append("cache-control", "no-cache, max-age=30".parse().unwrap());
-        assert!(extract_max_age_from_headers(&hm).is_none());
+        assert!(get_cache_control_max_age(&hm).is_none());
+
+        // directive name is case-insensitive
+        hm.clear();
+        hm.append("cache-control", "Max-Age=7".parse().unwrap());
+        assert_eq!(get_cache_control_max_age(&hm), Some(7));
+        hm.clear();
+        hm.append("cache-control", "MAX-AGE=8".parse().unwrap());
+        assert_eq!(get_cache_control_max_age(&hm), Some(8));
     }
 
     #[test]
