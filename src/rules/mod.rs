@@ -389,6 +389,7 @@ pub mod message_warning_header_syntax;
 pub mod message_well_known_uri_format;
 pub mod message_www_authenticate_challenge_syntax;
 pub mod message_x_forwarded_consistency;
+pub mod semantic_cache_coherence;
 pub mod semantic_head_response_headers_match_get;
 pub mod semantic_options_method_capabilities;
 pub mod semantic_origin_matching_for_cors;
@@ -491,6 +492,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_conditional_headers_consistency::MessageConditionalHeadersConsistency,
     &stateful_conditional_request_handling::StatefulConditionalRequestHandling,
     &stateful_cookie_lifecycle::StatefulCookieLifecycle,
+    &semantic_cache_coherence::SemanticCacheCoherence,
     &stateful_vary_header_cache_validity::StatefulVaryHeaderCacheValidity,
     &stateful_cookie_same_site_enforcement::StatefulCookieSameSiteEnforcement,
     &stateful_oauth2_code_flow::StatefulOauth2CodeFlow,
