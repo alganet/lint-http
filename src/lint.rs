@@ -35,6 +35,13 @@ pub fn lint_transaction(
 
     let mut history_by_resource: Option<crate::transaction_history::TransactionHistory> = None;
     let mut history_by_origin: Option<crate::transaction_history::TransactionHistory> = None;
+    // separate cache for ByResourceAll queries to avoid mixing with
+    // per-client histories.  If a ByResource rule runs first its history was
+    // already computed and stored in `history_by_resource`; using that same
+    // value for ByResourceAll would omit other clients' entries.
+    let mut history_by_resource_all_clients: Option<
+        crate::transaction_history::TransactionHistory,
+    > = None;
 
     // Cache origin extraction since it's used by any rule requiring ByOrigin
     let origin = crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
@@ -56,6 +63,14 @@ pub fn lint_transaction(
                             crate::transaction_history::TransactionHistory::empty()
                         }
                     }),
+                crate::queries::mapping::QueryType::ByResourceAll => {
+                    history_by_resource_all_clients.get_or_insert_with(|| {
+                        crate::queries::by_resource_all_clients::by_resource_all_clients(
+                            state,
+                            &tx.request.uri,
+                        )
+                    })
+                }
             };
 
             out.extend(rule.check_transaction_erased(tx, history, cfg, engine));

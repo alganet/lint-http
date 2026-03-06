@@ -10,4 +10,5 @@
 
 pub mod by_origin;
 pub mod by_resource;
+pub mod by_resource_all_clients;
 pub mod mapping;

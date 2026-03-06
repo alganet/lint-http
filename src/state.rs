@@ -38,6 +38,10 @@ struct ResourceKey {
 /// lint rules never access it directly.
 pub struct StateStore {
     store: Arc<RwLock<HashMap<ResourceKey, VecDeque<crate::http_transaction::HttpTransaction>>>>,
+    /// Index mapping resource string to list of clients that have entries for
+    /// that resource.  Used to efficiently support cross-client history
+    /// queries without scanning every key in `store`.
+    resource_index: Arc<RwLock<HashMap<String, Vec<ClientIdentifier>>>>,
     ttl: Duration,
     max_history: usize,
 }
@@ -46,6 +50,7 @@ impl StateStore {
     pub fn new(ttl_seconds: u64, max_history: usize) -> Self {
         Self {
             store: Arc::new(RwLock::new(HashMap::new())),
+            resource_index: Arc::new(RwLock::new(HashMap::new())),
             ttl: Duration::from_secs(ttl_seconds),
             max_history,
         }
@@ -61,17 +66,26 @@ impl StateStore {
             resource: tx.request.uri.clone(),
         };
 
-        match self.store.write() {
-            Ok(mut store) => {
-                let deque = store.entry(key).or_insert_with(VecDeque::new);
-                deque.push_front(tx.clone());
-                if deque.len() > self.max_history {
-                    deque.pop_back();
+        // acquire write lock on store and possibly index
+        if let Ok(mut store) = self.store.write() {
+            let is_new = store.get(&key).is_none();
+            let deque = store.entry(key.clone()).or_insert_with(VecDeque::new);
+            deque.push_front(tx.clone());
+            if deque.len() > self.max_history {
+                deque.pop_back();
+            }
+
+            if is_new {
+                // update index: add client to resource list
+                if let Ok(mut idx) = self.resource_index.write() {
+                    let clients = idx.entry(key.resource.clone()).or_insert_with(Vec::new);
+                    if !clients.iter().any(|c| c == &key.client) {
+                        clients.push(key.client.clone());
+                    }
                 }
             }
-            Err(_) => {
-                tracing::warn!("StateStore lock poisoned during write");
-            }
+        } else {
+            tracing::warn!("StateStore lock poisoned during write");
         }
     }
 
@@ -117,7 +131,39 @@ impl StateStore {
             }
         }
     }
-
+    /// Retrieve the full bounded history across **all clients** for the given
+    /// resource string.  The returned vector is sorted newest-first by
+    /// timestamp.  This is useful for rules that need to observe behaviour that
+    /// crosses client boundaries, such as ensuring `private` responses are not
+    /// reused by other clients.
+    pub fn get_history_for_resource(
+        &self,
+        resource: &str,
+    ) -> Vec<crate::http_transaction::HttpTransaction> {
+        // use index to avoid scanning every entry in the store
+        let mut entries = Vec::new();
+        if let Ok(idx) = self.resource_index.read() {
+            if let Some(clients) = idx.get(resource) {
+                if let Ok(store) = self.store.read() {
+                    for client in clients {
+                        let key = ResourceKey {
+                            client: client.clone(),
+                            resource: resource.to_string(),
+                        };
+                        if let Some(dq) = store.get(&key) {
+                            for tx in dq.iter() {
+                                entries.push(tx.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // ensure newest-first ordering by timestamp (entries from different
+        // clients may be interleaved)
+        entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        entries
+    }
     /// Collect all transactions for a given client across all resources (newest first per resource).
     ///
     /// Used by origin-based queries that need to scan across URIs.
@@ -140,26 +186,45 @@ impl StateStore {
 
     /// Remove expired entries from the store.
     pub fn cleanup_expired(&self) {
-        match self.store.write() {
-            Ok(mut store) => {
-                let ttl_chrono = chrono::Duration::from_std(self.ttl)
-                    .unwrap_or_else(|_| chrono::Duration::seconds(0));
-                for deque in store.values_mut() {
-                    deque.retain(|tx| {
-                        let age = Utc::now().signed_duration_since(tx.timestamp);
-                        // If timestamp is in the future (age < 0), treat as expired (remove)
-                        if age < chrono::Duration::zero() {
-                            return false;
-                        }
-                        age <= ttl_chrono
-                    });
+        if let Ok(mut store) = self.store.write() {
+            let ttl_chrono = chrono::Duration::from_std(self.ttl)
+                .unwrap_or_else(|_| chrono::Duration::seconds(0));
+            let mut removed_resources: Vec<(String, ClientIdentifier)> = Vec::new();
+
+            for (_key, deque) in store.iter_mut() {
+                deque.retain(|tx| {
+                    let age = Utc::now().signed_duration_since(tx.timestamp);
+                    // If timestamp is in the future (age < 0), treat as expired (remove)
+                    if age < chrono::Duration::zero() {
+                        return false;
+                    }
+                    age <= ttl_chrono
+                });
+            }
+            // identify empties so we can update index after removal
+            store.retain(|key, dq| {
+                if dq.is_empty() {
+                    removed_resources.push((key.resource.clone(), key.client.clone()));
+                    false
+                } else {
+                    true
                 }
-                // Remove keys with empty deques
-                store.retain(|_, dq| !dq.is_empty());
+            });
+
+            if !removed_resources.is_empty() {
+                if let Ok(mut idx) = self.resource_index.write() {
+                    for (res, client) in removed_resources {
+                        if let Some(clients) = idx.get_mut(&res) {
+                            clients.retain(|c| c != &client);
+                            if clients.is_empty() {
+                                idx.remove(&res);
+                            }
+                        }
+                    }
+                }
             }
-            Err(_) => {
-                tracing::warn!("StateStore lock poisoned during cleanup");
-            }
+        } else {
+            tracing::warn!("StateStore lock poisoned during cleanup");
         }
     }
 
@@ -192,7 +257,6 @@ mod tests {
     use hyper::HeaderMap;
     use std::net::{IpAddr, Ipv4Addr};
     use std::thread;
-    use std::time::Duration;
 
     fn make_client() -> ClientIdentifier {
         ClientIdentifier::new(
@@ -288,27 +352,103 @@ mod tests {
     }
 
     #[test]
+    fn get_history_for_resource_includes_all_clients() {
+        let store = StateStore::new(300, 10);
+        let client1 =
+            ClientIdentifier::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), "a".to_string());
+        let client2 =
+            ClientIdentifier::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), "b".to_string());
+        let resource = "http://example.com/res";
+
+        use crate::test_helpers::make_test_transaction_with_response;
+        let mut tx1 = make_test_transaction_with_response(200, &[("etag", "\"e1\"")]);
+        tx1.client = client1.clone();
+        tx1.request.uri = resource.to_string();
+        tx1.timestamp = chrono::Utc::now();
+        store.record_transaction(&tx1);
+
+        let mut tx2 = make_test_transaction_with_response(200, &[("etag", "\"e2\"")]);
+        tx2.client = client2.clone();
+        tx2.request.uri = resource.to_string();
+        tx2.timestamp = chrono::Utc::now() + chrono::Duration::seconds(1);
+        store.record_transaction(&tx2);
+
+        let history = store.get_history_for_resource(resource);
+        assert_eq!(history.len(), 2);
+        // newest-first should show tx2 first
+        assert_eq!(
+            history[0]
+                .response
+                .as_ref()
+                .unwrap()
+                .headers
+                .get("etag")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "\"e2\""
+        );
+    }
+
+    #[test]
     fn cleanup_removes_expired_entries() {
+        eprintln!("cleanup test start");
         let store = StateStore::new(1, 10); // 1 second TTL
         let client = make_client();
         let resource = "http://example.com/resource";
 
+        eprintln!("about to create tx");
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.client = client.clone();
         tx.request.uri = resource.to_string();
+        eprintln!("recording transaction");
         store.record_transaction(&tx);
+        eprintln!("recorded");
+        // index should contain mapping
+        {
+            let idx = store.resource_index.read().unwrap();
+            assert!(idx
+                .get(resource)
+                .map(|v| v.contains(&client))
+                .unwrap_or(false));
+            eprintln!("index contains entry");
+        } // read lock dropped here
 
-        // Verify it exists
-        assert!(store.get_previous(&client, resource).is_some());
-
-        // Wait for expiration
-        thread::sleep(Duration::from_secs(2));
-
-        // Cleanup
+        // sleep long enough to expire
+        eprintln!("sleeping");
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        eprintln!("woke up, about to cleanup");
         store.cleanup_expired();
-
-        // Should be gone
+        eprintln!("cleanup done");
         assert!(store.get_previous(&client, resource).is_none());
+        // index should no longer have resource
+        let idx2 = store.resource_index.read().unwrap();
+        assert!(!idx2.contains_key(resource));
+        eprintln!("cleanup test end");
+    }
+
+    #[test]
+    fn get_history_for_resource_uses_index() {
+        let store = StateStore::new(300, 10);
+        let client1 = make_client();
+        let mut client2 = client1.clone();
+        client2.user_agent = "other".to_string();
+        let resource = "http://example.com/res";
+
+        let mut tx1 =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("etag", "\"a\"")]);
+        tx1.client = client1.clone();
+        tx1.request.uri = resource.to_string();
+        store.record_transaction(&tx1);
+
+        let mut tx2 =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("etag", "\"b\"")]);
+        tx2.client = client2.clone();
+        tx2.request.uri = resource.to_string();
+        store.record_transaction(&tx2);
+
+        let history = store.get_history_for_resource(resource);
+        assert_eq!(history.len(), 2);
     }
 
     use rstest::rstest;
