@@ -47,20 +47,9 @@ impl Rule for StatefulCookieSameSiteEnforcement {
             "http"
         };
 
-        // extract host portion (without port)
-        let req_host = if let Some(idx) = req_uri.find("://") {
-            let after = &req_uri[idx + 3..];
-            after
-                .split('/')
-                .next()
-                .unwrap_or("")
-                .split(':')
-                .next()
-                .unwrap_or("")
-                .to_string()
-        } else {
-            String::new()
-        };
+        // extract host portion (without port) using shared helper
+        let req_host =
+            crate::helpers::uri::extract_host_from_request_target(req_uri).unwrap_or_default();
 
         let req_path = crate::helpers::uri::extract_path_from_request_target(req_uri)
             .unwrap_or_else(|| "/".into());

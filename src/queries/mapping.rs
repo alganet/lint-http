@@ -25,6 +25,7 @@ pub fn get_query_type_for_rule(rule_id: &str) -> QueryType {
         "stateful_digest_auth_nonce_handling" => QueryType::ByOrigin,
         "stateful_cookie_lifecycle" => QueryType::ByOrigin,
         "stateful_cookie_same_site_enforcement" => QueryType::ByOrigin,
+        "stateful_cookie_domain_matching" => QueryType::ByResource,
         "semantic_cache_coherence" => QueryType::ByResource,
         "stateful_vary_header_cache_validity" => QueryType::ByResource,
         "stateful_max_age_directive_validity" => QueryType::ByResource,

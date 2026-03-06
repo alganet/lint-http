@@ -120,6 +120,36 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
     Some("Origin is not a valid serialized origin".into())
 }
 
+/// Extract the host portion (without port) from an absolute URI or
+/// request-target. Only absolute-form URIs (`scheme://host...`) contain a
+/// host; origin-form targets (starting with `/`) and the special `*` or
+/// authority-form have no host and will return `None`.
+///
+/// The returned value is lowercased.  Ports are stripped off, since cookie
+/// matching and other rules operate on the hostname alone.
+///
+/// This helper is primarily used by cookie-related stateful rules and keeps
+/// the shared parsing logic in one place.
+pub fn extract_host_from_request_target(s: &str) -> Option<String> {
+    if let Some(idx) = s.find("://") {
+        let after = &s[idx + 3..];
+        let host = after
+            .split('/')
+            .next()
+            .unwrap_or("")
+            .split(':')
+            .next()
+            .unwrap_or("");
+        if host.is_empty() {
+            None
+        } else {
+            Some(host.to_ascii_lowercase())
+        }
+    } else {
+        None
+    }
+}
+
 /// Extract the path component from a request-target or absolute URI.
 ///
 /// - If `s` is an absolute URI (`scheme://host[:port]/path...`), returns the
@@ -292,6 +322,21 @@ mod tests {
         );
         assert_eq!(extract_path_from_request_target("*"), None);
         assert_eq!(extract_path_from_request_target("example.com:443"), None);
+    }
+
+    #[test]
+    fn extract_host_from_request_target_cases() {
+        assert_eq!(
+            extract_host_from_request_target("https://Example.COM/path"),
+            Some("example.com".into())
+        );
+        assert_eq!(
+            extract_host_from_request_target("http://foo.example.com:8080/"),
+            Some("foo.example.com".into())
+        );
+        assert_eq!(extract_host_from_request_target("/relative/path"), None);
+        assert_eq!(extract_host_from_request_target("*"), None);
+        assert_eq!(extract_host_from_request_target("example.com:443"), None);
     }
 
     #[test]
