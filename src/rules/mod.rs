@@ -441,6 +441,7 @@ pub mod stateful_must_revalidate_enforcement;
 pub mod stateful_no_cache_revalidation;
 pub mod stateful_no_store_enforcement;
 pub mod stateful_oauth2_code_flow;
+pub mod stateful_private_cache_visibility;
 pub mod stateful_range_request_and_caching;
 pub mod stateful_redirect_chain_validity;
 pub mod stateful_s_max_age_enforcement;
@@ -496,6 +497,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &stateful_max_age_directive_validity::StatefulMaxAgeDirectiveValidity,
     &stateful_s_max_age_enforcement::StatefulSMaxAgeEnforcement,
     &stateful_no_store_enforcement::StatefulNoStoreEnforcement,
+    &stateful_private_cache_visibility::StatefulPrivateCacheVisibility,
     &stateful_must_revalidate_enforcement::StatefulMustRevalidateEnforcement,
     &stateful_cache_validation_chain::StatefulCacheValidationChain,
     &stateful_digest_auth_nonce_handling::StatefulDigestAuthNonceHandling,

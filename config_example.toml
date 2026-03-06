@@ -600,6 +600,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.stateful_private_cache_visibility]
+enabled = true
+severity = "warn"
+
 [rules.stateful_no_cache_revalidation]
 enabled = true
 severity = "warn"

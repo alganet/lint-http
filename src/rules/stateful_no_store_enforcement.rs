@@ -102,7 +102,7 @@ impl Rule for StatefulNoStoreEnforcement {
                 if let Some(hv) = resp.headers.get("etag") {
                     if let Ok(s) = hv.to_str() {
                         let val = s.trim().to_string();
-                        let normalized = normalize_etag(&val);
+                        let normalized = crate::helpers::headers::normalize_etag(&val);
                         if !seen_etags.contains(&normalized) {
                             seen_etags.insert(normalized.clone());
                             if is_no_store {
@@ -145,7 +145,7 @@ impl Rule for StatefulNoStoreEnforcement {
             if let Ok(s) = hv.to_str() {
                 for member in crate::helpers::headers::parse_list_header(s) {
                     let member = member.trim();
-                    let normalized = normalize_etag(member);
+                    let normalized = crate::helpers::headers::normalize_etag(member);
                     if no_store_etags.contains(&normalized) {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -203,19 +203,6 @@ fn header_has_no_store(headers: &hyper::HeaderMap) -> bool {
         }
     }
     false
-}
-
-/// Strip an optional weak (`W/`) prefix from an ETag value, leaving the
-/// quoted-string intact.  Comparison logic throughout the rule operates on
-/// normalized values so that weak and strong validators match each other as
-/// required by RFC 9111 §5.3.2.
-fn normalize_etag(s: &str) -> String {
-    let trimmed = s.trim();
-    if trimmed.len() >= 2 && (trimmed.starts_with("W/") || trimmed.starts_with("w/")) {
-        trimmed[2..].trim().to_string()
-    } else {
-        trimmed.to_string()
-    }
 }
 
 #[cfg(test)]

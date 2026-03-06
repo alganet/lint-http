@@ -8,6 +8,10 @@
 pub enum QueryType {
     ByResource,
     ByOrigin,
+    /// Like `ByResource` but returns history for **all clients** that have
+    /// accessed the given resource.  Used by rules that need to observe
+    /// cross-client behaviour (e.g. private cache visibility).
+    ByResourceAll,
 }
 
 /// Returns the required QueryType for a given rule ID.
@@ -27,6 +31,7 @@ pub fn get_query_type_for_rule(rule_id: &str) -> QueryType {
         "stateful_no_cache_revalidation" => QueryType::ByResource,
         "stateful_s_max_age_enforcement" => QueryType::ByResource,
         "stateful_no_store_enforcement" => QueryType::ByResource,
+        "stateful_private_cache_visibility" => QueryType::ByResourceAll,
         _ => QueryType::ByResource,
     }
 }

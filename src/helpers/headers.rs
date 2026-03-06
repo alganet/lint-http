@@ -249,6 +249,21 @@ pub fn get_cache_control_max_age(headers: &HeaderMap) -> Option<i64> {
     None
 }
 
+/// Strip an optional weak (`W/`) prefix from an ETag value, leaving the
+/// quoted-string intact.  Comparison logic for conditional requests often
+/// treats weak and strong validators as equivalent (RFC 9111 §5.3.2) so the
+/// normalized form is useful for rule implementations.
+///
+/// The resulting string is trimmed but otherwise returned verbatim.
+pub fn normalize_etag(s: &str) -> String {
+    let trimmed = s.trim();
+    if trimmed.len() >= 2 && (trimmed.starts_with("W/") || trimmed.starts_with("w/")) {
+        trimmed[2..].trim().to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
 /// Extract the numeric value of an `s-maxage` directive from one of the
 /// `Cache-Control` header fields, if present and syntactically valid.
 ///
