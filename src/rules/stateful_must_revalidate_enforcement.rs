@@ -64,11 +64,10 @@ impl Rule for StatefulMustRevalidateEnforcement {
 
         let prev_tx = candidate?;
 
-        // compute freshness lifetime advertised by the response.  if max-age is
-        // present, it takes precedence (using shared helper); otherwise try
-        // Expires.  missing/invalid values are treated as zero (stale
-        // immediately).
-        let freshness_lifetime = compute_freshness_lifetime(
+        // compute freshness lifetime advertised by the response.  this uses a
+        // shared helper which handles both `max-age` and `Expires` logic,
+        // returning zero when no explicit lifetime is available.
+        let freshness_lifetime = crate::helpers::headers::compute_freshness_lifetime(
             &prev_tx.response.as_ref().unwrap().headers,
             prev_tx.timestamp,
         );
@@ -138,31 +137,6 @@ fn header_has_must_revalidate(headers: &hyper::HeaderMap) -> bool {
     false
 }
 
-/// Determine the freshness lifetime (in whole seconds) advertised by a
-/// response.  Follows the precedence rules from RFC 9111 §4.2: `max-age` first,
-/// then `Expires`.  If neither is present or parseable the result is zero.
-fn compute_freshness_lifetime(
-    headers: &hyper::HeaderMap,
-    resp_timestamp: chrono::DateTime<chrono::Utc>,
-) -> i64 {
-    // similar to the logic in stateful_max_age_directive_validity, but also
-    // honour `Expires` when no max-age is present.
-    if let Some(max_age) = crate::helpers::headers::get_cache_control_max_age(headers) {
-        return max_age;
-    }
-    if let Some(hv) = headers.get("expires") {
-        if let Ok(s) = hv.to_str() {
-            if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
-                let diff = dt.signed_duration_since(resp_timestamp).num_seconds();
-                if diff > 0 {
-                    return diff;
-                }
-            }
-        }
-    }
-    0
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,33 +202,6 @@ mod tests {
         hm.clear();
         hm.insert("cache-control", "max-age=60".parse().unwrap());
         assert!(!header_has_must_revalidate(&hm));
-    }
-
-    #[test]
-    fn compute_freshness_lifetime_expire_and_age() {
-        // use now as reference
-        let now = chrono::Utc::now();
-        let mut hm = hyper::HeaderMap::new();
-        // max-age takes precedence
-        hm.insert("cache-control", "max-age=30".parse().unwrap());
-        assert_eq!(compute_freshness_lifetime(&hm, now), 30);
-        // expires only: construct a chrono DateTime and format it to IMF-fixdate
-        hm.clear();
-        let later_dt = now + chrono::Duration::seconds(20);
-        let later = later_dt.format("%a, %d %b %Y %H:%M:%S GMT").to_string();
-        hm.insert("expires", later.parse().unwrap());
-        let val = compute_freshness_lifetime(&hm, now);
-        assert!((val - 20).abs() <= 1, "got {} seconds", val);
-        // expires in past yields 0
-        hm.clear();
-        let past_dt = now - chrono::Duration::seconds(5);
-        let past = past_dt.format("%a, %d %b %Y %H:%M:%S GMT").to_string();
-        hm.insert("expires", past.parse().unwrap());
-        assert_eq!(compute_freshness_lifetime(&hm, now), 0);
-        // invalid date returns 0
-        hm.clear();
-        hm.insert("expires", "not-a-date".parse().unwrap());
-        assert_eq!(compute_freshness_lifetime(&hm, now), 0);
     }
 
     #[test]
