@@ -434,6 +434,7 @@ pub mod stateful_103_early_hints_before_final;
 pub mod stateful_authentication_failure_loop;
 pub mod stateful_cache_validation_chain;
 pub mod stateful_conditional_request_handling;
+pub mod stateful_cookie_domain_matching;
 pub mod stateful_cookie_lifecycle;
 pub mod stateful_cookie_same_site_enforcement;
 pub mod stateful_digest_auth_nonce_handling;
@@ -495,6 +496,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &semantic_cache_coherence::SemanticCacheCoherence,
     &stateful_vary_header_cache_validity::StatefulVaryHeaderCacheValidity,
     &stateful_cookie_same_site_enforcement::StatefulCookieSameSiteEnforcement,
+    &stateful_cookie_domain_matching::StatefulCookieDomainMatching,
     &stateful_oauth2_code_flow::StatefulOauth2CodeFlow,
     &stateful_range_request_and_caching::StatefulRangeRequestAndCaching,
     &stateful_max_age_directive_validity::StatefulMaxAgeDirectiveValidity,

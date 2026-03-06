@@ -572,6 +572,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.stateful_cookie_domain_matching]
+enabled = true
+severity = "warn"
+
 [rules.stateful_oauth2_code_flow]
 enabled = true
 severity = "warn"
