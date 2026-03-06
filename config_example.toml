@@ -596,6 +596,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.stateful_immutable_cache_never_stale]
+enabled = true
+severity = "warn"
+
 [rules.stateful_no_store_enforcement]
 enabled = true
 severity = "warn"

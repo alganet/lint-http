@@ -308,6 +308,46 @@ pub fn get_cache_control_s_maxage(headers: &HeaderMap) -> Option<i64> {
     }
     None
 }
+
+/// Compute the freshness lifetime (in whole seconds) advertised by a response.
+/// This helper first consults `Cache-Control: max-age` (ignoring any values when
+/// `no-store` or `no-cache` are also present) and falls back to the `Expires`
+/// header if no max-age is available.  A missing or invalid value is treated as
+/// zero, representing an immediately stale entry.  Callers may use this to
+/// drive caching-related stateful rules without duplicating parsing logic.
+pub fn compute_freshness_lifetime(
+    headers: &HeaderMap,
+    resp_timestamp: chrono::DateTime<chrono::Utc>,
+) -> i64 {
+    // if any Cache-Control value forbids caching, the response should be
+    // treated as immediately stale regardless of max-age or Expires.  This
+    // mirrors the more careful scan performed by `get_cache_control_s_maxage`
+    // and ensures that split header fields cannot defeat the check.
+    for hv in headers.get_all("cache-control").iter() {
+        if let Ok(s) = hv.to_str() {
+            let l = s.to_ascii_lowercase();
+            if l.contains("no-store") || l.contains("no-cache") {
+                return 0;
+            }
+        }
+    }
+
+    if let Some(max_age) = get_cache_control_max_age(headers) {
+        return max_age;
+    }
+    if let Some(hv) = headers.get("expires") {
+        if let Ok(s) = hv.to_str() {
+            if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
+                let diff = dt.signed_duration_since(resp_timestamp).num_seconds();
+                if diff > 0 {
+                    return diff;
+                }
+            }
+        }
+    }
+    0
+}
+
 /// Determine whether the given headers indicate the presence of a request body.
 ///
 /// We consider a body to be present if a `Transfer-Encoding` header is present
@@ -1663,6 +1703,56 @@ mod tests {
         let mut hm2 = HeaderMap::new();
         hm2.append("cache-control", "max-age=30, no-store".parse().unwrap());
         assert!(get_cache_control_max_age(&hm2).is_none());
+    }
+
+    #[test]
+    fn compute_freshness_lifetime_helper_works() {
+        use super::compute_freshness_lifetime;
+
+        let now = chrono::Utc::now();
+        let mut hm = HeaderMap::new();
+
+        // no freshness info -> zero
+        assert_eq!(compute_freshness_lifetime(&hm, now), 0);
+
+        // max-age takes precedence
+        hm.clear();
+        hm.append("cache-control", "max-age=30".parse().unwrap());
+        assert_eq!(compute_freshness_lifetime(&hm, now), 30);
+
+        // expires fallback
+        hm.clear();
+        let later = (now + chrono::Duration::seconds(20))
+            .format("%a, %d %b %Y %H:%M:%S GMT")
+            .to_string();
+        hm.append("expires", later.parse().unwrap());
+        let val = compute_freshness_lifetime(&hm, now);
+        assert!((val - 20).abs() <= 1, "got {} seconds", val);
+
+        // expires in past -> zero
+        hm.clear();
+        let past = (now - chrono::Duration::seconds(5))
+            .format("%a, %d %b %Y %H:%M:%S GMT")
+            .to_string();
+        hm.append("expires", past.parse().unwrap());
+        assert_eq!(compute_freshness_lifetime(&hm, now), 0);
+
+        // invalid date -> zero
+        hm.clear();
+        hm.append("expires", "not-a-date".parse().unwrap());
+        assert_eq!(compute_freshness_lifetime(&hm, now), 0);
+
+        // max-age still wins even if expires present
+        hm.clear();
+        hm.append("cache-control", "max-age=5".parse().unwrap());
+        hm.append("expires", later.parse().unwrap());
+        assert_eq!(compute_freshness_lifetime(&hm, now), 5);
+
+        // multiple cache-control headers: no-cache in one should zero out
+        hm.clear();
+        hm.append("cache-control", "max-age=100".parse().unwrap());
+        hm.append("cache-control", "no-cache".parse().unwrap());
+        assert_eq!(compute_freshness_lifetime(&hm, now), 0);
     }
 
     #[test]
