@@ -38,6 +38,7 @@ async fn test_captures_seed_behavior(#[case] seed_enabled: bool) -> anyhow::Resu
         headers: resp_headers,
 
         body_length: None,
+        trailers: None,
     });
 
     fs::write(&captures_file, serde_json::to_string(&tx)?).await?;

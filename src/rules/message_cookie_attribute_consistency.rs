@@ -338,6 +338,7 @@ mod tests {
             headers: hyper::HeaderMap::new(),
 
             body_length: None,
+            trailers: None,
         });
 
         // Append a non-UTF8 header value
@@ -413,6 +414,7 @@ mod tests {
             headers: hyper::HeaderMap::new(),
 
             body_length: None,
+            trailers: None,
         });
 
         // Append a valid and an invalid Set-Cookie header

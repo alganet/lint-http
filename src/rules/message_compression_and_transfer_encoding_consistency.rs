@@ -182,6 +182,7 @@ mod tests {
             headers: hyper::HeaderMap::new(),
 
             body_length: None,
+            trailers: None,
         });
 
         tx.response.as_mut().unwrap().headers.append(

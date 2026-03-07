@@ -33,6 +33,14 @@ pub struct RequestInfo {
     pub headers: HeaderMap,
     /// Length in bytes of the captured (decoded) request body, if available.
     pub body_length: Option<u64>,
+    /// Trailer fields received after the request body (chunked transfer encoding).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serde_helpers::serialize_optional_headers",
+        deserialize_with = "crate::serde_helpers::deserialize_optional_headers"
+    )]
+    pub trailers: Option<HeaderMap>,
 }
 
 /// Response portion of an HTTP transaction (may be absent for failed upstreams).
@@ -48,6 +56,14 @@ pub struct ResponseInfo {
     pub headers: HeaderMap,
     /// Length in bytes of the captured (decoded) body, if available.
     pub body_length: Option<u64>,
+    /// Trailer fields received after the response body (chunked transfer encoding).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serde_helpers::serialize_optional_headers",
+        deserialize_with = "crate::serde_helpers::deserialize_optional_headers"
+    )]
+    pub trailers: Option<HeaderMap>,
 }
 
 /// Canonical transaction that flows through parsing -> linting -> capture.
@@ -73,6 +89,23 @@ pub struct HttpTransaction {
 
     pub timing: TimingInfo,
 
+    /// Connection identifier for correlating multiple transactions on the same
+    /// TCP connection (enables pipelining/multiplexing analysis).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connection_id: Option<Uuid>,
+
+    /// Zero-based sequence number of this request within its connection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sequence_number: Option<u32>,
+
+    /// Whether the server responded with 101 Switching Protocols.
+    #[serde(default)]
+    pub was_upgraded: bool,
+
+    /// The protocol negotiated via the Upgrade header (e.g. "websocket", "h2c").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upgrade_protocol: Option<String>,
+
     pub violations: Vec<Violation>,
 }
 
@@ -89,11 +122,16 @@ impl HttpTransaction {
                 version: "HTTP/1.1".into(),
                 headers: HeaderMap::new(),
                 body_length: None,
+                trailers: None,
             },
             request_body: None,
             response_body: None,
             response: None,
             timing: TimingInfo { duration_ms: 0 },
+            connection_id: None,
+            sequence_number: None,
+            was_upgraded: false,
+            upgrade_protocol: None,
             violations: Vec::new(),
         }
     }
@@ -169,6 +207,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("etag", "\"abc\"")]),
             body_length: None,
+            trailers: None,
         });
 
         let s = serde_json::to_string(&tx)?;

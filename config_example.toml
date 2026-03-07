@@ -307,7 +307,7 @@ severity = "warn"
 [rules.message_content_type_iana_registered]
 enabled = true
 severity = "warn"
-allowed = ["text/plain", "application/json", "image/*", "+json"]
+allowed = ["text/plain", "text/html", "application/json", "image/*", "+json"]
 
 [rules.message_media_type_suffix_validity]
 enabled = true
@@ -506,6 +506,8 @@ enabled = true
 severity = "warn"
 
 [rules.message_www_authenticate_challenge_syntax]
+enabled = true
+severity = "warn"
 
 [rules.message_auth_scheme_iana_registered]
 enabled = true

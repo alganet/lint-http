@@ -98,6 +98,7 @@ mod tests {
                 headers: HeaderMap::new(),
 
                 body_length: None,
+                trailers: None,
             });
         }
 

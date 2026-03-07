@@ -12,6 +12,11 @@ pub enum QueryType {
     /// accessed the given resource.  Used by rules that need to observe
     /// cross-client behaviour (e.g. private cache visibility).
     ByResourceAll,
+    /// Returns all transactions on the same TCP connection, ordered
+    /// newest-first by timestamp.  Used by rules that validate
+    /// connection-level protocol behaviour (pipelining, multiplexing,
+    /// connection reuse).
+    ByConnection,
 }
 
 /// Returns the required QueryType for a given rule ID.
@@ -35,6 +40,8 @@ pub fn get_query_type_for_rule(rule_id: &str) -> QueryType {
         "stateful_s_max_age_enforcement" => QueryType::ByResource,
         "stateful_no_store_enforcement" => QueryType::ByResource,
         "stateful_private_cache_visibility" => QueryType::ByResourceAll,
+        "stateful_request_response_pairing" => QueryType::ByConnection,
+        "semantic_connection_reuse_validity" => QueryType::ByConnection,
         _ => QueryType::ByResource,
     }
 }

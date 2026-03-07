@@ -67,6 +67,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(headers),
 
             body_length: None,
+            trailers: None,
         });
 
         let violation = rule.check_transaction(

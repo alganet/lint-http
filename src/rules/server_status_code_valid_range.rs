@@ -66,6 +66,7 @@ mod tests {
             headers: hyper::HeaderMap::new(),
 
             body_length: None,
+            trailers: None,
         });
 
         let config = crate::rules::RuleConfig {

@@ -217,6 +217,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hm,
             body_length: None,
+            trailers: None,
         });
 
         let rule = MessageSunsetAndDeprecationConsistency;
@@ -379,6 +380,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hm,
             body_length: None,
+            trailers: None,
         });
 
         let rule = MessageSunsetAndDeprecationConsistency;

@@ -162,6 +162,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hdrs,
             body_length: None,
+            trailers: None,
         });
 
         let v = rule.check_transaction(
@@ -194,6 +195,7 @@ mod tests {
             headers: hdrs,
 
             body_length: None,
+            trailers: None,
         });
 
         let v = rule.check_transaction(

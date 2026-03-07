@@ -511,6 +511,7 @@ mod tests {
                 "a=1; Max-Age=3600",
             )]),
             body_length: None,
+            trailers: None,
         });
         t1.timestamp = ts - chrono::Duration::seconds(10);
 
@@ -524,6 +525,7 @@ mod tests {
                 "a=2; Max-Age=0",
             )]),
             body_length: None,
+            trailers: None,
         });
         t2.timestamp = ts - chrono::Duration::seconds(5);
 

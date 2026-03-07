@@ -173,6 +173,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            trailers: None,
         });
 
         let rule = MessageCookiePathValidity;
@@ -201,6 +202,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            trailers: None,
         });
 
         let rule = MessageCookiePathValidity;

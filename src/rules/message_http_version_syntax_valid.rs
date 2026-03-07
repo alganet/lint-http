@@ -90,6 +90,7 @@ mod tests {
             version: "HTTP/2.0".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
             body_length: None,
+            trailers: None,
         });
 
         let rule = MessageHttpVersionSyntaxValid;
@@ -146,6 +147,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
 
             body_length: None,
+            trailers: None,
         });
         let rule = MessageHttpVersionSyntaxValid;
         let v = rule.check_transaction(
@@ -205,6 +207,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
 
             body_length: None,
+            trailers: None,
         });
         let rule = MessageHttpVersionSyntaxValid;
         let v = rule.check_transaction(

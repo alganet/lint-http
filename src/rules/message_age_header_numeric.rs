@@ -126,6 +126,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            trailers: None,
         });
 
         let v = rule.check_transaction(

@@ -143,6 +143,7 @@ mod tests {
                 None => crate::test_helpers::make_headers_from_pairs(&[]),
             },
             body_length: None,
+            trailers: None,
         });
         tx
     }
@@ -217,6 +218,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers,
             body_length: None,
+            trailers: None,
         });
 
         let cfg = crate::test_helpers::make_test_rule_config();

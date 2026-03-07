@@ -42,6 +42,7 @@ pub fn lint_transaction(
     let mut history_by_resource_all_clients: Option<
         crate::transaction_history::TransactionHistory,
     > = None;
+    let mut history_by_connection: Option<crate::transaction_history::TransactionHistory> = None;
 
     // Cache origin extraction since it's used by any rule requiring ByOrigin
     let origin = crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
@@ -71,6 +72,14 @@ pub fn lint_transaction(
                         )
                     })
                 }
+                crate::queries::mapping::QueryType::ByConnection => history_by_connection
+                    .get_or_insert_with(|| {
+                        if let Some(conn_id) = tx.connection_id {
+                            crate::queries::by_connection::by_connection(state, conn_id)
+                        } else {
+                            crate::transaction_history::TransactionHistory::empty()
+                        }
+                    }),
             };
 
             out.extend(rule.check_transaction_erased(tx, history, cfg, engine));
@@ -167,6 +176,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hyper::HeaderMap::new(),
             body_length: None,
+            trailers: None,
         });
 
         let violations = lint_transaction(&tx, &cfg, &state, &engine);
@@ -183,5 +193,133 @@ mod tests {
             .collect();
 
         assert!(!client_violations.is_empty() || !server_violations.is_empty());
+    }
+
+    #[test]
+    fn lint_transaction_with_connection_id() {
+        // Exercises the lazy ByOrigin and general flow with a transaction
+        // that has connection_id set (used by ByConnection queries).
+        let state = crate::state::StateStore::new(300, 10);
+        let cfg = make_test_config_with_enabled_rules(&["server_cache_control_present"]);
+        let engine = make_test_engine(&cfg);
+        use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
+        let mut tx = HttpTransaction::new(
+            crate::test_helpers::make_test_client(),
+            "GET".to_string(),
+            "http://example.com/path".to_string(),
+        );
+        tx.connection_id = Some(uuid::Uuid::new_v4());
+        tx.sequence_number = Some(1);
+        tx.timing = TimingInfo { duration_ms: 5 };
+        tx.response = Some(ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hyper::HeaderMap::new(),
+            body_length: None,
+            trailers: None,
+        });
+
+        let violations = lint_transaction(&tx, &cfg, &state, &engine);
+        assert!(violations
+            .iter()
+            .any(|v| v.rule == "server_cache_control_present"));
+    }
+
+    #[test]
+    fn lint_transaction_exercises_by_origin_query() {
+        // Enable a ByOrigin rule to exercise the lazy ByOrigin init path
+        let state = crate::state::StateStore::new(300, 10);
+        let cfg = make_test_config_with_enabled_rules(&["stateful_authentication_failure_loop"]);
+        let engine = make_test_engine(&cfg);
+        use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
+        let mut tx = HttpTransaction::new(
+            crate::test_helpers::make_test_client(),
+            "GET".to_string(),
+            "http://example.com/auth".to_string(),
+        );
+        tx.timing = TimingInfo { duration_ms: 5 };
+        tx.response = Some(ResponseInfo {
+            status: 401,
+            version: "HTTP/1.1".into(),
+            headers: hyper::HeaderMap::new(),
+            body_length: None,
+            trailers: None,
+        });
+        // Should not panic; exercises the ByOrigin lazy init
+        let _violations = lint_transaction(&tx, &cfg, &state, &engine);
+    }
+
+    #[test]
+    fn lint_transaction_exercises_by_resource_all_query() {
+        // Enable a ByResourceAll rule to exercise the lazy ByResourceAll init path
+        let state = crate::state::StateStore::new(300, 10);
+        let cfg = make_test_config_with_enabled_rules(&["stateful_private_cache_visibility"]);
+        let engine = make_test_engine(&cfg);
+        use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
+        let mut tx = HttpTransaction::new(
+            crate::test_helpers::make_test_client(),
+            "GET".to_string(),
+            "http://example.com/private".to_string(),
+        );
+        tx.timing = TimingInfo { duration_ms: 5 };
+        tx.response = Some(ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hyper::HeaderMap::new(),
+            body_length: None,
+            trailers: None,
+        });
+        // Should not panic; exercises the ByResourceAll lazy init
+        let _violations = lint_transaction(&tx, &cfg, &state, &engine);
+    }
+
+    #[test]
+    fn lint_transaction_by_origin_with_no_origin() {
+        // Enable a ByOrigin rule with a relative URI to exercise the None path
+        let state = crate::state::StateStore::new(300, 10);
+        let cfg = make_test_config_with_enabled_rules(&["stateful_authentication_failure_loop"]);
+        let engine = make_test_engine(&cfg);
+        use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
+        let mut tx = HttpTransaction::new(
+            crate::test_helpers::make_test_client(),
+            "GET".to_string(),
+            "/no-origin-path".to_string(),
+        );
+        tx.timing = TimingInfo { duration_ms: 5 };
+        tx.response = Some(ResponseInfo {
+            status: 401,
+            version: "HTTP/1.1".into(),
+            headers: hyper::HeaderMap::new(),
+            body_length: None,
+            trailers: None,
+        });
+        // Should use empty history for the ByOrigin None case
+        let _violations = lint_transaction(&tx, &cfg, &state, &engine);
+    }
+
+    #[test]
+    fn lint_transaction_with_no_origin() {
+        // Transaction with a relative/invalid URI to exercise the ByOrigin None path
+        let state = crate::state::StateStore::new(300, 10);
+        let cfg = make_test_config_with_enabled_rules(&["server_cache_control_present"]);
+        let engine = make_test_engine(&cfg);
+        use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
+        let mut tx = HttpTransaction::new(
+            crate::test_helpers::make_test_client(),
+            "GET".to_string(),
+            "/relative-path".to_string(),
+        );
+        tx.timing = TimingInfo { duration_ms: 5 };
+        tx.response = Some(ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hyper::HeaderMap::new(),
+            body_length: None,
+            trailers: None,
+        });
+
+        let violations = lint_transaction(&tx, &cfg, &state, &engine);
+        // Should still run rules even with relative URI
+        assert!(!violations.is_empty());
     }
 }

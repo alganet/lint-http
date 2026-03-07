@@ -135,6 +135,7 @@ mod tests {
             headers: HeaderMap::new(),
 
             body_length: None,
+            trailers: None,
         });
 
         tx.response
@@ -174,6 +175,7 @@ mod tests {
             headers: HeaderMap::new(),
 
             body_length: None,
+            trailers: None,
         });
 
         let bad = HeaderValue::from_bytes(&[0xff]).expect("should construct non-utf8 header");

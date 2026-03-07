@@ -37,6 +37,7 @@ pub mod rules;
 pub mod serde_helpers;
 pub mod state;
 pub mod transaction_history;
+pub mod websocket_session;
 
 #[cfg(test)]
 mod test_helpers;
