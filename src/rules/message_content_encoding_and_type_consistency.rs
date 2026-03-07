@@ -204,6 +204,7 @@ mod tests {
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
 
             body_length: None,
+            trailers: None,
         });
         tx.response.as_mut().unwrap().headers.append(
             "content-encoding",

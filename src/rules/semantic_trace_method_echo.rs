@@ -257,6 +257,7 @@ mod tests {
                 "message/http; charset=utf-8",
             )]),
             body_length: Some(10),
+            trailers: None,
         });
 
         let v = rule.check_transaction(
@@ -276,6 +277,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
             body_length: Some(10),
+            trailers: None,
         });
 
         let v = rule
@@ -302,6 +304,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers,
             body_length: Some(10),
+            trailers: None,
         });
 
         let v = rule
@@ -326,6 +329,7 @@ mod tests {
                 "text/plain",
             )]),
             body_length: Some(10),
+            trailers: None,
         });
 
         let v = rule
@@ -347,6 +351,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-type", "text")]),
             body_length: Some(10),
+            trailers: None,
         });
 
         let v = rule
@@ -368,6 +373,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
             body_length: Some(0),
+            trailers: None,
         });
 
         let v = rule.check_transaction(
@@ -390,6 +396,7 @@ mod tests {
                 "chunked",
             )]),
             body_length: None,
+            trailers: None,
         });
 
         let v = rule
@@ -414,6 +421,7 @@ mod tests {
                 ("content-type", "message/http"),
             ]),
             body_length: None,
+            trailers: None,
         });
 
         let v = rule.check_transaction(
@@ -436,6 +444,7 @@ mod tests {
                 ("content-length", "32"),
             ]),
             body_length: Some(32),
+            trailers: None,
         });
 
         let v = rule.check_transaction(
@@ -455,6 +464,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "abc")]),
             body_length: None,
+            trailers: None,
         });
 
         let v = rule.check_transaction(

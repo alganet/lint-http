@@ -217,6 +217,7 @@ mod tests {
             )]),
 
             body_length: None,
+            trailers: None,
         });
         tx
     }
@@ -263,6 +264,7 @@ mod tests {
             headers,
 
             body_length: None,
+            trailers: None,
         });
         let rule = MessageStrictTransportSecurityValidity;
         let cfg = crate::rules::RuleConfig {
@@ -478,6 +480,7 @@ mod tests {
             ]),
 
             body_length: None,
+            trailers: None,
         });
         let rule = MessageStrictTransportSecurityValidity;
         let cfg = crate::rules::RuleConfig {

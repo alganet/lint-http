@@ -90,6 +90,7 @@ mod tests {
                 )]),
 
                 body_length: None,
+                trailers: None,
             });
         }
 

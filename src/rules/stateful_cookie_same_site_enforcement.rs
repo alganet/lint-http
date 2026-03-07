@@ -195,6 +195,7 @@ mod tests {
                 None => make_headers_from_pairs(&[]),
             },
             body_length: None,
+            trailers: None,
         });
         if let Some(ts) = timestamp {
             tx.timestamp = ts;

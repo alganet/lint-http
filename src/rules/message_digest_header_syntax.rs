@@ -712,6 +712,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hm,
             body_length: None,
+            trailers: None,
         });
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(
@@ -1026,6 +1027,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            trailers: None,
         });
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(
@@ -1085,6 +1087,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            trailers: None,
         });
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(
@@ -1110,6 +1113,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            trailers: None,
         });
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(
@@ -1230,6 +1234,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            trailers: None,
         });
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(
@@ -1255,6 +1260,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            trailers: None,
         });
         let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule.check_transaction(
@@ -1561,6 +1567,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            trailers: None,
         });
         let vresp = rule.check_transaction(
             &resp_tx,

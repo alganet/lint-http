@@ -224,6 +224,7 @@ mod tests {
             version: p.response.as_ref().unwrap().version.clone(),
             headers: hm,
             body_length: None,
+            trailers: None,
         });
 
         // ensure URI matches so previous state is relevant

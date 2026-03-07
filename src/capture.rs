@@ -112,6 +112,16 @@ impl CaptureWriter {
         self.file.write_line(&line).await?;
         Ok(())
     }
+
+    /// Write a WebSocket session record to the JSONL file.
+    pub async fn write_websocket_session(
+        &self,
+        session: &crate::websocket_session::WebSocketSession,
+    ) -> anyhow::Result<()> {
+        let line = serde_json::to_string(session)?;
+        self.file.write_line(&line).await?;
+        Ok(())
+    }
 }
 
 /// Load capture records from a JSONL file. Skips malformed lines with warnings.
@@ -134,15 +144,36 @@ pub async fn load_captures<P: AsRef<std::path::Path>>(
 
     while let Some(line) = lines.next_line().await? {
         line_num += 1;
-        if !line.trim().is_empty() {
-            match serde_json::from_str::<crate::http_transaction::HttpTransaction>(&line) {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            tracing::debug!(line = line_num, "skipping empty/whitespace capture line");
+            continue;
+        }
+
+        // Check the record type before attempting full deserialization.
+        // Non-transaction records (e.g. websocket_session) are silently skipped.
+        if let Ok(obj) = serde_json::from_str::<serde_json::Value>(trimmed) {
+            if let Some(ty) = obj.get("type").and_then(|v| v.as_str()) {
+                if ty != "http_transaction" {
+                    tracing::debug!(
+                        line = line_num,
+                        record_type = ty,
+                        "skipping non-transaction capture record"
+                    );
+                    continue;
+                }
+            }
+            match serde_json::from_value::<crate::http_transaction::HttpTransaction>(obj) {
                 Ok(record) => records.push(record),
                 Err(e) => {
                     tracing::warn!(line = line_num, error = %e, "failed to parse capture record, skipping");
                 }
             }
         } else {
-            tracing::debug!(line = line_num, "skipping empty/whitespace capture line");
+            tracing::warn!(
+                line = line_num,
+                "failed to parse capture line as JSON, skipping"
+            );
         }
     }
 
@@ -225,6 +256,7 @@ mod tests {
                 "application/problem+json",
             )]),
             body_length: Some(13),
+            trailers: None,
         });
         tx.response_body = Some(bytes::Bytes::from_static(b"{\"type\":\"x\"}"));
 
@@ -400,6 +432,77 @@ mod tests {
         // Should not error, just return empty vector
         let records = load_captures(&tmp).await?;
         assert_eq!(records.len(), 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn write_websocket_session_writes_jsonl() -> anyhow::Result<()> {
+        let tmp =
+            std::env::temp_dir().join(format!("lint_ws_session_test_{}.jsonl", Uuid::new_v4()));
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+
+        let cw = CaptureWriter::new(p.clone(), false).await?;
+
+        use crate::websocket_session::{MessageDirection, WebSocketMessageInfo, WebSocketSession};
+        let tx_id = Uuid::new_v4();
+        let mut session = WebSocketSession::new(tx_id);
+        session.messages.push(WebSocketMessageInfo {
+            direction: MessageDirection::Client,
+            opcode: 1,
+            payload_length: 5,
+        });
+        session.duration_ms = 100;
+        session.close_code = Some(1000);
+
+        cw.write_websocket_session(&session).await?;
+
+        let s = fs::read_to_string(&tmp).await?;
+        let v: Value = serde_json::from_str(s.trim())?;
+        assert_eq!(v["type"].as_str(), Some("websocket_session"));
+        assert_eq!(
+            v["transaction_id"].as_str(),
+            Some(tx_id.to_string().as_str())
+        );
+        assert_eq!(v["messages"][0]["opcode"].as_u64(), Some(1));
+        assert_eq!(v["close_code"].as_u64(), Some(1000));
+
+        fs::remove_file(&tmp).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn load_captures_skips_websocket_session_records() -> anyhow::Result<()> {
+        let tmp =
+            std::env::temp_dir().join(format!("lint_mixed_records_test_{}.jsonl", Uuid::new_v4()));
+
+        use crate::test_helpers::make_test_transaction_with_response;
+        use crate::websocket_session::{MessageDirection, WebSocketMessageInfo, WebSocketSession};
+
+        let tx = make_test_transaction_with_response(200, &[]);
+        let mut session = WebSocketSession::new(Uuid::new_v4());
+        session.messages.push(WebSocketMessageInfo {
+            direction: MessageDirection::Client,
+            opcode: 1,
+            payload_length: 5,
+        });
+
+        // Write a transaction, then a websocket_session, then another transaction
+        let content = format!(
+            "{}\n{}\n{}\n",
+            serde_json::to_string(&tx)?,
+            serde_json::to_string(&session)?,
+            serde_json::to_string(&tx)?,
+        );
+        fs::write(&tmp, content).await?;
+
+        let records = load_captures(&tmp).await?;
+        // Should load only the 2 http_transaction records, skipping the websocket_session
+        assert_eq!(records.len(), 2);
+
+        fs::remove_file(&tmp).await?;
         Ok(())
     }
 

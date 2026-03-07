@@ -138,6 +138,7 @@ pub fn make_test_transaction_with_response(
         version: "HTTP/1.1".into(),
         headers,
         body_length: None,
+        trailers: None,
     });
     tx
 }

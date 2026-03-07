@@ -190,6 +190,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hm2,
             body_length: None,
+            trailers: None,
         });
 
         let v2 = rule.check_transaction(

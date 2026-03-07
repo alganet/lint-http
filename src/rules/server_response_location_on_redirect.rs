@@ -63,6 +63,7 @@ mod tests {
                 None => crate::test_helpers::make_headers_from_pairs(&[]),
             },
             body_length: None,
+            trailers: None,
         });
         tx
     }

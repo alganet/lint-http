@@ -173,6 +173,7 @@ mod tests {
             headers: hdrs,
 
             body_length: None,
+            trailers: None,
         });
 
         let v = rule.check_transaction(
@@ -297,6 +298,7 @@ mod tests {
             headers: hdrs,
 
             body_length: None,
+            trailers: None,
         });
 
         let v = rule.check_transaction(

@@ -146,6 +146,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&headers),
             body_length: None,
+            trailers: None,
         });
 
         let v = rule.check_transaction(
@@ -178,6 +179,7 @@ mod tests {
                 "application/problem+json",
             )]),
             body_length: Some(0),
+            trailers: None,
         });
 
         let v = rule.check_transaction(
@@ -201,6 +203,7 @@ mod tests {
                 "application/problem+json",
             )]),
             body_length: Some(10),
+            trailers: None,
         });
 
         let v = rule.check_transaction(
@@ -223,6 +226,7 @@ mod tests {
                 "application/problem+json",
             )]),
             body_length: Some(0),
+            trailers: None,
         });
 
         let v = rule.check_transaction(
@@ -245,6 +249,7 @@ mod tests {
                 "application/problem+json",
             )]),
             body_length: Some(0),
+            trailers: None,
         });
         tx.response_body = Some(bytes::Bytes::from_static(b""));
 
@@ -268,6 +273,7 @@ mod tests {
                 "application/problem+json",
             )]),
             body_length: Some(2),
+            trailers: None,
         });
         tx.response_body = Some(bytes::Bytes::from_static(b"{}"));
 
@@ -291,6 +297,7 @@ mod tests {
                 "application/problem+json",
             )]),
             body_length: Some(20),
+            trailers: None,
         });
         tx.response_body = Some(bytes::Bytes::from_static(b"{\"type\":\"x\"}"));
 
@@ -314,6 +321,7 @@ mod tests {
                 "application/problem+json",
             )]),
             body_length: Some(7),
+            trailers: None,
         });
         tx.response_body = Some(bytes::Bytes::from_static(b"not json"));
 

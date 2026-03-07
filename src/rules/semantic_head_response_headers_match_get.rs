@@ -435,6 +435,7 @@ mod tests {
             version: prev.response.as_ref().unwrap().version.clone(),
             headers: hm,
             body_length: None,
+            trailers: None,
         });
 
         let mut head = make_head_with_headers(&[]);
@@ -463,6 +464,7 @@ mod tests {
             version: prev.response.as_ref().unwrap().version.clone(),
             headers: phm,
             body_length: None,
+            trailers: None,
         });
 
         let mut head = make_head_with_headers(&[]);
@@ -473,6 +475,7 @@ mod tests {
             version: head.response.as_ref().unwrap().version.clone(),
             headers: hhm,
             body_length: None,
+            trailers: None,
         });
 
         head.request.uri = prev.request.uri.clone();
@@ -716,6 +719,7 @@ mod tests {
             version: prev.response.as_ref().unwrap().version.clone(),
             headers: phm,
             body_length: None,
+            trailers: None,
         });
 
         let mut head = make_head_with_headers(&[("etag", "\"v1\"")]);

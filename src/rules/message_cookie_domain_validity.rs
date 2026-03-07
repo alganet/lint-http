@@ -145,6 +145,7 @@ mod tests {
             headers: hm,
 
             body_length: None,
+            trailers: None,
         });
 
         let rule = MessageCookieDomainValidity;
@@ -184,6 +185,7 @@ mod tests {
             headers: hyper::HeaderMap::new(),
 
             body_length: None,
+            trailers: None,
         });
 
         // Append a non-UTF8 header value

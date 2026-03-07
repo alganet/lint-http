@@ -124,6 +124,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "3")]),
             body_length: Some(3),
+            trailers: None,
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
@@ -143,6 +144,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "10")]),
             body_length: Some(3),
+            trailers: None,
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
@@ -163,6 +165,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "abc")]),
             body_length: Some(3),
+            trailers: None,
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
@@ -183,6 +186,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
             body_length: Some(5),
+            trailers: None,
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
@@ -202,6 +206,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "+1")]),
             body_length: Some(1),
+            trailers: None,
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
@@ -226,6 +231,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hm,
             body_length: Some(10),
+            trailers: None,
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
@@ -253,6 +259,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hm,
             body_length: Some(3),
+            trailers: None,
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
@@ -275,6 +282,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "3")]),
             body_length: None,
+            trailers: None,
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
@@ -294,6 +302,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "0")]),
             body_length: Some(0),
+            trailers: None,
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
@@ -313,6 +322,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "")]),
             body_length: Some(0),
+            trailers: None,
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
@@ -338,6 +348,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", big)]),
             body_length: Some(1),
+            trailers: None,
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
@@ -363,6 +374,7 @@ mod tests {
             version: "HTTP/1.1".into(),
             headers: hm,
             body_length: Some(3),
+            trailers: None,
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
