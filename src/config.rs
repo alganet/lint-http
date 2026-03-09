@@ -32,6 +32,17 @@ pub struct GeneralConfig {
     /// bodies are written into `captures` (default: false).
     #[serde(default = "default_captures_include_body")]
     pub captures_include_body: bool,
+
+    /// Optional HTTP/3 (QUIC) listen address, e.g. "127.0.0.1:3443".
+    /// When set, a QUIC/HTTP3 endpoint is started alongside the TCP listener.
+    /// Requires TLS to be enabled.
+    #[serde(default)]
+    pub h3_listen: Option<String>,
+
+    /// Server name (SNI) for the HTTP/3 TLS certificate, e.g. "proxy.example.com".
+    /// Defaults to "localhost" when omitted. Clients must connect using this name.
+    #[serde(default)]
+    pub h3_server_name: Option<String>,
 }
 
 fn default_ttl() -> u64 {
@@ -67,6 +78,8 @@ impl Default for GeneralConfig {
             max_history: default_max_history(),
             captures_seed: default_captures_seed(),
             captures_include_body: default_captures_include_body(),
+            h3_listen: None,
+            h3_server_name: None,
         }
     }
 }
@@ -100,6 +113,11 @@ impl Config {
         let path_ref = path.as_ref();
         let s = tokio::fs::read_to_string(path_ref).await?;
         let cfg: Self = toml::from_str(&s)?;
+
+        // h3_listen requires TLS to be enabled
+        if cfg.general.h3_listen.is_some() && !cfg.tls.enabled {
+            anyhow::bail!("h3_listen requires [tls] enabled = true");
+        }
 
         // Validate all enabled rules' configurations and get the engine
         let engine = crate::rules::validate_rules(&cfg)?;
@@ -236,6 +254,73 @@ enabled = false
         cfg.rules
             .insert("some_rule_bool".to_string(), toml::Value::Boolean(true));
         assert!(!cfg.is_enabled("some_rule_bool"));
+    }
+
+    #[test]
+    fn h3_listen_defaults_to_none() {
+        let cfg = Config::default();
+        assert!(cfg.general.h3_listen.is_none());
+    }
+
+    #[tokio::test]
+    async fn h3_listen_parsed_when_present() -> anyhow::Result<()> {
+        let tmp_toml =
+            std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
+        let toml = r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+h3_listen = "127.0.0.1:3443"
+
+[tls]
+enabled = true
+"#;
+        fs::write(&tmp_toml, toml).await?;
+        let (cfg, _engine) = Config::load_from_path(&tmp_toml).await?;
+        assert_eq!(cfg.general.h3_listen, Some("127.0.0.1:3443".to_string()));
+        fs::remove_file(&tmp_toml).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn h3_listen_without_tls_fails() {
+        let tmp_toml =
+            std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
+        let toml = r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+h3_listen = "127.0.0.1:3443"
+
+[tls]
+enabled = false
+"#;
+        fs::write(&tmp_toml, toml).await.unwrap();
+        let result = Config::load_from_path(&tmp_toml).await;
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("h3_listen requires"),
+            "unexpected error: {}",
+            err_msg
+        );
+        let _ = fs::remove_file(&tmp_toml).await;
+    }
+
+    #[tokio::test]
+    async fn h3_listen_absent_is_none() -> anyhow::Result<()> {
+        let tmp_toml =
+            std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
+        let toml = r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+"#;
+        fs::write(&tmp_toml, toml).await?;
+        let (cfg, _engine) = Config::load_from_path(&tmp_toml).await?;
+        assert!(cfg.general.h3_listen.is_none());
+        fs::remove_file(&tmp_toml).await?;
+        Ok(())
     }
 }
 
