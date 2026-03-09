@@ -447,6 +447,7 @@ pub mod stateful_cookie_domain_matching;
 pub mod stateful_cookie_lifecycle;
 pub mod stateful_cookie_same_site_enforcement;
 pub mod stateful_digest_auth_nonce_handling;
+pub mod stateful_http3_goaway_semantics;
 pub mod stateful_immutable_cache_never_stale;
 pub mod stateful_max_age_directive_validity;
 pub mod stateful_must_revalidate_enforcement;
@@ -533,8 +534,10 @@ impl<T: ProtocolRule> ProtocolRuleConfigValidator for T {
     }
 }
 
-pub const PROTOCOL_RULES: &[&dyn ProtocolRuleConfigValidator] =
-    &[&stateful_websocket_frame_opcode_sequence::StatefulWebsocketFrameOpcodeSequence];
+pub const PROTOCOL_RULES: &[&dyn ProtocolRuleConfigValidator] = &[
+    &stateful_http3_goaway_semantics::StatefulHttp3GoawaySemantics,
+    &stateful_websocket_frame_opcode_sequence::StatefulWebsocketFrameOpcodeSequence,
+];
 
 pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_accept_encoding_present::ClientAcceptEncodingPresent,
