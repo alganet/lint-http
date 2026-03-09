@@ -27,7 +27,7 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::time::Instant;
-use tracing::{error, info, trace};
+use tracing::{error, info, trace, warn};
 
 type ServiceFuture =
     Pin<Box<dyn Future<Output = Result<Response<BoxBody<Bytes, Infallible>>, Infallible>> + Send>>;
@@ -1282,17 +1282,33 @@ async fn handle_h3_connection(
     let mut h3_conn = h3::server::Connection::new(h3_quinn::Connection::new(conn)).await?;
 
     let conn_metadata = Arc::new(crate::connection::ConnectionMetadata::new_quic(remote_addr));
+    let connection_id = conn_metadata.id;
 
     loop {
         match h3_conn.accept().await {
             Ok(Some(resolver)) => {
+                let stream_id = conn_metadata.next_sequence_number() as u64;
+
+                // Emit H3StreamOpened protocol event
+                emit_h3_protocol_event(
+                    crate::protocol_event::ProtocolEventKind::H3StreamOpened { stream_id },
+                    connection_id,
+                    &shared,
+                );
+
                 let shared = shared.clone();
                 let conn_metadata = conn_metadata.clone();
                 tokio::spawn(async move {
                     match resolver.resolve_request().await {
                         Ok((req, stream)) => {
-                            if let Err(e) =
-                                handle_h3_request(req, stream, shared, conn_metadata).await
+                            if let Err(e) = handle_h3_request(
+                                req,
+                                stream,
+                                shared.clone(),
+                                conn_metadata,
+                                stream_id,
+                            )
+                            .await
                             {
                                 error!("HTTP/3 request error: {}", e);
                             }
@@ -1301,10 +1317,22 @@ async fn handle_h3_connection(
                             error!("HTTP/3 resolve request error: {}", e);
                         }
                     }
+                    // Emit H3StreamClosed when the stream task completes
+                    emit_h3_protocol_event(
+                        crate::protocol_event::ProtocolEventKind::H3StreamClosed { stream_id },
+                        connection_id,
+                        &shared,
+                    );
                 });
             }
             Ok(None) => {
-                // Connection closed gracefully (GOAWAY)
+                // Connection closed gracefully.  The h3 crate does not
+                // expose the GOAWAY stream ID, so we emit None.
+                emit_h3_protocol_event(
+                    crate::protocol_event::ProtocolEventKind::H3GoawayReceived { stream_id: None },
+                    connection_id,
+                    &shared,
+                );
                 break;
             }
             Err(e) => {
@@ -1314,6 +1342,34 @@ async fn handle_h3_connection(
         }
     }
     Ok(())
+}
+
+/// Emit an HTTP/3 protocol event: lint it, record it, and log any violations.
+fn emit_h3_protocol_event(
+    kind: crate::protocol_event::ProtocolEventKind,
+    connection_id: uuid::Uuid,
+    shared: &Shared,
+) {
+    let pe = crate::protocol_event::ProtocolEvent {
+        timestamp: chrono::Utc::now(),
+        connection_id,
+        kind,
+    };
+    let violations = crate::lint_protocol::lint_protocol_event(
+        &pe,
+        &shared.cfg,
+        &shared.protocol_event_store,
+        &shared.engine,
+    );
+    shared.protocol_event_store.record_event(&pe);
+    for v in &violations {
+        warn!(
+            rule = %v.rule,
+            severity = ?v.severity,
+            "H3 protocol violation: {}",
+            v.message
+        );
+    }
 }
 
 /// Process a single HTTP/3 request: collect body, forward upstream via the
@@ -1327,6 +1383,7 @@ async fn handle_h3_request(
     mut stream: h3::server::RequestStream<h3_quinn::BidiStream<bytes::Bytes>, bytes::Bytes>,
     shared: Arc<Shared>,
     conn_metadata: Arc<crate::connection::ConnectionMetadata>,
+    stream_id: u64,
 ) -> anyhow::Result<()> {
     use bytes::Buf;
 
@@ -1422,6 +1479,7 @@ async fn handle_h3_request(
         status: u16,
         duration_ms: u64,
         conn_metadata: &crate::connection::ConnectionMetadata,
+        sequence_number: u32,
     ) {
         let mut tx = crate::http_transaction::HttpTransaction::new(
             client_id.clone(),
@@ -1441,7 +1499,7 @@ async fn handle_h3_request(
         });
         tx.timing = crate::http_transaction::TimingInfo { duration_ms };
         tx.connection_id = Some(conn_metadata.id);
-        tx.sequence_number = Some(conn_metadata.next_sequence_number());
+        tx.sequence_number = Some(sequence_number);
         let _ = captures.write_transaction(&tx).await;
     }
 
@@ -1460,6 +1518,7 @@ async fn handle_h3_request(
                 502,
                 duration,
                 &conn_metadata,
+                stream_id as u32,
             )
             .await;
             let resp = Response::builder().status(502).body(()).unwrap();
@@ -1495,6 +1554,7 @@ async fn handle_h3_request(
                 502,
                 duration,
                 &conn_metadata,
+                stream_id as u32,
             )
             .await;
             let resp = Response::builder().status(502).body(()).unwrap();
@@ -1533,7 +1593,7 @@ async fn handle_h3_request(
         duration_ms: duration,
     };
     tx.connection_id = Some(conn_metadata.id);
-    tx.sequence_number = Some(conn_metadata.next_sequence_number());
+    tx.sequence_number = Some(stream_id as u32);
 
     let violations = lint::lint_transaction(&tx, &shared.cfg, &shared.state, &shared.engine);
     tx.violations = violations;
