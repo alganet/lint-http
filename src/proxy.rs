@@ -90,6 +90,7 @@ struct Shared {
     captures: CaptureWriter,
     cfg: Arc<Config>,
     state: Arc<crate::state::StateStore>,
+    protocol_event_store: Arc<crate::protocol_event_store::ProtocolEventStore>,
     ca: Option<Arc<CertificateAuthority>>,
     engine: Arc<crate::rules::RuleConfigEngine>,
 }
@@ -142,6 +143,10 @@ pub async fn run_proxy_with_limit(
     let ttl = cfg.general.ttl_seconds;
     let max_history = cfg.general.max_history;
     let state = Arc::new(crate::state::StateStore::new(ttl, max_history));
+    let protocol_event_store = Arc::new(crate::protocol_event_store::ProtocolEventStore::new(
+        ttl,
+        cfg.general.max_protocol_event_history,
+    ));
 
     // Seed state from captures file if enabled
     if cfg.general.captures_seed {
@@ -162,11 +167,13 @@ pub async fn run_proxy_with_limit(
 
     // Spawn background cleanup task
     let state_cleanup = state.clone();
+    let pe_store_cleanup = protocol_event_store.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {
             interval.tick().await;
             state_cleanup.cleanup_expired();
+            pe_store_cleanup.cleanup_expired();
         }
     });
 
@@ -175,6 +182,7 @@ pub async fn run_proxy_with_limit(
         captures,
         cfg,
         state,
+        protocol_event_store,
         ca,
         engine,
     });
@@ -787,6 +795,12 @@ async fn handle_websocket_upgrade(
 
         // Spawn background relay task
         let captures_clone = shared.captures.clone();
+        let pe_ctx = ProtocolLintCtx {
+            connection_id: conn_metadata.id,
+            store: shared.protocol_event_store.clone(),
+            cfg: shared.cfg.clone(),
+            engine: shared.engine.clone(),
+        };
         tokio::spawn(async move {
             // Wait for both sides to complete the upgrade
             let (client_io, server_io) = match tokio::try_join!(client_on_upgrade, server_upgraded)
@@ -803,6 +817,7 @@ async fn handle_websocket_upgrade(
                 TokioIo::new(server_io),
                 tx_id,
                 captures_clone,
+                pe_ctx,
             )
             .await;
         });
@@ -988,6 +1003,14 @@ async fn connect_upstream_for_upgrade(
     }
 }
 
+/// Context for protocol-event linting during WebSocket relay.
+struct ProtocolLintCtx {
+    connection_id: uuid::Uuid,
+    store: Arc<crate::protocol_event_store::ProtocolEventStore>,
+    cfg: Arc<Config>,
+    engine: Arc<crate::rules::RuleConfigEngine>,
+}
+
 /// Relay WebSocket messages between client and server, recording each message
 /// for capture. Uses tokio-tungstenite for proper RFC 6455 frame parsing.
 async fn relay_websocket(
@@ -995,6 +1018,7 @@ async fn relay_websocket(
     server_io: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
     tx_id: uuid::Uuid,
     captures: CaptureWriter,
+    pe_ctx: ProtocolLintCtx,
 ) {
     use crate::websocket_session::{MessageDirection, WebSocketMessageInfo, WebSocketSession};
     use futures_util::{SinkExt, StreamExt};
@@ -1008,12 +1032,23 @@ async fn relay_websocket(
     let (mut client_write, mut client_read) = client_ws.split();
     let (mut server_write, mut server_read) = server_ws.split();
 
+    let session_id = uuid::Uuid::new_v4();
     let messages = Arc::new(tokio::sync::Mutex::new(Vec::<WebSocketMessageInfo>::new()));
+    let violations = Arc::new(tokio::sync::Mutex::new(Vec::<crate::lint::Violation>::new()));
     let close_code = Arc::new(tokio::sync::Mutex::new(None::<u16>));
     let start = Instant::now();
 
+    let pe_store = pe_ctx.store;
+    let pe_cfg = pe_ctx.cfg;
+    let pe_engine = pe_ctx.engine;
+    let connection_id = pe_ctx.connection_id;
+
     let msgs_c2s = messages.clone();
+    let viols_c2s = violations.clone();
     let close_c2s = close_code.clone();
+    let pe_store_c2s = pe_store.clone();
+    let cfg_c2s = pe_cfg.clone();
+    let engine_c2s = pe_engine.clone();
     let c2s = async move {
         while let Some(result) = client_read.next().await {
             match result {
@@ -1025,6 +1060,30 @@ async fn relay_websocket(
                             *cc = Some(frame.code.into());
                         }
                     }
+                    // Emit protocol event and lint it
+                    let pe = crate::protocol_event::ProtocolEvent {
+                        timestamp: chrono::Utc::now(),
+                        connection_id,
+                        kind: crate::protocol_event::ProtocolEventKind::WebSocketFrame {
+                            session_id,
+                            direction: info.direction,
+                            fin: info.fin,
+                            opcode: info.opcode,
+                            rsv: info.rsv,
+                            payload_length: info.payload_length,
+                        },
+                    };
+                    let v = crate::lint_protocol::lint_protocol_event(
+                        &pe,
+                        &cfg_c2s,
+                        &pe_store_c2s,
+                        &engine_c2s,
+                    );
+                    pe_store_c2s.record_event(&pe);
+                    if !v.is_empty() {
+                        viols_c2s.lock().await.extend(v);
+                    }
+
                     msgs_c2s.lock().await.push(info);
                     if server_write.send(msg).await.is_err() {
                         break;
@@ -1036,7 +1095,11 @@ async fn relay_websocket(
     };
 
     let msgs_s2c = messages.clone();
+    let viols_s2c = violations.clone();
     let close_s2c = close_code.clone();
+    let pe_store_s2c = pe_store.clone();
+    let cfg_s2c = pe_cfg.clone();
+    let engine_s2c = pe_engine.clone();
     let s2c = async move {
         while let Some(result) = server_read.next().await {
             match result {
@@ -1048,6 +1111,30 @@ async fn relay_websocket(
                             *cc = Some(frame.code.into());
                         }
                     }
+                    // Emit protocol event and lint it
+                    let pe = crate::protocol_event::ProtocolEvent {
+                        timestamp: chrono::Utc::now(),
+                        connection_id,
+                        kind: crate::protocol_event::ProtocolEventKind::WebSocketFrame {
+                            session_id,
+                            direction: info.direction,
+                            fin: info.fin,
+                            opcode: info.opcode,
+                            rsv: info.rsv,
+                            payload_length: info.payload_length,
+                        },
+                    };
+                    let v = crate::lint_protocol::lint_protocol_event(
+                        &pe,
+                        &cfg_s2c,
+                        &pe_store_s2c,
+                        &engine_s2c,
+                    );
+                    pe_store_s2c.record_event(&pe);
+                    if !v.is_empty() {
+                        viols_s2c.lock().await.extend(v);
+                    }
+
                     msgs_s2c.lock().await.push(info);
                     if client_write.send(msg).await.is_err() {
                         break;
@@ -1066,6 +1153,7 @@ async fn relay_websocket(
 
     let duration_ms = start.elapsed().as_millis() as u64;
     let mut session = WebSocketSession::new(tx_id);
+    session.id = session_id;
     session.duration_ms = duration_ms;
     session.messages = match Arc::try_unwrap(messages) {
         Ok(mutex) => mutex.into_inner(),
@@ -1074,6 +1162,10 @@ async fn relay_websocket(
     session.close_code = match Arc::try_unwrap(close_code) {
         Ok(mutex) => mutex.into_inner(),
         Err(arc) => *arc.lock().await,
+    };
+    session.violations = match Arc::try_unwrap(violations) {
+        Ok(mutex) => mutex.into_inner(),
+        Err(arc) => arc.lock().await.clone(),
     };
 
     if let Err(e) = captures.write_websocket_session(&session).await {
@@ -1086,26 +1178,38 @@ fn message_to_info(
     direction: crate::websocket_session::MessageDirection,
 ) -> crate::websocket_session::WebSocketMessageInfo {
     use crate::websocket_session::WebSocketMessageInfo;
-    let (opcode, payload_length) = match msg {
-        tokio_tungstenite::tungstenite::Message::Text(s) => (1, s.len() as u64),
-        tokio_tungstenite::tungstenite::Message::Binary(b) => (2, b.len() as u64),
-        tokio_tungstenite::tungstenite::Message::Ping(b) => (9, b.len() as u64),
-        tokio_tungstenite::tungstenite::Message::Pong(b) => (10, b.len() as u64),
+    let (opcode, payload_length, fin, rsv) = match msg {
+        // Assembled messages: tungstenite has already defragmented, so FIN is
+        // implicitly true and RSV bits are not available.
+        tokio_tungstenite::tungstenite::Message::Text(s) => (1, s.len() as u64, true, 0u8),
+        tokio_tungstenite::tungstenite::Message::Binary(b) => (2, b.len() as u64, true, 0),
+        tokio_tungstenite::tungstenite::Message::Ping(b) => (9, b.len() as u64, true, 0),
+        tokio_tungstenite::tungstenite::Message::Pong(b) => (10, b.len() as u64, true, 0),
         tokio_tungstenite::tungstenite::Message::Close(frame) => {
             let len = frame
                 .as_ref()
                 .map(|f| 2 + f.reason.len() as u64)
                 .unwrap_or(0);
-            (8, len)
+            (8, len, true, 0)
         }
+        // Raw Frame variant: extract actual FIN and RSV bits from header.
         tokio_tungstenite::tungstenite::Message::Frame(f) => {
-            (u8::from(f.header().opcode), f.payload().len() as u64)
+            let hdr = f.header();
+            let rsv_bits = ((hdr.rsv1 as u8) << 2) | ((hdr.rsv2 as u8) << 1) | (hdr.rsv3 as u8);
+            (
+                u8::from(hdr.opcode),
+                f.payload().len() as u64,
+                hdr.is_final,
+                rsv_bits,
+            )
         }
     };
     WebSocketMessageInfo {
         direction,
         opcode,
         payload_length,
+        fin,
+        rsv,
     }
 }
 
@@ -1901,12 +2005,16 @@ mod tests {
         let client: LegacyClient<_, http_body_util::Full<bytes::Bytes>> =
             LegacyClient::builder(TokioExecutor::new()).build(https);
         let state = StdArc::new(crate::state::StateStore::new(300, 10));
+        let protocol_event_store = StdArc::new(
+            crate::protocol_event_store::ProtocolEventStore::new(300, 100),
+        );
         let engine = engine.unwrap_or_else(|| StdArc::new(crate::rules::RuleConfigEngine::new()));
         let shared = StdArc::new(Shared {
             client,
             captures: cw.clone(),
             cfg,
             state,
+            protocol_event_store,
             ca,
             engine,
         });
@@ -2751,7 +2859,21 @@ mod tests {
         // Spawn the relay
         let cw_clone = cw.clone();
         let relay_handle = tokio::spawn(async move {
-            relay_websocket(proxy_client_side, proxy_server_side, tx_id, cw_clone).await;
+            relay_websocket(
+                proxy_client_side,
+                proxy_server_side,
+                tx_id,
+                cw_clone,
+                ProtocolLintCtx {
+                    connection_id: uuid::Uuid::new_v4(),
+                    store: std::sync::Arc::new(
+                        crate::protocol_event_store::ProtocolEventStore::new(300, 100),
+                    ),
+                    cfg: std::sync::Arc::new(crate::config::Config::default()),
+                    engine: std::sync::Arc::new(crate::rules::RuleConfigEngine::new()),
+                },
+            )
+            .await;
         });
 
         // Client side: wrap in WebSocket (client role)
@@ -3009,7 +3131,21 @@ mod tests {
 
         let cw_clone = cw.clone();
         let relay_handle = tokio::spawn(async move {
-            relay_websocket(proxy_client_side, proxy_server_side, tx_id, cw_clone).await;
+            relay_websocket(
+                proxy_client_side,
+                proxy_server_side,
+                tx_id,
+                cw_clone,
+                ProtocolLintCtx {
+                    connection_id: uuid::Uuid::new_v4(),
+                    store: std::sync::Arc::new(
+                        crate::protocol_event_store::ProtocolEventStore::new(300, 100),
+                    ),
+                    cfg: std::sync::Arc::new(crate::config::Config::default()),
+                    engine: std::sync::Arc::new(crate::rules::RuleConfigEngine::new()),
+                },
+            )
+            .await;
         });
 
         let mut client_ws =
@@ -3092,7 +3228,21 @@ mod tests {
 
         let cw_clone = cw.clone();
         let relay_handle = tokio::spawn(async move {
-            relay_websocket(proxy_client_side, proxy_server_side, tx_id, cw_clone).await;
+            relay_websocket(
+                proxy_client_side,
+                proxy_server_side,
+                tx_id,
+                cw_clone,
+                ProtocolLintCtx {
+                    connection_id: uuid::Uuid::new_v4(),
+                    store: std::sync::Arc::new(
+                        crate::protocol_event_store::ProtocolEventStore::new(300, 100),
+                    ),
+                    cfg: std::sync::Arc::new(crate::config::Config::default()),
+                    engine: std::sync::Arc::new(crate::rules::RuleConfigEngine::new()),
+                },
+            )
+            .await;
         });
 
         // Drop client and server immediately to simulate abrupt disconnect
@@ -3354,7 +3504,21 @@ mod tests {
 
         let cw_clone = cw.clone();
         let relay_handle = tokio::spawn(async move {
-            relay_websocket(proxy_client_side, proxy_server_side, tx_id, cw_clone).await;
+            relay_websocket(
+                proxy_client_side,
+                proxy_server_side,
+                tx_id,
+                cw_clone,
+                ProtocolLintCtx {
+                    connection_id: uuid::Uuid::new_v4(),
+                    store: std::sync::Arc::new(
+                        crate::protocol_event_store::ProtocolEventStore::new(300, 100),
+                    ),
+                    cfg: std::sync::Arc::new(crate::config::Config::default()),
+                    engine: std::sync::Arc::new(crate::rules::RuleConfigEngine::new()),
+                },
+            )
+            .await;
         });
 
         let mut client_ws =

@@ -134,10 +134,19 @@ impl RuleConfigEngine {
         Self::default()
     }
 
-    /// Validate and cache configurations for all enabled rules.
+    /// Validate and cache configurations for all enabled rules (both
+    /// transaction-level and protocol-level).
     /// Should be called once at startup after loading config.
     pub fn validate_and_cache_all(&mut self, config: &crate::config::Config) -> anyhow::Result<()> {
         for rule in RULES {
+            if config.is_enabled(rule.id()) {
+                let boxed = rule.validate_and_box(config).map_err(|e| {
+                    anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
+                })?;
+                self.cache.insert(rule.id(), boxed);
+            }
+        }
+        for rule in PROTOCOL_RULES {
             if config.is_enabled(rule.id()) {
                 let boxed = rule.validate_and_box(config).map_err(|e| {
                     anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
@@ -449,7 +458,83 @@ pub mod stateful_range_request_and_caching;
 pub mod stateful_redirect_chain_validity;
 pub mod stateful_s_max_age_enforcement;
 pub mod stateful_vary_header_cache_validity;
+pub mod stateful_websocket_frame_opcode_sequence;
 pub mod stateful_websocket_handshake_validity;
+
+// ── Protocol-level rule trait ──────────────────────────────────────────
+//
+// `ProtocolRule` mirrors `Rule` but operates on `ProtocolEvent` instead of
+// `HttpTransaction`.  It lives in the same module to share `RuleConfig`,
+// `RuleConfigEngine`, severity helpers, and the config TOML infrastructure.
+
+/// A rule that evaluates protocol-level events (WebSocket frames, HTTP/3
+/// control frames, QUIC transport events) rather than HTTP transactions.
+pub trait ProtocolRule: Send + Sync {
+    /// The type of parsed configuration this rule requires.
+    type Config: Send + Sync + 'static;
+
+    fn id(&self) -> &'static str;
+
+    fn validate_and_box(
+        &self,
+        config: &crate::config::Config,
+    ) -> anyhow::Result<Arc<dyn Any + Send + Sync>> {
+        let config = parse_rule_config(config, self.id())?;
+        Ok(Arc::new(config))
+    }
+
+    /// Evaluate a single protocol event and return an optional violation.
+    fn check_event(
+        &self,
+        event: &crate::protocol_event::ProtocolEvent,
+        history: &crate::protocol_event::ProtocolEventHistory,
+        config: &Self::Config,
+    ) -> Option<Violation>;
+}
+
+/// Type-erased wrapper for `ProtocolRule`, mirroring `RuleConfigValidator`.
+pub trait ProtocolRuleConfigValidator: Send + Sync {
+    fn id(&self) -> &'static str;
+    fn validate_and_box(
+        &self,
+        config: &crate::config::Config,
+    ) -> anyhow::Result<Arc<dyn Any + Send + Sync>>;
+
+    fn check_event_erased(
+        &self,
+        event: &crate::protocol_event::ProtocolEvent,
+        history: &crate::protocol_event::ProtocolEventHistory,
+        config: &crate::config::Config,
+        engine: &RuleConfigEngine,
+    ) -> Option<Violation>;
+}
+
+impl<T: ProtocolRule> ProtocolRuleConfigValidator for T {
+    fn id(&self) -> &'static str {
+        <Self as ProtocolRule>::id(self)
+    }
+
+    fn validate_and_box(
+        &self,
+        config: &crate::config::Config,
+    ) -> anyhow::Result<Arc<dyn Any + Send + Sync>> {
+        <Self as ProtocolRule>::validate_and_box(self, config)
+    }
+
+    fn check_event_erased(
+        &self,
+        event: &crate::protocol_event::ProtocolEvent,
+        history: &crate::protocol_event::ProtocolEventHistory,
+        _config: &crate::config::Config,
+        engine: &RuleConfigEngine,
+    ) -> Option<Violation> {
+        let config = engine.get_cached::<T::Config>(self.id());
+        self.check_event(event, history, &config)
+    }
+}
+
+pub const PROTOCOL_RULES: &[&dyn ProtocolRuleConfigValidator] =
+    &[&stateful_websocket_frame_opcode_sequence::StatefulWebsocketFrameOpcodeSequence];
 
 pub const RULES: &[&dyn RuleConfigValidator] = &[
     &client_accept_encoding_present::ClientAcceptEncodingPresent,
@@ -639,6 +724,11 @@ mod tests {
             assert!(!id.is_empty(), "Rule id should not be empty");
             assert!(ids.insert(id), "Duplicate rule id found: {}", id);
         }
+        for rule in PROTOCOL_RULES {
+            let id = rule.id();
+            assert!(!id.is_empty(), "ProtocolRule id should not be empty");
+            assert!(ids.insert(id), "Duplicate rule id found: {}", id);
+        }
     }
 
     #[test]
@@ -662,6 +752,15 @@ mod tests {
             assert!(
                 s.contains(&marker),
                 "config_example.toml missing example for rule '{}'",
+                id
+            );
+        }
+        for rule in PROTOCOL_RULES {
+            let id = rule.id();
+            let marker = format!("[rules.{}]", id);
+            assert!(
+                s.contains(&marker),
+                "config_example.toml missing example for protocol rule '{}'",
                 id
             );
         }

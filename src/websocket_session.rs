@@ -30,6 +30,18 @@ pub struct WebSocketMessageInfo {
     pub opcode: u8,
     /// Payload length in bytes.
     pub payload_length: u64,
+    /// FIN bit.  `true` for assembled messages (tungstenite default);
+    /// the raw `Frame` variant exposes the actual bit.
+    #[serde(default = "default_fin")]
+    pub fin: bool,
+    /// RSV bits packed into the low 3 bits (RSV1=bit 2, RSV2=bit 1,
+    /// RSV3=bit 0).  Zero when unavailable.
+    #[serde(default)]
+    pub rsv: u8,
+}
+
+fn default_fin() -> bool {
+    true
 }
 
 /// A captured WebSocket session linking back to the 101 upgrade transaction.
@@ -43,6 +55,9 @@ pub struct WebSocketSession {
     /// Close status code from the first Close frame, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub close_code: Option<u16>,
+    /// Protocol-level violations detected during the session.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub violations: Vec<crate::lint::Violation>,
     /// Discriminator for JSONL record types.
     #[serde(rename = "type")]
     pub record_type: String,
@@ -57,6 +72,7 @@ impl WebSocketSession {
             duration_ms: 0,
             messages: Vec::new(),
             close_code: None,
+            violations: Vec::new(),
             record_type: "websocket_session".to_string(),
         }
     }
@@ -74,16 +90,22 @@ mod tests {
             direction: MessageDirection::Client,
             opcode: 1,
             payload_length: 13,
+            fin: true,
+            rsv: 0,
         });
         session.messages.push(WebSocketMessageInfo {
             direction: MessageDirection::Server,
             opcode: 1,
             payload_length: 42,
+            fin: true,
+            rsv: 0,
         });
         session.messages.push(WebSocketMessageInfo {
             direction: MessageDirection::Client,
             opcode: 8,
             payload_length: 2,
+            fin: true,
+            rsv: 0,
         });
         session.close_code = Some(1000);
         session.duration_ms = 150;
@@ -121,6 +143,8 @@ mod tests {
             direction: MessageDirection::Server,
             opcode: 2,
             payload_length: 100,
+            fin: true,
+            rsv: 0,
         };
         let v: serde_json::Value = serde_json::to_value(&msg).unwrap();
         assert_eq!(v["direction"].as_str(), Some("server"));

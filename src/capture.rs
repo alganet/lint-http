@@ -453,6 +453,8 @@ mod tests {
             direction: MessageDirection::Client,
             opcode: 1,
             payload_length: 5,
+            fin: true,
+            rsv: 0,
         });
         session.duration_ms = 100;
         session.close_code = Some(1000);
@@ -487,6 +489,8 @@ mod tests {
             direction: MessageDirection::Client,
             opcode: 1,
             payload_length: 5,
+            fin: true,
+            rsv: 0,
         });
 
         // Write a transaction, then a websocket_session, then another transaction
