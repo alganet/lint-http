@@ -427,6 +427,7 @@ pub mod server_no_body_for_1xx_204_304;
 pub mod server_patch_accept_patch_header;
 pub mod server_priority_and_cacheability_consistency;
 pub mod server_problem_details_content_type;
+pub mod server_quic_transport_parameters;
 pub mod server_redirect_status_and_location_validity;
 pub mod server_response_405_allow;
 pub mod server_response_location_on_redirect;
@@ -535,6 +536,7 @@ impl<T: ProtocolRule> ProtocolRuleConfigValidator for T {
 }
 
 pub const PROTOCOL_RULES: &[&dyn ProtocolRuleConfigValidator] = &[
+    &server_quic_transport_parameters::ServerQuicTransportParameters,
     &stateful_http3_goaway_semantics::StatefulHttp3GoawaySemantics,
     &stateful_websocket_frame_opcode_sequence::StatefulWebsocketFrameOpcodeSequence,
 ];

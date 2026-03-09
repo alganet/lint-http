@@ -93,6 +93,7 @@ struct Shared {
     protocol_event_store: Arc<crate::protocol_event_store::ProtocolEventStore>,
     ca: Option<Arc<CertificateAuthority>>,
     engine: Arc<crate::rules::RuleConfigEngine>,
+    quic_transport_params: Option<crate::protocol_event::QuicTransportParameters>,
 }
 
 pub async fn run_proxy(
@@ -177,6 +178,26 @@ pub async fn run_proxy_with_limit(
         }
     });
 
+    // Pre-compute QUIC transport parameters and endpoint if HTTP/3 is
+    // configured, so the values can be stored on `Shared` and emitted as
+    // protocol events when connections are established.
+    let (h3_endpoint, quic_transport_params) = if let Some(ref h3_listen) = cfg.general.h3_listen {
+        let h3_addr: SocketAddr = h3_listen.parse()?;
+        let h3_ca = ca
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("h3_listen requires TLS to be enabled"))?
+            .clone();
+        let server_name = cfg
+            .general
+            .h3_server_name
+            .clone()
+            .unwrap_or_else(|| "localhost".to_string());
+        let (endpoint, params) = init_h3_endpoint(h3_addr, &server_name, &h3_ca)?;
+        (Some(endpoint), Some(params))
+    } else {
+        (None, None)
+    };
+
     let shared = Arc::new(Shared {
         client,
         captures,
@@ -185,26 +206,11 @@ pub async fn run_proxy_with_limit(
         protocol_event_store,
         ca,
         engine,
+        quic_transport_params,
     });
 
-    // Start HTTP/3 (QUIC) listener if configured.
-    // Initialization (cert generation, QUIC bind) is done synchronously so that
-    // misconfigurations surface immediately rather than silently failing in a
-    // background task.
-    if let Some(ref h3_listen) = shared.cfg.general.h3_listen {
-        let h3_addr: SocketAddr = h3_listen.parse()?;
-        let ca = shared
-            .ca
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("h3_listen requires TLS to be enabled"))?
-            .clone();
-        let server_name = shared
-            .cfg
-            .general
-            .h3_server_name
-            .clone()
-            .unwrap_or_else(|| "localhost".to_string());
-        let endpoint = init_h3_endpoint(h3_addr, &server_name, &ca)?;
+    // Start HTTP/3 (QUIC) accept loop if an endpoint was created.
+    if let Some(endpoint) = h3_endpoint {
         let shared_h3 = shared.clone();
         tokio::spawn(async move {
             run_h3_accept_loop(endpoint, shared_h3).await;
@@ -1231,11 +1237,25 @@ async fn tunnel(upgraded: Upgraded, host: &str, port: u16) -> std::io::Result<()
 /// Create a QUIC endpoint bound to `addr` with a TLS certificate for
 /// `server_name`.  This performs all fallible initialization (cert generation,
 /// socket bind) synchronously so errors propagate to the caller.
+/// QUIC transport parameter defaults for the HTTP/3 proxy.
+///
+/// These are chosen to be reasonable for HTTP/3 usage per RFC 9114 / RFC 9000
+/// §18.2.  The values are recorded in a [`QuicTransportParameters`] so they
+/// can be emitted as protocol events and validated by lint rules.
+const QUIC_MAX_CONCURRENT_BIDI_STREAMS: u64 = 256;
+const QUIC_MAX_CONCURRENT_UNI_STREAMS: u64 = 8;
+const QUIC_MAX_IDLE_TIMEOUT_MS: u64 = 30_000;
+const QUIC_STREAM_RECEIVE_WINDOW: u64 = 1_048_576; // 1 MiB
+const QUIC_RECEIVE_WINDOW: u64 = 4_194_304; // 4 MiB
+
 fn init_h3_endpoint(
     addr: SocketAddr,
     server_name: &str,
     ca: &CertificateAuthority,
-) -> anyhow::Result<quinn::Endpoint> {
+) -> anyhow::Result<(
+    quinn::Endpoint,
+    crate::protocol_event::QuicTransportParameters,
+)> {
     let cert = ca.gen_cert_for_domain(server_name)?;
     let mut tls_config = rustls::ServerConfig::builder()
         .with_no_client_auth()
@@ -1244,11 +1264,48 @@ fn init_h3_endpoint(
 
     let quic_server_config = quinn::crypto::rustls::QuicServerConfig::try_from(tls_config)
         .map_err(|e| anyhow::anyhow!("failed to build QUIC server config: {}", e))?;
-    let server_config = quinn::ServerConfig::with_crypto(Arc::new(quic_server_config));
+
+    // Build an explicit TransportConfig so we know exactly what parameters
+    // the server advertises to clients.
+    let mut transport = quinn::TransportConfig::default();
+    transport
+        .max_concurrent_bidi_streams(
+            quinn::VarInt::from_u64(QUIC_MAX_CONCURRENT_BIDI_STREAMS)
+                .expect("bidi streams fits VarInt"),
+        )
+        .max_concurrent_uni_streams(
+            quinn::VarInt::from_u64(QUIC_MAX_CONCURRENT_UNI_STREAMS)
+                .expect("uni streams fits VarInt"),
+        )
+        .max_idle_timeout(Some(
+            quinn::IdleTimeout::try_from(std::time::Duration::from_millis(
+                QUIC_MAX_IDLE_TIMEOUT_MS,
+            ))
+            .expect("idle timeout fits"),
+        ))
+        .stream_receive_window(
+            quinn::VarInt::from_u64(QUIC_STREAM_RECEIVE_WINDOW)
+                .expect("stream receive window fits VarInt"),
+        )
+        .receive_window(
+            quinn::VarInt::from_u64(QUIC_RECEIVE_WINDOW).expect("receive window fits VarInt"),
+        );
+
+    let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(quic_server_config));
+    server_config.transport_config(Arc::new(transport));
     let endpoint = quinn::Endpoint::server(server_config, addr)?;
 
+    let params = crate::protocol_event::QuicTransportParameters {
+        initial_max_streams_bidi: Some(QUIC_MAX_CONCURRENT_BIDI_STREAMS),
+        initial_max_data: Some(QUIC_RECEIVE_WINDOW),
+        max_idle_timeout_ms: Some(QUIC_MAX_IDLE_TIMEOUT_MS),
+        initial_max_stream_data_bidi_local: Some(QUIC_STREAM_RECEIVE_WINDOW),
+        initial_max_stream_data_bidi_remote: Some(QUIC_STREAM_RECEIVE_WINDOW),
+        initial_max_stream_data_uni: Some(QUIC_STREAM_RECEIVE_WINDOW),
+    };
+
     info!(%addr, "HTTP/3 (QUIC) listening");
-    Ok(endpoint)
+    Ok((endpoint, params))
 }
 
 /// Accept loop for an already-bound QUIC endpoint.  Each incoming connection
@@ -1283,6 +1340,18 @@ async fn handle_h3_connection(
 
     let conn_metadata = Arc::new(crate::connection::ConnectionMetadata::new_quic(remote_addr));
     let connection_id = conn_metadata.id;
+
+    // Emit the QUIC transport parameters that this server advertised
+    // during the handshake, so protocol-level rules can validate them.
+    if let Some(ref params) = shared.quic_transport_params {
+        emit_h3_protocol_event(
+            crate::protocol_event::ProtocolEventKind::QuicTransportParams {
+                params: params.clone(),
+            },
+            connection_id,
+            &shared,
+        );
+    }
 
     loop {
         match h3_conn.accept().await {
@@ -2077,6 +2146,7 @@ mod tests {
             protocol_event_store,
             ca,
             engine,
+            quic_transport_params: None,
         });
         Ok((shared, p, cw))
     }
