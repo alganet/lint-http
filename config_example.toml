@@ -11,6 +11,11 @@ captures_seed = false
 # file as base64 strings. Bodies are still captured in memory for rules; this
 # option only affects serialization to the captures file.
 captures_include_body = false
+# Optional HTTP/3 (QUIC) listen address. Requires TLS enabled.
+# h3_listen = "127.0.0.1:3443"
+# Server name (SNI) for the HTTP/3 TLS certificate. Clients must connect
+# using this name. Defaults to "localhost" when omitted.
+# h3_server_name = "proxy.example.com"
 
 [tls]
 enabled = true

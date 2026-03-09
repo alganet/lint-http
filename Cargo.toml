@@ -35,6 +35,11 @@ rustls-pemfile = "2.2.0"
 hyper-rustls = { version = "0.27.7", features = ["http1", "http2"] }
 hyper-util = { version = "0.1.20", features = ["server", "tokio", "client-legacy"] }
 
+# HTTP/3 / QUIC
+quinn = { version = "0.11.9", default-features = false, features = ["rustls-aws-lc-rs", "runtime-tokio"] }
+h3 = "0.0.8"
+h3-quinn = "0.0.10"
+
 # Certificate Generation
 rcgen = "0.14"
 pem = "3.0"
@@ -50,4 +55,5 @@ rustls-native-certs = "0.8"
 [dev-dependencies]
 wiremock = "0.6"
 rstest = "0.26.1"
+http = "1"
 

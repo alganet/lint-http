@@ -51,6 +51,7 @@ fn format_http_version(v: hyper::Version) -> String {
         hyper::Version::HTTP_10 => "HTTP/1.0".to_string(),
         hyper::Version::HTTP_11 => "HTTP/1.1".to_string(),
         hyper::Version::HTTP_2 => "HTTP/2.0".to_string(),
+        hyper::Version::HTTP_3 => "HTTP/3".to_string(),
         _ => "HTTP/1.1".to_string(),
     }
 }
@@ -66,7 +67,7 @@ mod test_format_http_version {
     #[case(Version::HTTP_10, "HTTP/1.0")]
     #[case(Version::HTTP_11, "HTTP/1.1")]
     #[case(Version::HTTP_2, "HTTP/2.0")]
-    #[case(Version::HTTP_3, "HTTP/1.1")]
+    #[case(Version::HTTP_3, "HTTP/3")]
     fn format_http_version_cases(#[case] ver: Version, #[case] expected: &str) {
         assert_eq!(format_http_version(ver), expected.to_string());
     }
@@ -177,6 +178,30 @@ pub async fn run_proxy_with_limit(
         ca,
         engine,
     });
+
+    // Start HTTP/3 (QUIC) listener if configured.
+    // Initialization (cert generation, QUIC bind) is done synchronously so that
+    // misconfigurations surface immediately rather than silently failing in a
+    // background task.
+    if let Some(ref h3_listen) = shared.cfg.general.h3_listen {
+        let h3_addr: SocketAddr = h3_listen.parse()?;
+        let ca = shared
+            .ca
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("h3_listen requires TLS to be enabled"))?
+            .clone();
+        let server_name = shared
+            .cfg
+            .general
+            .h3_server_name
+            .clone()
+            .unwrap_or_else(|| "localhost".to_string());
+        let endpoint = init_h3_endpoint(h3_addr, &server_name, &ca)?;
+        let shared_h3 = shared.clone();
+        tokio::spawn(async move {
+            run_h3_accept_loop(endpoint, shared_h3).await;
+        });
+    }
 
     // Use a manual TcpListener accept loop to preserve the remote address and
     // avoid relying on the removed `make_service_fn` helper in hyper v1.
@@ -1092,6 +1117,344 @@ async fn tunnel(upgraded: Upgraded, host: &str, port: u16) -> std::io::Result<()
     let mut upgraded_io = TokioIo::new(upgraded);
     let (n1, n2) = tokio::io::copy_bidirectional(&mut upgraded_io, &mut server).await?;
     trace!("tunnel: copy finished: {} bytes -> {} bytes", n1, n2);
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// HTTP/3 (QUIC) listener
+// ---------------------------------------------------------------------------
+
+/// Create a QUIC endpoint bound to `addr` with a TLS certificate for
+/// `server_name`.  This performs all fallible initialization (cert generation,
+/// socket bind) synchronously so errors propagate to the caller.
+fn init_h3_endpoint(
+    addr: SocketAddr,
+    server_name: &str,
+    ca: &CertificateAuthority,
+) -> anyhow::Result<quinn::Endpoint> {
+    let cert = ca.gen_cert_for_domain(server_name)?;
+    let mut tls_config = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_cert_resolver(Arc::new(AlwaysResolves(cert)));
+    tls_config.alpn_protocols = vec![b"h3".to_vec()];
+
+    let quic_server_config = quinn::crypto::rustls::QuicServerConfig::try_from(tls_config)
+        .map_err(|e| anyhow::anyhow!("failed to build QUIC server config: {}", e))?;
+    let server_config = quinn::ServerConfig::with_crypto(Arc::new(quic_server_config));
+    let endpoint = quinn::Endpoint::server(server_config, addr)?;
+
+    info!(%addr, "HTTP/3 (QUIC) listening");
+    Ok(endpoint)
+}
+
+/// Accept loop for an already-bound QUIC endpoint.  Each incoming connection
+/// is handled in a spawned task through the same pipeline as TCP traffic.
+async fn run_h3_accept_loop(endpoint: quinn::Endpoint, shared: Arc<Shared>) {
+    while let Some(incoming) = endpoint.accept().await {
+        let shared = shared.clone();
+        tokio::spawn(async move {
+            match incoming.await {
+                Ok(conn) => {
+                    let remote_addr = conn.remote_address();
+                    if let Err(e) = handle_h3_connection(conn, shared, remote_addr).await {
+                        error!("HTTP/3 connection error: {}", e);
+                    }
+                }
+                Err(e) => {
+                    error!("HTTP/3 incoming connection error: {}", e);
+                }
+            }
+        });
+    }
+}
+
+/// Handle a single HTTP/3 connection: accept request streams, forward upstream,
+/// lint, capture, and return responses.
+async fn handle_h3_connection(
+    conn: quinn::Connection,
+    shared: Arc<Shared>,
+    remote_addr: SocketAddr,
+) -> anyhow::Result<()> {
+    let mut h3_conn = h3::server::Connection::new(h3_quinn::Connection::new(conn)).await?;
+
+    let conn_metadata = Arc::new(crate::connection::ConnectionMetadata::new_quic(remote_addr));
+
+    loop {
+        match h3_conn.accept().await {
+            Ok(Some(resolver)) => {
+                let shared = shared.clone();
+                let conn_metadata = conn_metadata.clone();
+                tokio::spawn(async move {
+                    match resolver.resolve_request().await {
+                        Ok((req, stream)) => {
+                            if let Err(e) =
+                                handle_h3_request(req, stream, shared, conn_metadata).await
+                            {
+                                error!("HTTP/3 request error: {}", e);
+                            }
+                        }
+                        Err(e) => {
+                            error!("HTTP/3 resolve request error: {}", e);
+                        }
+                    }
+                });
+            }
+            Ok(None) => {
+                // Connection closed gracefully (GOAWAY)
+                break;
+            }
+            Err(e) => {
+                error!("HTTP/3 accept error: {}", e);
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Process a single HTTP/3 request: collect body, forward upstream via the
+/// shared hyper client, lint the transaction, write captures, and stream the
+/// response back over h3.
+///
+/// HTTP/3 does not support 101 Switching Protocols (RFC 9114 §4.2), so
+/// upgrade/WebSocket handling is intentionally omitted here.
+async fn handle_h3_request(
+    req: hyper::Request<()>,
+    mut stream: h3::server::RequestStream<h3_quinn::BidiStream<bytes::Bytes>, bytes::Bytes>,
+    shared: Arc<Shared>,
+    conn_metadata: Arc<crate::connection::ConnectionMetadata>,
+) -> anyhow::Result<()> {
+    use bytes::Buf;
+
+    let started = Instant::now();
+
+    // Collect the request body from the h3 stream
+    let mut req_body = Vec::new();
+    while let Some(chunk) = stream.recv_data().await? {
+        let mut buf = chunk;
+        while buf.has_remaining() {
+            let bytes = buf.chunk();
+            req_body.extend_from_slice(bytes);
+            let len = bytes.len();
+            buf.advance(len);
+        }
+    }
+    let req_body_bytes = Bytes::from(req_body);
+
+    // Collect request trailers (if the client sent any after the body)
+    let req_trailers = match stream.recv_trailers().await {
+        Ok(t) => t,
+        Err(e) => {
+            trace!("HTTP/3 request trailers error (non-fatal): {}", e);
+            None
+        }
+    };
+
+    // Build the upstream URI
+    let uri = {
+        let scheme = req
+            .uri()
+            .scheme()
+            .cloned()
+            .unwrap_or(hyper::http::uri::Scheme::HTTPS);
+        let host = req
+            .uri()
+            .authority()
+            .map(|a: &hyper::http::uri::Authority| a.as_str())
+            .or_else(|| {
+                req.headers()
+                    .get(hyper::header::HOST)
+                    .and_then(|h: &hyper::header::HeaderValue| h.to_str().ok())
+            })
+            .unwrap_or("localhost");
+        let path = req
+            .uri()
+            .path_and_query()
+            .map(|pq: &hyper::http::uri::PathAndQuery| pq.as_str())
+            .unwrap_or("/");
+        format!("{}://{}{}", scheme, host, path)
+            .parse::<Uri>()
+            .unwrap_or_else(|_| Uri::from_static("https://localhost/"))
+    };
+
+    let method = req.method().clone();
+    let uri_str = req.uri().to_string();
+    let req_headers = req.headers().clone();
+
+    let client_ip = conn_metadata.remote_addr.ip();
+    let user_agent = req_headers
+        .get("user-agent")
+        .and_then(|v: &hyper::header::HeaderValue| v.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
+    let client_id = crate::state::ClientIdentifier::new(client_ip, user_agent);
+
+    // Build upstream request (forwarded over TCP via the existing hyper client)
+    let mut builder = Request::builder().method(method.clone()).uri(uri.clone());
+    for (name, value) in req_headers.iter() {
+        if !shared
+            .cfg
+            .tls
+            .suppress_headers
+            .iter()
+            .any(|h| h.eq_ignore_ascii_case(name.as_str()))
+        {
+            builder = builder.header(name, value);
+        }
+    }
+
+    let upstream_req = builder.body(Full::new(req_body_bytes.clone()))?;
+
+    /// Record a minimal error transaction on the H3 path (mirrors TCP path's
+    /// `build_and_write_transaction`).
+    #[allow(clippy::too_many_arguments)]
+    async fn record_h3_error(
+        captures: &CaptureWriter,
+        client_id: &crate::state::ClientIdentifier,
+        method: &str,
+        uri_str: &str,
+        req_headers: &hyper::HeaderMap,
+        req_body: &Bytes,
+        status: u16,
+        duration_ms: u64,
+        conn_metadata: &crate::connection::ConnectionMetadata,
+    ) {
+        let mut tx = crate::http_transaction::HttpTransaction::new(
+            client_id.clone(),
+            method.to_string(),
+            uri_str.to_string(),
+        );
+        tx.request.headers = req_headers.clone();
+        tx.request.version = "HTTP/3".to_string();
+        tx.request.body_length = Some(req_body.len() as u64);
+        tx.request_body = Some(req_body.clone());
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status,
+            version: "HTTP/3".into(),
+            headers: hyper::HeaderMap::new(),
+            body_length: None,
+            trailers: None,
+        });
+        tx.timing = crate::http_transaction::TimingInfo { duration_ms };
+        tx.connection_id = Some(conn_metadata.id);
+        tx.sequence_number = Some(conn_metadata.next_sequence_number());
+        let _ = captures.write_transaction(&tx).await;
+    }
+
+    let resp = match shared.client.request(upstream_req).await {
+        Ok(r) => r,
+        Err(e) => {
+            error!("HTTP/3 upstream error: {}", e);
+            let duration = started.elapsed().as_millis() as u64;
+            record_h3_error(
+                &shared.captures,
+                &client_id,
+                method.as_str(),
+                &uri_str,
+                &req_headers,
+                &req_body_bytes,
+                502,
+                duration,
+                &conn_metadata,
+            )
+            .await;
+            let resp = Response::builder().status(502).body(()).unwrap();
+            stream.send_response(resp).await?;
+            stream
+                .send_data(Bytes::from(format!("upstream error: {}", e)))
+                .await?;
+            stream.finish().await?;
+            return Ok(());
+        }
+    };
+
+    let status = resp.status().as_u16();
+    let resp_headers = resp.headers().clone();
+    let resp_ver = format_http_version(resp.version());
+
+    // Collect response body and trailers (matching TCP path)
+    let (resp_body_bytes, resp_trailers) = match resp.into_body().collect().await {
+        Ok(collected) => {
+            let trailers = collected.trailers().cloned();
+            (collected.to_bytes(), trailers)
+        }
+        Err(e) => {
+            error!("HTTP/3 upstream body collect error: {}", e);
+            let duration = started.elapsed().as_millis() as u64;
+            record_h3_error(
+                &shared.captures,
+                &client_id,
+                method.as_str(),
+                &uri_str,
+                &req_headers,
+                &req_body_bytes,
+                502,
+                duration,
+                &conn_metadata,
+            )
+            .await;
+            let resp = Response::builder().status(502).body(()).unwrap();
+            stream.send_response(resp).await?;
+            stream
+                .send_data(Bytes::from(format!("upstream body error: {}", e)))
+                .await?;
+            stream.finish().await?;
+            return Ok(());
+        }
+    };
+
+    let duration = started.elapsed().as_millis() as u64;
+
+    // Build transaction for linting and capture
+    let mut tx = crate::http_transaction::HttpTransaction::new(
+        client_id.clone(),
+        method.as_str().to_string(),
+        uri_str.clone(),
+    );
+    tx.request.headers = req_headers.clone();
+    tx.request.version = "HTTP/3".to_string();
+    tx.request.body_length = Some(req_body_bytes.len() as u64);
+    tx.request.trailers = req_trailers;
+    tx.request_body = Some(req_body_bytes);
+
+    tx.response = Some(crate::http_transaction::ResponseInfo {
+        status,
+        version: resp_ver,
+        headers: resp_headers.clone(),
+        body_length: Some(resp_body_bytes.len() as u64),
+        trailers: resp_trailers,
+    });
+    tx.response_body = Some(resp_body_bytes.clone());
+    tx.timing = crate::http_transaction::TimingInfo {
+        duration_ms: duration,
+    };
+    tx.connection_id = Some(conn_metadata.id);
+    tx.sequence_number = Some(conn_metadata.next_sequence_number());
+
+    let violations = lint::lint_transaction(&tx, &shared.cfg, &shared.state, &shared.engine);
+    tx.violations = violations;
+
+    shared.state.record_transaction(&tx);
+    let _ = shared.captures.write_transaction(&tx).await;
+
+    // Send the response back over HTTP/3.
+    // HTTP/3 has no hop-by-hop headers (RFC 9114 §4.2), but the upstream
+    // response arrives via TCP and may contain them, so we still strip them.
+    let mut resp_builder = Response::builder().status(status);
+    let connection_hop_headers =
+        parse_connection_tokens(resp_headers.get(hyper::header::CONNECTION));
+    for (name, value) in resp_headers.iter() {
+        let name_str = name.as_str().to_ascii_lowercase();
+        if is_hop_by_hop_header(&name_str, &connection_hop_headers) {
+            continue;
+        }
+        resp_builder = resp_builder.header(name, value);
+    }
+    let h3_resp = resp_builder.body(()).unwrap();
+    stream.send_response(h3_resp).await?;
+    stream.send_data(resp_body_bytes).await?;
+    stream.finish().await?;
+
     Ok(())
 }
 
@@ -2808,6 +3171,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn h3_listen_without_tls_returns_error() -> anyhow::Result<()> {
+        let mut cfg = crate::config::Config::default();
+        cfg.general.h3_listen = Some("127.0.0.1:3443".to_string());
+        // TLS is disabled by default
+
+        let tmp = std::env::temp_dir().join(format!("lint_h3_test_{}.jsonl", Uuid::new_v4()));
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+        let cw = CaptureWriter::new(p.clone(), false).await?;
+        let engine = StdArc::new(crate::rules::RuleConfigEngine::new());
+
+        // Bind to an ephemeral port
+        let listen: SocketAddr = "127.0.0.1:0".parse()?;
+        let result = run_proxy_with_limit(listen, cw, StdArc::new(cfg), engine, Some(0)).await;
+
+        // Should fail because h3_listen requires TLS
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("h3_listen requires TLS"));
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn handle_http_logic_websocket_upgrade_path() -> anyhow::Result<()> {
         // Start a WebSocket echo server
         let ws_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
@@ -3104,6 +3494,46 @@ mod tests {
 
         let _ = server_task.await;
         let _ = tokio::fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn handle_request_with_quic_connection_metadata() -> anyhow::Result<()> {
+        let mock = MockServer::start().await;
+
+        Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/quic-test"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
+            .mount(&mock)
+            .await;
+
+        let cfg = StdArc::new(crate::config::Config::default());
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, None).await?;
+
+        let req = make_request_with_headers("GET", format!("{}/quic-test", mock.uri()), None)?;
+
+        // Use QUIC connection metadata to verify it flows through handle_request
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new_quic(
+            "127.0.0.1:12345".parse()?,
+        ));
+        assert_eq!(
+            conn_metadata.transport,
+            crate::connection::TransportProtocol::Quic,
+        );
+
+        let resp = handle_request(
+            req,
+            shared.clone(),
+            conn_metadata,
+            hyper::http::uri::Scheme::HTTP,
+        )
+        .await?;
+        assert_eq!(resp.status().as_u16(), 200);
+
+        let entries = read_capture(&tmp).await?;
+        assert!(!entries.is_empty());
+
+        let _ = fs::remove_file(&tmp).await;
         Ok(())
     }
 }
