@@ -55,6 +55,11 @@ fn check_version_token(s: &str) -> Option<String> {
         return Some(format!("invalid token '{}': must start with 'HTTP/'", s));
     }
     let rest = &s[5..];
+    // HTTP/3 does not use start-line version tokens (no wire format), but the
+    // proxy represents it as "HTTP/3".  Accept this as a valid internal form.
+    if rest == "3" {
+        return None;
+    }
     let parts: Vec<&str> = rest.split('.').collect();
     if parts.len() != 2 {
         return Some(format!("invalid token '{}': expected '<major>.<minor>'", s));
@@ -237,6 +242,26 @@ mod tests {
         let tx = crate::test_helpers::make_test_transaction();
         let rule = MessageHttpVersionSyntaxValid;
         // make_test_transaction defaults version to "HTTP/1.1"
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_test_rule_config(),
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn http3_version_is_valid() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.version = "HTTP/3".into();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/3".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[]),
+            body_length: None,
+            trailers: None,
+        });
+        let rule = MessageHttpVersionSyntaxValid;
         let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
