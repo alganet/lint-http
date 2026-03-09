@@ -11,6 +11,10 @@ captures_seed = false
 # file as base64 strings. Bodies are still captured in memory for rules; this
 # option only affects serialization to the captures file.
 captures_include_body = false
+# Maximum protocol events per connection/session key for protocol-level rules
+# (e.g. WebSocket frame sequencing). Larger values let rules detect violations
+# across more frames but use more memory. Default: 200.
+# max_protocol_event_history = 200
 # Optional HTTP/3 (QUIC) listen address. Requires TLS enabled.
 # h3_listen = "127.0.0.1:3443"
 # Server name (SNI) for the HTTP/3 TLS certificate. Clients must connect
@@ -88,6 +92,10 @@ enabled = true
 severity = "warn"
 
 [rules.stateful_websocket_handshake_validity]
+enabled = true
+severity = "warn"
+
+[rules.stateful_websocket_frame_opcode_sequence]
 enabled = true
 severity = "warn"
 

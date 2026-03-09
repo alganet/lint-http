@@ -23,6 +23,13 @@ pub struct GeneralConfig {
     #[serde(default = "default_max_history")]
     pub max_history: usize,
 
+    /// Maximum number of protocol events to keep per connection/session key.
+    /// Protocol-level rules (e.g. WebSocket frame sequencing) may need a
+    /// larger window than `max_history` to detect violations across many
+    /// frames.  Defaults to 200.
+    #[serde(default = "default_max_protocol_event_history")]
+    pub max_protocol_event_history: usize,
+
     /// Whether to seed StateStore from captures file on startup
     #[serde(default = "default_captures_seed")]
     pub captures_seed: bool,
@@ -53,6 +60,10 @@ fn default_max_history() -> usize {
     10
 }
 
+fn default_max_protocol_event_history() -> usize {
+    200
+}
+
 const fn default_captures_include_body() -> bool {
     false
 }
@@ -76,6 +87,7 @@ impl Default for GeneralConfig {
             captures: default_captures(),
             ttl_seconds: default_ttl(),
             max_history: default_max_history(),
+            max_protocol_event_history: default_max_protocol_event_history(),
             captures_seed: default_captures_seed(),
             captures_include_body: default_captures_include_body(),
             h3_listen: None,
