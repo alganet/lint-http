@@ -1336,10 +1336,22 @@ async fn handle_h3_connection(
     shared: Arc<Shared>,
     remote_addr: SocketAddr,
 ) -> anyhow::Result<()> {
-    let mut h3_conn = h3::server::Connection::new(h3_quinn::Connection::new(conn)).await?;
-
     let conn_metadata = Arc::new(crate::connection::ConnectionMetadata::new_quic(remote_addr));
     let connection_id = conn_metadata.id;
+
+    // Build an event sink so the frame-level observer inside the
+    // InstrumentedConnection can emit protocol events (SETTINGS,
+    // MAX_PUSH_ID) that are otherwise consumed internally by h3.
+    let sink: crate::h3_instrument::EventSink = {
+        let shared = shared.clone();
+        Arc::new(move |kind| {
+            emit_h3_protocol_event(kind, connection_id, &shared);
+        })
+    };
+
+    let instrumented =
+        crate::h3_instrument::InstrumentedConnection::new(h3_quinn::Connection::new(conn), sink);
+    let mut h3_conn = h3::server::Connection::new(instrumented).await?;
 
     // Emit the QUIC transport parameters that this server advertised
     // during the handshake, so protocol-level rules can validate them.
