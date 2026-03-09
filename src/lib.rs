@@ -27,6 +27,7 @@ pub mod ca;
 pub mod capture;
 pub mod config;
 pub mod connection;
+pub mod h3_instrument;
 pub mod helpers;
 pub mod http_date;
 pub mod http_transaction;

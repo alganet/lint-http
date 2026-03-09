@@ -103,6 +103,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.stateful_http3_settings_frame]
+enabled = true
+severity = "warn"
+
 [rules.server_quic_transport_parameters]
 enabled = true
 severity = "warn"
