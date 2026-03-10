@@ -357,6 +357,7 @@ pub mod message_header_field_names_token;
 pub mod message_http2_pseudo_headers_validity;
 pub mod message_http3_host_authority_consistency;
 pub mod message_http3_no_connection_header;
+pub mod message_http3_pseudo_headers_validity;
 pub mod message_http_version_syntax_valid;
 pub mod message_if_match_etag_syntax;
 pub mod message_if_modified_since_date_format;
@@ -643,6 +644,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_http2_pseudo_headers_validity::MessageHttp2PseudoHeadersValidity,
     &message_http3_host_authority_consistency::MessageHttp3HostAuthorityConsistency,
     &message_http3_no_connection_header::MessageHttp3NoConnectionHeader,
+    &message_http3_pseudo_headers_validity::MessageHttp3PseudoHeadersValidity,
     &message_if_match_etag_syntax::MessageIfMatchEtagSyntax,
     &message_if_modified_since_date_format::MessageIfModifiedSinceDateFormat,
     &message_if_none_match_etag_syntax::MessageIfNoneMatchEtagSyntax,

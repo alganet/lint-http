@@ -671,6 +671,10 @@ severity = "error"
 enabled = true
 severity = "error"
 
+[rules.message_http3_pseudo_headers_validity]
+enabled = true
+severity = "error"
+
 [rules.server_http3_status_code_validity]
 enabled = true
 severity = "error"
