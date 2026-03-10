@@ -120,6 +120,43 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
     Some("Origin is not a valid serialized origin".into())
 }
 
+/// Extract the authority component (host\[:port\]) from a request-target.
+///
+/// Handles all four request-target forms (RFC 9112 §3.2):
+/// - **Absolute-form** (`scheme://host[:port]/path`): returns the authority
+///   portion between `://` and the first `/`, `?`, or `#`.
+/// - **Authority-form** (`host:port`, used by CONNECT): returns the entire
+///   target, since it *is* the authority.
+/// - **Origin-form** (`/path`): returns `None` (no authority present).
+/// - **Asterisk-form** (`*`): returns `None`.
+///
+/// The returned value preserves the original casing and includes the port
+/// when present (e.g. `"example.com:8080"`).  Userinfo (`user@`) is included
+/// if present, since consistency checks must compare the raw values.
+pub fn extract_authority_from_request_target(s: &str) -> Option<String> {
+    let s_trim = s.trim();
+
+    if s_trim.is_empty() || s_trim == "*" || s_trim.starts_with('/') {
+        return None;
+    }
+
+    // Absolute-form: scheme://authority/path...
+    if let Some(idx) = s_trim.find("://") {
+        let after = &s_trim[idx + 3..];
+        // Authority ends at first '/', '?', or '#'
+        let end = after.find(&['/', '?', '#'][..]).unwrap_or(after.len());
+        let authority = &after[..end];
+        if authority.is_empty() {
+            None
+        } else {
+            Some(authority.to_string())
+        }
+    } else {
+        // Authority-form: the entire target is the authority (e.g. CONNECT host:port).
+        Some(s_trim.to_string())
+    }
+}
+
 /// Extract the host portion (without port) from an absolute URI or
 /// request-target. Only absolute-form URIs (`scheme://host...`) contain a
 /// host; origin-form targets (starting with `/`) and the special `*` or
@@ -412,6 +449,51 @@ mod tests {
         assert_eq!(extract_origin_if_absolute("http://exa mple"), None);
         // missing authority (empty after scheme)
         assert_eq!(extract_origin_if_absolute("http://"), None);
+    }
+
+    #[test]
+    fn extract_authority_from_request_target_cases() {
+        assert_eq!(
+            extract_authority_from_request_target("https://example.com/path"),
+            Some("example.com".into())
+        );
+        assert_eq!(
+            extract_authority_from_request_target("http://example.com:8080/"),
+            Some("example.com:8080".into())
+        );
+        assert_eq!(
+            extract_authority_from_request_target("https://Example.COM:443/path"),
+            Some("Example.COM:443".into())
+        );
+        assert_eq!(
+            extract_authority_from_request_target("https://example.com"),
+            Some("example.com".into())
+        );
+        assert_eq!(
+            extract_authority_from_request_target("https://example.com?q=1"),
+            Some("example.com".into())
+        );
+        assert_eq!(
+            extract_authority_from_request_target("https://[::1]:8080/path"),
+            Some("[::1]:8080".into())
+        );
+        assert_eq!(
+            extract_authority_from_request_target("/relative/path"),
+            None
+        );
+        assert_eq!(extract_authority_from_request_target("*"), None);
+        // Authority-form (CONNECT): the entire target IS the authority.
+        assert_eq!(
+            extract_authority_from_request_target("example.com:443"),
+            Some("example.com:443".into())
+        );
+        assert_eq!(
+            extract_authority_from_request_target("[::1]:8080"),
+            Some("[::1]:8080".into())
+        );
+        assert_eq!(extract_authority_from_request_target("http://"), None);
+        assert_eq!(extract_authority_from_request_target(""), None);
+        assert_eq!(extract_authority_from_request_target("  "), None);
     }
 
     #[test]

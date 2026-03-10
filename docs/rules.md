@@ -174,6 +174,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_sunset_and_deprecation_consistency](rules/message_sunset_and_deprecation_consistency.md) - When both `Sunset` and `Deprecation` are present, ensure `Deprecation` (structured `@<seconds>`) is not later than `Sunset` (RFC 8594, RFC 9745).
 - [message_http_version_syntax_valid](rules/message_http_version_syntax_valid.md) - Start-line `HTTP-version` must match `HTTP/DIGIT.DIGIT` (RFC 9112 §2.3).
 - [message_http2_pseudo_headers_validity](rules/message_http2_pseudo_headers_validity.md) - HTTP/2 pseudo-headers (`:method`, `:scheme`, `:authority`, `:path`, `:status`) must be present and valid (RFC 9113 §8.1.2).
+- [message_http3_host_authority_consistency](rules/message_http3_host_authority_consistency.md) - `:authority` pseudo-header and `Host` header must be consistent when both present in HTTP/3 requests. (RFC 9114 §4.3.1)
 - [message_http3_no_connection_header](rules/message_http3_no_connection_header.md) - Connection-specific headers (`Connection`, `Keep-Alive`, `Proxy-Connection`, `Transfer-Encoding`, `Upgrade`) must not appear in HTTP/3 messages; `TE` may only contain `trailers`. (RFC 9114 §4.2)
 - [message_content_length_vs_transfer_encoding](rules/message_content_length_vs_transfer_encoding.md) - Flags messages that include both `Content-Length` and `Transfer-Encoding`.
 - [message_content_length](rules/message_content_length.md) - Validates Content-Length values and multiple Content-Length header consistency.

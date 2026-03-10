@@ -663,6 +663,10 @@ severity = "error"
 enabled = true
 severity = "error"
 
+[rules.message_http3_host_authority_consistency]
+enabled = true
+severity = "error"
+
 [rules.message_http3_no_connection_header]
 enabled = true
 severity = "error"
