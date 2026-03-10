@@ -421,6 +421,7 @@ pub mod server_content_security_policy_validity;
 pub mod server_content_type_present;
 pub mod server_deprecation_header_syntax;
 pub mod server_etag_or_last_modified;
+pub mod server_http3_status_code_validity;
 pub mod server_keep_alive_timeout_reasonable;
 pub mod server_last_modified_rfc1123_format;
 pub mod server_location_header_uri_valid;
@@ -700,6 +701,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_content_type_present::ServerContentTypePresent,
     &server_deprecation_header_syntax::ServerDeprecationHeaderSyntax,
     &server_etag_or_last_modified::ServerEtagOrLastModified,
+    &server_http3_status_code_validity::ServerHttp3StatusCodeValidity,
     &server_keep_alive_timeout_reasonable::ServerKeepAliveTimeoutReasonable,
     &server_last_modified_rfc1123_format::ServerLastModifiedRfc1123Format,
     &server_location_header_uri_valid::ServerLocationHeaderUriValid,

@@ -671,6 +671,10 @@ severity = "error"
 enabled = true
 severity = "error"
 
+[rules.server_http3_status_code_validity]
+enabled = true
+severity = "error"
+
 [rules.message_content_length_vs_transfer_encoding]
 enabled = true
 severity = "warn"
