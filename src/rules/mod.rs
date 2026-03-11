@@ -412,6 +412,7 @@ pub mod semantic_trace_method_echo;
 pub mod server_200_vs_204_body_consistency;
 pub mod server_3xx_vs_request_method;
 pub mod server_accept_ranges_values_valid;
+pub mod server_alt_svc_h3_advertisement_valid;
 pub mod server_alt_svc_header_syntax;
 pub mod server_alt_svc_protocol_iana_registered;
 pub mod server_authentication_challenge_validity;
@@ -693,6 +694,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_200_vs_204_body_consistency::Server200Vs204BodyConsistency,
     &server_3xx_vs_request_method::Server3xxVsRequestMethod,
     &server_accept_ranges_values_valid::ServerAcceptRangesValuesValid,
+    &server_alt_svc_h3_advertisement_valid::ServerAltSvcH3AdvertisementValid,
     &server_alt_svc_header_syntax::ServerAltSvcHeaderSyntax,
     &server_alt_svc_protocol_iana_registered::ServerAltSvcProtocolIanaRegistered,
     &server_authentication_challenge_validity::ServerAuthenticationChallengeValidity,
