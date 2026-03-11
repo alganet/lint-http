@@ -392,6 +392,7 @@ pub mod message_structured_headers_validity;
 pub mod message_sunset_and_deprecation_consistency;
 pub mod message_te_header_constraints;
 pub mod message_timing_allow_origin_validity;
+pub mod message_trailer_fields_validity;
 pub mod message_trailer_headers_valid;
 pub mod message_transfer_coding_iana_registered;
 pub mod message_transfer_encoding_chunked_final;
@@ -678,6 +679,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &message_structured_headers_validity::MessageStructuredHeadersValidity,
     &message_te_header_constraints::MessageTeHeaderConstraints,
     &message_timing_allow_origin_validity::MessageTimingAllowOriginValidity,
+    &message_trailer_fields_validity::MessageTrailerFieldsValidity,
     &message_trailer_headers_valid::MessageTrailerHeadersValid,
     &message_transfer_coding_iana_registered::MessageTransferCodingIanaRegistered,
     &message_transfer_encoding_chunked_final::MessageTransferEncodingChunkedFinal,
