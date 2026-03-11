@@ -100,6 +100,7 @@ Note: rules are **disabled by default** and are enabled/configured via your TOML
 - [message_server_header_product_valid](rules/message_server_header_product_valid.md) - Validates `Server` header product tokens and optional versions; allows parenthesized comments. (RFC 9110 §7.1.1)
 - [server_deprecation_header_syntax](rules/server_deprecation_header_syntax.md) - `Deprecation` header must be a structured date item (e.g., `@1688169599`) per RFC 9745; legacy forms (`true` or HTTP-date) are deprecated.
 - [server_priority_and_cacheability_consistency](rules/server_priority_and_cacheability_consistency.md) - When a server emits `Priority` in a response, it should control cacheability using `Cache-Control` and/or `Vary` (RFC 9218 §5).
+- [server_alt_svc_h3_advertisement_valid](rules/server_alt_svc_h3_advertisement_valid.md) - Alt-Svc advertising `h3` must use the final protocol ID (not draft versions) and a reasonable `ma` (max-age) value. (RFC 9114 §3.1, RFC 7838)
 - [server_alt_svc_header_syntax](rules/server_alt_svc_header_syntax.md) - `Alt-Svc` header must follow `protocol=authority` syntax. (RFC 7838)
 - [server_alt_svc_protocol_iana_registered](rules/server_alt_svc_protocol_iana_registered.md) - `Alt-Svc` protocol identifiers SHOULD be IANA-registered or match an allowlist (e.g., `h2`, `h3`). (RFC 7838)
 - [server_must_revalidate_and_immutable_mismatch](rules/server_must_revalidate_and_immutable_mismatch.md) - `Cache-Control` MUST NOT include both `must-revalidate` and `immutable` as they conflict in caching semantics. (RFC 9111 §5.2.2.2; RFC 8246)
