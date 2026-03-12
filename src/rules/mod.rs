@@ -446,6 +446,7 @@ pub mod server_vary_header_valid;
 pub mod server_x_content_type_options;
 pub mod server_x_frame_options_value_valid;
 pub mod server_x_xss_protection_value_valid;
+pub mod stateful_101_switching_protocols;
 pub mod stateful_103_early_hints_before_final;
 pub mod stateful_authentication_failure_loop;
 pub mod stateful_cache_validation_chain;
@@ -607,6 +608,7 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &stateful_digest_auth_nonce_handling::StatefulDigestAuthNonceHandling,
     &stateful_redirect_chain_validity::StatefulRedirectChainValidity,
     &stateful_websocket_handshake_validity::StatefulWebsocketHandshakeValidity,
+    &stateful_101_switching_protocols::Stateful101SwitchingProtocols,
     &stateful_103_early_hints_before_final::Stateful103EarlyHintsBeforeFinal,
     &stateful_authentication_failure_loop::StatefulAuthenticationFailureLoop,
     &stateful_no_cache_revalidation::StatefulNoCacheRevalidation,

@@ -40,6 +40,7 @@ pub fn get_query_type_for_rule(rule_id: &str) -> QueryType {
         "stateful_s_max_age_enforcement" => QueryType::ByResource,
         "stateful_no_store_enforcement" => QueryType::ByResource,
         "stateful_private_cache_visibility" => QueryType::ByResourceAll,
+        "stateful_101_switching_protocols" => QueryType::ByConnection,
         "stateful_request_response_pairing" => QueryType::ByConnection,
         "semantic_connection_reuse_validity" => QueryType::ByConnection,
         _ => QueryType::ByResource,
