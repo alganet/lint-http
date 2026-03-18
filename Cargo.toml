@@ -47,7 +47,7 @@ base64 = "0.22"
 bytes = "1"
 http-body-util = "0.1"
 sha1 = "0.10"
-tokio-tungstenite = "0.28"
+tokio-tungstenite = "0.29"
 futures-util = "0.3"
 rustls-native-certs = "0.8"
 
