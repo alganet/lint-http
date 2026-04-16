@@ -80,7 +80,7 @@ impl Rule for StatefulNoStoreEnforcement {
         // Collect the entries and ensure newest-first ordering by timestamp.
         // This is a small extra cost, but the history is typically short.
         let mut entries: Vec<&crate::http_transaction::HttpTransaction> = history.iter().collect();
-        entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        entries.sort_by_key(|tx| std::cmp::Reverse(tx.timestamp));
 
         // debug-time sanity check: timestamps should now be non-increasing.
         #[cfg(debug_assertions)]

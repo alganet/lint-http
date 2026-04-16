@@ -37,7 +37,7 @@ pub fn by_origin(
         .collect();
 
     // Sort newest-first by timestamp
-    txs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    txs.sort_by_key(|tx| std::cmp::Reverse(tx.timestamp));
 
     TransactionHistory::new(txs)
 }

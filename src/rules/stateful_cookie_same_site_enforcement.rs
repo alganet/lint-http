@@ -136,17 +136,15 @@ impl Rule for StatefulCookieSameSiteEnforcement {
                                 ),
                             });
                         }
-                        crate::helpers::cookie::SameSite::Lax => {
-                            if !allow_lax {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "Cookie '{}' has SameSite=Lax but is sent in a restricted cross-site context",
-                                        name
-                                    ),
-                                });
-                            }
+                        crate::helpers::cookie::SameSite::Lax if !allow_lax => {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: config.severity,
+                                message: format!(
+                                    "Cookie '{}' has SameSite=Lax but is sent in a restricted cross-site context",
+                                    name
+                                ),
+                            });
                         }
                         _ => { /* None is allowed */ }
                     }
