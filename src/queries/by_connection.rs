@@ -18,7 +18,7 @@ pub fn by_connection(state: &StateStore, connection_id: Uuid) -> TransactionHist
     let mut txs = state.get_history_for_connection(connection_id);
     // Sort newest-first by timestamp to satisfy TransactionHistory invariant.
     // Rules can use sequence_number for wire-order analysis.
-    txs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    txs.sort_by_key(|tx| std::cmp::Reverse(tx.timestamp));
     TransactionHistory::new(txs)
 }
 

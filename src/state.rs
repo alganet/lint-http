@@ -186,7 +186,7 @@ impl StateStore {
         }
         // ensure newest-first ordering by timestamp (entries from different
         // clients may be interleaved)
-        entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        entries.sort_by_key(|tx| std::cmp::Reverse(tx.timestamp));
         entries
     }
     /// Collect all transactions for a given client across all resources (newest first per resource).
