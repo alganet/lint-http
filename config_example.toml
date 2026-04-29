@@ -107,6 +107,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.stateful_http3_max_push_id]
+enabled = true
+severity = "warn"
+
 [rules.stateful_http3_settings_frame]
 enabled = true
 severity = "warn"

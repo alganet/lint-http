@@ -456,6 +456,7 @@ pub mod stateful_cookie_lifecycle;
 pub mod stateful_cookie_same_site_enforcement;
 pub mod stateful_digest_auth_nonce_handling;
 pub mod stateful_http3_goaway_semantics;
+pub mod stateful_http3_max_push_id;
 pub mod stateful_http3_settings_frame;
 pub mod stateful_immutable_cache_never_stale;
 pub mod stateful_max_age_directive_validity;
@@ -546,6 +547,7 @@ impl<T: ProtocolRule> ProtocolRuleConfigValidator for T {
 pub const PROTOCOL_RULES: &[&dyn ProtocolRuleConfigValidator] = &[
     &server_quic_transport_parameters::ServerQuicTransportParameters,
     &stateful_http3_goaway_semantics::StatefulHttp3GoawaySemantics,
+    &stateful_http3_max_push_id::StatefulHttp3MaxPushId,
     &stateful_http3_settings_frame::StatefulHttp3SettingsFrame,
     &stateful_websocket_frame_opcode_sequence::StatefulWebsocketFrameOpcodeSequence,
 ];
