@@ -68,16 +68,48 @@ pub trait Rule: Send + Sync {
         RuleScope::Both
     }
 
-    /// Evaluate an entire `HttpTransaction` and return an optional violation.
-    /// The `config` parameter contains the validated configuration.
-    /// `history` contains pre-queried previous transactions — rules never
-    /// access `StateStore` directly.
+    /// **Legacy entry point.** Evaluate an `HttpTransaction` using the rule's
+    /// parsed associated `Self::Config`. Existing rules override this; the
+    /// default `check` impl unboxes the config from the engine cache and
+    /// delegates here.
+    ///
+    /// New rules should override [`check`](Self::check) directly and ignore
+    /// this method — its default `unreachable!()` body is never reached for
+    /// rules that override `check`. This method, the associated `Config`
+    /// type, and the engine cache will be removed once all rules have
+    /// migrated; see REPORT.md item #8 for the staged plan.
     fn check_transaction(
         &self,
         _tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         _config: &Self::Config,
-    ) -> Option<Violation>;
+    ) -> Option<Violation> {
+        unreachable!(
+            "rule '{}' overrides neither `check_transaction` (legacy) nor `check` (preferred)",
+            self.id()
+        )
+    }
+
+    /// Evaluate an `HttpTransaction` against this rule. The default impl
+    /// looks up the parsed associated config from the engine cache and
+    /// delegates to [`check_transaction`](Self::check_transaction), so
+    /// existing rules continue to work unchanged.
+    ///
+    /// New rules should override **this** method instead — it takes the
+    /// global `cfg: &Config` directly, avoiding the engine round-trip and
+    /// the type-erasure ceremony. Once all rules are migrated, the legacy
+    /// path goes away (REPORT.md #8c) and `check` is renamed to
+    /// `check_transaction`.
+    fn check(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        history: &crate::transaction_history::TransactionHistory,
+        _cfg: &crate::config::Config,
+        engine: &RuleConfigEngine,
+    ) -> Option<Violation> {
+        let parsed = engine.get_cached::<Self::Config>(self.id());
+        self.check_transaction(tx, history, &parsed)
+    }
 }
 
 /// Helper trait to enable type-erased configuration caching.
@@ -121,11 +153,14 @@ impl<T: Rule> RuleConfigValidator for T {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        _config: &crate::config::Config,
+        cfg: &crate::config::Config,
         engine: &RuleConfigEngine,
     ) -> Option<Violation> {
-        let config = engine.get_cached::<T::Config>(self.id());
-        self.check_transaction(tx, history, &config)
+        // Route through the new `Rule::check` entry point. For rules that
+        // still override only the legacy `check_transaction`, the default
+        // `check` impl unboxes the config from the engine cache and
+        // delegates back to it — preserving today's behaviour exactly.
+        <Self as Rule>::check(self, tx, history, cfg, engine)
     }
 }
 
@@ -502,13 +537,41 @@ pub trait ProtocolRule: Send + Sync {
         Ok(Arc::new(config))
     }
 
-    /// Evaluate a single protocol event and return an optional violation.
+    /// **Legacy entry point.** Evaluate a single protocol event using the
+    /// rule's parsed associated `Self::Config`. Existing rules override this;
+    /// the default `check` impl unboxes the config from the engine cache and
+    /// delegates here.
+    ///
+    /// New rules should override [`check`](Self::check) directly. See the
+    /// matching `Rule::check_transaction` doc-comment and REPORT.md item #8.
     fn check_event(
+        &self,
+        _event: &crate::protocol_event::ProtocolEvent,
+        _history: &crate::protocol_event::ProtocolEventHistory,
+        _config: &Self::Config,
+    ) -> Option<Violation> {
+        unreachable!(
+            "protocol rule '{}' overrides neither `check_event` (legacy) nor `check` (preferred)",
+            self.id()
+        )
+    }
+
+    /// Evaluate a protocol event against this rule. The default impl looks
+    /// up the parsed associated config from the engine cache and delegates
+    /// to [`check_event`](Self::check_event); existing rules continue to
+    /// work unchanged. New rules should override **this** method instead.
+    /// Renamed to `check_event` once the legacy path is removed (REPORT.md
+    /// #8c).
+    fn check(
         &self,
         event: &crate::protocol_event::ProtocolEvent,
         history: &crate::protocol_event::ProtocolEventHistory,
-        config: &Self::Config,
-    ) -> Option<Violation>;
+        _cfg: &crate::config::Config,
+        engine: &RuleConfigEngine,
+    ) -> Option<Violation> {
+        let parsed = engine.get_cached::<Self::Config>(self.id());
+        self.check_event(event, history, &parsed)
+    }
 }
 
 /// Type-erased wrapper for `ProtocolRule`, mirroring `RuleConfigValidator`.
@@ -544,11 +607,13 @@ impl<T: ProtocolRule> ProtocolRuleConfigValidator for T {
         &self,
         event: &crate::protocol_event::ProtocolEvent,
         history: &crate::protocol_event::ProtocolEventHistory,
-        _config: &crate::config::Config,
+        cfg: &crate::config::Config,
         engine: &RuleConfigEngine,
     ) -> Option<Violation> {
-        let config = engine.get_cached::<T::Config>(self.id());
-        self.check_event(event, history, &config)
+        // Route through the new `ProtocolRule::check` entry point. Default
+        // impl preserves the legacy delegation to `check_event` for rules
+        // that haven't migrated yet.
+        <Self as ProtocolRule>::check(self, event, history, cfg, engine)
     }
 }
 
@@ -773,6 +838,98 @@ pub fn rules_for_scope(has_response: bool) -> &'static [&'static dyn RuleConfigV
 mod tests {
     use super::*;
     use crate::test_helpers::{enable_rule, enable_rule_with_paths};
+
+    #[test]
+    fn protocol_check_override_short_circuits_engine_cache() {
+        // Mirror of `check_override_short_circuits_engine_cache` for the
+        // protocol-rule side. Same load-bearing role for the #8a bridge on
+        // `ProtocolRule`.
+        struct ProtocolProbe;
+        impl ProtocolRule for ProtocolProbe {
+            type Config = ();
+
+            fn id(&self) -> &'static str {
+                "_test_protocol_check_override_probe"
+            }
+
+            fn check(
+                &self,
+                _event: &crate::protocol_event::ProtocolEvent,
+                _history: &crate::protocol_event::ProtocolEventHistory,
+                _cfg: &crate::config::Config,
+                _engine: &RuleConfigEngine,
+            ) -> Option<Violation> {
+                Some(Violation {
+                    rule: "_test_protocol_check_override_probe".into(),
+                    severity: crate::lint::Severity::Info,
+                    message: "from protocol check override".into(),
+                })
+            }
+        }
+
+        let probe = ProtocolProbe;
+        let engine = RuleConfigEngine::new();
+        let cfg = crate::config::Config::default();
+        let event = crate::protocol_event::ProtocolEvent {
+            timestamp: chrono::Utc::now(),
+            connection_id: uuid::Uuid::new_v4(),
+            kind: crate::protocol_event::ProtocolEventKind::H3MaxPushId { push_id: 0 },
+        };
+        let history = crate::protocol_event::ProtocolEventHistory::empty();
+
+        let result = <ProtocolProbe as ProtocolRuleConfigValidator>::check_event_erased(
+            &probe, &event, &history, &cfg, &engine,
+        );
+
+        let v = result.expect("override should produce a violation");
+        assert_eq!(v.message, "from protocol check override");
+    }
+
+    #[test]
+    fn check_override_short_circuits_engine_cache() {
+        // Load-bearing test for the #8a bridge: a rule that overrides
+        // `Rule::check` directly must be routed through the new entry point
+        // *without* the dispatch trying to unbox a config from the engine
+        // cache. If the bridge regressed (e.g. `check_transaction_erased`
+        // started calling `check_transaction` again), the engine lookup
+        // would panic on this empty engine.
+        struct Probe;
+        impl Rule for Probe {
+            type Config = ();
+
+            fn id(&self) -> &'static str {
+                "_test_check_override_probe"
+            }
+
+            fn check(
+                &self,
+                _tx: &crate::http_transaction::HttpTransaction,
+                _history: &crate::transaction_history::TransactionHistory,
+                _cfg: &crate::config::Config,
+                _engine: &RuleConfigEngine,
+            ) -> Option<Violation> {
+                Some(Violation {
+                    rule: "_test_check_override_probe".into(),
+                    severity: crate::lint::Severity::Info,
+                    message: "from check override".into(),
+                })
+            }
+        }
+
+        let probe = Probe;
+        let engine = RuleConfigEngine::new();
+        let cfg = crate::config::Config::default();
+        let tx = crate::test_helpers::make_test_transaction();
+        let history = crate::transaction_history::TransactionHistory::empty();
+
+        let result = <Probe as RuleConfigValidator>::check_transaction_erased(
+            &probe, &tx, &history, &cfg, &engine,
+        );
+
+        let v = result.expect("override should produce a violation");
+        assert_eq!(v.message, "from check override");
+        assert_eq!(v.rule, "_test_check_override_probe");
+    }
 
     #[test]
     fn rule_ids_unique_and_non_empty() {
