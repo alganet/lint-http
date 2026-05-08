@@ -5,7 +5,7 @@
 use crate::lint::Violation;
 use std::any::Any;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 /// Standard configuration for rules
 /// Used as the Config type for non-configurable rules.
@@ -56,6 +56,14 @@ pub trait Rule: Send + Sync {
 
     /// The scope where the rule should be executed. Default is `Both` for
     /// backward compatibility; rules may override for better precision.
+    ///
+    /// The engine partitions rules by scope and dispatches accordingly:
+    /// - `Client` and `Both` rules run on every transaction.
+    /// - `Server` rules run only when `tx.response.is_some()`.
+    ///
+    /// A rule that returns `Server` may therefore assume the response is
+    /// present, but existing implementations still defensively check —
+    /// tightening those is left as follow-up cleanup.
     fn scope(&self) -> RuleScope {
         RuleScope::Both
     }
@@ -734,6 +742,33 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
     &server_x_xss_protection_value_valid::ServerXXssProtectionValueValid,
 ];
 
+/// `RULES` filtered to those whose scope allows execution on a request-only
+/// transaction (`Client` and `Both`). Built once on first access and preserves
+/// the source order of `RULES`, so dispatch order is stable across the
+/// has-response / no-response cases.
+///
+/// Implementation detail of [`rules_for_scope`]; not part of the public API.
+pub(crate) static REQUEST_ONLY_RULES: LazyLock<Vec<&'static dyn RuleConfigValidator>> =
+    LazyLock::new(|| {
+        RULES
+            .iter()
+            .copied()
+            .filter(|r| !matches!(r.scope(), RuleScope::Server))
+            .collect()
+    });
+
+/// Returns the rule slice the engine should iterate for a transaction with
+/// the given response presence. `Server` rules are excluded when there is no
+/// response; `Client` and `Both` rules run on every transaction. The returned
+/// slice preserves the source order of `RULES`.
+pub fn rules_for_scope(has_response: bool) -> &'static [&'static dyn RuleConfigValidator] {
+    if has_response {
+        RULES
+    } else {
+        &REQUEST_ONLY_RULES
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -751,6 +786,71 @@ mod tests {
             let id = rule.id();
             assert!(!id.is_empty(), "ProtocolRule id should not be empty");
             assert!(ids.insert(id), "Duplicate rule id found: {}", id);
+        }
+    }
+
+    #[test]
+    fn request_only_rules_excludes_server_scope_and_preserves_order() {
+        let server_count = RULES
+            .iter()
+            .filter(|r| matches!(r.scope(), RuleScope::Server))
+            .count();
+        assert_eq!(
+            REQUEST_ONLY_RULES.len(),
+            RULES.len() - server_count,
+            "request-only slice should equal RULES minus the {} server-scoped rules",
+            server_count,
+        );
+
+        // Every rule in REQUEST_ONLY_RULES is non-Server.
+        for rule in REQUEST_ONLY_RULES.iter() {
+            assert_ne!(
+                rule.scope(),
+                RuleScope::Server,
+                "server-scoped rule {} leaked into request-only slice",
+                rule.id(),
+            );
+        }
+
+        // Order preservation: walking RULES and skipping Server entries must
+        // match REQUEST_ONLY_RULES element-for-element.
+        let expected: Vec<&'static str> = RULES
+            .iter()
+            .filter(|r| !matches!(r.scope(), RuleScope::Server))
+            .map(|r| r.id())
+            .collect();
+        let actual: Vec<&'static str> = REQUEST_ONLY_RULES.iter().map(|r| r.id()).collect();
+        assert_eq!(
+            actual, expected,
+            "request-only slice must preserve source order of RULES",
+        );
+    }
+
+    #[test]
+    fn rules_for_scope_returns_full_rules_when_response_present() {
+        // The has-response path must yield the same id sequence as `RULES` —
+        // dispatch order on the production proxy path is unchanged from
+        // pre-partitioning iteration.
+        let with_response: Vec<&'static str> =
+            rules_for_scope(true).iter().map(|r| r.id()).collect();
+        let expected: Vec<&'static str> = RULES.iter().map(|r| r.id()).collect();
+        assert_eq!(with_response, expected);
+    }
+
+    #[test]
+    fn rules_for_scope_skips_server_when_no_response() {
+        let without_response = rules_for_scope(false);
+        for rule in RULES.iter() {
+            let present = without_response.iter().any(|r| r.id() == rule.id());
+            let is_server = matches!(rule.scope(), RuleScope::Server);
+            assert_eq!(
+                present,
+                !is_server,
+                "rule {} (scope {:?}): expected presence in request-only dispatch = {}",
+                rule.id(),
+                rule.scope(),
+                !is_server,
+            );
         }
     }
 

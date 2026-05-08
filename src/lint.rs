@@ -47,43 +47,47 @@ pub fn lint_transaction(
     // Cache origin extraction since it's used by any rule requiring ByOrigin
     let origin = crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
 
-    for rule in crate::rules::RULES {
-        if cfg.is_enabled(rule.id()) {
-            let query_type = crate::queries::mapping::get_query_type_for_rule(rule.id());
-
-            let history = match query_type {
-                crate::queries::mapping::QueryType::ByResource => history_by_resource
-                    .get_or_insert_with(|| {
-                        crate::queries::by_resource::by_resource(state, &tx.client, &tx.request.uri)
-                    }),
-                crate::queries::mapping::QueryType::ByOrigin => history_by_origin
-                    .get_or_insert_with(|| {
-                        if let Some(o) = &origin {
-                            crate::queries::by_origin::by_origin(state, &tx.client, o)
-                        } else {
-                            crate::transaction_history::TransactionHistory::empty()
-                        }
-                    }),
-                crate::queries::mapping::QueryType::ByResourceAll => {
-                    history_by_resource_all_clients.get_or_insert_with(|| {
-                        crate::queries::by_resource_all_clients::by_resource_all_clients(
-                            state,
-                            &tx.request.uri,
-                        )
-                    })
-                }
-                crate::queries::mapping::QueryType::ByConnection => history_by_connection
-                    .get_or_insert_with(|| {
-                        if let Some(conn_id) = tx.connection_id {
-                            crate::queries::by_connection::by_connection(state, conn_id)
-                        } else {
-                            crate::transaction_history::TransactionHistory::empty()
-                        }
-                    }),
-            };
-
-            out.extend(rule.check_transaction_erased(tx, history, cfg, engine));
+    // Dispatch only the rules whose scope matches the transaction shape:
+    // `Server` rules are skipped when the response has not been collected yet.
+    // See `Rule::scope` for the contract.
+    for rule in crate::rules::rules_for_scope(tx.response.is_some()) {
+        if !cfg.is_enabled(rule.id()) {
+            continue;
         }
+        let query_type = crate::queries::mapping::get_query_type_for_rule(rule.id());
+
+        let history = match query_type {
+            crate::queries::mapping::QueryType::ByResource => history_by_resource
+                .get_or_insert_with(|| {
+                    crate::queries::by_resource::by_resource(state, &tx.client, &tx.request.uri)
+                }),
+            crate::queries::mapping::QueryType::ByOrigin => {
+                history_by_origin.get_or_insert_with(|| {
+                    if let Some(o) = &origin {
+                        crate::queries::by_origin::by_origin(state, &tx.client, o)
+                    } else {
+                        crate::transaction_history::TransactionHistory::empty()
+                    }
+                })
+            }
+            crate::queries::mapping::QueryType::ByResourceAll => history_by_resource_all_clients
+                .get_or_insert_with(|| {
+                    crate::queries::by_resource_all_clients::by_resource_all_clients(
+                        state,
+                        &tx.request.uri,
+                    )
+                }),
+            crate::queries::mapping::QueryType::ByConnection => history_by_connection
+                .get_or_insert_with(|| {
+                    if let Some(conn_id) = tx.connection_id {
+                        crate::queries::by_connection::by_connection(state, conn_id)
+                    } else {
+                        crate::transaction_history::TransactionHistory::empty()
+                    }
+                }),
+        };
+
+        out.extend(rule.check_transaction_erased(tx, history, cfg, engine));
     }
 
     out
@@ -295,6 +299,42 @@ mod tests {
         });
         // Should use empty history for the ByOrigin None case
         let _violations = lint_transaction(&tx, &cfg, &state, &engine);
+    }
+
+    #[test]
+    fn server_scoped_rules_skipped_on_request_only_transaction() {
+        // Smoke test: confirms `lint_transaction` runs cleanly on a
+        // request-only transaction and that Server-scoped rules don't appear
+        // in the violation list. The actual dispatch-routing invariant
+        // (Server rules excluded from the iterated slice) is asserted by
+        // `rules::tests::rules_for_scope_skips_server_when_no_response` —
+        // this test would also pass by accident if a Server rule self-guarded
+        // on `tx.response.is_none()`, so it carries no load alone.
+        let state = crate::state::StateStore::new(300, 10);
+        let cfg = make_test_config_with_enabled_rules(&[
+            "server_cache_control_present",
+            "client_user_agent_present",
+        ]);
+        let engine = make_test_engine(&cfg);
+        use crate::http_transaction::{HttpTransaction, TimingInfo};
+        let mut tx = HttpTransaction::new(
+            crate::test_helpers::make_test_client(),
+            "GET".to_string(),
+            "http://example/".to_string(),
+        );
+        tx.timing = TimingInfo { duration_ms: 5 };
+        // No tx.response set — this is the request-only path.
+
+        let v = lint_transaction(&tx, &cfg, &state, &engine);
+
+        assert!(
+            v.iter().any(|x| x.rule == "client_user_agent_present"),
+            "client-scoped rule should still run on request-only tx",
+        );
+        assert!(
+            !v.iter().any(|x| x.rule == "server_cache_control_present"),
+            "server-scoped rule must not emit on request-only tx",
+        );
     }
 
     #[test]
