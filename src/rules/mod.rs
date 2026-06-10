@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
+use crate::queries::QueryType;
 use std::sync::LazyLock;
 
 /// Standard configuration for rules
@@ -600,6 +601,138 @@ pub const RULES: &[&dyn Rule] = &[
     &server_x_xss_protection_value_valid::ServerXXssProtectionValueValid,
 ];
 
+/// Rules that read cross-transaction history, each paired with the state query
+/// that builds the history it needs.
+///
+/// A rule **absent** from this list is dispatched with an empty history (see
+/// `lint::lint_transaction`). That is deliberate: it means a history-consuming
+/// rule that is forgotten here receives empty history and fails its own
+/// history-exercising tests *loudly*, rather than silently receiving a
+/// plausible-but-wrong `ByResource` history. There is no silent default.
+///
+/// This registry is kept separate from `RULES` (and off the `Rule` trait) so
+/// the rule library's public surface stays free of the engine's query layer —
+/// see the module-level note on `QueryType`.
+pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
+    // ── ByOrigin: history spans an entire origin (all resources) ──
+    (
+        &stateful_authentication_failure_loop::StatefulAuthenticationFailureLoop,
+        QueryType::ByOrigin,
+    ),
+    (
+        &stateful_digest_auth_nonce_handling::StatefulDigestAuthNonceHandling,
+        QueryType::ByOrigin,
+    ),
+    (
+        &stateful_cookie_lifecycle::StatefulCookieLifecycle,
+        QueryType::ByOrigin,
+    ),
+    (
+        &stateful_cookie_same_site_enforcement::StatefulCookieSameSiteEnforcement,
+        QueryType::ByOrigin,
+    ),
+    // ── ByResourceAll: history for a resource across all clients ──
+    (
+        &stateful_private_cache_visibility::StatefulPrivateCacheVisibility,
+        QueryType::ByResourceAll,
+    ),
+    // ── ByConnection: history for a single TCP connection ──
+    (
+        &stateful_101_switching_protocols::Stateful101SwitchingProtocols,
+        QueryType::ByConnection,
+    ),
+    // ── ByResource: per-client history for one resource (the common case) ──
+    (
+        &client_accept_ranges_on_partial_content::ClientAcceptRangesOnPartialContent,
+        QueryType::ByResource,
+    ),
+    (
+        &client_cache_respect::ClientCacheRespect,
+        QueryType::ByResource,
+    ),
+    (
+        &client_patch_method_content_type_match::ClientPatchMethodContentTypeMatch,
+        QueryType::ByResource,
+    ),
+    (
+        &semantic_cache_coherence::SemanticCacheCoherence,
+        QueryType::ByResource,
+    ),
+    (
+        &semantic_head_response_headers_match_get::SemanticHeadResponseHeadersMatchGet,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_cookie_domain_matching::StatefulCookieDomainMatching,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_103_early_hints_before_final::Stateful103EarlyHintsBeforeFinal,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_cache_validation_chain::StatefulCacheValidationChain,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_conditional_request_handling::StatefulConditionalRequestHandling,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_immutable_cache_never_stale::StatefulImmutableCacheNeverStale,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_max_age_directive_validity::StatefulMaxAgeDirectiveValidity,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_must_revalidate_enforcement::StatefulMustRevalidateEnforcement,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_no_cache_revalidation::StatefulNoCacheRevalidation,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_no_store_enforcement::StatefulNoStoreEnforcement,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_oauth2_code_flow::StatefulOauth2CodeFlow,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_range_request_and_caching::StatefulRangeRequestAndCaching,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_redirect_chain_validity::StatefulRedirectChainValidity,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_s_max_age_enforcement::StatefulSMaxAgeEnforcement,
+        QueryType::ByResource,
+    ),
+    (
+        &stateful_vary_header_cache_validity::StatefulVaryHeaderCacheValidity,
+        QueryType::ByResource,
+    ),
+];
+
+/// Lookup map from rule id to its required `QueryType`, built once from
+/// [`STATEFUL_RULES`].
+static STATEFUL_QUERY_TYPES: LazyLock<std::collections::HashMap<&'static str, QueryType>> =
+    LazyLock::new(|| STATEFUL_RULES.iter().map(|(r, q)| (r.id(), *q)).collect());
+
+/// The state query a rule needs to build its history, or `None` if the rule
+/// does not read history (the engine then dispatches it with an empty
+/// history). Replaces the former `queries::mapping` table and its silent
+/// `ByResource` default.
+pub fn query_type_for(rule_id: &str) -> Option<QueryType> {
+    STATEFUL_QUERY_TYPES.get(rule_id).copied()
+}
+
 /// `RULES` filtered to those whose scope allows execution on a request-only
 /// transaction (`Client` and `Both`). Built once on first access and preserves
 /// the source order of `RULES`, so dispatch order is stable across the
@@ -721,6 +854,37 @@ mod tests {
         validate_rules(&cfg)?;
         Ok(())
     }
+
+    #[test]
+    fn stateful_rules_registry_is_consistent() {
+        let rule_ids: std::collections::HashSet<&str> = RULES.iter().map(|r| r.id()).collect();
+        let mut seen = std::collections::HashSet::new();
+        for (rule, _query) in STATEFUL_RULES {
+            let id = rule.id();
+            // Every entry must correspond to a registered transaction rule, so
+            // a typo or a rule dropped from RULES can't leave a dangling entry.
+            assert!(
+                rule_ids.contains(id),
+                "STATEFUL_RULES entry '{}' is not present in RULES",
+                id,
+            );
+            assert!(seen.insert(id), "duplicate id '{}' in STATEFUL_RULES", id,);
+            // The lookup must resolve every registered entry.
+            assert!(
+                query_type_for(id).is_some(),
+                "query_type_for('{}') returned None for a registered stateful rule",
+                id,
+            );
+        }
+    }
+
+    // Note: there is intentionally no "every `stateful_`-prefixed rule must be
+    // registered" test. The prefix is not a reliable signal for whether a rule
+    // reads history — `stateful_websocket_handshake_validity` is prefixed but
+    // ignores history, while several `client_*` / `semantic_*` rules read it.
+    // The real guard is per-rule: a history consumer omitted from
+    // STATEFUL_RULES is dispatched with an empty history and fails its own
+    // history-exercising tests loudly.
 
     #[test]
     fn config_example_includes_all_rules() -> anyhow::Result<()> {
