@@ -122,6 +122,10 @@ fn validate_range_header(s: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &ClientRangeHeaderSyntaxValid;
+
 #[cfg(test)]
 mod tests {
     use super::*;

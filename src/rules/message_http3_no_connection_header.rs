@@ -117,6 +117,10 @@ fn check_te_header(headers: &hyper::HeaderMap) -> Option<String> {
     None
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageHttp3NoConnectionHeader;
+
 #[cfg(test)]
 mod tests {
     use super::*;

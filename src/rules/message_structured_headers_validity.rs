@@ -335,6 +335,10 @@ fn is_boolean(s: &str) -> bool {
 // and split/find helpers) moved to `crate::helpers::structured_fields` and
 // imported at the top of this file.
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageStructuredHeadersValidity;
+
 #[cfg(test)]
 mod tests {
     use super::*;

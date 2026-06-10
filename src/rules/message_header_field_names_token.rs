@@ -60,6 +60,10 @@ fn check_header_name(name: &str, config: &crate::rules::RuleConfig) -> Option<Vi
     None
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageHeaderFieldNamesToken;
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -144,6 +144,10 @@ impl Rule for ServerAltSvcProtocolIanaRegistered {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &ServerAltSvcProtocolIanaRegistered;
+
 #[cfg(test)]
 mod tests {
     use super::*;

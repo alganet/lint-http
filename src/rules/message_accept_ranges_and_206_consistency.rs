@@ -97,6 +97,10 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageAcceptRangesAnd206Consistency;
+
 #[cfg(test)]
 mod tests {
     use super::*;

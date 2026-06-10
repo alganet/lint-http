@@ -99,6 +99,10 @@ impl Rule for ServerAuthenticationChallengeValidity {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &ServerAuthenticationChallengeValidity;
+
 #[cfg(test)]
 mod tests {
     use super::*;

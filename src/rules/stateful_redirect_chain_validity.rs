@@ -117,6 +117,10 @@ impl Rule for StatefulRedirectChainValidity {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &StatefulRedirectChainValidity;
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -183,14 +183,14 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
 
     // Per-rule validation: every enabled rule parses its own config section so
     // a malformed section (including custom fields) fails fast at startup.
-    for rule in RULES {
+    for rule in RULES.iter() {
         if config.is_enabled(rule.id()) {
             rule.validate(config).map_err(|e| {
                 anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
             })?;
         }
     }
-    for rule in PROTOCOL_RULES {
+    for rule in PROTOCOL_RULES.iter() {
         if config.is_enabled(rule.id()) {
             rule.validate(config).map_err(|e| {
                 anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
@@ -200,190 +200,11 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub mod client_accept_encoding_present;
-pub mod client_accept_ranges_on_partial_content;
-pub mod client_cache_respect;
-pub mod client_expect_header_valid;
-pub mod client_host_header;
-pub mod client_patch_method_content_type_match;
-pub mod client_prefer_header_and_preference_applied;
-pub mod client_range_header_syntax_valid;
-pub mod client_request_method_token_valid;
-pub mod client_request_origin_header_present_for_cors;
-pub mod client_request_target_form_checks;
-pub mod client_request_target_no_fragment;
-pub mod client_request_uri_percent_encoding_valid;
-pub mod client_request_version_method_validity;
-pub mod client_sec_websocket_headers_consistency;
-pub mod client_user_agent_present;
-pub mod message_accept_and_content_type_negotiation;
-pub mod message_accept_encoding_parameter_validity;
-pub mod message_accept_header_media_type_syntax;
-pub mod message_accept_language_weight_validity;
-pub mod message_accept_ranges_and_206_consistency;
-pub mod message_access_control_allow_credentials_when_origin;
-pub mod message_access_control_allow_origin_valid;
-pub mod message_age_header_numeric;
-pub mod message_allow_header_method_tokens;
-pub mod message_auth_scheme_iana_registered;
-pub mod message_authorization_credentials_present;
-pub mod message_basic_auth_base64_validity;
-pub mod message_bearer_token_format_validity;
-pub mod message_cache_control_and_pragma_consistency;
-pub mod message_cache_control_directive_validity;
-pub mod message_cache_control_token_valid;
-pub mod message_caching_directive_interaction;
-pub mod message_charset_iana_registered;
-pub mod message_compression_and_transfer_encoding_consistency;
-pub mod message_conditional_headers_consistency;
-pub mod message_connection_header_tokens_valid;
-pub mod message_connection_upgrade;
-pub mod message_content_disposition_parameter_validity;
-pub mod message_content_disposition_token_valid;
-pub mod message_content_encoding_and_type_consistency;
-pub mod message_content_encoding_iana_registered;
-pub mod message_content_length;
-pub mod message_content_length_vs_transfer_encoding;
-pub mod message_content_location_and_uri_consistency;
-pub mod message_content_md5_vs_digest_preference;
-pub mod message_content_security_policy_and_frame_options_consistency;
-pub mod message_content_transfer_encoding_valid;
-pub mod message_content_type_iana_registered;
-pub mod message_content_type_well_formed;
-pub mod message_cookie_attribute_consistency;
-pub mod message_cookie_domain_validity;
-pub mod message_cookie_path_validity;
-pub mod message_cross_origin_embedder_policy_valid;
-pub mod message_cross_origin_opener_policy_valid;
-pub mod message_cross_origin_resource_policy_valid;
-pub mod message_date_and_time_headers_consistency;
-pub mod message_digest_auth_validity;
-pub mod message_digest_header_syntax;
-pub mod message_early_data_header_safe_method;
-pub mod message_etag_syntax;
-pub mod message_expires_and_cache_control_consistency;
-pub mod message_extension_headers_registered;
-pub mod message_form_data_content_disposition_valid;
-pub mod message_forwarded_header_validity;
-pub mod message_from_header_email_syntax;
-pub mod message_header_field_names_token;
-pub mod message_http2_pseudo_headers_validity;
-pub mod message_http3_host_authority_consistency;
-pub mod message_http3_no_connection_header;
-pub mod message_http3_pseudo_headers_validity;
-pub mod message_http_version_syntax_valid;
-pub mod message_if_match_etag_syntax;
-pub mod message_if_modified_since_date_format;
-pub mod message_if_none_match_etag_syntax;
-pub mod message_if_unmodified_since_date_format;
-pub mod message_language_tag_format_valid;
-pub mod message_link_header_validity;
-pub mod message_max_forwards_numeric;
-pub mod message_media_type_suffix_validity;
-pub mod message_multipart_boundary_syntax;
-pub mod message_multipart_content_type_and_body_consistency;
-pub mod message_origin_isolated_header_validity;
-pub mod message_permissions_policy_directives_valid;
-pub mod message_pragma_token_valid;
-pub mod message_prefer_header_valid;
-pub mod message_preference_applied_header_valid;
-pub mod message_priority_header_syntax;
-pub mod message_problem_details_structure;
-pub mod message_range_and_content_range_consistency;
-pub mod message_referer_uri_valid;
-pub mod message_refresh_header_syntax_valid;
-pub mod message_request_body_length_accuracy;
-pub mod message_response_body_length_accuracy;
-pub mod message_retry_after_date_or_delay;
-pub mod message_sec_fetch_dest_value_valid;
-pub mod message_sec_fetch_mode_value_valid;
-pub mod message_sec_fetch_site_value_valid;
-pub mod message_sec_fetch_user_value_valid;
-pub mod message_server_header_product_valid;
-pub mod message_strict_transport_security_validity;
-pub mod message_structured_headers_validity;
-pub mod message_sunset_and_deprecation_consistency;
-pub mod message_te_header_constraints;
-pub mod message_timing_allow_origin_validity;
-pub mod message_trailer_fields_validity;
-pub mod message_trailer_headers_valid;
-pub mod message_transfer_coding_iana_registered;
-pub mod message_transfer_encoding_chunked_final;
-pub mod message_user_agent_token_valid;
-pub mod message_via_header_syntax_valid;
-pub mod message_warning_header_syntax;
-pub mod message_well_known_uri_format;
-pub mod message_www_authenticate_challenge_syntax;
-pub mod message_x_forwarded_consistency;
-pub mod semantic_cache_coherence;
-pub mod semantic_head_response_headers_match_get;
-pub mod semantic_options_method_capabilities;
-pub mod semantic_origin_matching_for_cors;
-pub mod semantic_patch_partial_update;
-pub mod semantic_post_creates_resource;
-pub mod semantic_status_code_semantics;
-pub mod semantic_trace_method_echo;
-pub mod server_200_vs_204_body_consistency;
-pub mod server_3xx_vs_request_method;
-pub mod server_accept_ranges_values_valid;
-pub mod server_alt_svc_h3_advertisement_valid;
-pub mod server_alt_svc_header_syntax;
-pub mod server_alt_svc_protocol_iana_registered;
-pub mod server_authentication_challenge_validity;
-pub mod server_cache_control_present;
-pub mod server_charset_specification;
-pub mod server_clear_site_data;
-pub mod server_content_security_policy_validity;
-pub mod server_content_type_present;
-pub mod server_deprecation_header_syntax;
-pub mod server_etag_or_last_modified;
-pub mod server_http3_status_code_validity;
-pub mod server_keep_alive_timeout_reasonable;
-pub mod server_last_modified_rfc1123_format;
-pub mod server_location_header_uri_valid;
-pub mod server_must_revalidate_and_immutable_mismatch;
-pub mod server_no_body_for_1xx_204_304;
-pub mod server_patch_accept_patch_header;
-pub mod server_priority_and_cacheability_consistency;
-pub mod server_problem_details_content_type;
-pub mod server_quic_transport_parameters;
-pub mod server_redirect_status_and_location_validity;
-pub mod server_response_405_allow;
-pub mod server_response_location_on_redirect;
-pub mod server_retry_after_status_validity;
-pub mod server_server_timing_header_syntax;
-pub mod server_status_and_caching_semantics;
-pub mod server_status_code_valid_range;
-pub mod server_vary_and_cache_consistency;
-pub mod server_vary_header_valid;
-pub mod server_x_content_type_options;
-pub mod server_x_frame_options_value_valid;
-pub mod server_x_xss_protection_value_valid;
-pub mod stateful_101_switching_protocols;
-pub mod stateful_103_early_hints_before_final;
-pub mod stateful_authentication_failure_loop;
-pub mod stateful_cache_validation_chain;
-pub mod stateful_conditional_request_handling;
-pub mod stateful_cookie_domain_matching;
-pub mod stateful_cookie_lifecycle;
-pub mod stateful_cookie_same_site_enforcement;
-pub mod stateful_digest_auth_nonce_handling;
-pub mod stateful_http3_goaway_semantics;
-pub mod stateful_http3_max_push_id;
-pub mod stateful_http3_settings_frame;
-pub mod stateful_immutable_cache_never_stale;
-pub mod stateful_max_age_directive_validity;
-pub mod stateful_must_revalidate_enforcement;
-pub mod stateful_no_cache_revalidation;
-pub mod stateful_no_store_enforcement;
-pub mod stateful_oauth2_code_flow;
-pub mod stateful_private_cache_visibility;
-pub mod stateful_range_request_and_caching;
-pub mod stateful_redirect_chain_validity;
-pub mod stateful_s_max_age_enforcement;
-pub mod stateful_vary_header_cache_validity;
-pub mod stateful_websocket_frame_opcode_sequence;
-pub mod stateful_websocket_handshake_validity;
+// Leaf rule modules are declared by `build.rs` (see `rule_modules.rs`),
+// discovered from the `src/rules/*.rs` directory listing. Each module
+// self-registers into the distributed slices below, so adding a rule is
+// just creating one file here.
+include!(concat!(env!("OUT_DIR"), "/rule_modules.rs"));
 
 // ── Protocol-level rule trait ──────────────────────────────────────────
 //
@@ -412,217 +233,36 @@ pub trait ProtocolRule: Send + Sync {
     ) -> Option<Violation>;
 }
 
-/// Auto-registered HTTP rules collected via `linkme::distributed_slice`.
-///
-/// Migration target for self-registering rules (#9b). The engine does **not**
-/// consult this slice yet — dispatch still iterates the hand-maintained
-/// [`RULES`] const. It exists to wire the `linkme` infrastructure and prove
-/// cross-platform linking; see the `linkme_registers_and_links` test below.
+/// Every transaction rule, self-registered at link time via
+/// `linkme::distributed_slice`. Each rule module appends itself here (see the
+/// `REGISTRATION` static at the bottom of each `src/rules/*.rs`), so adding a
+/// rule requires no edit to a central list. The link order is unspecified;
+/// [`RULES`] sorts a copy by id for deterministic dispatch.
 #[distributed_slice]
 pub static REGISTERED_RULES: [&'static dyn Rule] = [..];
 
-/// Auto-registered protocol rules. Migration target for [`PROTOCOL_RULES`];
-/// declared but not consulted by the engine in this commit.
+/// Every protocol-event rule, self-registered at link time. See
+/// [`REGISTERED_RULES`]; [`PROTOCOL_RULES`] is the sorted view used by dispatch.
 #[distributed_slice]
 pub static REGISTERED_PROTOCOL_RULES: [&'static dyn ProtocolRule] = [..];
 
-// Single registration that proves `linkme` distributed_slice collection links
-// on every CI OS (Linux/macOS/Windows-MSVC). Not consulted by dispatch — the
-// engine reads `RULES`, not `REGISTERED_RULES`. #9b registers the full
-// catalogue here and removes the hand-maintained const.
-//   (Toggle to a strictly-empty production slice: prefix this with `#[cfg(test)]`.)
-#[distributed_slice(REGISTERED_RULES)]
-static LINKME_SMOKE_RULE: &dyn Rule = &client_host_header::ClientHostHeader;
+/// All protocol-event rules, collected from the per-file
+/// `#[distributed_slice]` registrations and sorted by id for a
+/// deterministic dispatch order independent of link order.
+pub static PROTOCOL_RULES: LazyLock<Vec<&'static dyn ProtocolRule>> = LazyLock::new(|| {
+    let mut v: Vec<&'static dyn ProtocolRule> = REGISTERED_PROTOCOL_RULES.iter().copied().collect();
+    v.sort_by_key(|r| r.id());
+    v
+});
 
-pub const PROTOCOL_RULES: &[&dyn ProtocolRule] = &[
-    &server_quic_transport_parameters::ServerQuicTransportParameters,
-    &stateful_http3_goaway_semantics::StatefulHttp3GoawaySemantics,
-    &stateful_http3_max_push_id::StatefulHttp3MaxPushId,
-    &stateful_http3_settings_frame::StatefulHttp3SettingsFrame,
-    &stateful_websocket_frame_opcode_sequence::StatefulWebsocketFrameOpcodeSequence,
-];
-
-pub const RULES: &[&dyn Rule] = &[
-    &client_accept_encoding_present::ClientAcceptEncodingPresent,
-    &client_accept_ranges_on_partial_content::ClientAcceptRangesOnPartialContent,
-    &client_cache_respect::ClientCacheRespect,
-    &client_expect_header_valid::ClientExpectHeaderValid,
-    &client_host_header::ClientHostHeader,
-    &client_patch_method_content_type_match::ClientPatchMethodContentTypeMatch,
-    &client_prefer_header_and_preference_applied::ClientPreferHeaderAndPreferenceApplied,
-    &client_range_header_syntax_valid::ClientRangeHeaderSyntaxValid,
-    &client_request_version_method_validity::ClientRequestVersionMethodValidity,
-    &client_request_method_token_valid::ClientRequestMethodTokenValid,
-    &client_request_origin_header_present_for_cors::ClientRequestOriginHeaderPresentForCors,
-    &client_request_target_form_checks::ClientRequestTargetFormChecks,
-    &client_request_target_no_fragment::ClientRequestTargetNoFragment,
-    &client_request_uri_percent_encoding_valid::ClientRequestUriPercentEncodingValid,
-    &client_sec_websocket_headers_consistency::ClientSecWebsocketHeadersConsistency,
-    &client_user_agent_present::ClientUserAgentPresent,
-    &message_accept_and_content_type_negotiation::MessageAcceptAndContentTypeNegotiation,
-    &message_accept_encoding_parameter_validity::MessageAcceptEncodingParameterValidity,
-    &message_accept_header_media_type_syntax::MessageAcceptHeaderMediaTypeSyntax,
-    &message_accept_language_weight_validity::MessageAcceptLanguageWeightValidity,
-    &message_accept_ranges_and_206_consistency::MessageAcceptRangesAnd206Consistency,
-    &message_access_control_allow_credentials_when_origin::MessageAccessControlAllowCredentialsWhenOrigin,
-    &message_access_control_allow_origin_valid::MessageAccessControlAllowOriginValid,
-    &semantic_origin_matching_for_cors::SemanticOriginMatchingForCors,
-    &semantic_patch_partial_update::SemanticPatchPartialUpdate,
-    &semantic_post_creates_resource::SemanticPostCreatesResource,
-    &message_age_header_numeric::MessageAgeHeaderNumeric,
-    &message_allow_header_method_tokens::MessageAllowHeaderMethodTokens,
-    &message_auth_scheme_iana_registered::MessageAuthSchemeIanaRegistered,
-    &message_authorization_credentials_present::MessageAuthorizationCredentialsPresent,
-    &message_basic_auth_base64_validity::MessageBasicAuthBase64Validity,
-    &message_bearer_token_format_validity::MessageBearerTokenFormatValidity,
-    &message_cache_control_and_pragma_consistency::MessageCacheControlAndPragmaConsistency,
-    &message_cache_control_directive_validity::MessageCacheControlDirectiveValidity,
-    &message_cache_control_token_valid::MessageCacheControlTokenValid,
-    &message_caching_directive_interaction::MessageCachingDirectiveInteraction,
-    &message_charset_iana_registered::MessageCharsetIanaRegistered,
-    &message_compression_and_transfer_encoding_consistency::MessageCompressionAndTransferEncodingConsistency,
-    &message_conditional_headers_consistency::MessageConditionalHeadersConsistency,
-    &stateful_conditional_request_handling::StatefulConditionalRequestHandling,
-    &stateful_cookie_lifecycle::StatefulCookieLifecycle,
-    &semantic_cache_coherence::SemanticCacheCoherence,
-    &stateful_vary_header_cache_validity::StatefulVaryHeaderCacheValidity,
-    &stateful_cookie_same_site_enforcement::StatefulCookieSameSiteEnforcement,
-    &stateful_cookie_domain_matching::StatefulCookieDomainMatching,
-    &stateful_oauth2_code_flow::StatefulOauth2CodeFlow,
-    &stateful_range_request_and_caching::StatefulRangeRequestAndCaching,
-    &stateful_max_age_directive_validity::StatefulMaxAgeDirectiveValidity,
-    &stateful_immutable_cache_never_stale::StatefulImmutableCacheNeverStale,
-    &stateful_s_max_age_enforcement::StatefulSMaxAgeEnforcement,
-    &stateful_no_store_enforcement::StatefulNoStoreEnforcement,
-    &stateful_private_cache_visibility::StatefulPrivateCacheVisibility,
-    &stateful_must_revalidate_enforcement::StatefulMustRevalidateEnforcement,
-    &stateful_cache_validation_chain::StatefulCacheValidationChain,
-    &stateful_digest_auth_nonce_handling::StatefulDigestAuthNonceHandling,
-    &stateful_redirect_chain_validity::StatefulRedirectChainValidity,
-    &stateful_websocket_handshake_validity::StatefulWebsocketHandshakeValidity,
-    &stateful_101_switching_protocols::Stateful101SwitchingProtocols,
-    &stateful_103_early_hints_before_final::Stateful103EarlyHintsBeforeFinal,
-    &stateful_authentication_failure_loop::StatefulAuthenticationFailureLoop,
-    &stateful_no_cache_revalidation::StatefulNoCacheRevalidation,
-    &message_connection_header_tokens_valid::MessageConnectionHeaderTokensValid,
-    &message_connection_upgrade::MessageConnectionUpgrade,
-    &message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity,
-    &message_content_disposition_token_valid::MessageContentDispositionTokenValid,
-    &message_content_encoding_and_type_consistency::MessageContentEncodingAndTypeConsistency,
-    &message_content_encoding_iana_registered::MessageContentEncodingIanaRegistered,
-    &message_content_length_vs_transfer_encoding::MessageContentLengthVsTransferEncoding,
-    &message_content_length::MessageContentLength,
-    &message_content_location_and_uri_consistency::MessageContentLocationAndUriConsistency,
-    &message_content_md5_vs_digest_preference::MessageContentMd5VsDigestPreference,
-    &message_content_security_policy_and_frame_options_consistency::MessageContentSecurityPolicyAndFrameOptionsConsistency,
-    &message_content_transfer_encoding_valid::MessageContentTransferEncodingValid,
-    &message_content_type_iana_registered::MessageContentTypeIanaRegistered,
-    &message_content_type_well_formed::MessageContentTypeWellFormed,
-    &message_cookie_attribute_consistency::MessageCookieAttributeConsistency,
-    &message_cookie_domain_validity::MessageCookieDomainValidity,
-    &message_cookie_path_validity::MessageCookiePathValidity,
-    &message_cross_origin_embedder_policy_valid::MessageCrossOriginEmbedderPolicyValid,
-    &message_cross_origin_opener_policy_valid::MessageCrossOriginOpenerPolicyValid,
-    &message_cross_origin_resource_policy_valid::MessageCrossOriginResourcePolicyValid,
-    &message_date_and_time_headers_consistency::MessageDateAndTimeHeadersConsistency,
-    &message_sunset_and_deprecation_consistency::MessageSunsetAndDeprecationConsistency,
-    &message_digest_auth_validity::MessageDigestAuthValidity,
-    &message_digest_header_syntax::MessageDigestHeaderSyntax,
-    &message_early_data_header_safe_method::MessageEarlyDataHeaderSafeMethod,
-    &message_etag_syntax::MessageEtagSyntax,
-    &message_expires_and_cache_control_consistency::MessageExpiresAndCacheControlConsistency,
-    &message_extension_headers_registered::MessageExtensionHeadersRegistered,
-    &message_form_data_content_disposition_valid::MessageFormDataContentDispositionValid,
-    &message_forwarded_header_validity::MessageForwardedHeaderValidity,
-    &message_from_header_email_syntax::MessageFromHeaderEmailSyntax,
-    &message_header_field_names_token::MessageHeaderFieldNamesToken,
-    &message_http_version_syntax_valid::MessageHttpVersionSyntaxValid,
-    &message_http2_pseudo_headers_validity::MessageHttp2PseudoHeadersValidity,
-    &message_http3_host_authority_consistency::MessageHttp3HostAuthorityConsistency,
-    &message_http3_no_connection_header::MessageHttp3NoConnectionHeader,
-    &message_http3_pseudo_headers_validity::MessageHttp3PseudoHeadersValidity,
-    &message_if_match_etag_syntax::MessageIfMatchEtagSyntax,
-    &message_if_modified_since_date_format::MessageIfModifiedSinceDateFormat,
-    &message_if_none_match_etag_syntax::MessageIfNoneMatchEtagSyntax,
-    &message_if_unmodified_since_date_format::MessageIfUnmodifiedSinceDateFormat,
-    &message_language_tag_format_valid::MessageLanguageTagFormatValid,
-    &message_link_header_validity::MessageLinkHeaderValidity,
-    &message_max_forwards_numeric::MessageMaxForwardsNumeric,
-    &message_media_type_suffix_validity::MessageMediaTypeSuffixValidity,
-    &message_multipart_boundary_syntax::MessageMultipartBoundarySyntax,
-    &message_multipart_content_type_and_body_consistency::MessageMultipartContentTypeAndBodyConsistency,
-    &message_origin_isolated_header_validity::MessageOriginIsolatedHeaderValidity,
-    &message_permissions_policy_directives_valid::MessagePermissionsPolicyDirectivesValid,
-    &message_pragma_token_valid::MessagePragmaTokenValid,
-    &message_prefer_header_valid::MessagePreferHeaderValid,
-    &message_preference_applied_header_valid::MessagePreferenceAppliedHeaderValid,
-    &message_priority_header_syntax::MessagePriorityHeaderSyntax,
-    &message_problem_details_structure::MessageProblemDetailsStructure,
-    &message_range_and_content_range_consistency::MessageRangeAndContentRangeConsistency,
-    &message_referer_uri_valid::MessageRefererUriValid,
-    &message_refresh_header_syntax_valid::MessageRefreshHeaderSyntaxValid,
-    &message_request_body_length_accuracy::MessageRequestBodyLengthAccuracy,
-    &message_response_body_length_accuracy::MessageResponseBodyLengthAccuracy,
-    &message_retry_after_date_or_delay::MessageRetryAfterDateOrDelay,
-    &message_sec_fetch_dest_value_valid::MessageSecFetchDestValueValid,
-    &message_sec_fetch_mode_value_valid::MessageSecFetchModeValueValid,
-    &message_sec_fetch_site_value_valid::MessageSecFetchSiteValueValid,
-    &message_sec_fetch_user_value_valid::MessageSecFetchUserValueValid,
-    &message_server_header_product_valid::MessageServerHeaderProductValid,
-    &message_strict_transport_security_validity::MessageStrictTransportSecurityValidity,
-    &message_structured_headers_validity::MessageStructuredHeadersValidity,
-    &message_te_header_constraints::MessageTeHeaderConstraints,
-    &message_timing_allow_origin_validity::MessageTimingAllowOriginValidity,
-    &message_trailer_fields_validity::MessageTrailerFieldsValidity,
-    &message_trailer_headers_valid::MessageTrailerHeadersValid,
-    &message_transfer_coding_iana_registered::MessageTransferCodingIanaRegistered,
-    &message_transfer_encoding_chunked_final::MessageTransferEncodingChunkedFinal,
-    &message_user_agent_token_valid::MessageUserAgentTokenValid,
-    &message_via_header_syntax_valid::MessageViaHeaderSyntaxValid,
-    &message_warning_header_syntax::MessageWarningHeaderSyntax,
-    &message_well_known_uri_format::MessageWellKnownUriFormat,
-    &message_www_authenticate_challenge_syntax::MessageWwwAuthenticateChallengeSyntax,
-    &semantic_status_code_semantics::SemanticStatusCodeSemantics,
-    &semantic_head_response_headers_match_get::SemanticHeadResponseHeadersMatchGet,
-    &semantic_options_method_capabilities::SemanticOptionsMethodCapabilities,
-    &semantic_trace_method_echo::SemanticTraceMethodEcho,
-    &message_x_forwarded_consistency::MessageXForwardedConsistency,
-    &server_200_vs_204_body_consistency::Server200Vs204BodyConsistency,
-    &server_3xx_vs_request_method::Server3xxVsRequestMethod,
-    &server_accept_ranges_values_valid::ServerAcceptRangesValuesValid,
-    &server_alt_svc_h3_advertisement_valid::ServerAltSvcH3AdvertisementValid,
-    &server_alt_svc_header_syntax::ServerAltSvcHeaderSyntax,
-    &server_alt_svc_protocol_iana_registered::ServerAltSvcProtocolIanaRegistered,
-    &server_authentication_challenge_validity::ServerAuthenticationChallengeValidity,
-    &server_cache_control_present::ServerCacheControlPresent,
-    &server_charset_specification::ServerCharsetSpecification,
-    &server_clear_site_data::ServerClearSiteData,
-    &server_content_security_policy_validity::ServerContentSecurityPolicyValidity,
-    &server_content_type_present::ServerContentTypePresent,
-    &server_deprecation_header_syntax::ServerDeprecationHeaderSyntax,
-    &server_etag_or_last_modified::ServerEtagOrLastModified,
-    &server_http3_status_code_validity::ServerHttp3StatusCodeValidity,
-    &server_keep_alive_timeout_reasonable::ServerKeepAliveTimeoutReasonable,
-    &server_last_modified_rfc1123_format::ServerLastModifiedRfc1123Format,
-    &server_location_header_uri_valid::ServerLocationHeaderUriValid,
-    &server_must_revalidate_and_immutable_mismatch::ServerMustRevalidateAndImmutableMismatch,
-    &server_no_body_for_1xx_204_304::ServerNoBodyFor1xx204304,
-    &server_patch_accept_patch_header::ServerPatchAcceptPatchHeader,
-    &server_priority_and_cacheability_consistency::ServerPriorityAndCacheabilityConsistency,
-    &server_problem_details_content_type::ServerProblemDetailsContentType,
-    &server_redirect_status_and_location_validity::ServerRedirectStatusAndLocationValidity,
-    &server_response_405_allow::ServerResponse405Allow,
-    &server_response_location_on_redirect::ServerResponseLocationOnRedirect,
-    &server_retry_after_status_validity::ServerRetryAfterStatusValidity,
-    &server_server_timing_header_syntax::ServerServerTimingHeaderSyntax,
-    &server_status_and_caching_semantics::ServerStatusAndCachingSemantics,
-    &server_status_code_valid_range::ServerStatusCodeValidRange,
-    &server_vary_and_cache_consistency::ServerVaryAndCacheConsistency,
-    &server_vary_header_valid::ServerVaryHeaderValid,
-    &server_x_content_type_options::ServerXContentTypeOptions,
-    &server_x_frame_options_value_valid::ServerXFrameOptionsValueValid,
-    &server_x_xss_protection_value_valid::ServerXXssProtectionValueValid,
-];
+/// All transaction rules, collected from the per-file `#[distributed_slice]`
+/// registrations (see `REGISTERED_RULES`) and sorted by id for a
+/// deterministic dispatch order independent of link order.
+pub static RULES: LazyLock<Vec<&'static dyn Rule>> = LazyLock::new(|| {
+    let mut v: Vec<&'static dyn Rule> = REGISTERED_RULES.iter().copied().collect();
+    v.sort_by_key(|r| r.id());
+    v
+});
 
 /// Rules that read cross-transaction history, each paired with the state query
 /// that builds the history it needs.
@@ -758,7 +398,7 @@ pub fn query_type_for(rule_id: &str) -> Option<QueryType> {
 
 /// `RULES` filtered to those whose scope allows execution on a request-only
 /// transaction (`Client` and `Both`). Built once on first access and preserves
-/// the source order of `RULES`, so dispatch order is stable across the
+/// the (id-sorted) order of `RULES`, so dispatch order is stable across the
 /// has-response / no-response cases.
 ///
 /// Implementation detail of [`rules_for_scope`]; not part of the public API.
@@ -773,10 +413,10 @@ pub(crate) static REQUEST_ONLY_RULES: LazyLock<Vec<&'static dyn Rule>> = LazyLoc
 /// Returns the rule slice the engine should iterate for a transaction with
 /// the given response presence. `Server` rules are excluded when there is no
 /// response; `Client` and `Both` rules run on every transaction. The returned
-/// slice preserves the source order of `RULES`.
+/// slice preserves the (id-sorted) order of `RULES`.
 pub fn rules_for_scope(has_response: bool) -> &'static [&'static dyn Rule] {
     if has_response {
-        RULES
+        RULES.as_slice()
     } else {
         &REQUEST_ONLY_RULES
     }
@@ -788,28 +428,81 @@ mod tests {
     use crate::test_helpers::{enable_rule, enable_rule_with_paths};
 
     #[test]
-    fn linkme_registers_and_links() {
-        // Proves the distributed_slice symbol is emitted and collected on this
-        // platform; a linkme/linker failure turns into a hard test failure here.
+    fn linkme_collects_full_catalogue() {
+        // Every rule self-registers via `distributed_slice`; a linkme/linker
+        // failure on this platform would silently drop registrations, which
+        // this test turns into a hard failure.
         assert!(
-            REGISTERED_RULES
-                .iter()
-                .any(|r| r.id() == "client_host_header"),
-            "linkme distributed_slice did not collect the smoke registration",
+            !REGISTERED_RULES.is_empty(),
+            "no transaction rules were collected by linkme",
         );
-        // Second slice must link and be readable (empty for now).
-        assert_eq!(REGISTERED_PROTOCOL_RULES.iter().count(), 0);
+        assert!(
+            !REGISTERED_PROTOCOL_RULES.is_empty(),
+            "no protocol rules were collected by linkme",
+        );
+        // The sorted views must contain exactly what was registered.
+        assert_eq!(RULES.len(), REGISTERED_RULES.len());
+        assert_eq!(PROTOCOL_RULES.len(), REGISTERED_PROTOCOL_RULES.len());
+        assert!(RULES.iter().any(|r| r.id() == "client_host_header"));
+        assert!(PROTOCOL_RULES
+            .iter()
+            .any(|r| r.id() == "server_quic_transport_parameters"));
+    }
+
+    #[test]
+    fn rules_and_protocol_rules_sorted_by_id() {
+        // Dispatch order must be deterministic regardless of link order.
+        let ids: Vec<&str> = RULES.iter().map(|r| r.id()).collect();
+        let mut sorted = ids.clone();
+        sorted.sort_unstable();
+        assert_eq!(ids, sorted, "RULES must be sorted by id");
+
+        let pids: Vec<&str> = PROTOCOL_RULES.iter().map(|r| r.id()).collect();
+        let mut psorted = pids.clone();
+        psorted.sort_unstable();
+        assert_eq!(pids, psorted, "PROTOCOL_RULES must be sorted by id");
+    }
+
+    #[test]
+    fn every_rule_file_is_registered() {
+        // Deleting the hand-maintained `RULES` const removed the single place
+        // that enumerated every rule. linkme self-registration has no
+        // compile-time guarantee that a rule file actually registers: a file
+        // that exists but forgets its `REGISTRATION` static — or a stray
+        // non-rule `.rs` dropped into `src/rules/` — would be silently excluded
+        // from (or unaccounted for in) the catalogue. This restores that
+        // safety net: every `src/rules/*.rs` file must self-register exactly
+        // one rule, so the file count equals the collected catalogue size.
+        let file_count = std::fs::read_dir("src/rules")
+            .expect("cannot read src/rules")
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                let p = e.path();
+                p.extension().and_then(|x| x.to_str()) == Some("rs")
+                    && p.file_stem().and_then(|s| s.to_str()) != Some("mod")
+            })
+            .count();
+        assert_eq!(
+            RULES.len() + PROTOCOL_RULES.len(),
+            file_count,
+            "every src/rules/*.rs file must self-register exactly one rule \
+             (catalogue has {} transaction + {} protocol rules, but {} rule \
+             files exist) — a file is unregistered or a non-rule file is present",
+            RULES.len(),
+            PROTOCOL_RULES.len(),
+            file_count,
+        );
     }
 
     #[test]
     fn rule_ids_unique_and_non_empty() {
         let mut ids = std::collections::HashSet::new();
-        for rule in RULES {
+        for rule in RULES.iter() {
             let id = rule.id();
             assert!(!id.is_empty(), "Rule id should not be empty");
             assert!(ids.insert(id), "Duplicate rule id found: {}", id);
         }
-        for rule in PROTOCOL_RULES {
+        for rule in PROTOCOL_RULES.iter() {
             let id = rule.id();
             assert!(!id.is_empty(), "ProtocolRule id should not be empty");
             assert!(ids.insert(id), "Duplicate rule id found: {}", id);
@@ -927,7 +620,7 @@ mod tests {
     fn config_example_includes_all_rules() -> anyhow::Result<()> {
         let s = std::fs::read_to_string("config_example.toml")?;
 
-        for rule in RULES {
+        for rule in RULES.iter() {
             let id = rule.id();
             let marker = format!("[rules.{}]", id);
             assert!(
@@ -936,7 +629,7 @@ mod tests {
                 id
             );
         }
-        for rule in PROTOCOL_RULES {
+        for rule in PROTOCOL_RULES.iter() {
             let id = rule.id();
             let marker = format!("[rules.{}]", id);
             assert!(

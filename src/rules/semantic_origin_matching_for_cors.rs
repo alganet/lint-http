@@ -136,6 +136,10 @@ impl Rule for SemanticOriginMatchingForCors {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &SemanticOriginMatchingForCors;
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -102,6 +102,10 @@ impl Rule for SemanticCacheCoherence {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &SemanticCacheCoherence;
+
 #[cfg(test)]
 mod tests {
     use super::*;

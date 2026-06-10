@@ -147,6 +147,10 @@ impl Rule for MessageContentTypeIanaRegistered {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageContentTypeIanaRegistered;
+
 #[cfg(test)]
 mod tests {
     use super::*;

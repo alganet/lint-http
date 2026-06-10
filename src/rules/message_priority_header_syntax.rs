@@ -208,6 +208,10 @@ fn is_valid_token_like(v: &str) -> bool {
     true
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessagePriorityHeaderSyntax;
+
 #[cfg(test)]
 mod tests {
     use super::*;

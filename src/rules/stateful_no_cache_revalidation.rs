@@ -108,6 +108,10 @@ fn header_has_no_cache(headers: &hyper::HeaderMap) -> bool {
     false
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &StatefulNoCacheRevalidation;
+
 #[cfg(test)]
 mod tests {
     use super::*;

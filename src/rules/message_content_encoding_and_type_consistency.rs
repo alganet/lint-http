@@ -123,6 +123,10 @@ impl Rule for MessageContentEncodingAndTypeConsistency {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageContentEncodingAndTypeConsistency;
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -81,6 +81,10 @@ impl Rule for ServerMustRevalidateAndImmutableMismatch {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &ServerMustRevalidateAndImmutableMismatch;
+
 #[cfg(test)]
 mod tests {
     use super::*;

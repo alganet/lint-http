@@ -226,6 +226,10 @@ fn is_valid_feature_identifier(s: &str) -> bool {
     s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessagePermissionsPolicyDirectivesValid;
+
 #[cfg(test)]
 mod tests {
     use super::*;

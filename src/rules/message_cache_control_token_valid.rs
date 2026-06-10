@@ -129,6 +129,10 @@ fn check_cache_control_value(s: &str) -> Option<String> {
     None
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageCacheControlTokenValid;
+
 #[cfg(test)]
 mod tests {
     use super::*;

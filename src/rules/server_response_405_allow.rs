@@ -36,6 +36,10 @@ impl Rule for ServerResponse405Allow {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &ServerResponse405Allow;
+
 #[cfg(test)]
 mod tests {
     use super::*;

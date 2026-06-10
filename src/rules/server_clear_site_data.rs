@@ -170,6 +170,10 @@ fn extract_path_from_resource(resource: &str) -> String {
         .to_string()
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &ServerClearSiteData;
+
 #[cfg(test)]
 mod tests {
     use super::*;

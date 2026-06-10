@@ -241,6 +241,11 @@ fn extract_origin_from_uri(uri: &str) -> Option<String> {
     None
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule =
+    &MessageContentSecurityPolicyAndFrameOptionsConsistency;
+
 #[cfg(test)]
 mod tests {
     use super::*;

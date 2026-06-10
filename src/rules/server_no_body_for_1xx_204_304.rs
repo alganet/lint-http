@@ -69,6 +69,10 @@ impl Rule for ServerNoBodyFor1xx204304 {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &ServerNoBodyFor1xx204304;
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -78,6 +78,10 @@ impl ProtocolRule for StatefulHttp3SettingsFrame {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_PROTOCOL_RULES)]
+static REGISTRATION: &dyn crate::rules::ProtocolRule = &StatefulHttp3SettingsFrame;
+
 #[cfg(test)]
 mod tests {
     use super::*;

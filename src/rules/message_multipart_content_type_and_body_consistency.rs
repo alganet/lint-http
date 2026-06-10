@@ -105,6 +105,10 @@ fn haystack_contains(hay: &[u8], needle: &[u8]) -> bool {
     hay.windows(needle.len()).any(|w| w == needle)
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageMultipartContentTypeAndBodyConsistency;
+
 #[cfg(test)]
 mod tests {
     use super::*;
