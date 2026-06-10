@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::queries::QueryType;
+use linkme::distributed_slice;
 use std::sync::LazyLock;
 
 /// Standard configuration for rules
@@ -411,6 +412,28 @@ pub trait ProtocolRule: Send + Sync {
     ) -> Option<Violation>;
 }
 
+/// Auto-registered HTTP rules collected via `linkme::distributed_slice`.
+///
+/// Migration target for self-registering rules (#9b). The engine does **not**
+/// consult this slice yet — dispatch still iterates the hand-maintained
+/// [`RULES`] const. It exists to wire the `linkme` infrastructure and prove
+/// cross-platform linking; see the `linkme_registers_and_links` test below.
+#[distributed_slice]
+pub static REGISTERED_RULES: [&'static dyn Rule] = [..];
+
+/// Auto-registered protocol rules. Migration target for [`PROTOCOL_RULES`];
+/// declared but not consulted by the engine in this commit.
+#[distributed_slice]
+pub static REGISTERED_PROTOCOL_RULES: [&'static dyn ProtocolRule] = [..];
+
+// Single registration that proves `linkme` distributed_slice collection links
+// on every CI OS (Linux/macOS/Windows-MSVC). Not consulted by dispatch — the
+// engine reads `RULES`, not `REGISTERED_RULES`. #9b registers the full
+// catalogue here and removes the hand-maintained const.
+//   (Toggle to a strictly-empty production slice: prefix this with `#[cfg(test)]`.)
+#[distributed_slice(REGISTERED_RULES)]
+static LINKME_SMOKE_RULE: &dyn Rule = &client_host_header::ClientHostHeader;
+
 pub const PROTOCOL_RULES: &[&dyn ProtocolRule] = &[
     &server_quic_transport_parameters::ServerQuicTransportParameters,
     &stateful_http3_goaway_semantics::StatefulHttp3GoawaySemantics,
@@ -763,6 +786,20 @@ pub fn rules_for_scope(has_response: bool) -> &'static [&'static dyn Rule] {
 mod tests {
     use super::*;
     use crate::test_helpers::{enable_rule, enable_rule_with_paths};
+
+    #[test]
+    fn linkme_registers_and_links() {
+        // Proves the distributed_slice symbol is emitted and collected on this
+        // platform; a linkme/linker failure turns into a hard test failure here.
+        assert!(
+            REGISTERED_RULES
+                .iter()
+                .any(|r| r.id() == "client_host_header"),
+            "linkme distributed_slice did not collect the smoke registration",
+        );
+        // Second slice must link and be readable (empty for now).
+        assert_eq!(REGISTERED_PROTOCOL_RULES.iter().count(), 0);
+    }
 
     #[test]
     fn rule_ids_unique_and_non_empty() {
