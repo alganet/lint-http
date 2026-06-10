@@ -62,8 +62,6 @@ fn parse_allowed_config(
 pub struct ServerAltSvcProtocolIanaRegistered;
 
 impl Rule for ServerAltSvcProtocolIanaRegistered {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_alt_svc_protocol_iana_registered"
     }
@@ -72,20 +70,16 @@ impl Rule for ServerAltSvcProtocolIanaRegistered {
         crate::rules::RuleScope::Server
     }
 
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<std::sync::Arc<dyn std::any::Any + Send + Sync>> {
-        let parsed = parse_allowed_config(config, self.id())?;
-        Ok(std::sync::Arc::new(parsed))
+    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
+        parse_allowed_config(config, self.id())?;
+        Ok(())
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = parse_allowed_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
@@ -199,11 +193,10 @@ mod tests {
             None => crate::test_helpers::make_test_transaction_with_response(200, &[]),
         };
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header={:?}", header);
@@ -228,11 +221,10 @@ mod tests {
                 ("alt-svc", "xproto=example.com:443"),
             ],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v
@@ -249,11 +241,10 @@ mod tests {
             200,
             &[("alt-svc", "h2example.com:443")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         // syntax rule will report missing '='; this rule should be conservative and not panic or report
         assert!(v.is_none());
@@ -278,11 +269,10 @@ mod tests {
         });
 
         let cfg = make_cfg();
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -309,7 +299,7 @@ mod tests {
             }),
         );
 
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 

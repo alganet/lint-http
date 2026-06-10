@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ServerResponse405Allow;
 
 impl Rule for ServerResponse405Allow {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_response_405_allow"
     }
@@ -18,12 +16,11 @@ impl Rule for ServerResponse405Allow {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         if let Some(resp) = &tx.response {
@@ -63,11 +60,10 @@ mod tests {
             None => vec![],
         };
         let tx = make_test_transaction_with_response(status, &header_pairs);
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {

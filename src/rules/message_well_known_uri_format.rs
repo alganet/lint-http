@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageWellKnownUriFormat;
 
 impl Rule for MessageWellKnownUriFormat {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_well_known_uri_format"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageWellKnownUriFormat {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let path = crate::helpers::uri::extract_path_from_request_target(&tx.request.uri)?;
@@ -72,20 +69,18 @@ mod tests {
             "message_well_known_uri_format",
             "warn",
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
 
         tx = make_tx_with_uri("https://example.com/.well-known/security.txt");
-        let v2 = rule.check(
+        let v2 = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_none());
     }
@@ -100,11 +95,10 @@ mod tests {
             "message_well_known_uri_format",
             "warn",
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -119,11 +113,10 @@ mod tests {
             "message_well_known_uri_format",
             "warn",
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -138,11 +131,10 @@ mod tests {
             "message_well_known_uri_format",
             "warn",
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -155,11 +147,10 @@ mod tests {
             "message_well_known_uri_format",
             "warn",
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -176,7 +167,7 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_well_known_uri_format",
         ]);
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

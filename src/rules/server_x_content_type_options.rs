@@ -60,8 +60,6 @@ fn parse_x_content_type_options_config(
 }
 
 impl Rule for ServerXContentTypeOptions {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_x_content_type_options"
     }
@@ -70,20 +68,16 @@ impl Rule for ServerXContentTypeOptions {
         crate::rules::RuleScope::Server
     }
 
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<std::sync::Arc<dyn std::any::Any + Send + Sync>> {
-        let parsed = parse_x_content_type_options_config(config, self.id())?;
-        Ok(std::sync::Arc::new(parsed))
+    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
+        parse_x_content_type_options_config(config, self.id())?;
+        Ok(())
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = parse_x_content_type_options_config(cfg, self.id()).ok()?;
         let Some(resp) = &tx.response else {
@@ -166,11 +160,10 @@ mod tests {
             trailers: None,
         });
 
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -266,17 +259,15 @@ mod tests {
             _ => panic!("unknown scenario"),
         }
 
-        let res = rule.validate_and_box(&cfg);
+        let res = rule.validate(&cfg);
         if expect_error {
             assert!(res.is_err());
             if let Some(sub) = expected_substring {
                 assert!(res.unwrap_err().to_string().contains(sub));
             }
         } else {
-            let boxed = res?;
-            let parsed = boxed
-                .downcast::<super::XContentTypeOptionsConfig>()
-                .unwrap();
+            res?;
+            let parsed = super::parse_x_content_type_options_config(&cfg, rule.id())?;
             assert_eq!(parsed.content_types, vec!["text/html".to_string()]);
         }
         Ok(())
@@ -316,11 +307,10 @@ mod tests {
             trailers: None,
         });
 
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_some());
         Ok(())
@@ -345,11 +335,10 @@ mod tests {
             "server_x_content_type_options".to_string(),
             toml::Value::Table(table),
         );
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_none());
     }

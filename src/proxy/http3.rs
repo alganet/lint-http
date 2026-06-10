@@ -222,12 +222,8 @@ fn emit_h3_protocol_event(
         connection_id,
         kind,
     };
-    let violations = crate::lint_protocol::lint_protocol_event(
-        &pe,
-        &shared.cfg,
-        &shared.protocol_event_store,
-        &shared.engine,
-    );
+    let violations =
+        crate::lint_protocol::lint_protocol_event(&pe, &shared.cfg, &shared.protocol_event_store);
     shared.protocol_event_store.record_event(&pe);
     for v in &violations {
         warn!(
@@ -462,7 +458,7 @@ async fn handle_h3_request(
     tx.connection_id = Some(conn_metadata.id);
     tx.sequence_number = Some(stream_id as u32);
 
-    let violations = lint::lint_transaction(&tx, &shared.cfg, &shared.state, &shared.engine);
+    let violations = lint::lint_transaction(&tx, &shared.cfg, &shared.state);
     tx.violations = violations;
 
     shared.state.record_transaction(&tx);
@@ -515,11 +511,10 @@ mod tests {
             .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
             .to_string();
         let cw = CaptureWriter::new(p.clone(), false).await?;
-        let engine = StdArc::new(crate::rules::RuleConfigEngine::new());
 
         // Bind to an ephemeral port
         let listen: SocketAddr = "127.0.0.1:0".parse()?;
-        let result = run_proxy_with_limit(listen, cw, StdArc::new(cfg), engine, Some(0)).await;
+        let result = run_proxy_with_limit(listen, cw, StdArc::new(cfg), Some(0)).await;
 
         // Should fail because h3_listen requires TLS
         assert!(result.is_err());
@@ -541,7 +536,7 @@ mod tests {
             .await;
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, None).await?;
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
 
         let req = make_request_with_headers("GET", format!("{}/quic-test", mock.uri()), None)?;
 

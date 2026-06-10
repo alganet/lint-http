@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageAcceptHeaderMediaTypeSyntax;
 
 impl Rule for MessageAcceptHeaderMediaTypeSyntax {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_accept_header_media_type_syntax"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Validate a single Accept-like header value (media-range list)
@@ -241,11 +238,10 @@ mod tests {
             }
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -267,7 +263,7 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_accept_header_media_type_syntax",
         ]);
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 
@@ -282,11 +278,10 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("accept", "text/html; q=1.0000")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())

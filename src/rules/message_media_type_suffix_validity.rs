@@ -59,8 +59,6 @@ fn parse_allowed_config(
 }
 
 impl Rule for MessageMediaTypeSuffixValidity {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_media_type_suffix_validity"
     }
@@ -69,20 +67,16 @@ impl Rule for MessageMediaTypeSuffixValidity {
         crate::rules::RuleScope::Both
     }
 
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<std::sync::Arc<dyn std::any::Any + Send + Sync>> {
-        let parsed = parse_allowed_config(config, self.id())?;
-        Ok(std::sync::Arc::new(parsed))
+    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
+        parse_allowed_config(config, self.id())?;
+        Ok(())
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = parse_allowed_config(cfg, self.id()).ok()?;
         let check_media = |hdr_name: &str, val: &str| -> Option<Violation> {
@@ -193,11 +187,10 @@ mod tests {
             &[("content-type", "application/ld+json")],
         );
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -209,11 +202,10 @@ mod tests {
             &[("content-type", "application/vnd.example+unknown")],
         );
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("+unknown"));
@@ -227,11 +219,10 @@ mod tests {
             "application/vnd.foo+xml; q=0.8, application/bar+nope",
         )]);
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("+nope"));
@@ -244,11 +235,10 @@ mod tests {
             &[("content-type", "application/foo+")],
         );
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("empty structured suffix"));
@@ -261,11 +251,10 @@ mod tests {
             &[("content-type", "application/ld+JSON")],
         );
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -277,11 +266,10 @@ mod tests {
             &[("content-type", "text")],
         );
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -294,11 +282,10 @@ mod tests {
             "application/vnd.foo+unknown",
         )]);
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("+unknown"));
@@ -312,11 +299,10 @@ mod tests {
             "application/example+JSON",
         )]);
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -329,11 +315,10 @@ mod tests {
             "application/vnd.foo+JSON; q=0.8, text/html",
         )]);
         let rule = MessageMediaTypeSuffixValidity;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -421,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_and_box_parses_config() -> anyhow::Result<()> {
+    fn validate_parses_config() -> anyhow::Result<()> {
         let rule = MessageMediaTypeSuffixValidity;
         let mut full_cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_media_type_suffix_validity",
@@ -440,10 +425,7 @@ mod tests {
             }),
         );
 
-        let boxed = rule.validate_and_box(&full_cfg)?;
-        let arc = boxed
-            .downcast::<MessageMediaTypeSuffixConfig>()
-            .map_err(|_| anyhow::anyhow!("downcast failed"))?;
+        let arc = parse_allowed_config(&full_cfg, rule.id())?;
         assert!(arc.allowed.contains(&"json".to_string()));
         Ok(())
     }
@@ -460,7 +442,7 @@ mod tests {
                 toml::Value::Array(vec![toml::Value::String("json".into())]),
             );
         }
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

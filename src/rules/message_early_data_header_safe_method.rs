@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageEarlyDataHeaderSafeMethod;
 
 impl Rule for MessageEarlyDataHeaderSafeMethod {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_early_data_header_safe_method"
     }
@@ -19,12 +17,11 @@ impl Rule for MessageEarlyDataHeaderSafeMethod {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Early-Data is defined as a request header (RFC 8470). If present and equal to '1',
@@ -88,11 +85,10 @@ mod tests {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("early-data", h)]);
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -124,10 +120,7 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_early_data_header_safe_method",
         ]);
-        let boxed = rule.validate_and_box(&cfg)?;
-        let _arc = boxed
-            .downcast::<crate::rules::RuleConfig>()
-            .map_err(|_| anyhow::anyhow!("downcast failed"))?;
+        rule.validate(&cfg)?;
         Ok(())
     }
 
@@ -146,11 +139,10 @@ mod tests {
         hm.append("early-data", "1".parse::<HeaderValue>().unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -170,11 +162,10 @@ mod tests {
         hm.append("early-data", bad);
         tx.request.headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

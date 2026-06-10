@@ -32,8 +32,6 @@ use crate::rules::Rule;
 pub struct StatefulNoStoreEnforcement;
 
 impl Rule for StatefulNoStoreEnforcement {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "stateful_no_store_enforcement"
     }
@@ -43,12 +41,11 @@ impl Rule for StatefulNoStoreEnforcement {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Build maps of validators to a boolean indicating whether the most
@@ -240,13 +237,12 @@ mod tests {
         let rule = StatefulNoStoreEnforcement;
         let tx = crate::test_helpers::make_test_transaction();
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_no_store_enforcement"
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -261,13 +257,12 @@ mod tests {
         tx.request.uri = "/resource".to_string();
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_no_store_enforcement"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -283,13 +278,12 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_no_store_enforcement",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("ETag"));
@@ -309,13 +303,12 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_no_store_enforcement"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_some());
     }
@@ -337,13 +330,12 @@ mod tests {
             "Wed, 21 Oct 2015 07:28:00 GMT",
         )]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_no_store_enforcement",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Last-Modified"));
@@ -361,13 +353,12 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"b\"")]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_no_store_enforcement"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -393,13 +384,12 @@ mod tests {
         let history =
             crate::transaction_history::TransactionHistory::new(vec![prev2.clone(), prev1.clone()]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_no_store_enforcement"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -428,13 +418,12 @@ mod tests {
         let history =
             crate::transaction_history::TransactionHistory::new(vec![prev2.clone(), prev1.clone()]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_no_store_enforcement"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -465,13 +454,12 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"x\", \"a\"")]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_no_store_enforcement"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_some());
     }
@@ -490,13 +478,12 @@ mod tests {
         tx.request.headers = hm;
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_no_store_enforcement"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_some());
     }
@@ -521,13 +508,12 @@ mod tests {
         )]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_no_store_enforcement"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_some());
     }
@@ -536,6 +522,6 @@ mod tests {
     fn validate_rules_with_valid_config() {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "stateful_no_store_enforcement");
-        let _engine = crate::rules::validate_rules(&cfg).unwrap();
+        crate::rules::validate_rules(&cfg).unwrap();
     }
 }

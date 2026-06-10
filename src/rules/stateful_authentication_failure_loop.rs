@@ -10,8 +10,6 @@ use crate::rules::Rule;
 pub struct StatefulAuthenticationFailureLoop;
 
 impl Rule for StatefulAuthenticationFailureLoop {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "stateful_authentication_failure_loop"
     }
@@ -20,12 +18,11 @@ impl Rule for StatefulAuthenticationFailureLoop {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
@@ -85,13 +82,12 @@ mod tests {
         // supply history newest-first; tx3 is most recent
         let history = crate::transaction_history::TransactionHistory::new(vec![tx3, tx2, tx1]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_authentication_failure_loop",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("4 consecutive"));
@@ -111,13 +107,12 @@ mod tests {
         // put newest transaction first (tx4) to satisfy TransactionHistory
         let history = crate::transaction_history::TransactionHistory::new(vec![tx4, tx3, tx2, tx1]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_authentication_failure_loop",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         // Only 2 consecutive 401s before the 200, so no loop
         assert!(v.is_none());
@@ -135,13 +130,12 @@ mod tests {
         // newest-first history
         let history = crate::transaction_history::TransactionHistory::new(vec![tx3, tx2, tx1]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_authentication_failure_loop",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -150,6 +144,6 @@ mod tests {
     fn validate_rules_with_valid_config() {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "stateful_authentication_failure_loop");
-        let _engine = crate::rules::validate_rules(&cfg).unwrap();
+        crate::rules::validate_rules(&cfg).unwrap();
     }
 }

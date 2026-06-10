@@ -171,8 +171,6 @@ fn check_warning_value_str(val: &str) -> Option<String> {
 pub struct MessageWarningHeaderSyntax;
 
 impl Rule for MessageWarningHeaderSyntax {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_warning_header_syntax"
     }
@@ -181,12 +179,11 @@ impl Rule for MessageWarningHeaderSyntax {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check response headers
@@ -263,11 +260,10 @@ mod tests {
             make_test_transaction()
         };
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header {:?}", header);
@@ -292,11 +288,10 @@ mod tests {
             .unwrap()
             .headers
             .append("Warning", HeaderValue::from_bytes(&[0xff]).unwrap());
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-UTF8"));
@@ -315,11 +310,10 @@ mod tests {
                 .parse::<hyper::header::HeaderValue>()
                 .unwrap(),
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
 
@@ -329,11 +323,10 @@ mod tests {
             "Warning",
             "110-\"bad\"".parse::<hyper::header::HeaderValue>().unwrap(),
         );
-        let v2 = rule.check(
+        let v2 = rule.check_transaction(
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_some());
         assert!(v2
@@ -371,11 +364,10 @@ mod tests {
         let rule = MessageWarningHeaderSyntax;
 
         let tx = make_test_transaction_with_response(200, &[("Warning", header)]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(expect_msg) = expect {
@@ -392,11 +384,10 @@ mod tests {
             .headers
             .insert("Warning", HeaderValue::from_static(""));
         let rule = MessageWarningHeaderSyntax;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -409,11 +400,10 @@ mod tests {
             &[("Warning", "214 host \"ok\", ,214 host \"bad\"")],
         );
         let rule = MessageWarningHeaderSyntax;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("empty member"));
@@ -430,11 +420,10 @@ mod tests {
             )],
         );
         let rule = MessageWarningHeaderSyntax;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v
@@ -447,7 +436,7 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_warning_header_syntax",
         ]);
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 
@@ -470,11 +459,10 @@ mod tests {
             .unwrap()
             .headers
             .append("Warning", HeaderValue::from_static("110 - \"Stale\""));
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -485,11 +473,10 @@ mod tests {
         let rule = MessageWarningHeaderSyntax;
 
         let tx = make_test_transaction_with_response(200, &[("Warning", "110-\"bad\"")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Missing space after warn-code"));
@@ -509,11 +496,10 @@ mod tests {
             "Warning",
             HeaderValue::from_bytes(b"214 host \"abc\\\"").unwrap(),
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;

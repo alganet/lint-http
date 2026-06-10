@@ -12,14 +12,12 @@ use crate::config::Config;
 use crate::lint::Violation;
 use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory};
 use crate::protocol_event_store::ProtocolEventStore;
-use crate::rules::RuleConfigEngine;
 
 /// Lint a single protocol event against all enabled protocol rules.
 pub fn lint_protocol_event(
     event: &ProtocolEvent,
     cfg: &Config,
     event_store: &ProtocolEventStore,
-    engine: &RuleConfigEngine,
 ) -> Vec<Violation> {
     let mut out = Vec::new();
 
@@ -33,7 +31,7 @@ pub fn lint_protocol_event(
                 ProtocolEventHistory::new(entries)
             });
 
-            out.extend(rule.check_event_erased(event, history, cfg, engine));
+            out.extend(rule.check_event(event, history, cfg));
         }
     }
 
@@ -50,14 +48,13 @@ mod tests {
     fn lint_protocol_event_returns_empty_for_no_enabled_rules() {
         let cfg = Config::default();
         let store = ProtocolEventStore::new(300, 100);
-        let engine = RuleConfigEngine::new();
         let event = ProtocolEvent {
             timestamp: Utc::now(),
             connection_id: Uuid::new_v4(),
             kind: crate::protocol_event::ProtocolEventKind::H3GoawayReceived { stream_id: None },
         };
 
-        let violations = lint_protocol_event(&event, &cfg, &store, &engine);
+        let violations = lint_protocol_event(&event, &cfg, &store);
         assert!(violations.is_empty());
     }
 }

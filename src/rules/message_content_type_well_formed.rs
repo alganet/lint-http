@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageContentTypeWellFormed;
 
 impl Rule for MessageContentTypeWellFormed {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_content_type_well_formed"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageContentTypeWellFormed {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check request Content-Type
@@ -237,11 +234,10 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
 
@@ -250,11 +246,10 @@ mod tests {
             200,
             &[("content-type", "text")],
         );
-        let v2 = rule.check(
+        let v2 = rule.check_transaction(
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_some());
 
@@ -268,17 +263,15 @@ mod tests {
             200,
             &[("content-type", "application/json")],
         );
-        let v3 = rule.check(
+        let v3 = rule.check_transaction(
             &tx3,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
-        let v4 = rule.check(
+        let v4 = rule.check_transaction(
             &tx4,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v3.is_none());
         assert!(v4.is_none());

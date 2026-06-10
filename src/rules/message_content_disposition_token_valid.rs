@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageContentDispositionTokenValid;
 
 impl Rule for MessageContentDispositionTokenValid {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_content_disposition_token_valid"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageContentDispositionTokenValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Helper to validate a single Content-Disposition header value
@@ -124,11 +121,10 @@ mod tests {
             "warn",
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{:?}'", value);
@@ -149,11 +145,10 @@ mod tests {
             "message_content_disposition_token_valid",
             "warn",
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -171,11 +166,10 @@ mod tests {
             "message_content_disposition_token_valid",
             "warn",
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -194,11 +188,10 @@ mod tests {
             "message_content_disposition_token_valid",
             "warn",
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -226,11 +219,10 @@ mod tests {
             "message_content_disposition_token_valid",
             "warn",
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -246,11 +238,10 @@ mod tests {
             "message_content_disposition_token_valid",
             "warn",
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }

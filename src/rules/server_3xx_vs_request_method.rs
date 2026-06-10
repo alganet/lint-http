@@ -13,8 +13,6 @@ use crate::rules::Rule;
 pub struct Server3xxVsRequestMethod;
 
 impl Rule for Server3xxVsRequestMethod {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_3xx_vs_request_method"
     }
@@ -23,12 +21,11 @@ impl Rule for Server3xxVsRequestMethod {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to responses
@@ -98,11 +95,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "POST", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -116,11 +112,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(302, "POST", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -130,11 +125,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(303, "POST", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -145,11 +139,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(200, "POST", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none(), "non-3xx status should be ignored");
     }
@@ -159,11 +152,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(307, "POST", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -173,11 +165,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "GET", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -187,11 +178,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "POST", false);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -201,11 +191,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "post", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -220,11 +209,10 @@ mod tests {
         let mut hm = hyper::HeaderMap::new();
         hm.insert("location", HeaderValue::from_bytes(b"\xff").unwrap());
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -235,11 +223,10 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         for m in &["OPTIONS", "TRACE"] {
             let tx = make_tx(301, m, true);
-            let v = rule.check(
+            let v = rule.check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             );
             assert!(v.is_none(), "method {} should be treated as safe", m);
         }
@@ -249,7 +236,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "server_3xx_vs_request_method");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 
@@ -258,11 +245,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(300, "POST", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -272,11 +258,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(308, "POST", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -286,11 +271,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "HEAD", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -300,11 +284,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "PUT", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -314,11 +297,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "PATCH", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -328,11 +310,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "DELETE", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -343,11 +324,10 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let mut tx = make_tx(301, "POST", true);
         tx.request.method = "".to_string();
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -362,11 +342,10 @@ mod tests {
         hm.append("location", HeaderValue::from_static("/first"));
         hm.append("location", HeaderValue::from_static("/second"));
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -380,11 +359,10 @@ mod tests {
         let mut hm = hyper::HeaderMap::new();
         hm.insert("location", HeaderValue::from_static(""));
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -395,11 +373,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = crate::test_helpers::make_test_transaction(); // no response
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -409,11 +386,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
         let tx = make_tx(302, "POST", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -427,11 +403,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "CONNECT", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -446,11 +421,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "oPtIoNs", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none(), "mixed-case OPTIONS should be treated as safe");
     }
@@ -460,11 +434,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(302, "TrAcE", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none(), "mixed-case TRACE should be treated as safe");
     }
@@ -474,11 +447,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(302, "CONNECT", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -491,11 +463,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(302, "PUT", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -508,11 +479,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(304, "POST", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_none(),
@@ -525,11 +495,10 @@ mod tests {
         let rule = Server3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "connect", true);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),

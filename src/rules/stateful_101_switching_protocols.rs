@@ -21,8 +21,6 @@ use crate::rules::Rule;
 pub struct Stateful101SwitchingProtocols;
 
 impl Rule for Stateful101SwitchingProtocols {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "stateful_101_switching_protocols"
     }
@@ -31,12 +29,11 @@ impl Rule for Stateful101SwitchingProtocols {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
@@ -210,13 +207,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols"
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -231,13 +227,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols"
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -252,13 +247,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols"
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -273,13 +267,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols"
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -294,13 +287,12 @@ mod tests {
         tx.response = None;
         let rule = Stateful101SwitchingProtocols;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols"
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -312,13 +304,12 @@ mod tests {
         let tx = make_upgrade_tx("HTTP/1.1", &[], 101, &[("upgrade", "websocket")]);
         let rule = Stateful101SwitchingProtocols;
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("did not include an Upgrade header"));
@@ -336,13 +327,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("missing required Upgrade header"));
@@ -360,13 +350,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("was not offered by the client"));
@@ -384,13 +373,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("HTTP/1.0"));
@@ -408,13 +396,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("HTTP/2"));
@@ -430,13 +417,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("HTTP/2"));
@@ -454,13 +440,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("HTTP/3"));
@@ -490,13 +475,12 @@ mod tests {
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         let rule = Stateful101SwitchingProtocols;
         let v = rule
-            .check(
+            .check_transaction(
                 &current,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("HTTP traffic after 101"));
@@ -516,13 +500,12 @@ mod tests {
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         let rule = Stateful101SwitchingProtocols;
         assert!(rule
-            .check(
+            .check_transaction(
                 &current,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -539,13 +522,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols"
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -560,13 +542,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("was not offered"));
@@ -584,13 +565,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols"
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -614,13 +594,12 @@ mod tests {
         ]);
         let rule = Stateful101SwitchingProtocols;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols"
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -635,13 +614,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("no protocol tokens"));
@@ -657,13 +635,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("no protocol tokens"));
@@ -679,13 +656,12 @@ mod tests {
         );
         let rule = Stateful101SwitchingProtocols;
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("was not offered"));
@@ -705,13 +681,12 @@ mod tests {
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         let rule = Stateful101SwitchingProtocols;
         assert!(rule
-            .check(
+            .check_transaction(
                 &current,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_101_switching_protocols"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -720,7 +695,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "stateful_101_switching_protocols");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

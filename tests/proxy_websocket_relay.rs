@@ -4,13 +4,10 @@
 
 //! Integration test: WebSocket upgrade through the proxy with frame relay and capture.
 
-use std::sync::Arc;
-
 use futures_util::{SinkExt, StreamExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use lint_http::config::Config;
-use lint_http::rules::RuleConfigEngine;
 
 mod common;
 use common::start_run_proxy_and_wait;
@@ -53,8 +50,7 @@ async fn websocket_upgrade_through_proxy_captures_session() -> anyhow::Result<()
 
     // Start the proxy
     let cfg = Config::default();
-    let engine = Arc::new(RuleConfigEngine::new());
-    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg, engine).await?;
+    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
 
     // Connect to the proxy and perform WebSocket handshake via HTTP upgrade
     // Connect TCP to proxy5

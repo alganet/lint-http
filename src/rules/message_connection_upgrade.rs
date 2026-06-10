@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageConnectionUpgrade;
 
 impl Rule for MessageConnectionUpgrade {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_connection_upgrade"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageConnectionUpgrade {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check request headers
@@ -90,11 +87,10 @@ mod tests {
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -117,11 +113,10 @@ mod tests {
         let status = 101; // Switching Protocols
         use crate::test_helpers::make_test_transaction_with_response;
         let tx = make_test_transaction_with_response(status, &header_pairs);
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {

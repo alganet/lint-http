@@ -12,8 +12,6 @@ use crate::rules::Rule;
 pub struct ServerMustRevalidateAndImmutableMismatch;
 
 impl Rule for ServerMustRevalidateAndImmutableMismatch {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_must_revalidate_and_immutable_mismatch"
     }
@@ -22,12 +20,11 @@ impl Rule for ServerMustRevalidateAndImmutableMismatch {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
@@ -113,11 +110,10 @@ mod tests {
             "warn",
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for cc={:?}", cc);
@@ -158,11 +154,10 @@ mod tests {
             "warn",
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -190,11 +185,10 @@ mod tests {
             .insert("cache-control", bad);
 
         let rule = ServerMustRevalidateAndImmutableMismatch;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -217,7 +211,7 @@ mod tests {
         table.insert("severity".to_string(), toml::Value::String("warn".into()));
         cfg.rules
             .insert(rule.id().to_string(), toml::Value::Table(table));
-        let _ = rule.validate_and_box(&cfg)?;
+        rule.validate(&cfg)?;
         Ok(())
     }
 }

@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageOriginIsolatedHeaderValidity;
 
 impl Rule for MessageOriginIsolatedHeaderValidity {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_origin_isolated_header_validity"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageOriginIsolatedHeaderValidity {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = if let Some(r) = &tx.response {
@@ -104,11 +101,10 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_origin_isolated_header_validity",
         ]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{:?}', got none", val);
@@ -137,11 +133,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Multiple Origin-Isolation"));
@@ -162,11 +157,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -187,11 +181,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         let msg = v.unwrap().message;
         assert!(msg.contains("non-ASCII") || msg.contains("control"));
@@ -205,11 +198,10 @@ mod tests {
             200,
             &[("origin-isolation", "?0")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("?0"));
@@ -222,11 +214,10 @@ mod tests {
             200,
             &[("origin-isolation", "?1, ?1")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("single value"));
@@ -236,11 +227,10 @@ mod tests {
     fn no_response_returns_none() {
         let rule = MessageOriginIsolatedHeaderValidity;
         let tx = crate::test_helpers::make_test_transaction(); // no response set
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -256,7 +246,7 @@ mod tests {
         let rule = MessageOriginIsolatedHeaderValidity;
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "message_origin_isolated_header_validity");
-        let _engine = rule.validate_and_box(&cfg)?;
+        rule.validate(&cfg)?;
         Ok(())
     }
 }

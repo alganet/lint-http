@@ -32,8 +32,6 @@ use crate::rules::Rule;
 pub struct StatefulNoCacheRevalidation;
 
 impl Rule for StatefulNoCacheRevalidation {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "stateful_no_cache_revalidation"
     }
@@ -44,12 +42,11 @@ impl Rule for StatefulNoCacheRevalidation {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // locate the most recent past response with a no-cache directive.
@@ -125,13 +122,12 @@ mod tests {
     fn no_history_no_violation() {
         let rule = StatefulNoCacheRevalidation;
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_no_cache_revalidation",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -182,13 +178,12 @@ mod tests {
         tx.request.uri = "/resource".to_string();
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_no_cache_revalidation",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("no-cache"));
@@ -208,13 +203,12 @@ mod tests {
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_no_cache_revalidation"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -231,13 +225,12 @@ mod tests {
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_no_cache_revalidation"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -246,14 +239,11 @@ mod tests {
     fn validate_rules_with_valid_config() {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "stateful_no_cache_revalidation");
-        let engine = crate::rules::validate_rules(&cfg).unwrap();
+        // Enabling the rule with a valid config must pass validation.
+        crate::rules::validate_rules(&cfg).unwrap();
         // Ensure the rule is registered in the global RULES registry.
         assert!(crate::rules::RULES
             .iter()
             .any(|rule| rule.id() == "stateful_no_cache_revalidation"));
-        // Ensure enabling the rule results in a cached configuration so
-        // RuleConfigEngine::get_cached will not panic at runtime.
-        let _cfg_obj: std::sync::Arc<crate::rules::RuleConfig> =
-            engine.get_cached("stateful_no_cache_revalidation");
     }
 }

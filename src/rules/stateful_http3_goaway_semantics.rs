@@ -17,18 +17,15 @@ use crate::rules::ProtocolRule;
 pub struct StatefulHttp3GoawaySemantics;
 
 impl ProtocolRule for StatefulHttp3GoawaySemantics {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "stateful_http3_goaway_semantics"
     }
 
-    fn check(
+    fn check_event(
         &self,
         event: &ProtocolEvent,
         history: &ProtocolEventHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         match &event.kind {
@@ -137,12 +134,7 @@ mod tests {
         let rule = StatefulHttp3GoawaySemantics;
         let conn = Uuid::new_v4();
         let evt = make_goaway(conn, Some(4));
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -153,12 +145,7 @@ mod tests {
         let prev = make_goaway(conn, Some(10));
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_goaway(conn, Some(4));
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -169,12 +156,7 @@ mod tests {
         let prev = make_goaway(conn, Some(4));
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_goaway(conn, Some(4));
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -185,12 +167,7 @@ mod tests {
         let prev = make_goaway(conn, Some(4));
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_goaway(conn, Some(10));
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_some());
         let msg = result.unwrap().message;
         assert!(msg.contains("increased from previous"));
@@ -207,12 +184,7 @@ mod tests {
         let prev = make_goaway(conn, Some(4));
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_goaway(conn, None);
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -223,12 +195,7 @@ mod tests {
         let prev = make_goaway(conn, None);
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_goaway(conn, Some(4));
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -239,12 +206,7 @@ mod tests {
         let rule = StatefulHttp3GoawaySemantics;
         let conn = Uuid::new_v4();
         let evt = make_stream_opened(conn, 0);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -255,12 +217,7 @@ mod tests {
         let goaway = make_goaway(conn, Some(10));
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 8);
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -271,12 +228,7 @@ mod tests {
         let goaway = make_goaway(conn, Some(10));
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 10);
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -287,12 +239,7 @@ mod tests {
         let goaway = make_goaway(conn, Some(4));
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 5);
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_some());
         let msg = result.unwrap().message;
         assert!(msg.contains("stream 5"));
@@ -309,12 +256,7 @@ mod tests {
         let goaway = make_goaway(conn, None);
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 0);
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -327,12 +269,7 @@ mod tests {
             Uuid::new_v4(),
             ProtocolEventKind::H3StreamClosed { stream_id: 0 },
         );
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -350,12 +287,7 @@ mod tests {
                 payload_length: 10,
             },
         );
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -365,7 +297,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "stateful_http3_goaway_semantics");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 
@@ -388,12 +320,7 @@ mod tests {
         let history = ProtocolEventHistory::new(vec![goaway, stream]);
         // New GOAWAY with id=12 > 10 should fail
         let evt = make_goaway(conn, Some(12));
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_some());
     }
 
@@ -417,12 +344,7 @@ mod tests {
         // Stream 3 > goaway id 2 — first event is H3StreamClosed which
         // should be skipped; the goaway at index 1 triggers violation.
         let evt = make_stream_opened(conn, 3);
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_some());
     }
 
@@ -447,12 +369,7 @@ mod tests {
         let history = ProtocolEventHistory::new(vec![g1, g2]);
         // New GOAWAY with id=8: compared to most recent (6), 8 > 6 → fail
         let evt = make_goaway(conn, Some(8));
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_some());
     }
 
@@ -464,12 +381,7 @@ mod tests {
         let rule = StatefulHttp3GoawaySemantics;
         let conn = Uuid::new_v4();
         let evt = make_goaway(conn, Some(0));
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -481,12 +393,7 @@ mod tests {
         let goaway = make_goaway(conn, Some(0));
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 0);
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -498,12 +405,7 @@ mod tests {
         let goaway = make_goaway(conn, Some(0));
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 1);
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_some());
     }
 
@@ -515,12 +417,7 @@ mod tests {
         let prev = make_goaway(conn, Some(100));
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_goaway(conn, Some(0));
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_none());
     }
 }

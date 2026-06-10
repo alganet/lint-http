@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ClientRequestMethodTokenValid;
 
 impl Rule for ClientRequestMethodTokenValid {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "client_request_method_token_valid"
     }
@@ -18,12 +16,11 @@ impl Rule for ClientRequestMethodTokenValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let m = tx.request.method.as_str();
@@ -83,11 +80,10 @@ mod tests {
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
         tx.request.method = method.as_str().to_string();
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -108,11 +104,10 @@ mod tests {
         let mut tx = make_test_transaction();
         tx.request.method = "get".to_string();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -121,11 +116,10 @@ mod tests {
         // Invalid character should be reported with char in message
         let mut tx2 = make_test_transaction();
         tx2.request.method = "G@T".to_string();
-        let v2 = rule.check(
+        let v2 = rule.check_transaction(
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_some());
         let msg2 = v2.unwrap().message;

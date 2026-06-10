@@ -29,8 +29,6 @@ use crate::rules::Rule;
 pub struct StatefulRangeRequestAndCaching;
 
 impl Rule for StatefulRangeRequestAndCaching {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "stateful_range_request_and_caching"
     }
@@ -39,12 +37,11 @@ impl Rule for StatefulRangeRequestAndCaching {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req = &tx.request;
@@ -154,13 +151,12 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-0")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -179,13 +175,12 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-0")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("missing If-Range"));
@@ -207,13 +202,12 @@ mod tests {
             ("if-range", "\"a\""),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -237,13 +231,12 @@ mod tests {
             ("if-range", "Wed, 21 Oct 2015 07:28:00 GMT"),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -267,13 +260,12 @@ mod tests {
             ("if-range", "Wed, 20 Oct 2015 07:28:00 GMT"),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("does not match"));
@@ -295,13 +287,12 @@ mod tests {
             ("if-range", "\"b\""),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("does not match"));
@@ -321,13 +312,12 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-0")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -346,13 +336,12 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-0")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -371,13 +360,12 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-0")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -386,7 +374,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "stateful_range_request_and_caching");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 

@@ -25,18 +25,15 @@ pub struct ServerQuicTransportParameters;
 const MAX_REASONABLE_IDLE_TIMEOUT_MS: u64 = 600_000;
 
 impl ProtocolRule for ServerQuicTransportParameters {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_quic_transport_parameters"
     }
 
-    fn check(
+    fn check_event(
         &self,
         event: &ProtocolEvent,
         _history: &ProtocolEventHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let params = match &event.kind {
@@ -176,12 +173,7 @@ mod tests {
     fn reasonable_params_pass() {
         let rule = ServerQuicTransportParameters;
         let evt = make_event(reasonable_params());
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -193,12 +185,7 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_streams_bidi = Some(0);
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("initial_max_streams_bidi"));
     }
@@ -209,12 +196,7 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_streams_bidi = Some(1);
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -224,12 +206,7 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_streams_bidi = None;
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -241,12 +218,7 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_data = Some(0);
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("initial_max_data"));
     }
@@ -257,12 +229,7 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_data = None;
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -274,12 +241,7 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_stream_data_bidi_local = Some(0);
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result
             .unwrap()
@@ -295,12 +257,7 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_stream_data_bidi_remote = Some(0);
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result
             .unwrap()
@@ -316,12 +273,7 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_stream_data_uni = Some(0);
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result
             .unwrap()
@@ -337,12 +289,7 @@ mod tests {
         let mut p = reasonable_params();
         p.max_idle_timeout_ms = Some(0);
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("max_idle_timeout"));
     }
@@ -353,12 +300,7 @@ mod tests {
         let mut p = reasonable_params();
         p.max_idle_timeout_ms = None;
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("max_idle_timeout"));
     }
@@ -369,12 +311,7 @@ mod tests {
         let mut p = reasonable_params();
         p.max_idle_timeout_ms = Some(MAX_REASONABLE_IDLE_TIMEOUT_MS + 1);
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         let msg = result.unwrap().message;
         assert!(msg.contains("excessively large"));
@@ -386,12 +323,7 @@ mod tests {
         let mut p = reasonable_params();
         p.max_idle_timeout_ms = Some(MAX_REASONABLE_IDLE_TIMEOUT_MS);
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -401,12 +333,7 @@ mod tests {
         let mut p = reasonable_params();
         p.max_idle_timeout_ms = Some(1);
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -420,12 +347,7 @@ mod tests {
             connection_id: Uuid::new_v4(),
             kind: ProtocolEventKind::H3StreamOpened { stream_id: 0 },
         };
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -444,12 +366,7 @@ mod tests {
                 payload_length: 10,
             },
         };
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -459,7 +376,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "server_quic_transport_parameters");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 
@@ -477,12 +394,7 @@ mod tests {
             initial_max_stream_data_uni: None,
         };
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         // Only max_idle_timeout triggers because None means no timeout
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("max_idle_timeout"));
@@ -502,12 +414,7 @@ mod tests {
             initial_max_stream_data_uni: Some(0),
         };
         let evt = make_event(p);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         // First check is initial_max_streams_bidi
         assert!(result.unwrap().message.contains("initial_max_streams_bidi"));

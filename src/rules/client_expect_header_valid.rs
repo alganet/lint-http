@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ClientExpectHeaderValid;
 
 impl Rule for ClientExpectHeaderValid {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "client_expect_header_valid"
     }
@@ -18,12 +16,11 @@ impl Rule for ClientExpectHeaderValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check request headers
@@ -168,11 +165,10 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ClientExpectHeaderValid;
         let tx = crate::test_helpers::make_test_transaction_with_headers(&[("expect", value)]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "case '{}' expected violation", value);
@@ -198,11 +194,10 @@ mod tests {
         hm.insert("Expect", HeaderValue::from_str("a=b/c")?);
         tx.request.headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -221,11 +216,10 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -243,11 +237,10 @@ mod tests {
 
         // Should report a violation due to invalid 'a/b' token
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_some());
         Ok(())
@@ -262,11 +255,10 @@ mod tests {
         hm.insert("Expect", HeaderValue::from_static("100-Continue=param"));
         tx.request.headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())

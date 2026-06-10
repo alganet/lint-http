@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ClientRequestOriginHeaderPresentForCors;
 
 impl Rule for ClientRequestOriginHeaderPresentForCors {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "client_request_origin_header_present_for_cors"
     }
@@ -18,12 +16,11 @@ impl Rule for ClientRequestOriginHeaderPresentForCors {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req = &tx.request;
@@ -98,11 +95,10 @@ mod tests {
         tx.request.method = "OPTIONS".into();
         tx.request.headers = make_headers_from_pairs(&[("access-control-request-method", "POST")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("missing Origin"));
@@ -118,11 +114,10 @@ mod tests {
             ("origin", "https://example.com"),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -137,11 +132,10 @@ mod tests {
             ("origin", "http:///bad"),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Origin header invalid"));
@@ -154,11 +148,10 @@ mod tests {
         tx.request.uri = "http://other.example/resource".into();
         tx.request.headers = make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v
@@ -174,11 +167,10 @@ mod tests {
         tx.request.uri = "http://example.com/resource".into();
         tx.request.headers = make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -201,7 +193,7 @@ mod tests {
             toml::Value::Table(table),
         );
 
-        let _ = rule.validate_and_box(&cfg)?;
+        rule.validate(&cfg)?;
         Ok(())
     }
 }

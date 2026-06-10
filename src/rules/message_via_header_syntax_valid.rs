@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageViaHeaderSyntaxValid;
 
 impl Rule for MessageViaHeaderSyntaxValid {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_via_header_syntax_valid"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageViaHeaderSyntaxValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         use hyper::HeaderMap;
@@ -243,11 +240,10 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("via", "1.1 example.com")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -257,11 +253,10 @@ mod tests {
     fn check_response_header_invalid() -> anyhow::Result<()> {
         let rule = MessageViaHeaderSyntaxValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[("via", "1.1")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -302,11 +297,10 @@ mod tests {
         hm.insert("via", bad);
         tx.request.headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())

@@ -31,8 +31,6 @@ use crate::rules::Rule;
 pub struct StatefulCacheValidationChain;
 
 impl Rule for StatefulCacheValidationChain {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "stateful_cache_validation_chain"
     }
@@ -41,12 +39,11 @@ impl Rule for StatefulCacheValidationChain {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req = &tx.request;
@@ -195,13 +192,12 @@ mod tests {
     fn non_conditional_request_is_ok() {
         let rule = StatefulCacheValidationChain;
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -212,13 +208,12 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -230,13 +225,12 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "*")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -248,13 +242,12 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -266,13 +259,12 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -284,13 +276,12 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "W/\"a\"")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -302,13 +293,12 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "W/\"b\"")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -320,13 +310,12 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "*")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -338,13 +327,12 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"b\"")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -357,13 +345,12 @@ mod tests {
         // first token wrong, second token correct
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"x\", \"a\"")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -375,13 +362,12 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -395,13 +381,12 @@ mod tests {
             ("if-none-match", "\"a\""),
             ("if-modified-since", "Thu, 02 Jan 2020 00:00:00 GMT"),
         ]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -417,13 +402,12 @@ mod tests {
             "if-modified-since",
             "wed, 01 Jan 2020 00:00:00 GMT",
         )]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -437,13 +421,12 @@ mod tests {
             ("if-none-match", "\"a\""),
             ("if-modified-since", "Wed, 01 Jan 2020 00:00:00 GMT"),
         ]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -457,13 +440,12 @@ mod tests {
             "if-modified-since",
             "Thu, 02 Jan 2020 00:00:00 GMT",
         )]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -475,13 +457,12 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-modified-since", "not-a-date")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -496,13 +477,12 @@ mod tests {
             "if-modified-since",
             "Thu, 02 Jan 2020 00:00:00 GMT",
         )]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -516,13 +496,12 @@ mod tests {
             ("if-none-match", "\"b\""),
             ("if-modified-since", "Thu, 02 Jan 2020 00:00:00 GMT"),
         ]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -536,13 +515,12 @@ mod tests {
             ("if-none-match", "\"a\""),
             ("if-modified-since", "Thu, 02 Jan 2020 00:00:00 GMT"),
         ]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -556,13 +534,12 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev2, prev1]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -571,7 +548,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "stateful_cache_validation_chain");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 

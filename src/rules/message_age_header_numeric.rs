@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageAgeHeaderNumeric;
 
 impl Rule for MessageAgeHeaderNumeric {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_age_header_numeric"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageAgeHeaderNumeric {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Applies to responses only
@@ -80,11 +77,10 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = MessageAgeHeaderNumeric;
         let tx = crate::test_helpers::make_test_transaction_with_response(status, hdrs);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -104,11 +100,10 @@ mod tests {
         let rule = MessageAgeHeaderNumeric;
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, &[("age", "120, 240")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -133,11 +128,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -149,11 +143,10 @@ mod tests {
     fn no_response_no_violation() -> anyhow::Result<()> {
         let rule = MessageAgeHeaderNumeric;
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -169,11 +162,10 @@ mod tests {
     fn violation_message_meaningful() -> anyhow::Result<()> {
         let rule = MessageAgeHeaderNumeric;
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[("age", "bad")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;

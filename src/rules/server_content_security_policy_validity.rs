@@ -14,8 +14,6 @@ use crate::rules::Rule;
 pub struct ServerContentSecurityPolicyValidity;
 
 impl Rule for ServerContentSecurityPolicyValidity {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_content_security_policy_validity"
     }
@@ -24,12 +22,11 @@ impl Rule for ServerContentSecurityPolicyValidity {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check responses
@@ -266,11 +263,10 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-security-policy", h)]);
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header '{:?}'", header);
@@ -295,11 +291,10 @@ mod tests {
             "def@ult-src 'self'",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Invalid character"));
@@ -316,11 +311,10 @@ mod tests {
             "default-src 'self'; ",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("empty directive"));
@@ -337,11 +331,10 @@ mod tests {
             "default-src 'self",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Unterminated"));
@@ -358,11 +351,10 @@ mod tests {
             "default-src ''",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Empty single-quoted"));
@@ -372,7 +364,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "server_content_security_policy_validity");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 
@@ -388,11 +380,10 @@ mod tests {
         tx.response.as_mut().unwrap().headers = headers;
 
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("not valid UTF-8"));
@@ -409,11 +400,10 @@ mod tests {
             "script-src nonce-",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Empty nonce value"));
@@ -430,11 +420,10 @@ mod tests {
             "script-src sha256-",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Empty hash value"));
@@ -457,11 +446,10 @@ mod tests {
         tx.response.as_mut().unwrap().headers = headers;
 
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Invalid character"));
@@ -483,11 +471,10 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-security-policy", "   ")]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("MUST not be empty"));
@@ -504,11 +491,10 @@ mod tests {
             "default-src 'self';;;script-src 'self'",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("empty directive"));
@@ -525,11 +511,10 @@ mod tests {
             "script-src nonce-abc def",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("single-quoted"));
@@ -546,11 +531,10 @@ mod tests {
             "script-src 'nonce-abc def'",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Invalid nonce value") || v.message.contains("Unterminated"));
@@ -567,11 +551,10 @@ mod tests {
             "script-src 'nonce-'",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Empty nonce value"));
@@ -588,11 +571,10 @@ mod tests {
             "script-src sha256-abc",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("single-quoted"));
@@ -609,11 +591,10 @@ mod tests {
             "script-src 'sha256-'",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Empty hash value"));
@@ -630,11 +611,10 @@ mod tests {
             "script-src sha384-abc",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("single-quoted"));
@@ -651,11 +631,10 @@ mod tests {
             "script-src 'sha512-'",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Empty hash value"));
@@ -672,11 +651,10 @@ mod tests {
             "script-src sha512-abc",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("single-quoted"));
@@ -693,11 +671,10 @@ mod tests {
             "script-src 'sha256-abc' https://example.com",
         )]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none(), "unexpected violation: {:?}", v);
     }
@@ -713,11 +690,10 @@ mod tests {
             "script-src 'sha384-abc' https://example.com",
         )]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none(), "unexpected violation: {:?}", v);
     }
@@ -733,11 +709,10 @@ mod tests {
             "script-src 'sha512-abc' https://example.com",
         )]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none(), "unexpected violation: {:?}", v);
     }
@@ -753,11 +728,10 @@ mod tests {
             "script-src 'nonce-abc' 'sha256-abc' 'sha384-abc' 'sha512-abc' default-src 'self'",
         )]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none(), "unexpected violation: {:?}", v);
     }
@@ -773,11 +747,10 @@ mod tests {
             "script-src 'sha384-'",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Empty hash value"));
@@ -793,11 +766,10 @@ mod tests {
             "script-src sha384-",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Empty hash value"));
@@ -813,11 +785,10 @@ mod tests {
             "script-src sha512-",
         )]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Empty hash value"));
@@ -828,11 +799,10 @@ mod tests {
         let rule = ServerContentSecurityPolicyValidity;
         let cfg = make_cfg();
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

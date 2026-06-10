@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ClientAcceptRangesOnPartialContent;
 
 impl Rule for ClientAcceptRangesOnPartialContent {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "client_accept_ranges_on_partial_content"
     }
@@ -18,12 +16,11 @@ impl Rule for ClientAcceptRangesOnPartialContent {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to requests that contain a UTF-8 Range header we can parse.
@@ -147,7 +144,7 @@ mod tests {
             None => crate::transaction_history::TransactionHistory::empty(),
         };
 
-        let v = rule.check(&tx, &history, &cfg, &crate::rules::RuleConfigEngine::new());
+        let v = rule.check_transaction(&tx, &history, &cfg);
         if expect_violation {
             assert!(v.is_some());
         } else {
@@ -170,11 +167,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-1")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -188,11 +184,10 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-1")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -208,7 +203,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "client_accept_ranges_on_partial_content");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 
@@ -241,11 +236,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-1")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -272,11 +266,10 @@ mod tests {
         hm.insert("range", HeaderValue::from_bytes(&[0xff]).unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         // Be lenient: if the request Range header is non-utf8, do not raise a violation when Accept-Ranges was present
         assert!(v.is_none());
@@ -302,11 +295,10 @@ mod tests {
         hm.insert("range", HeaderValue::from_bytes(&[0xff]).unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         // If Range header itself is not valid UTF-8, the rule should not emit a misleading violation about Accept-Ranges
         assert!(v.is_none());

@@ -125,7 +125,7 @@ pub(super) async fn handle_websocket_upgrade(
             .map(|s| s.to_string());
     }
 
-    let violations = lint::lint_transaction(&tx, &shared.cfg, &shared.state, &shared.engine);
+    let violations = lint::lint_transaction(&tx, &shared.cfg, &shared.state);
     tx.violations = violations.clone();
     shared.state.record_transaction(&tx);
     let _ = captures.write_transaction(&tx).await;
@@ -153,7 +153,6 @@ pub(super) async fn handle_websocket_upgrade(
             connection_id: conn_metadata.id,
             store: shared.protocol_event_store.clone(),
             cfg: shared.cfg.clone(),
-            engine: shared.engine.clone(),
         };
         tokio::spawn(async move {
             // Wait for both sides to complete the upgrade
@@ -266,7 +265,6 @@ struct ProtocolLintCtx {
     connection_id: uuid::Uuid,
     store: Arc<crate::protocol_event_store::ProtocolEventStore>,
     cfg: Arc<Config>,
-    engine: Arc<crate::rules::RuleConfigEngine>,
 }
 
 /// Relay WebSocket messages between client and server, recording each message
@@ -298,7 +296,6 @@ async fn relay_websocket(
 
     let pe_store = pe_ctx.store;
     let pe_cfg = pe_ctx.cfg;
-    let pe_engine = pe_ctx.engine;
     let connection_id = pe_ctx.connection_id;
 
     let msgs_c2s = messages.clone();
@@ -306,7 +303,6 @@ async fn relay_websocket(
     let close_c2s = close_code.clone();
     let pe_store_c2s = pe_store.clone();
     let cfg_c2s = pe_cfg.clone();
-    let engine_c2s = pe_engine.clone();
     let c2s = async move {
         while let Some(result) = client_read.next().await {
             match result {
@@ -331,12 +327,7 @@ async fn relay_websocket(
                             payload_length: info.payload_length,
                         },
                     };
-                    let v = crate::lint_protocol::lint_protocol_event(
-                        &pe,
-                        &cfg_c2s,
-                        &pe_store_c2s,
-                        &engine_c2s,
-                    );
+                    let v = crate::lint_protocol::lint_protocol_event(&pe, &cfg_c2s, &pe_store_c2s);
                     pe_store_c2s.record_event(&pe);
                     if !v.is_empty() {
                         viols_c2s.lock().await.extend(v);
@@ -357,7 +348,6 @@ async fn relay_websocket(
     let close_s2c = close_code.clone();
     let pe_store_s2c = pe_store.clone();
     let cfg_s2c = pe_cfg.clone();
-    let engine_s2c = pe_engine.clone();
     let s2c = async move {
         while let Some(result) = server_read.next().await {
             match result {
@@ -382,12 +372,7 @@ async fn relay_websocket(
                             payload_length: info.payload_length,
                         },
                     };
-                    let v = crate::lint_protocol::lint_protocol_event(
-                        &pe,
-                        &cfg_s2c,
-                        &pe_store_s2c,
-                        &engine_s2c,
-                    );
+                    let v = crate::lint_protocol::lint_protocol_event(&pe, &cfg_s2c, &pe_store_s2c);
                     pe_store_s2c.record_event(&pe);
                     if !v.is_empty() {
                         viols_s2c.lock().await.extend(v);
@@ -621,7 +606,6 @@ mod tests {
                         crate::protocol_event_store::ProtocolEventStore::new(300, 100),
                     ),
                     cfg: std::sync::Arc::new(crate::config::Config::default()),
-                    engine: std::sync::Arc::new(crate::rules::RuleConfigEngine::new()),
                 },
             )
             .await;
@@ -743,7 +727,7 @@ mod tests {
     async fn handle_websocket_upgrade_upstream_connect_error() -> anyhow::Result<()> {
         // Test that handle_websocket_upgrade returns 502 when upstream is unreachable
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, None).await?;
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
 
         // Build a request targeting a closed port
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
@@ -815,7 +799,7 @@ mod tests {
         });
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, None).await?;
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
 
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
         let upstream_req = Request::builder()
@@ -893,7 +877,6 @@ mod tests {
                         crate::protocol_event_store::ProtocolEventStore::new(300, 100),
                     ),
                     cfg: std::sync::Arc::new(crate::config::Config::default()),
-                    engine: std::sync::Arc::new(crate::rules::RuleConfigEngine::new()),
                 },
             )
             .await;
@@ -990,7 +973,6 @@ mod tests {
                         crate::protocol_event_store::ProtocolEventStore::new(300, 100),
                     ),
                     cfg: std::sync::Arc::new(crate::config::Config::default()),
-                    engine: std::sync::Arc::new(crate::rules::RuleConfigEngine::new()),
                 },
             )
             .await;
@@ -1086,7 +1068,7 @@ mod tests {
         });
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, None).await?;
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
 
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
         let upstream_req = Request::builder()
@@ -1165,7 +1147,6 @@ mod tests {
                         crate::protocol_event_store::ProtocolEventStore::new(300, 100),
                     ),
                     cfg: std::sync::Arc::new(crate::config::Config::default()),
-                    engine: std::sync::Arc::new(crate::rules::RuleConfigEngine::new()),
                 },
             )
             .await;

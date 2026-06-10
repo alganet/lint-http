@@ -29,7 +29,6 @@ pub fn lint_transaction(
     tx: &crate::http_transaction::HttpTransaction,
     cfg: &Config,
     state: &crate::state::StateStore,
-    engine: &crate::rules::RuleConfigEngine,
 ) -> Vec<Violation> {
     let mut out = Vec::new();
 
@@ -87,7 +86,7 @@ pub fn lint_transaction(
                 }),
         };
 
-        out.extend(rule.check_transaction_erased(tx, history, cfg, engine));
+        out.extend(rule.check_transaction(tx, history, cfg));
     }
 
     out
@@ -97,9 +96,7 @@ pub fn lint_transaction(
 mod tests {
     use super::*;
     use crate::config::Config;
-    use crate::test_helpers::{
-        disable_rule, make_test_config_with_enabled_rules, make_test_engine,
-    };
+    use crate::test_helpers::{disable_rule, make_test_config_with_enabled_rules};
 
     #[test]
     fn lint_response_rules_emit_when_enabled() {
@@ -108,9 +105,8 @@ mod tests {
             "server_cache_control_present",
             "server_etag_or_last_modified",
         ]);
-        let engine = make_test_engine(&cfg);
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let v = lint_transaction(&tx, &cfg, &state, &engine);
+        let v = lint_transaction(&tx, &cfg, &state);
 
         assert!(v.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
@@ -123,7 +119,6 @@ mod tests {
             "client_user_agent_present",
             "client_accept_encoding_present",
         ]);
-        let engine = make_test_engine(&cfg);
         use crate::http_transaction::{HttpTransaction, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -132,7 +127,7 @@ mod tests {
         );
         tx.timing = TimingInfo { duration_ms: 5 };
 
-        let v = lint_transaction(&tx, &cfg, &state, &engine);
+        let v = lint_transaction(&tx, &cfg, &state);
 
         assert!(v.iter().any(|x| x.rule == "client_user_agent_present"));
         assert!(v.iter().any(|x| x.rule == "client_accept_encoding_present"));
@@ -145,17 +140,15 @@ mod tests {
             "server_cache_control_present",
             "server_etag_or_last_modified",
         ]);
-        let engine_enabled = make_test_engine(&cfg_enabled);
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let v = lint_transaction(&tx, &cfg_enabled, &state, &engine_enabled);
+        let v = lint_transaction(&tx, &cfg_enabled, &state);
         assert!(v.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
 
         let mut cfg_disabled = Config::default();
         disable_rule(&mut cfg_disabled, "server_cache_control_present");
         disable_rule(&mut cfg_disabled, "server_etag_or_last_modified");
-        let engine_disabled = make_test_engine(&cfg_disabled);
-        let v2 = lint_transaction(&tx, &cfg_disabled, &state, &engine_disabled);
+        let v2 = lint_transaction(&tx, &cfg_disabled, &state);
         assert!(!v2.iter().any(|x| x.rule == "server_cache_control_present"));
         assert!(!v2.iter().any(|x| x.rule == "server_etag_or_last_modified"));
     }
@@ -167,7 +160,6 @@ mod tests {
             "client_user_agent_present",
             "server_cache_control_present",
         ]);
-        let engine = make_test_engine(&cfg);
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -183,7 +175,7 @@ mod tests {
             trailers: None,
         });
 
-        let violations = lint_transaction(&tx, &cfg, &state, &engine);
+        let violations = lint_transaction(&tx, &cfg, &state);
 
         assert!(!violations.is_empty());
 
@@ -205,7 +197,6 @@ mod tests {
         // that has connection_id set (used by ByConnection queries).
         let state = crate::state::StateStore::new(300, 10);
         let cfg = make_test_config_with_enabled_rules(&["server_cache_control_present"]);
-        let engine = make_test_engine(&cfg);
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -223,7 +214,7 @@ mod tests {
             trailers: None,
         });
 
-        let violations = lint_transaction(&tx, &cfg, &state, &engine);
+        let violations = lint_transaction(&tx, &cfg, &state);
         assert!(violations
             .iter()
             .any(|v| v.rule == "server_cache_control_present"));
@@ -234,7 +225,6 @@ mod tests {
         // Enable a ByOrigin rule to exercise the lazy ByOrigin init path
         let state = crate::state::StateStore::new(300, 10);
         let cfg = make_test_config_with_enabled_rules(&["stateful_authentication_failure_loop"]);
-        let engine = make_test_engine(&cfg);
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -250,7 +240,7 @@ mod tests {
             trailers: None,
         });
         // Should not panic; exercises the ByOrigin lazy init
-        let _violations = lint_transaction(&tx, &cfg, &state, &engine);
+        let _violations = lint_transaction(&tx, &cfg, &state);
     }
 
     #[test]
@@ -258,7 +248,6 @@ mod tests {
         // Enable a ByResourceAll rule to exercise the lazy ByResourceAll init path
         let state = crate::state::StateStore::new(300, 10);
         let cfg = make_test_config_with_enabled_rules(&["stateful_private_cache_visibility"]);
-        let engine = make_test_engine(&cfg);
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -274,7 +263,7 @@ mod tests {
             trailers: None,
         });
         // Should not panic; exercises the ByResourceAll lazy init
-        let _violations = lint_transaction(&tx, &cfg, &state, &engine);
+        let _violations = lint_transaction(&tx, &cfg, &state);
     }
 
     #[test]
@@ -282,7 +271,6 @@ mod tests {
         // Enable a ByOrigin rule with a relative URI to exercise the None path
         let state = crate::state::StateStore::new(300, 10);
         let cfg = make_test_config_with_enabled_rules(&["stateful_authentication_failure_loop"]);
-        let engine = make_test_engine(&cfg);
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -298,7 +286,7 @@ mod tests {
             trailers: None,
         });
         // Should use empty history for the ByOrigin None case
-        let _violations = lint_transaction(&tx, &cfg, &state, &engine);
+        let _violations = lint_transaction(&tx, &cfg, &state);
     }
 
     #[test]
@@ -315,7 +303,6 @@ mod tests {
             "server_cache_control_present",
             "client_user_agent_present",
         ]);
-        let engine = make_test_engine(&cfg);
         use crate::http_transaction::{HttpTransaction, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -325,7 +312,7 @@ mod tests {
         tx.timing = TimingInfo { duration_ms: 5 };
         // No tx.response set — this is the request-only path.
 
-        let v = lint_transaction(&tx, &cfg, &state, &engine);
+        let v = lint_transaction(&tx, &cfg, &state);
 
         assert!(
             v.iter().any(|x| x.rule == "client_user_agent_present"),
@@ -342,7 +329,6 @@ mod tests {
         // Transaction with a relative/invalid URI to exercise the ByOrigin None path
         let state = crate::state::StateStore::new(300, 10);
         let cfg = make_test_config_with_enabled_rules(&["server_cache_control_present"]);
-        let engine = make_test_engine(&cfg);
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -358,7 +344,7 @@ mod tests {
             trailers: None,
         });
 
-        let violations = lint_transaction(&tx, &cfg, &state, &engine);
+        let violations = lint_transaction(&tx, &cfg, &state);
         // Should still run rules even with relative URI
         assert!(!violations.is_empty());
     }

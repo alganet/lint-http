@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use std::any::Any;
-use std::collections::HashMap;
-use std::sync::{Arc, LazyLock};
+use std::sync::LazyLock;
 
 /// Standard configuration for rules
 /// Used as the Config type for non-configurable rules.
@@ -35,27 +33,20 @@ pub enum RuleScope {
 }
 
 pub trait Rule: Send + Sync {
-    /// The type of parsed configuration this rule requires.
-    /// Use `RuleConfig` for rules that only need severity.
-    type Config: Send + Sync + 'static;
-
     fn id(&self) -> &'static str;
 
-    /// Validate and parse the rule's configuration. Called once at startup.
-    /// Returns the parsed configuration object or an error if invalid.
-    /// For rules using `RuleConfig`, this method has a default implementation.
-    /// Rules with custom configurations must override this method.
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<Arc<dyn Any + Send + Sync>> {
-        // Default implementation for rules using RuleConfig (only severity)
-        let config = parse_rule_config(config, self.id())?;
-        Ok(Arc::new(config))
+    /// Validate the rule's configuration section. Called once per enabled
+    /// rule at startup so a malformed config fails fast rather than silently
+    /// disabling the rule at lint time.
+    ///
+    /// The default checks the base `enabled` / `severity` fields. Rules with
+    /// a custom config section override this to validate their own fields.
+    fn validate(&self, cfg: &crate::config::Config) -> anyhow::Result<()> {
+        parse_rule_config(cfg, self.id()).map(|_| ())
     }
 
-    /// The scope where the rule should be executed. Default is `Both` for
-    /// backward compatibility; rules may override for better precision.
+    /// The scope where the rule should be executed. Default is `Both`;
+    /// rules may override for better precision.
     ///
     /// The engine partitions rules by scope and dispatches accordingly:
     /// - `Client` and `Both` rules run on every transaction.
@@ -68,151 +59,14 @@ pub trait Rule: Send + Sync {
         RuleScope::Both
     }
 
-    /// **Legacy entry point.** Evaluate an `HttpTransaction` using the rule's
-    /// parsed associated `Self::Config`. Existing rules override this; the
-    /// default `check` impl unboxes the config from the engine cache and
-    /// delegates here.
-    ///
-    /// New rules should override [`check`](Self::check) directly and ignore
-    /// this method — its default `unreachable!()` body is never reached for
-    /// rules that override `check`. This method, the associated `Config`
-    /// type, and the engine cache will be removed once all rules have
-    /// migrated; see REPORT.md item #8 for the staged plan.
+    /// Evaluate an `HttpTransaction` against this rule. Rules parse whatever
+    /// configuration they need directly from the global `cfg: &Config`.
     fn check_transaction(
-        &self,
-        _tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        _config: &Self::Config,
-    ) -> Option<Violation> {
-        unreachable!(
-            "rule '{}' overrides neither `check_transaction` (legacy) nor `check` (preferred)",
-            self.id()
-        )
-    }
-
-    /// Evaluate an `HttpTransaction` against this rule. The default impl
-    /// looks up the parsed associated config from the engine cache and
-    /// delegates to [`check_transaction`](Self::check_transaction), so
-    /// existing rules continue to work unchanged.
-    ///
-    /// New rules should override **this** method instead — it takes the
-    /// global `cfg: &Config` directly, avoiding the engine round-trip and
-    /// the type-erasure ceremony. Once all rules are migrated, the legacy
-    /// path goes away (REPORT.md #8c) and `check` is renamed to
-    /// `check_transaction`.
-    fn check(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        history: &crate::transaction_history::TransactionHistory,
-        _cfg: &crate::config::Config,
-        engine: &RuleConfigEngine,
-    ) -> Option<Violation> {
-        let parsed = engine.get_cached::<Self::Config>(self.id());
-        self.check_transaction(tx, history, &parsed)
-    }
-}
-
-/// Helper trait to enable type-erased configuration caching.
-/// Automatically implemented for all Rule implementations.
-/// This trait exists to work around the fact that Rule has an associated type
-/// which prevents using dyn Rule directly in RULES array.
-pub trait RuleConfigValidator: Send + Sync {
-    fn id(&self) -> &'static str;
-    fn scope(&self) -> RuleScope;
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<Arc<dyn Any + Send + Sync>>;
-
-    fn check_transaction_erased(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        history: &crate::transaction_history::TransactionHistory,
-        config: &crate::config::Config,
-        engine: &RuleConfigEngine,
-    ) -> Option<Violation>;
-}
-
-impl<T: Rule> RuleConfigValidator for T {
-    fn id(&self) -> &'static str {
-        <Self as Rule>::id(self)
-    }
-
-    fn scope(&self) -> RuleScope {
-        <Self as Rule>::scope(self)
-    }
-
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<Arc<dyn Any + Send + Sync>> {
-        <Self as Rule>::validate_and_box(self, config)
-    }
-
-    fn check_transaction_erased(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        engine: &RuleConfigEngine,
-    ) -> Option<Violation> {
-        // Route through the new `Rule::check` entry point. For rules that
-        // still override only the legacy `check_transaction`, the default
-        // `check` impl unboxes the config from the engine cache and
-        // delegates back to it — preserving today's behaviour exactly.
-        <Self as Rule>::check(self, tx, history, cfg, engine)
-    }
-}
-
-/// Engine that caches parsed rule configurations.
-/// Stores type-erased parsed configs in a HashMap keyed by rule ID.
-#[derive(Debug, Default)]
-pub struct RuleConfigEngine {
-    cache: HashMap<&'static str, Arc<dyn Any + Send + Sync>>,
-}
-
-impl RuleConfigEngine {
-    /// Create a new empty config engine.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Validate and cache configurations for all enabled rules (both
-    /// transaction-level and protocol-level).
-    /// Should be called once at startup after loading config.
-    pub fn validate_and_cache_all(&mut self, config: &crate::config::Config) -> anyhow::Result<()> {
-        for rule in RULES {
-            if config.is_enabled(rule.id()) {
-                let boxed = rule.validate_and_box(config).map_err(|e| {
-                    anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
-                })?;
-                self.cache.insert(rule.id(), boxed);
-            }
-        }
-        for rule in PROTOCOL_RULES {
-            if config.is_enabled(rule.id()) {
-                let boxed = rule.validate_and_box(config).map_err(|e| {
-                    anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
-                })?;
-                self.cache.insert(rule.id(), boxed);
-            }
-        }
-        Ok(())
-    }
-
-    /// Retrieve the cached parsed config for a rule.
-    /// Panics if the rule hasn't been validated/cached - this is a programming error.
-    pub fn get_cached<T: Send + Sync + 'static>(&self, rule_id: &'static str) -> Arc<T> {
-        self.cache
-            .get(rule_id)
-            .and_then(|arc| arc.clone().downcast::<T>().ok())
-            .unwrap_or_else(|| {
-                panic!(
-                    "Rule '{}' config not found in cache. This is a bug - validate_and_cache_all must be called for all enabled rules before linting.",
-                    rule_id
-                )
-            })
-    }
+    ) -> Option<Violation>;
 }
 
 /// Get rule enabled flag, failing if not explicitly configured.
@@ -276,7 +130,7 @@ pub fn get_rule_severity_required(
     }
 }
 
-pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<RuleConfigEngine> {
+pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
     // Ensure every rule table specifies valid `enabled` and `severity` entries.
     for (rule_name, val) in &config.rules {
         if let toml::Value::Table(table) = val {
@@ -325,9 +179,23 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<RuleConf
         }
     }
 
-    let mut engine = RuleConfigEngine::new();
-    engine.validate_and_cache_all(config)?;
-    Ok(engine)
+    // Per-rule validation: every enabled rule parses its own config section so
+    // a malformed section (including custom fields) fails fast at startup.
+    for rule in RULES {
+        if config.is_enabled(rule.id()) {
+            rule.validate(config).map_err(|e| {
+                anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
+            })?;
+        }
+    }
+    for rule in PROTOCOL_RULES {
+        if config.is_enabled(rule.id()) {
+            rule.validate(config).map_err(|e| {
+                anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
+            })?;
+        }
+    }
+    Ok(())
 }
 
 pub mod client_accept_encoding_present;
@@ -519,105 +387,30 @@ pub mod stateful_websocket_handshake_validity;
 //
 // `ProtocolRule` mirrors `Rule` but operates on `ProtocolEvent` instead of
 // `HttpTransaction`.  It lives in the same module to share `RuleConfig`,
-// `RuleConfigEngine`, severity helpers, and the config TOML infrastructure.
+// severity helpers, and the config TOML infrastructure.
 
 /// A rule that evaluates protocol-level events (WebSocket frames, HTTP/3
 /// control frames, QUIC transport events) rather than HTTP transactions.
 pub trait ProtocolRule: Send + Sync {
-    /// The type of parsed configuration this rule requires.
-    type Config: Send + Sync + 'static;
-
     fn id(&self) -> &'static str;
 
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<Arc<dyn Any + Send + Sync>> {
-        let config = parse_rule_config(config, self.id())?;
-        Ok(Arc::new(config))
+    /// Validate the rule's configuration section at startup. See
+    /// [`Rule::validate`] for the contract.
+    fn validate(&self, cfg: &crate::config::Config) -> anyhow::Result<()> {
+        parse_rule_config(cfg, self.id()).map(|_| ())
     }
 
-    /// **Legacy entry point.** Evaluate a single protocol event using the
-    /// rule's parsed associated `Self::Config`. Existing rules override this;
-    /// the default `check` impl unboxes the config from the engine cache and
-    /// delegates here.
-    ///
-    /// New rules should override [`check`](Self::check) directly. See the
-    /// matching `Rule::check_transaction` doc-comment and REPORT.md item #8.
+    /// Evaluate a single protocol event against this rule. Rules parse
+    /// whatever configuration they need directly from `cfg: &Config`.
     fn check_event(
-        &self,
-        _event: &crate::protocol_event::ProtocolEvent,
-        _history: &crate::protocol_event::ProtocolEventHistory,
-        _config: &Self::Config,
-    ) -> Option<Violation> {
-        unreachable!(
-            "protocol rule '{}' overrides neither `check_event` (legacy) nor `check` (preferred)",
-            self.id()
-        )
-    }
-
-    /// Evaluate a protocol event against this rule. The default impl looks
-    /// up the parsed associated config from the engine cache and delegates
-    /// to [`check_event`](Self::check_event); existing rules continue to
-    /// work unchanged. New rules should override **this** method instead.
-    /// Renamed to `check_event` once the legacy path is removed (REPORT.md
-    /// #8c).
-    fn check(
-        &self,
-        event: &crate::protocol_event::ProtocolEvent,
-        history: &crate::protocol_event::ProtocolEventHistory,
-        _cfg: &crate::config::Config,
-        engine: &RuleConfigEngine,
-    ) -> Option<Violation> {
-        let parsed = engine.get_cached::<Self::Config>(self.id());
-        self.check_event(event, history, &parsed)
-    }
-}
-
-/// Type-erased wrapper for `ProtocolRule`, mirroring `RuleConfigValidator`.
-pub trait ProtocolRuleConfigValidator: Send + Sync {
-    fn id(&self) -> &'static str;
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<Arc<dyn Any + Send + Sync>>;
-
-    fn check_event_erased(
-        &self,
-        event: &crate::protocol_event::ProtocolEvent,
-        history: &crate::protocol_event::ProtocolEventHistory,
-        config: &crate::config::Config,
-        engine: &RuleConfigEngine,
-    ) -> Option<Violation>;
-}
-
-impl<T: ProtocolRule> ProtocolRuleConfigValidator for T {
-    fn id(&self) -> &'static str {
-        <Self as ProtocolRule>::id(self)
-    }
-
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<Arc<dyn Any + Send + Sync>> {
-        <Self as ProtocolRule>::validate_and_box(self, config)
-    }
-
-    fn check_event_erased(
         &self,
         event: &crate::protocol_event::ProtocolEvent,
         history: &crate::protocol_event::ProtocolEventHistory,
         cfg: &crate::config::Config,
-        engine: &RuleConfigEngine,
-    ) -> Option<Violation> {
-        // Route through the new `ProtocolRule::check` entry point. Default
-        // impl preserves the legacy delegation to `check_event` for rules
-        // that haven't migrated yet.
-        <Self as ProtocolRule>::check(self, event, history, cfg, engine)
-    }
+    ) -> Option<Violation>;
 }
 
-pub const PROTOCOL_RULES: &[&dyn ProtocolRuleConfigValidator] = &[
+pub const PROTOCOL_RULES: &[&dyn ProtocolRule] = &[
     &server_quic_transport_parameters::ServerQuicTransportParameters,
     &stateful_http3_goaway_semantics::StatefulHttp3GoawaySemantics,
     &stateful_http3_max_push_id::StatefulHttp3MaxPushId,
@@ -625,7 +418,7 @@ pub const PROTOCOL_RULES: &[&dyn ProtocolRuleConfigValidator] = &[
     &stateful_websocket_frame_opcode_sequence::StatefulWebsocketFrameOpcodeSequence,
 ];
 
-pub const RULES: &[&dyn RuleConfigValidator] = &[
+pub const RULES: &[&dyn Rule] = &[
     &client_accept_encoding_present::ClientAcceptEncodingPresent,
     &client_accept_ranges_on_partial_content::ClientAcceptRangesOnPartialContent,
     &client_cache_respect::ClientCacheRespect,
@@ -813,20 +606,19 @@ pub const RULES: &[&dyn RuleConfigValidator] = &[
 /// has-response / no-response cases.
 ///
 /// Implementation detail of [`rules_for_scope`]; not part of the public API.
-pub(crate) static REQUEST_ONLY_RULES: LazyLock<Vec<&'static dyn RuleConfigValidator>> =
-    LazyLock::new(|| {
-        RULES
-            .iter()
-            .copied()
-            .filter(|r| !matches!(r.scope(), RuleScope::Server))
-            .collect()
-    });
+pub(crate) static REQUEST_ONLY_RULES: LazyLock<Vec<&'static dyn Rule>> = LazyLock::new(|| {
+    RULES
+        .iter()
+        .copied()
+        .filter(|r| !matches!(r.scope(), RuleScope::Server))
+        .collect()
+});
 
 /// Returns the rule slice the engine should iterate for a transaction with
 /// the given response presence. `Server` rules are excluded when there is no
 /// response; `Client` and `Both` rules run on every transaction. The returned
 /// slice preserves the source order of `RULES`.
-pub fn rules_for_scope(has_response: bool) -> &'static [&'static dyn RuleConfigValidator] {
+pub fn rules_for_scope(has_response: bool) -> &'static [&'static dyn Rule] {
     if has_response {
         RULES
     } else {
@@ -838,98 +630,6 @@ pub fn rules_for_scope(has_response: bool) -> &'static [&'static dyn RuleConfigV
 mod tests {
     use super::*;
     use crate::test_helpers::{enable_rule, enable_rule_with_paths};
-
-    #[test]
-    fn protocol_check_override_short_circuits_engine_cache() {
-        // Mirror of `check_override_short_circuits_engine_cache` for the
-        // protocol-rule side. Same load-bearing role for the #8a bridge on
-        // `ProtocolRule`.
-        struct ProtocolProbe;
-        impl ProtocolRule for ProtocolProbe {
-            type Config = ();
-
-            fn id(&self) -> &'static str {
-                "_test_protocol_check_override_probe"
-            }
-
-            fn check(
-                &self,
-                _event: &crate::protocol_event::ProtocolEvent,
-                _history: &crate::protocol_event::ProtocolEventHistory,
-                _cfg: &crate::config::Config,
-                _engine: &RuleConfigEngine,
-            ) -> Option<Violation> {
-                Some(Violation {
-                    rule: "_test_protocol_check_override_probe".into(),
-                    severity: crate::lint::Severity::Info,
-                    message: "from protocol check override".into(),
-                })
-            }
-        }
-
-        let probe = ProtocolProbe;
-        let engine = RuleConfigEngine::new();
-        let cfg = crate::config::Config::default();
-        let event = crate::protocol_event::ProtocolEvent {
-            timestamp: chrono::Utc::now(),
-            connection_id: uuid::Uuid::new_v4(),
-            kind: crate::protocol_event::ProtocolEventKind::H3MaxPushId { push_id: 0 },
-        };
-        let history = crate::protocol_event::ProtocolEventHistory::empty();
-
-        let result = <ProtocolProbe as ProtocolRuleConfigValidator>::check_event_erased(
-            &probe, &event, &history, &cfg, &engine,
-        );
-
-        let v = result.expect("override should produce a violation");
-        assert_eq!(v.message, "from protocol check override");
-    }
-
-    #[test]
-    fn check_override_short_circuits_engine_cache() {
-        // Load-bearing test for the #8a bridge: a rule that overrides
-        // `Rule::check` directly must be routed through the new entry point
-        // *without* the dispatch trying to unbox a config from the engine
-        // cache. If the bridge regressed (e.g. `check_transaction_erased`
-        // started calling `check_transaction` again), the engine lookup
-        // would panic on this empty engine.
-        struct Probe;
-        impl Rule for Probe {
-            type Config = ();
-
-            fn id(&self) -> &'static str {
-                "_test_check_override_probe"
-            }
-
-            fn check(
-                &self,
-                _tx: &crate::http_transaction::HttpTransaction,
-                _history: &crate::transaction_history::TransactionHistory,
-                _cfg: &crate::config::Config,
-                _engine: &RuleConfigEngine,
-            ) -> Option<Violation> {
-                Some(Violation {
-                    rule: "_test_check_override_probe".into(),
-                    severity: crate::lint::Severity::Info,
-                    message: "from check override".into(),
-                })
-            }
-        }
-
-        let probe = Probe;
-        let engine = RuleConfigEngine::new();
-        let cfg = crate::config::Config::default();
-        let tx = crate::test_helpers::make_test_transaction();
-        let history = crate::transaction_history::TransactionHistory::empty();
-
-        let result = <Probe as RuleConfigValidator>::check_transaction_erased(
-            &probe, &tx, &history, &cfg, &engine,
-        );
-
-        let v = result.expect("override should produce a violation");
-        assert_eq!(v.message, "from check override");
-        assert_eq!(v.rule, "_test_check_override_probe");
-    }
 
     #[test]
     fn rule_ids_unique_and_non_empty() {
@@ -1018,7 +718,7 @@ mod tests {
         enable_rule(&mut cfg, "server_cache_control_present");
         // server_clear_site_data requires paths; enable with valid paths too
         enable_rule_with_paths(&mut cfg, "server_clear_site_data", &["/logout"]);
-        let _engine = validate_rules(&cfg)?;
+        validate_rules(&cfg)?;
         Ok(())
     }
 
@@ -1064,24 +764,6 @@ mod tests {
         assert!(res.is_err());
         let msg = res.unwrap_err().to_string();
         assert!(msg.contains("server_clear_site_data"));
-        Ok(())
-    }
-
-    #[test]
-    #[should_panic(expected = "config not found in cache")]
-    fn test_get_cached_missing_panics() {
-        let engine = RuleConfigEngine::new();
-        let _: std::sync::Arc<RuleConfig> = engine.get_cached("nonexistent_rule");
-    }
-
-    #[test]
-    fn rule_config_engine_validate_and_cache_for_new_rule() -> anyhow::Result<()> {
-        let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "message_forwarded_header_validity");
-        let mut engine = RuleConfigEngine::new();
-        engine.validate_and_cache_all(&cfg)?;
-        let cfg_obj: Arc<RuleConfig> = engine.get_cached("message_forwarded_header_validity");
-        assert!(cfg_obj.enabled);
         Ok(())
     }
 
@@ -1211,8 +893,6 @@ mod tests {
     fn default_rule_scope_is_both() {
         struct DummyRule;
         impl Rule for DummyRule {
-            type Config = RuleConfig;
-
             fn id(&self) -> &'static str {
                 "dummy_rule"
             }
@@ -1221,18 +901,17 @@ mod tests {
                 &self,
                 _tx: &crate::http_transaction::HttpTransaction,
                 _history: &crate::transaction_history::TransactionHistory,
-                _config: &Self::Config,
+                _cfg: &crate::config::Config,
             ) -> Option<Violation> {
                 None
             }
         }
 
         let r = DummyRule;
-        // Direct call to default implementation (disambiguate trait method)
         assert_eq!(crate::rules::Rule::scope(&r), RuleScope::Both);
 
-        // Also verify through the type-erased validator trait
-        let v: &dyn RuleConfigValidator = &r;
+        // Also verify through a trait object (now object-safe).
+        let v: &dyn Rule = &r;
         assert_eq!(v.scope(), RuleScope::Both);
     }
 
@@ -1250,24 +929,6 @@ mod tests {
         let rc = parse_rule_config(&cfg, "server_cache_control_present")?;
         assert!(rc.enabled);
         assert_eq!(rc.severity, crate::lint::Severity::Warn);
-        Ok(())
-    }
-
-    #[test]
-    fn validate_and_cache_all_get_cached_success() -> anyhow::Result<()> {
-        let mut cfg = crate::config::Config::default();
-        let mut table = toml::map::Map::new();
-        table.insert("enabled".to_string(), toml::Value::Boolean(true));
-        table.insert("severity".to_string(), toml::Value::String("error".into()));
-        cfg.rules.insert(
-            "server_cache_control_present".into(),
-            toml::Value::Table(table),
-        );
-
-        let mut engine = RuleConfigEngine::new();
-        engine.validate_and_cache_all(&cfg)?;
-        let rc: std::sync::Arc<RuleConfig> = engine.get_cached("server_cache_control_present");
-        assert_eq!(rc.severity, crate::lint::Severity::Error);
         Ok(())
     }
 

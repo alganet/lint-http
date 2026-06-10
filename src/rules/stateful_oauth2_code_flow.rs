@@ -28,8 +28,6 @@ use crate::rules::Rule;
 pub struct StatefulOauth2CodeFlow;
 
 impl Rule for StatefulOauth2CodeFlow {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "stateful_oauth2_code_flow"
     }
@@ -39,12 +37,11 @@ impl Rule for StatefulOauth2CodeFlow {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req_uri = &tx.request.uri;
@@ -146,13 +143,12 @@ mod tests {
         let tx = make_tx("https://idp.example.com/authorize?response_type=code&client_id=1");
         let history = crate::transaction_history::TransactionHistory::empty();
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_oauth2_code_flow",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("missing or empty state"));
@@ -164,13 +160,12 @@ mod tests {
         let tx = make_tx("https://idp.example.com/authorize?response_type=code&state=xyz");
         let history = crate::transaction_history::TransactionHistory::empty();
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_oauth2_code_flow"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -181,13 +176,12 @@ mod tests {
         let tx = make_tx("https://app.example.com/callback?code=abc");
         let history = crate::transaction_history::TransactionHistory::empty();
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_oauth2_code_flow",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("missing or empty state"));
@@ -199,13 +193,12 @@ mod tests {
         let tx = make_tx("https://app.example.com/callback?code=abc&state=xyz");
         let history = crate::transaction_history::TransactionHistory::empty();
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_oauth2_code_flow",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("not seen"));
@@ -220,13 +213,12 @@ mod tests {
         )]);
         let tx = make_tx("https://app.example.com/callback?code=abc&state=xyz");
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_oauth2_code_flow"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -238,13 +230,12 @@ mod tests {
         let tx = make_tx("https://example.com/foo?state=xyz");
         let history = crate::transaction_history::TransactionHistory::empty();
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_oauth2_code_flow"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -258,13 +249,12 @@ mod tests {
         )]);
         let tx = make_tx("https://app.example.com/callback?code=abc&state=foo#bar");
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_oauth2_code_flow"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -275,13 +265,12 @@ mod tests {
         let tx = make_tx("https://idp.example.com/authorize?response_type=code#frag");
         let history = crate::transaction_history::TransactionHistory::empty();
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_oauth2_code_flow",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("missing or empty state"));
@@ -296,24 +285,22 @@ mod tests {
         // callback with empty state should flag missing or empty
         let tx2 = make_tx("https://app.example.com/callback?code=123&state=");
         let v = rule
-            .check(
+            .check_transaction(
                 &tx1,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_oauth2_code_flow",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("missing or empty state"));
         let v2 = rule
-            .check(
+            .check_transaction(
                 &tx2,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_oauth2_code_flow",
                 ]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v2.message.contains("missing or empty state"));
@@ -323,6 +310,6 @@ mod tests {
     fn validate_rules_with_valid_config() {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "stateful_oauth2_code_flow");
-        let _engine = crate::rules::validate_rules(&cfg).unwrap();
+        crate::rules::validate_rules(&cfg).unwrap();
     }
 }

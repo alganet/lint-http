@@ -14,8 +14,6 @@ use crate::rules::Rule;
 pub struct ServerVaryAndCacheConsistency;
 
 impl Rule for ServerVaryAndCacheConsistency {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_vary_and_cache_consistency"
     }
@@ -24,12 +22,11 @@ impl Rule for ServerVaryAndCacheConsistency {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
@@ -137,11 +134,10 @@ mod tests {
     ) {
         let rule = ServerVaryAndCacheConsistency;
         let tx = make_tx(vary, cc);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -174,11 +170,10 @@ mod tests {
             .unwrap()
             .headers
             .insert("cache-control", bad);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -211,11 +206,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -226,21 +220,19 @@ mod tests {
 
         // Public (mixed case) should be detected
         let tx = make_tx(Some("*"), Some("Public"));
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
 
         // MAX-AGE uppercase
         let tx2 = make_tx(Some("*"), Some("MAX-AGE=60"));
-        let v2 = rule.check(
+        let v2 = rule.check_transaction(
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_some());
     }
@@ -265,11 +257,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -279,11 +270,10 @@ mod tests {
         // Vary: * with a non-cacheability extension should not be flagged
         let rule = ServerVaryAndCacheConsistency;
         let tx = make_tx(Some("*"), Some("foo=bar"));
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -294,8 +284,8 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "server_vary_and_cache_consistency",
         ]);
-        // validate_and_box should succeed without error
-        let _boxed = rule.validate_and_box(&cfg)?;
+        // validate should succeed without error
+        rule.validate(&cfg)?;
         Ok(())
     }
 }

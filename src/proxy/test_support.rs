@@ -25,7 +25,6 @@ use super::Shared;
 pub(super) async fn make_shared_with_cfg(
     cfg: StdArc<crate::config::Config>,
     ca: Option<std::sync::Arc<CertificateAuthority>>,
-    engine: Option<StdArc<crate::rules::RuleConfigEngine>>,
 ) -> anyhow::Result<(StdArc<Shared>, String, CaptureWriter)> {
     let tmp =
         std::env::temp_dir().join(format!("lint_proxy_connect_test_{}.jsonl", Uuid::new_v4()));
@@ -47,7 +46,6 @@ pub(super) async fn make_shared_with_cfg(
     let protocol_event_store = StdArc::new(crate::protocol_event_store::ProtocolEventStore::new(
         300, 100,
     ));
-    let engine = engine.unwrap_or_else(|| StdArc::new(crate::rules::RuleConfigEngine::new()));
     let shared = StdArc::new(Shared {
         client,
         captures: cw.clone(),
@@ -55,7 +53,6 @@ pub(super) async fn make_shared_with_cfg(
         state,
         protocol_event_store,
         ca,
-        engine,
         quic_transport_params: None,
     });
     Ok((shared, p, cw))
