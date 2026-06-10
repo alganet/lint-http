@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageDigestAuthValidity;
 
 impl Rule for MessageDigestAuthValidity {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_digest_auth_validity"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageDigestAuthValidity {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         for hv in tx.request.headers.get_all("authorization").iter() {
@@ -220,11 +217,10 @@ mod tests {
                 .append("authorization", h.parse().unwrap());
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -249,11 +245,10 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -276,11 +271,10 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -301,11 +295,10 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -321,11 +314,10 @@ mod tests {
             "authorization",
             hyper::header::HeaderValue::from_bytes(b"Digest \xff").unwrap(),
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -346,11 +338,10 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -375,11 +366,10 @@ mod tests {
             "Digest username=\"Mu\\\"fasa\", realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"d\"".parse().unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -401,11 +391,10 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -442,11 +431,10 @@ mod tests {
             .headers
             .append("authorization", "Digest    ".parse().unwrap());
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -467,11 +455,10 @@ mod tests {
             .headers
             .append("authorization", "Digest".parse().unwrap());
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -494,11 +481,10 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -524,11 +510,10 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -554,11 +539,10 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -588,11 +572,10 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -625,11 +608,10 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -656,11 +638,10 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -678,11 +659,10 @@ mod tests {
         tx.request
             .headers
             .append("authorization", "".parse().unwrap());
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -702,11 +682,10 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -725,11 +704,10 @@ mod tests {
                 .parse()
                 .unwrap(),
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -754,11 +732,10 @@ mod tests {
                 .parse()
                 .unwrap(),
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -773,7 +750,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "message_digest_auth_validity");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 

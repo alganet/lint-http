@@ -62,8 +62,6 @@ fn parse_allowed_config(
 pub struct MessageExtensionHeadersRegistered;
 
 impl Rule for MessageExtensionHeadersRegistered {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_extension_headers_registered"
     }
@@ -72,20 +70,16 @@ impl Rule for MessageExtensionHeadersRegistered {
         crate::rules::RuleScope::Both
     }
 
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<std::sync::Arc<dyn std::any::Any + Send + Sync>> {
-        let parsed = parse_allowed_config(config, self.id())?;
-        Ok(std::sync::Arc::new(parsed))
+    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
+        parse_allowed_config(config, self.id())?;
+        Ok(())
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = parse_allowed_config(cfg, self.id()).ok()?;
         // Helper to check headers map against allowed set
@@ -177,11 +171,10 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&header_pairs);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -205,11 +198,10 @@ mod tests {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, header_pairs.as_slice());
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -312,11 +304,10 @@ mod tests {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, &[("x-unknown", "v")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -326,7 +317,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_and_box_parses_config() -> anyhow::Result<()> {
+    fn validate_parses_config() -> anyhow::Result<()> {
         let rule = MessageExtensionHeadersRegistered;
         let mut full_cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_extension_headers_registered",
@@ -345,10 +336,7 @@ mod tests {
             }),
         );
 
-        let boxed = rule.validate_and_box(&full_cfg)?;
-        let arc = boxed
-            .downcast::<ExtensionHeadersConfig>()
-            .map_err(|_| anyhow::anyhow!("downcast failed"))?;
+        let arc = parse_allowed_config(&full_cfg, rule.id())?;
         assert!(arc.allowed.contains(&"host".to_string()));
         Ok(())
     }
@@ -359,11 +347,10 @@ mod tests {
         let cfg = make_cfg_with_allowed(vec!["x-custom"]);
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("X-CUSTOM", "1")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -376,11 +363,10 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("x-a", "1"), ("x-b", "2")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -436,7 +422,7 @@ mod tests {
                 t
             }),
         );
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

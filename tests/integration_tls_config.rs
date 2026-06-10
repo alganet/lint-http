@@ -38,9 +38,8 @@ async fn test_suppress_headers() -> anyhow::Result<()> {
 
     let cw_clone = cw.clone();
     let cfg_clone = cfg.clone();
-    let engine = Arc::new(lint_http::rules::RuleConfigEngine::default());
     tokio::spawn(async move {
-        if let Err(e) = lint_http::proxy::run_proxy(proxy_addr, cw_clone, cfg_clone, engine).await {
+        if let Err(e) = lint_http::proxy::run_proxy(proxy_addr, cw_clone, cfg_clone).await {
             eprintln!("run_proxy failed: {}", e);
         }
     });
@@ -132,9 +131,8 @@ async fn test_passthrough_domains() -> anyhow::Result<()> {
 
     let cw_clone = cw.clone();
     let cfg_clone = cfg.clone();
-    let engine = Arc::new(lint_http::rules::RuleConfigEngine::default());
     tokio::spawn(async move {
-        if let Err(e) = lint_http::proxy::run_proxy(proxy_addr, cw_clone, cfg_clone, engine).await {
+        if let Err(e) = lint_http::proxy::run_proxy(proxy_addr, cw_clone, cfg_clone).await {
             eprintln!("run_proxy failed: {}", e);
         }
     });

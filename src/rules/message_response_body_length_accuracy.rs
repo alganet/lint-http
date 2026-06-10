@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageResponseBodyLengthAccuracy;
 
 impl Rule for MessageResponseBodyLengthAccuracy {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_response_body_length_accuracy"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageResponseBodyLengthAccuracy {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
@@ -130,11 +127,10 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -151,11 +147,10 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Content-Length"));
@@ -173,11 +168,10 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid Content-Length"));
@@ -195,11 +189,10 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -216,11 +209,10 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid Content-Length"));
@@ -242,11 +234,10 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v
@@ -271,11 +262,10 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -295,11 +285,10 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -316,11 +305,10 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -337,11 +325,10 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -364,11 +351,10 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some(), "overflowing Content-Length should be reported");
         let msg = v.unwrap().message;
@@ -391,11 +377,10 @@ mod tests {
         });
 
         let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_none(),
@@ -407,7 +392,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "message_response_body_length_accuracy");
-        let _ = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 

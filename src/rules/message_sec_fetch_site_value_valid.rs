@@ -11,8 +11,6 @@ use crate::rules::Rule;
 pub struct MessageSecFetchSiteValueValid;
 
 impl Rule for MessageSecFetchSiteValueValid {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_sec_fetch_site_value_valid"
     }
@@ -21,12 +19,11 @@ impl Rule for MessageSecFetchSiteValueValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Sec-Fetch-* are request-sent headers; check only requests
@@ -115,11 +112,10 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-site", v)]);
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header={:?}", header);
@@ -149,11 +145,10 @@ mod tests {
             "message_sec_fetch_site_value_valid",
         ]);
         // get_header_str will return None for non-utf8 and this rule treats non-UTF8 as violation
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-ASCII"));
@@ -170,11 +165,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-site", "b@d")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -192,11 +186,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-site", " same-origin ")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_none(),
@@ -221,11 +214,10 @@ mod tests {
         tx.request.headers = hm;
 
         // Multiple header fields are always a violation (potential header injection)
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some(), "expected violation for multiple header fields");
         let msg = v.unwrap().message;
@@ -252,11 +244,10 @@ mod tests {
         hm.append("sec-fetch-site", HeaderValue::from_static("bad2"));
         tx.request.headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -280,11 +271,10 @@ mod tests {
         hm.append("sec-fetch-site", HeaderValue::from_static("cross-site"));
         tx.request.headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -303,7 +293,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "message_sec_fetch_site_value_valid");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

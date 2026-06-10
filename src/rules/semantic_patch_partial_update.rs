@@ -13,8 +13,6 @@ use crate::rules::Rule;
 pub struct SemanticPatchPartialUpdate;
 
 impl Rule for SemanticPatchPartialUpdate {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "semantic_patch_partial_update"
     }
@@ -23,12 +21,11 @@ impl Rule for SemanticPatchPartialUpdate {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         if !tx.request.method.eq_ignore_ascii_case("PATCH") {
@@ -154,11 +151,10 @@ mod tests {
         let rule = SemanticPatchPartialUpdate;
         let tx = make_tx_with_req(headers);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -184,11 +180,10 @@ mod tests {
         );
         tx.request.body_length = Some(1);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         // rule should not produce a violation; malformed header handled elsewhere
         assert!(v.is_none());
@@ -201,11 +196,10 @@ mod tests {
         tx.request.method = "PATCH".into();
         tx.request.body_length = Some(5);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -220,11 +214,10 @@ mod tests {
         tx.request.method = "PATCH".into();
         tx.request_body = Some(Bytes::from("hello"));
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -236,7 +229,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "semantic_patch_partial_update");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 

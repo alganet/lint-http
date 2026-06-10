@@ -162,7 +162,7 @@ mod tests {
             None
         };
 
-        let (shared, tmp_path, _cw) = make_shared_with_cfg(cfg, ca_arc.clone(), None).await?;
+        let (shared, tmp_path, _cw) = make_shared_with_cfg(cfg, ca_arc.clone()).await?;
 
         let req = Request::builder()
             .method("CONNECT")

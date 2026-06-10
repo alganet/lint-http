@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageBearerTokenFormatValidity;
 
 impl Rule for MessageBearerTokenFormatValidity {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_bearer_token_format_validity"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageBearerTokenFormatValidity {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         for hv in tx.request.headers.get_all("authorization").iter() {
@@ -93,11 +90,10 @@ mod tests {
                 .append("authorization", HeaderValue::from_str(h)?);
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header={:?}", header);
@@ -124,11 +120,10 @@ mod tests {
             HeaderValue::from_bytes(b"Bearer \xff").unwrap(),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -144,7 +139,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "message_bearer_token_format_validity");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 
@@ -159,11 +154,10 @@ mod tests {
             .headers
             .append("authorization", HeaderValue::from_static("bearer abc123"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -183,11 +177,10 @@ mod tests {
             .headers
             .append("authorization", HeaderValue::from_static("Bearer a b"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -203,11 +196,10 @@ mod tests {
             .headers
             .append("authorization", HeaderValue::from_static("Bearer ab=c"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -225,11 +217,10 @@ mod tests {
             .headers
             .append("authorization", HeaderValue::from_static("Bearer =abc"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }

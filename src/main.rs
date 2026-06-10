@@ -19,9 +19,8 @@ struct Args {
 async fn run_app(args: Args) -> anyhow::Result<()> {
     let _ = tracing_subscriber::fmt::try_init();
 
-    let (cfg, engine) = config::Config::load_from_path(&args.config).await?;
+    let cfg = config::Config::load_from_path(&args.config).await?;
     let cfg = std::sync::Arc::new(cfg);
-    let engine = std::sync::Arc::new(engine);
 
     let addr: SocketAddr = cfg.general.listen.parse()?;
     let capture_writer = capture::CaptureWriter::new(
@@ -31,7 +30,7 @@ async fn run_app(args: Args) -> anyhow::Result<()> {
     .await?;
 
     // Start proxy and return its result (no signal handling here).
-    proxy::run_proxy(addr, capture_writer, cfg, engine).await
+    proxy::run_proxy(addr, capture_writer, cfg).await
 }
 
 // Testable variant of run_app that allows tests to pass in an accept limit so the
@@ -40,9 +39,8 @@ async fn run_app(args: Args) -> anyhow::Result<()> {
 async fn run_app_with_limit(args: Args, accept_limit: Option<usize>) -> anyhow::Result<()> {
     let _ = tracing_subscriber::fmt::try_init();
 
-    let (cfg, engine) = config::Config::load_from_path(&args.config).await?;
+    let cfg = config::Config::load_from_path(&args.config).await?;
     let cfg = std::sync::Arc::new(cfg);
-    let engine = std::sync::Arc::new(engine);
 
     let addr: SocketAddr = cfg.general.listen.parse()?;
     let capture_writer = capture::CaptureWriter::new(
@@ -52,7 +50,7 @@ async fn run_app_with_limit(args: Args, accept_limit: Option<usize>) -> anyhow::
     .await?;
 
     // Start proxy with an accept limit for testing
-    crate::proxy::run_proxy_with_limit(addr, capture_writer, cfg, engine, accept_limit).await
+    crate::proxy::run_proxy_with_limit(addr, capture_writer, cfg, accept_limit).await
 }
 
 #[tokio::main]
@@ -92,7 +90,7 @@ mod tests {
                 .to_string(),
         };
 
-        let (cfg, _engine) = config::Config::load_from_path(&args.config).await?;
+        let cfg = config::Config::load_from_path(&args.config).await?;
 
         assert!(!cfg.is_enabled("server_cache_control_present"));
         assert_eq!(cfg.general.listen, "127.0.0.1:3000");

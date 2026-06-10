@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageProblemDetailsStructure;
 
 impl Rule for MessageProblemDetailsStructure {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_problem_details_structure"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageProblemDetailsStructure {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
@@ -151,11 +148,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for hdr={:?}", hdr);
@@ -185,11 +181,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Problem Details response"));
@@ -210,11 +205,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -234,11 +228,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -259,11 +252,10 @@ mod tests {
         });
         tx.response_body = Some(bytes::Bytes::from_static(b""));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -284,11 +276,10 @@ mod tests {
         });
         tx.response_body = Some(bytes::Bytes::from_static(b"{}"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -309,11 +300,10 @@ mod tests {
         });
         tx.response_body = Some(bytes::Bytes::from_static(b"{\"type\":\"x\"}"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -334,11 +324,10 @@ mod tests {
         });
         tx.response_body = Some(bytes::Bytes::from_static(b"not json"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }

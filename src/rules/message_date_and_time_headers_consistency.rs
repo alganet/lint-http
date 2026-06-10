@@ -9,8 +9,6 @@ use crate::rules::Rule;
 pub struct MessageDateAndTimeHeadersConsistency;
 
 impl Rule for MessageDateAndTimeHeadersConsistency {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_date_and_time_headers_consistency"
     }
@@ -19,12 +17,11 @@ impl Rule for MessageDateAndTimeHeadersConsistency {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         use chrono::Duration;
@@ -216,11 +213,10 @@ mod tests {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&h);
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -241,11 +237,10 @@ mod tests {
             ("last-modified", "Wed, 21 Oct 2015 07:30:00 GMT"),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
@@ -262,11 +257,10 @@ mod tests {
             ("sunset", "Wed, 21 Oct 2015 07:27:00 GMT"),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
@@ -283,11 +277,10 @@ mod tests {
             ("if-modified-since", "Wed, 21 Oct 2015 07:30:00 GMT"),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
@@ -306,11 +299,10 @@ mod tests {
         hm.insert("date", bad);
         tx.request.headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -325,11 +317,10 @@ mod tests {
             ("sunset", "not-a-date"),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
@@ -351,11 +342,10 @@ mod tests {
         hm.insert("last-modified", bad);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
@@ -374,11 +364,10 @@ mod tests {
         hm.insert("if-modified-since", bad);
         tx.request.headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
@@ -393,11 +382,10 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("date", "not-a-date")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
@@ -414,11 +402,10 @@ mod tests {
             "Tue, 01 Jan 2030 00:00:00 GMT",
         )]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -435,11 +422,10 @@ mod tests {
         hm.insert("date", bad);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
@@ -456,11 +442,10 @@ mod tests {
             ("last-modified", "not-a-date"),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         // Parse error for Last-Modified should be ignored by this rule (other rule will report)
         assert!(v.is_none());
@@ -476,11 +461,10 @@ mod tests {
             ("if-modified-since", "not-a-date"),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         // Parse error for If-Modified-Since should be ignored by this rule (other rule will report)
         assert!(v.is_none());
@@ -496,11 +480,10 @@ mod tests {
             "Wed, 21 Oct 2015 07:30:00 GMT",
         )]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         // Without a Date header to compare against, the rule should not produce a violation
         assert!(v.is_none());
@@ -521,11 +504,10 @@ mod tests {
         hm.insert("sunset", bad);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
@@ -544,7 +526,7 @@ mod tests {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "message_date_and_time_headers_consistency");
         // Should validate and produce an engine without error
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

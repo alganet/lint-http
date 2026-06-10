@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ServerHttp3StatusCodeValidity;
 
 impl Rule for ServerHttp3StatusCodeValidity {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_http3_status_code_validity"
     }
@@ -18,12 +16,11 @@ impl Rule for ServerHttp3StatusCodeValidity {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to HTTP/3 connections.
@@ -122,11 +119,10 @@ mod tests {
         let rule = ServerHttp3StatusCodeValidity;
         let tx = make_h3_transaction_with_response(101, &[("upgrade", "websocket")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         let v = v.expect("should be a violation");
         assert_eq!(v.rule, "server_http3_status_code_validity");
@@ -140,11 +136,10 @@ mod tests {
         let rule = ServerHttp3StatusCodeValidity;
         let tx = make_h3_transaction_with_response(101, &[]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("101"));
@@ -160,11 +155,10 @@ mod tests {
         let rule = ServerHttp3StatusCodeValidity;
         let tx = make_h3_transaction_with_response(status, headers);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -176,11 +170,10 @@ mod tests {
         let rule = ServerHttp3StatusCodeValidity;
         let tx = make_h3_transaction_with_response(100, &[("content-length", "0")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         let v = v.expect("should be a violation");
         assert_eq!(v.rule, "server_http3_status_code_validity");
@@ -193,11 +186,10 @@ mod tests {
         let rule = ServerHttp3StatusCodeValidity;
         let tx = make_h3_transaction_with_response(103, &[("content-length", "42")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -215,11 +207,10 @@ mod tests {
             resp.body_length = Some(10);
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("message body"));
@@ -233,11 +224,10 @@ mod tests {
             resp.body_length = Some(0);
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -255,11 +245,10 @@ mod tests {
             )]));
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("trailer"));
@@ -278,11 +267,10 @@ mod tests {
         let rule = ServerHttp3StatusCodeValidity;
         let tx = make_h3_transaction_with_response(status, &[]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -297,11 +285,10 @@ mod tests {
             &[("upgrade", "websocket")],
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -317,11 +304,10 @@ mod tests {
         tx.request.version = "HTTP/3".into();
         // response.version stays HTTP/1.1
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -334,11 +320,10 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.version = "HTTP/3".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -351,11 +336,10 @@ mod tests {
         let rule = ServerHttp3StatusCodeValidity;
         let tx = make_h3_transaction_with_response(199, &[("content-length", "0")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("199"));
@@ -367,11 +351,10 @@ mod tests {
         let rule = ServerHttp3StatusCodeValidity;
         let tx = make_h3_transaction_with_response(200, &[("content-length", "42")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -386,11 +369,10 @@ mod tests {
             resp.body_length = Some(100);
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -406,11 +388,10 @@ mod tests {
             )]));
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -426,11 +407,10 @@ mod tests {
             resp.body_length = Some(10);
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Content-Length"));
@@ -445,11 +425,10 @@ mod tests {
             resp.body_length = Some(10);
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("101"));
@@ -465,11 +444,10 @@ mod tests {
             resp.body_length = None;
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -483,11 +461,10 @@ mod tests {
             crate::test_helpers::make_test_transaction_with_response(101, &[("upgrade", "h2c")]);
         tx.request.version = "HTTP/2.0".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -502,11 +479,10 @@ mod tests {
             resp.body_length = Some(5);
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("102"));
@@ -523,11 +499,10 @@ mod tests {
             resp.trailers = Some(hyper::HeaderMap::new());
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("trailer"));
@@ -548,11 +523,10 @@ mod tests {
             )]));
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("trailer"));
@@ -570,7 +544,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "server_http3_status_code_validity");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

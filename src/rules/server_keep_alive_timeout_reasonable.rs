@@ -57,8 +57,6 @@ fn parse_keep_alive_config(
 pub struct ServerKeepAliveTimeoutReasonable;
 
 impl Rule for ServerKeepAliveTimeoutReasonable {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_keep_alive_timeout_reasonable"
     }
@@ -67,20 +65,16 @@ impl Rule for ServerKeepAliveTimeoutReasonable {
         crate::rules::RuleScope::Server
     }
 
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<std::sync::Arc<dyn std::any::Any + Send + Sync>> {
-        let parsed = parse_keep_alive_config(config, self.id())?;
-        Ok(std::sync::Arc::new(parsed))
+    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
+        parse_keep_alive_config(config, self.id())?;
+        Ok(())
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = parse_keep_alive_config(cfg, self.id()).ok()?;
         let Some(resp) = &tx.response else {
@@ -199,11 +193,10 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("keep-alive", v)]);
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &full_cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for {:?}: got {:?}", hv, v);
@@ -239,11 +232,10 @@ mod tests {
                 t
             }),
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &full_cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -257,7 +249,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_and_box_requires_max_timeout_field() {
+    fn validate_requires_max_timeout_field() {
         let rule = ServerKeepAliveTimeoutReasonable;
         let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         // Insert a table that lacks max_timeout_seconds -> should error on parse
@@ -271,7 +263,7 @@ mod tests {
             }),
         );
 
-        let res = rule.validate_and_box(&cfg);
+        let res = rule.validate(&cfg);
         assert!(res.is_err());
     }
 
@@ -295,10 +287,10 @@ mod tests {
     }
 
     #[test]
-    fn validate_and_box_rejects_non_positive_max_timeout() {
+    fn validate_rejects_non_positive_max_timeout() {
         let rule = ServerKeepAliveTimeoutReasonable;
 
-        // Zero value should be rejected by validate_and_box
+        // Zero value should be rejected by validate
         let mut cfg_zero = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         cfg_zero.rules.insert(
             rule.id().into(),
@@ -310,7 +302,7 @@ mod tests {
                 t
             }),
         );
-        let res_zero = rule.validate_and_box(&cfg_zero);
+        let res_zero = rule.validate(&cfg_zero);
         assert!(res_zero.is_err());
         let msg = format!("{}", res_zero.unwrap_err());
         assert!(msg.contains("must be a positive integer"));
@@ -327,7 +319,7 @@ mod tests {
                 t
             }),
         );
-        let res_neg = rule.validate_and_box(&cfg_neg);
+        let res_neg = rule.validate(&cfg_neg);
         assert!(res_neg.is_err());
         let msg2 = format!("{}", res_neg.unwrap_err());
         assert!(msg2.contains("must be a positive integer"));
@@ -367,9 +359,9 @@ mod tests {
             }),
         );
 
-        let _boxed = rule.validate_and_box(&full_cfg)?;
+        rule.validate(&full_cfg)?;
         // Also ensure validate_rules (overall) will succeed when full config provided
-        let _engine = crate::rules::validate_rules(&full_cfg)?;
+        crate::rules::validate_rules(&full_cfg)?;
         Ok(())
     }
 }

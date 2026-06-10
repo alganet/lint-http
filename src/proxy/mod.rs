@@ -48,7 +48,6 @@ pub(super) struct Shared {
     pub(super) state: Arc<crate::state::StateStore>,
     pub(super) protocol_event_store: Arc<crate::protocol_event_store::ProtocolEventStore>,
     pub(super) ca: Option<Arc<CertificateAuthority>>,
-    pub(super) engine: Arc<crate::rules::RuleConfigEngine>,
     pub(super) quic_transport_params: Option<crate::protocol_event::QuicTransportParameters>,
 }
 
@@ -56,10 +55,9 @@ pub async fn run_proxy(
     listen: SocketAddr,
     captures: CaptureWriter,
     cfg: Arc<Config>,
-    engine: Arc<crate::rules::RuleConfigEngine>,
 ) -> anyhow::Result<()> {
     // Default behavior: no accept limit (runs forever)
-    run_proxy_with_limit(listen, captures, cfg, engine, None).await
+    run_proxy_with_limit(listen, captures, cfg, None).await
 }
 
 /// Testable variant of `run_proxy` that accepts an optional `accept_limit`.
@@ -71,7 +69,6 @@ pub async fn run_proxy_with_limit(
     listen: SocketAddr,
     captures: CaptureWriter,
     cfg: Arc<Config>,
-    engine: Arc<crate::rules::RuleConfigEngine>,
     accept_limit: Option<usize>,
 ) -> anyhow::Result<()> {
     let https = HttpsConnectorBuilder::new()
@@ -161,7 +158,6 @@ pub async fn run_proxy_with_limit(
         state,
         protocol_event_store,
         ca,
-        engine,
         quic_transport_params,
     });
 
@@ -243,10 +239,10 @@ mod tests {
         let addr = l.local_addr()?;
 
         let (shared, tmp, cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None, None).await?;
+            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
 
         // run_proxy should return an error since the port is already in use
-        let res = run_proxy(addr, cw, shared.cfg.clone(), shared.engine.clone()).await;
+        let res = run_proxy(addr, cw, shared.cfg.clone()).await;
         assert!(res.is_err());
 
         let _ = fs::remove_file(&tmp).await;
@@ -268,11 +264,11 @@ mod tests {
         cfg_inner.general.captures_seed = true;
         cfg_inner.general.captures = dir.to_string_lossy().to_string();
         let cfg = StdArc::new(cfg_inner);
-        let (shared, tmp, cw) = make_shared_with_cfg(cfg.clone(), None, None).await?;
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg.clone(), None).await?;
 
         // run_proxy should still return an error due to port being taken, but during
         // startup it should attempt to seed captures and hit the Err branch.
-        let res = run_proxy(addr, cw, shared.cfg.clone(), shared.engine.clone()).await;
+        let res = run_proxy(addr, cw, shared.cfg.clone()).await;
         assert!(res.is_err());
 
         // Cleanup
@@ -285,11 +281,11 @@ mod tests {
     #[tokio::test]
     async fn run_proxy_starts_and_can_be_aborted() -> anyhow::Result<()> {
         let (shared, tmp, cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None, None).await?;
+            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
         let addr: std::net::SocketAddr = "127.0.0.1:0".parse()?;
 
         let task = tokio::spawn(async move {
-            let _ = run_proxy(addr, cw, shared.cfg.clone(), shared.engine.clone()).await;
+            let _ = run_proxy(addr, cw, shared.cfg.clone()).await;
         });
 
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -310,15 +306,15 @@ mod tests {
         drop(l);
 
         let (shared, tmp, cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None, None).await?;
+            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
 
         // spawn the proxy with accept_limit = 1
         let cw_clone = cw.clone();
         let cfg_clone = shared.cfg.clone();
-        let engine_clone = shared.engine.clone();
-        let task = tokio::spawn(async move {
-            run_proxy_with_limit(addr, cw_clone, cfg_clone, engine_clone, Some(1)).await
-        });
+        let task =
+            tokio::spawn(
+                async move { run_proxy_with_limit(addr, cw_clone, cfg_clone, Some(1)).await },
+            );
 
         // Wait until we can connect (server startup may be slightly delayed)
         // Keep the stream open until the server task completes to avoid races where
@@ -355,18 +351,12 @@ mod tests {
         drop(l);
 
         let (_shared, tmp, cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None, None).await?;
+            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
 
         // accept_limit = 0 should return quickly
         tokio::time::timeout(
             std::time::Duration::from_secs(1),
-            run_proxy_with_limit(
-                addr,
-                cw,
-                _shared.cfg.clone(),
-                _shared.engine.clone(),
-                Some(0),
-            ),
+            run_proxy_with_limit(addr, cw, _shared.cfg.clone(), Some(0)),
         )
         .await
         .expect("run_proxy_with_limit did not return within timeout")?;
@@ -385,10 +375,10 @@ mod tests {
         drop(l);
 
         let (shared, tmp, cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None, None).await?;
+            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
 
         let task = tokio::spawn(async move {
-            run_proxy_with_limit(addr, cw, shared.cfg.clone(), shared.engine.clone(), Some(2)).await
+            run_proxy_with_limit(addr, cw, shared.cfg.clone(), Some(2)).await
         });
 
         // make two connections and keep them open until the server finishes
@@ -443,10 +433,10 @@ mod tests {
         cfg_inner.general.captures_seed = true;
         cfg_inner.general.captures = pcap.clone();
         let cfg = StdArc::new(cfg_inner);
-        let (shared, tmp, cw) = make_shared_with_cfg(cfg.clone(), None, None).await?;
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg.clone(), None).await?;
 
         // run_proxy should attempt to load captures and then fail on bind
-        let res = run_proxy(addr, cw, shared.cfg.clone(), shared.engine.clone()).await;
+        let res = run_proxy(addr, cw, shared.cfg.clone()).await;
         assert!(res.is_err());
 
         // Cleanup
@@ -467,11 +457,11 @@ mod tests {
         cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
 
         let cfg = StdArc::new(cfg);
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg.clone(), None, None).await?;
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg.clone(), None).await?;
         let addr: std::net::SocketAddr = "127.0.0.1:0".parse()?;
 
         let task = tokio::spawn(async move {
-            let _ = run_proxy(addr, _cw, shared.cfg.clone(), shared.engine.clone()).await;
+            let _ = run_proxy(addr, _cw, shared.cfg.clone()).await;
         });
 
         // Wait up to 2s for the CA files to be created by startup

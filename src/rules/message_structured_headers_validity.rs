@@ -62,8 +62,6 @@ fn parse_headers_config(
 }
 
 impl Rule for MessageStructuredHeadersValidity {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_structured_headers_validity"
     }
@@ -72,20 +70,16 @@ impl Rule for MessageStructuredHeadersValidity {
         crate::rules::RuleScope::Both
     }
 
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<std::sync::Arc<dyn std::any::Any + Send + Sync>> {
-        let parsed = parse_headers_config(config, self.id())?;
-        Ok(std::sync::Arc::new(parsed))
+    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
+        parse_headers_config(config, self.id())?;
+        Ok(())
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = parse_headers_config(cfg, self.id()).ok()?;
         for hdr in &config.headers {
@@ -436,18 +430,17 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(b"\xff").unwrap(),
         );
         tx.request.headers = hm;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         // header.to_str() will error and we expect a violation reporting invalid utf-8
         assert!(v.is_some());
     }
 
     #[rstest]
-    fn validate_and_box_parses_config() -> anyhow::Result<()> {
+    fn validate_parses_config() -> anyhow::Result<()> {
         let rule = MessageStructuredHeadersValidity;
         let mut full_cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_structured_headers_validity",
@@ -466,10 +459,7 @@ mod tests {
             }),
         );
 
-        let boxed = rule.validate_and_box(&full_cfg)?;
-        let arc = boxed
-            .downcast::<MessageStructuredHeadersConfig>()
-            .map_err(|_| anyhow::anyhow!("downcast failed"))?;
+        let arc = parse_headers_config(&full_cfg, rule.id())?;
         assert!(arc.headers.contains(&"x-struct".to_string()));
         Ok(())
     }
@@ -506,11 +496,10 @@ mod tests {
             200,
             &[("x-struct", "\"unterminated")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -648,7 +637,7 @@ mod tests {
             }),
         );
 
-        assert!(rule.validate_and_box(&full_cfg).is_err());
+        assert!(rule.validate(&full_cfg).is_err());
         Ok(())
     }
 
@@ -669,7 +658,7 @@ mod tests {
             }),
         );
 
-        assert!(rule.validate_and_box(&full_cfg).is_err());
+        assert!(rule.validate(&full_cfg).is_err());
         Ok(())
     }
 
@@ -690,7 +679,7 @@ mod tests {
             }),
         );
 
-        assert!(rule.validate_and_box(&full_cfg).is_err());
+        assert!(rule.validate(&full_cfg).is_err());
         Ok(())
     }
 
@@ -714,7 +703,7 @@ mod tests {
             }),
         );
 
-        assert!(rule.validate_and_box(&full_cfg).is_err());
+        assert!(rule.validate(&full_cfg).is_err());
         Ok(())
     }
 
@@ -882,11 +871,10 @@ mod tests {
             hyper::header::HeaderValue::from_static("\"unterminated"),
         );
         tx.request.headers = hm;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(vi) = v {
@@ -909,11 +897,10 @@ mod tests {
         if let Some(resp) = &mut tx.response {
             resp.headers = rh;
         }
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(vi) = v {

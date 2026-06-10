@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ServerEtagOrLastModified;
 
 impl Rule for ServerEtagOrLastModified {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_etag_or_last_modified"
     }
@@ -18,12 +16,11 @@ impl Rule for ServerEtagOrLastModified {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let Some(resp) = &tx.response else {
@@ -72,11 +69,10 @@ mod tests {
             trailers: None,
         });
 
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(violation.is_some());
@@ -94,11 +90,10 @@ mod tests {
     fn check_missing_response() {
         let rule = ServerEtagOrLastModified;
         let tx = crate::test_helpers::make_test_transaction();
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_none());
     }

@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ServerStatusCodeValidRange;
 
 impl Rule for ServerStatusCodeValidRange {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_status_code_valid_range"
     }
@@ -18,12 +16,11 @@ impl Rule for ServerStatusCodeValidRange {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let Some(resp) = &tx.response else {
@@ -76,11 +73,10 @@ mod tests {
             "error",
         );
 
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -103,11 +99,10 @@ mod tests {
             "error",
         );
 
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_none());
     }

@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageStrictTransportSecurityValidity;
 
 impl Rule for MessageStrictTransportSecurityValidity {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_strict_transport_security_validity"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageStrictTransportSecurityValidity {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applicable to responses
@@ -241,11 +238,10 @@ mod tests {
             "warn",
         );
         let got = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some();
         assert_eq!(got, expect_violation, "value: {}", val);
@@ -275,11 +271,10 @@ mod tests {
             "warn",
         );
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -293,11 +288,10 @@ mod tests {
             "warn",
         );
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -311,11 +305,10 @@ mod tests {
             "warn",
         );
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -329,11 +322,10 @@ mod tests {
             "warn",
         );
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -347,11 +339,10 @@ mod tests {
             "warn",
         );
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -365,11 +356,10 @@ mod tests {
             "warn",
         );
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -383,11 +373,10 @@ mod tests {
             "warn",
         );
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -401,11 +390,10 @@ mod tests {
             "warn",
         );
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -419,11 +407,10 @@ mod tests {
             "warn",
         );
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -437,11 +424,10 @@ mod tests {
             "warn",
         );
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -455,11 +441,10 @@ mod tests {
             "warn",
         );
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -473,11 +458,10 @@ mod tests {
             "warn",
         );
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -503,11 +487,10 @@ mod tests {
             "warn",
         );
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -516,7 +499,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "message_strict_transport_security_validity");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

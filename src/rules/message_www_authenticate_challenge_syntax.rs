@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageWwwAuthenticateChallengeSyntax;
 
 impl Rule for MessageWwwAuthenticateChallengeSyntax {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_www_authenticate_challenge_syntax"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageWwwAuthenticateChallengeSyntax {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check response headers; ignore non-UTF8 header values
@@ -87,11 +84,10 @@ mod tests {
             "message_www_authenticate_challenge_syntax",
         ]);
         let tx = make_resp(val);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "val='{}' expected violation", val);
@@ -115,11 +111,10 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -134,11 +129,10 @@ mod tests {
             401,
             &[("www-authenticate", "error=\"x\"")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v
@@ -157,11 +151,10 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=\"x\", ")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if let Some(vv) = v {
             assert!(
@@ -182,11 +175,10 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=\"a\", NewScheme abcdef=")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -208,11 +200,10 @@ mod tests {
             401,
             &[("www-authenticate", "Basic re@alm=\"x\"")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("auth-param name"));
@@ -228,11 +219,10 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=abc@")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if let Some(vv) = v {
             assert!(
@@ -263,11 +253,10 @@ mod tests {
             401,
             &[("www-authenticate", "Basic =\"x\"")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("auth-param name is empty"));
@@ -283,11 +272,10 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=\"unfinished")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let vv = v.unwrap();
@@ -306,11 +294,10 @@ mod tests {
             401,
             &[("www-authenticate", "Basic a=\"good\"extra")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let vv = v.unwrap();
@@ -329,11 +316,10 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=\"x\", , error=\"y\"")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if let Some(vv) = v {
             assert!(
@@ -355,11 +341,10 @@ mod tests {
             401,
             &[("www-authenticate", " realm=\"x\"")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("missing auth-scheme"));
@@ -375,11 +360,10 @@ mod tests {
             401,
             &[("www-authenticate", ",")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("empty"));
@@ -402,11 +386,10 @@ mod tests {
             hyper::header::HeaderValue::from_static("NewScheme abc="),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -428,11 +411,10 @@ mod tests {
             hyper::header::HeaderValue::from_static("Basic realm=\"x\""),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -447,11 +429,10 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(vv) = v {
@@ -470,11 +451,10 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=\"a\\\"b\"")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -489,11 +469,10 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=token123")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -508,11 +487,10 @@ mod tests {
             401,
             &[("www-authenticate", "NewScheme abc+/.=-_123")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -528,11 +506,10 @@ mod tests {
             401,
             &[("www-authenticate", "New abc/def=\"x\"")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("auth-param name"));
@@ -549,11 +526,10 @@ mod tests {
             401,
             &[("www-authenticate", "New abc/def=xyz")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -568,11 +544,10 @@ mod tests {
             401,
             &[("www-authenticate", "NonCommon abc=")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -587,11 +562,10 @@ mod tests {
             401,
             &[("www-authenticate", "Basic abc=")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(vv) = v {
@@ -609,11 +583,10 @@ mod tests {
             401,
             &[("www-authenticate", "NewScheme realm")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("suspicious single token"));
@@ -629,11 +602,10 @@ mod tests {
             401,
             &[("www-authenticate", "New abc/def=\"x\", realm=\"y\"")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("auth-param name"));
@@ -644,7 +616,7 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_www_authenticate_challenge_syntax",
         ]);
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 

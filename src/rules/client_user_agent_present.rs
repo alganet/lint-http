@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ClientUserAgentPresent;
 
 impl Rule for ClientUserAgentPresent {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "client_user_agent_present"
     }
@@ -18,12 +16,11 @@ impl Rule for ClientUserAgentPresent {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         if !tx.request.headers.contains_key("user-agent") {
@@ -54,11 +51,10 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ClientUserAgentPresent;
         let tx = crate::test_helpers::make_test_transaction_with_headers(&header_pairs);
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {

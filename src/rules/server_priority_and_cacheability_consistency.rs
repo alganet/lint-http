@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ServerPriorityAndCacheabilityConsistency;
 
 impl Rule for ServerPriorityAndCacheabilityConsistency {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_priority_and_cacheability_consistency"
     }
@@ -18,12 +16,11 @@ impl Rule for ServerPriorityAndCacheabilityConsistency {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
@@ -81,11 +78,10 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("priority", "u=3")]);
 
         let rule = ServerPriorityAndCacheabilityConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Priority header"));
@@ -98,11 +94,10 @@ mod tests {
             &[("priority", "u=1"), ("cache-control", "public, max-age=60")],
         );
         let rule = ServerPriorityAndCacheabilityConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -114,11 +109,10 @@ mod tests {
             &[("priority", "u=1"), ("vary", "Accept-Encoding")],
         );
         let rule = ServerPriorityAndCacheabilityConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -127,11 +121,10 @@ mod tests {
     fn no_priority_is_ignored() {
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let rule = ServerPriorityAndCacheabilityConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -144,11 +137,10 @@ mod tests {
         tx.response.as_mut().unwrap().headers = hm;
 
         let rule = ServerPriorityAndCacheabilityConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -164,11 +156,10 @@ mod tests {
         tx.response.as_mut().unwrap().headers = hm;
 
         let rule = ServerPriorityAndCacheabilityConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -179,11 +170,10 @@ mod tests {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(503, &[("priority", "u=1")]);
         let rule = ServerPriorityAndCacheabilityConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -192,7 +182,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "server_priority_and_cacheability_consistency");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 

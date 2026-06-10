@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct SemanticTraceMethodEcho;
 
 impl Rule for SemanticTraceMethodEcho {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "semantic_trace_method_echo"
     }
@@ -18,12 +16,11 @@ impl Rule for SemanticTraceMethodEcho {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         if !tx.request.method.eq_ignore_ascii_case("TRACE") {
@@ -159,11 +156,10 @@ mod tests {
     fn non_trace_request_is_ignored() {
         let rule = SemanticTraceMethodEcho;
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -176,11 +172,10 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("transfer-encoding", "chunked")]);
 
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("MUST NOT include content"));
@@ -194,11 +189,10 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("content-length", "1")]);
 
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Content-Length 1"));
@@ -211,11 +205,10 @@ mod tests {
         tx.request.body_length = Some(4);
 
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("captured request body"));
@@ -228,11 +221,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-length", "0")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -244,11 +236,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-length", "abc")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -268,11 +259,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -290,11 +280,10 @@ mod tests {
         });
 
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("message/http"));
@@ -318,11 +307,10 @@ mod tests {
         });
 
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("message/http"));
@@ -344,11 +332,10 @@ mod tests {
         });
 
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("should be message/http"));
@@ -367,11 +354,10 @@ mod tests {
         });
 
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("is invalid"));
@@ -389,11 +375,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -414,11 +399,10 @@ mod tests {
         });
 
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("message/http"));
@@ -439,11 +423,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -463,11 +446,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -484,11 +466,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -498,7 +479,7 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "semantic_trace_method_echo",
         ]);
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

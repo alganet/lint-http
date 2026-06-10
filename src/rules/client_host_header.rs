@@ -9,8 +9,6 @@ use std::net::IpAddr;
 pub struct ClientHostHeader;
 
 impl Rule for ClientHostHeader {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "client_host_header"
     }
@@ -19,12 +17,11 @@ impl Rule for ClientHostHeader {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let host_values = tx.request.headers.get_all("host");
@@ -208,11 +205,10 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ClientHostHeader;
         let tx = crate::test_helpers::make_test_transaction_with_headers(&header_pairs);
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -233,11 +229,10 @@ mod tests {
             ("host", "example.com"),
             ("host", "other.example.com"),
         ]);
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_some());
         assert_eq!(
@@ -260,11 +255,10 @@ mod tests {
         hm.insert("host", HeaderValue::from_bytes(&[0xff]).unwrap());
         tx.request.headers = hm;
 
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
 
         assert!(violation.is_some());
@@ -294,11 +288,10 @@ mod tests {
             "example.com:999999999999999999999",
         )]);
 
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_some());
         let v = violation.unwrap();

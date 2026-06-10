@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageUserAgentTokenValid;
 
 impl Rule for MessageUserAgentTokenValid {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_user_agent_token_valid"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageUserAgentTokenValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let check_value = |hdr: &str, val: &str| -> Option<Violation> {
@@ -165,11 +162,10 @@ mod tests {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("user-agent", v)]);
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -191,11 +187,10 @@ mod tests {
         tx1.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "A@gen/1.0")]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx1,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
 
@@ -204,11 +199,10 @@ mod tests {
         tx2.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent/1@0")]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx2,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
 
@@ -228,11 +222,10 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = hm;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
 
@@ -251,11 +244,10 @@ mod tests {
         hm.insert("user-agent", HeaderValue::from_bytes(b"\xff").unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -272,11 +264,10 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Bad/UA!")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -294,11 +285,10 @@ mod tests {
         hm.append("user-agent", HeaderValue::from_static("Bad@UA/1.0"));
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -316,11 +306,10 @@ mod tests {
         hm.insert("user-agent", HeaderValue::from_bytes(b"\xff").unwrap());
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(violation) = v {
@@ -340,11 +329,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent  /1.0")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(violation) = v {
@@ -363,11 +351,10 @@ mod tests {
         let mut tx1 = crate::test_helpers::make_test_transaction();
         tx1.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "A@gen/1.0")]);
-        let v1 = rule.check(
+        let v1 = rule.check_transaction(
             &tx1,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v1.is_some());
         if let Some(violation) = v1 {
@@ -377,11 +364,10 @@ mod tests {
         let mut tx2 = crate::test_helpers::make_test_transaction();
         tx2.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent/1@0")]);
-        let v2 = rule.check(
+        let v2 = rule.check_transaction(
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_some());
         if let Some(violation) = v2 {
@@ -403,11 +389,10 @@ mod tests {
             "(compatible; something)",
         )]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(violation) = v {
@@ -432,11 +417,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent (unclosed")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(violation) = v {
@@ -457,11 +441,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent (incomplete")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -480,11 +463,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent\\(1.0\\)")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         // Parentheses are not allowed in token syntax, so we expect a violation, but the parser should
         // not treat them as comment delimiters (i.e., no parse error about unmatched comment).
@@ -510,7 +492,7 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_user_agent_token_valid",
         ]);
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

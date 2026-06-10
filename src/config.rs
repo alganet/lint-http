@@ -118,10 +118,9 @@ pub struct Config {
 }
 
 impl Config {
-    /// Load configuration from a TOML file and return the config along with the rule engine.
-    pub async fn load_from_path<P: AsRef<std::path::Path>>(
-        path: P,
-    ) -> anyhow::Result<(Self, crate::rules::RuleConfigEngine)> {
+    /// Load configuration from a TOML file, validating every enabled rule's
+    /// config section so a malformed config fails fast at startup.
+    pub async fn load_from_path<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Self> {
         let path_ref = path.as_ref();
         let s = tokio::fs::read_to_string(path_ref).await?;
         let cfg: Self = toml::from_str(&s)?;
@@ -131,10 +130,10 @@ impl Config {
             anyhow::bail!("h3_listen requires [tls] enabled = true");
         }
 
-        // Validate all enabled rules' configurations and get the engine
-        let engine = crate::rules::validate_rules(&cfg)?;
+        // Validate all enabled rules' configurations.
+        crate::rules::validate_rules(&cfg)?;
 
-        Ok((cfg, engine))
+        Ok(cfg)
     }
 
     /// Returns true if the rule is enabled.
@@ -188,7 +187,7 @@ captures_seed = false
 enabled = false
 "#;
         fs::write(&tmp_toml, toml).await?;
-        let (cfg, _engine) = Config::load_from_path(&tmp_toml).await?;
+        let cfg = Config::load_from_path(&tmp_toml).await?;
         assert!(cfg.is_enabled("server_cache_control_present"));
         fs::remove_file(&tmp_toml).await?;
         Ok(())
@@ -212,7 +211,7 @@ captures = "captures.jsonl"
 enabled = false
 "#;
         fs::write(&tmp_toml, toml).await?;
-        let (cfg, _engine) = Config::load_from_path(&tmp_toml).await?;
+        let cfg = Config::load_from_path(&tmp_toml).await?;
         assert!(cfg.is_enabled("some_rule"));
         let config = cfg.get_rule_config("some_rule");
         assert!(config.is_some());
@@ -287,7 +286,7 @@ h3_listen = "127.0.0.1:3443"
 enabled = true
 "#;
         fs::write(&tmp_toml, toml).await?;
-        let (cfg, _engine) = Config::load_from_path(&tmp_toml).await?;
+        let cfg = Config::load_from_path(&tmp_toml).await?;
         assert_eq!(cfg.general.h3_listen, Some("127.0.0.1:3443".to_string()));
         fs::remove_file(&tmp_toml).await?;
         Ok(())
@@ -329,7 +328,7 @@ captures = "captures.jsonl"
 enabled = false
 "#;
         fs::write(&tmp_toml, toml).await?;
-        let (cfg, _engine) = Config::load_from_path(&tmp_toml).await?;
+        let cfg = Config::load_from_path(&tmp_toml).await?;
         assert!(cfg.general.h3_listen.is_none());
         fs::remove_file(&tmp_toml).await?;
         Ok(())

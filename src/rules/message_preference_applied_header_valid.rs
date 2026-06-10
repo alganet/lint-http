@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessagePreferenceAppliedHeaderValid;
 
 impl Rule for MessagePreferenceAppliedHeaderValid {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_preference_applied_header_valid"
     }
@@ -18,12 +16,11 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only meaningful when a response is present
@@ -224,11 +221,10 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[(parts2[0].trim(), parts2[1].trim())]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -258,11 +254,10 @@ mod tests {
         let bad = HeaderValue::from_bytes(&[0xff]).expect("should construct non-utf8 header");
         hm.insert("preference-applied", bad);
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -273,11 +268,10 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("preference-applied", "")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -290,11 +284,10 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("prefer", "foo=\"bar\"")]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("preference-applied", "foo=\"bar\"")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -307,11 +300,10 @@ mod tests {
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("prefer", "foo")]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("preference-applied", "f@o")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("'@'"));
@@ -324,11 +316,10 @@ mod tests {
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("prefer", "foo")]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("preference-applied", "foo=bad@")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
@@ -343,11 +334,10 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("prefer", "foo=\"bar\"")]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("preference-applied", "foo=\"bar")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("quoted-string error"));
@@ -361,11 +351,10 @@ mod tests {
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("prefer", "foo")]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("preference-applied", "foo=bar")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

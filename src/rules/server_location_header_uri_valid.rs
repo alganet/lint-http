@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ServerLocationHeaderUriValid;
 
 impl Rule for ServerLocationHeaderUriValid {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_location_header_uri_valid"
     }
@@ -18,12 +16,11 @@ impl Rule for ServerLocationHeaderUriValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let Some(resp) = &tx.response else {
@@ -110,11 +107,10 @@ mod tests {
             "warn",
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{}'", loc);
@@ -147,11 +143,10 @@ mod tests {
             "warn",
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not valid UTF-8"));
@@ -175,11 +170,10 @@ mod tests {
             "warn",
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid scheme"));
@@ -203,11 +197,10 @@ mod tests {
             "warn",
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid character"));
@@ -232,11 +225,10 @@ mod tests {
             "server_location_header_uri_valid",
             "warn",
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid percent-encoding"));

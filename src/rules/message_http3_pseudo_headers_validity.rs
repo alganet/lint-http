@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageHttp3PseudoHeadersValidity;
 
 impl Rule for MessageHttp3PseudoHeadersValidity {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_http3_pseudo_headers_validity"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to HTTP/3 transactions.
@@ -175,11 +172,10 @@ mod tests {
         let mut tx = make_h3_transaction();
         tx.request.method = "".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":method"));
@@ -191,11 +187,10 @@ mod tests {
         let mut tx = make_h3_transaction();
         tx.request.method = "   ".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":method"));
@@ -210,11 +205,10 @@ mod tests {
         tx.request.method = "GET".into();
         tx.request.uri = "https://example.com/path".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -228,11 +222,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -246,11 +239,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":path"));
@@ -265,11 +257,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -284,11 +275,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Asterisk"));
@@ -308,11 +298,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Asterisk"));
@@ -328,11 +317,10 @@ mod tests {
         tx.request.uri = "/resource".into();
         tx.request.headers = hyper::HeaderMap::new();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":authority"));
@@ -346,11 +334,10 @@ mod tests {
         tx.request.uri = "https://example.com/path".into();
         tx.request.headers = hyper::HeaderMap::new(); // no Host needed
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -363,11 +350,10 @@ mod tests {
         tx.request.uri = "*".into();
         tx.request.headers = hyper::HeaderMap::new();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":authority"));
@@ -382,11 +368,10 @@ mod tests {
         tx.request.method = "CONNECT".into();
         tx.request.uri = "example.com:443".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -398,11 +383,10 @@ mod tests {
         tx.request.method = "CONNECT".into();
         tx.request.uri = "".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":authority"));
@@ -415,11 +399,10 @@ mod tests {
         tx.request.method = "CONNECT".into();
         tx.request.uri = "   ".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":authority"));
@@ -435,11 +418,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -453,11 +435,10 @@ mod tests {
         tx.request.uri = "/ws".into();
         tx.request.headers = hyper::HeaderMap::new();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("extended CONNECT"));
@@ -472,11 +453,10 @@ mod tests {
         tx.request.uri = "*".into();
         tx.request.headers = hyper::HeaderMap::new();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":authority"));
@@ -492,11 +472,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("host", "example.com:443")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -510,11 +489,10 @@ mod tests {
         tx.request.uri = "example.com:443".into();
         tx.request.headers = hyper::HeaderMap::new();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -526,11 +504,10 @@ mod tests {
         let rule = MessageHttp3PseudoHeadersValidity;
         let tx = make_h3_transaction_with_response(200, &[]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -540,11 +517,10 @@ mod tests {
         let rule = MessageHttp3PseudoHeadersValidity;
         let tx = make_h3_transaction_with_response(0, &[]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":status"));
@@ -555,11 +531,10 @@ mod tests {
         let rule = MessageHttp3PseudoHeadersValidity;
         let tx = make_h3_transaction_with_response(600, &[]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":status"));
@@ -576,11 +551,10 @@ mod tests {
         let rule = MessageHttp3PseudoHeadersValidity;
         let tx = make_h3_transaction_with_response(status, &[]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -598,11 +572,10 @@ mod tests {
         tx.request.version = version.into();
         tx.request.method = "".into(); // would be a violation for HTTP/3
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -617,11 +590,10 @@ mod tests {
         tx.request.version = "HTTP/3".into();
         // Response version stays HTTP/1.1 — status 0 should not be flagged.
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -636,11 +608,10 @@ mod tests {
         tx.request.uri = "https://example.com/".into();
         tx.response = None;
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -657,7 +628,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "message_http3_pseudo_headers_validity");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 
@@ -671,11 +642,10 @@ mod tests {
         tx.request.method = "CONNECT".into();
         tx.request.uri = "[::1]:443".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -690,11 +660,10 @@ mod tests {
         tx.request.method = "CONNECT".into();
         tx.request.uri = "https://example.com/ws".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -710,11 +679,10 @@ mod tests {
             ("content-type", "application/json"),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -726,11 +694,10 @@ mod tests {
         tx.request.method = "HEAD".into();
         tx.request.uri = "https://example.com/resource".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -740,11 +707,10 @@ mod tests {
         let rule = MessageHttp3PseudoHeadersValidity;
         let tx = make_h3_transaction_with_response(99, &[]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":status"));
@@ -760,11 +726,10 @@ mod tests {
         tx.request.uri = "/resource".into();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("host", "")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -776,11 +741,10 @@ mod tests {
         tx.request.method = "DELETE".into();
         tx.request.uri = "https://example.com/resource/42".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -796,11 +760,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":path"));
@@ -815,11 +778,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -832,11 +794,10 @@ mod tests {
         tx.request.method = "connect".into();
         tx.request.uri = "example.com:443".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -848,11 +809,10 @@ mod tests {
         tx.request.method = "GET".into();
         tx.request.uri = "https://example.com:8443/path".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -863,11 +823,10 @@ mod tests {
         let rule = MessageHttp3PseudoHeadersValidity;
         let tx = make_h3_transaction_with_response(100, &[]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -886,11 +845,10 @@ mod tests {
         tx.request.method = "CONNECT".into();
         tx.request.uri = "example.com:443".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -903,11 +861,10 @@ mod tests {
         tx.request.method = "CONNECT".into();
         tx.request.uri = "example.com:443".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":status"));
@@ -922,11 +879,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":path"));
@@ -943,11 +899,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -963,11 +918,10 @@ mod tests {
             ("content-type", "application/json"),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -980,11 +934,10 @@ mod tests {
         tx.request.uri = "/resource/1".into();
         tx.request.headers = hyper::HeaderMap::new();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":authority"));

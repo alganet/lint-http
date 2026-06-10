@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ClientRequestUriPercentEncodingValid;
 
 impl Rule for ClientRequestUriPercentEncodingValid {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "client_request_uri_percent_encoding_valid"
     }
@@ -18,12 +16,11 @@ impl Rule for ClientRequestUriPercentEncodingValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let s = tx.request.uri.as_str();
@@ -61,11 +58,10 @@ mod tests {
 
         let config = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
 
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {

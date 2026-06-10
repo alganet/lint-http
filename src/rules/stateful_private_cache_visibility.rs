@@ -18,8 +18,6 @@ use crate::rules::Rule;
 pub struct StatefulPrivateCacheVisibility;
 
 impl Rule for StatefulPrivateCacheVisibility {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "stateful_private_cache_visibility"
     }
@@ -29,12 +27,11 @@ impl Rule for StatefulPrivateCacheVisibility {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // only interested in conditional requests; nothing to do otherwise
@@ -183,13 +180,12 @@ mod tests {
             .append("if-none-match", "\"a\"".parse().unwrap());
         let history = crate::transaction_history::TransactionHistory::empty();
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_private_cache_visibility"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -208,13 +204,12 @@ mod tests {
             .append("if-none-match", "\"a\"".parse().unwrap());
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_private_cache_visibility"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -234,13 +229,12 @@ mod tests {
             .headers
             .append("if-none-match", "\"a\"".parse().unwrap());
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_private_cache_visibility",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Validator '"));
@@ -262,13 +256,12 @@ mod tests {
             .headers
             .append("if-modified-since", lm.parse().unwrap());
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_private_cache_visibility",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -289,13 +282,12 @@ mod tests {
             .append("if-none-match", "\"a\"".parse().unwrap());
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
                     "stateful_private_cache_visibility"
                 ]),
-                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }

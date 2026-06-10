@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct SemanticOptionsMethodCapabilities;
 
 impl Rule for SemanticOptionsMethodCapabilities {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "semantic_options_method_capabilities"
     }
@@ -18,12 +16,11 @@ impl Rule for SemanticOptionsMethodCapabilities {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only care about OPTIONS requests with a final response
@@ -93,11 +90,10 @@ mod tests {
         let rule = SemanticOptionsMethodCapabilities;
         let tx = make_opts_tx(status, header);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for status {}", status);
@@ -117,11 +113,10 @@ mod tests {
         let tx = make_opts_tx(200, None);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("Allow"));
@@ -134,11 +129,10 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "semantic_options_method_capabilities",
         ]);
-        let v = SemanticOptionsMethodCapabilities.check(
+        let v = SemanticOptionsMethodCapabilities.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -157,11 +151,10 @@ mod tests {
         tx.request.method = "OPTIONS".into();
         tx.response = None;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_none(),
@@ -173,7 +166,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "semantic_options_method_capabilities");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

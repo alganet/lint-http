@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct SemanticStatusCodeSemantics;
 
 impl Rule for SemanticStatusCodeSemantics {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "semantic_status_code_semantics"
     }
@@ -18,12 +16,11 @@ impl Rule for SemanticStatusCodeSemantics {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
@@ -93,11 +90,10 @@ mod tests {
     fn missing_www_on_401_reports_violation() {
         let rule = SemanticStatusCodeSemantics;
         let tx = crate::test_helpers::make_test_transaction_with_response(401, &[]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("WWW-Authenticate"));
@@ -107,11 +103,10 @@ mod tests {
     fn missing_proxy_on_407_reports_violation() {
         let rule = SemanticStatusCodeSemantics;
         let tx = crate::test_helpers::make_test_transaction_with_response(407, &[]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Proxy-Authenticate"));
@@ -124,11 +119,10 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=\"x\"")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -140,11 +134,10 @@ mod tests {
             200,
             &[("www-authenticate", "Basic realm=\"x\"")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-401"));
@@ -158,11 +151,10 @@ mod tests {
             401,
             &[("WWW-AUTHENTICATE", "Basic realm=\"x\"")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -178,11 +170,10 @@ mod tests {
             HeaderValue::from_bytes(&[0xff]).unwrap(),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_none(),
@@ -200,11 +191,10 @@ mod tests {
             401,
             &[("proxy-authenticate", "Basic realm=\"proxy\"")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -221,11 +211,10 @@ mod tests {
                 ("www-authenticate", "Basic realm=\"x\""),
             ],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("WWW-Authenticate"));
@@ -238,11 +227,10 @@ mod tests {
             200,
             &[("proxy-authenticate", "Basic realm=\"x\"")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Proxy-Authenticate"));
@@ -253,7 +241,7 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "semantic_status_code_semantics",
         ]);
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

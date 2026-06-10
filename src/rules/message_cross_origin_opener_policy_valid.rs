@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageCrossOriginOpenerPolicyValid;
 
 impl Rule for MessageCrossOriginOpenerPolicyValid {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_cross_origin_opener_policy_valid"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageCrossOriginOpenerPolicyValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // COOP is a response-only header per spec; ignore requests
@@ -113,11 +110,10 @@ mod tests {
             );
         }
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{:?}', got none", val);
@@ -135,11 +131,10 @@ mod tests {
     fn no_response_no_violation() {
         let rule = MessageCrossOriginOpenerPolicyValid;
         let tx = make_test_transaction();
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -164,11 +159,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v
@@ -198,11 +192,10 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-ASCII"));
@@ -226,7 +219,7 @@ mod tests {
             toml::Value::Table(table),
         );
 
-        let _ = rule.validate_and_box(&cfg)?;
+        rule.validate(&cfg)?;
         Ok(())
     }
 
@@ -237,11 +230,10 @@ mod tests {
             200,
             &[("cross-origin-opener-policy", "same-origin ")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -254,11 +246,10 @@ mod tests {
             &[("cross-origin-opener-policy", "other")],
         );
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("unsupported value"));
@@ -273,11 +264,10 @@ mod tests {
             &[("cross-origin-opener-policy", "same-origin, unsafe-none")],
         );
         let v = rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("single value"));
@@ -290,11 +280,10 @@ mod tests {
             200,
             &[("cross-origin-opener-policy", " same-origin-allow-popups ")],
         );
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

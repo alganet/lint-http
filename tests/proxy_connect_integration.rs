@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: ISC
 
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tokio::time::{sleep, timeout};
@@ -14,7 +13,6 @@ mod common;
 use common::start_run_proxy_and_wait;
 
 use lint_http::config::Config;
-use lint_http::rules::RuleConfigEngine;
 
 // Unified helper: perform CONNECT, do TLS handshake trusting `ca_cert_path`, optionally advertise ALPNs, optionally send an inner request.
 // Returns (negotiated_alpn, optional_response_bytes).
@@ -176,8 +174,7 @@ async fn connect_tls_full_forwarding() -> anyhow::Result<()> {
     cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
 
     // 3) Start proxy and wait
-    let engine = Arc::new(RuleConfigEngine::new());
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone(), engine.clone()).await?;
+    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone()).await?;
 
     // 4) Perform CONNECT + TLS + inner request
     let host = "example.com";
@@ -245,8 +242,7 @@ async fn connect_tls_alpn_client_selects_http1() -> anyhow::Result<()> {
     cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
 
     // 3) Start proxy and wait
-    let engine = Arc::new(RuleConfigEngine::new());
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone(), engine.clone()).await?;
+    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone()).await?;
 
     // 4) Perform CONNECT + TLS + inner request, advertising http/1.1
     let host = "example.com";
@@ -313,8 +309,7 @@ async fn connect_tls_alpn_mismatch_fails_handshake() -> anyhow::Result<()> {
     cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
 
     // 3) Start proxy and wait
-    let engine = Arc::new(RuleConfigEngine::new());
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone(), engine.clone()).await?;
+    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone()).await?;
 
     // 4) Perform CONNECT + TLS + inner request, advertising only 'h3' which does not match server
     let host = "example.com";

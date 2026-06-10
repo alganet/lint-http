@@ -11,8 +11,6 @@ use crate::rules::Rule;
 pub struct Stateful103EarlyHintsBeforeFinal;
 
 impl Rule for Stateful103EarlyHintsBeforeFinal {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "stateful_103_early_hints_before_final"
     }
@@ -21,12 +19,11 @@ impl Rule for Stateful103EarlyHintsBeforeFinal {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to responses with status 103
@@ -90,13 +87,12 @@ mod tests {
         tx.request.uri = "/x".to_string();
         tx.client = crate::test_helpers::make_test_client();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_103_early_hints_before_final",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
@@ -115,13 +111,12 @@ mod tests {
         tx.request.uri = "/b".to_string();
         tx.client = crate::test_helpers::make_test_client();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_103_early_hints_before_final",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -138,13 +133,12 @@ mod tests {
         tx.request.uri = "/r".to_string();
         tx.client = crate::test_helpers::make_test_client();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_103_early_hints_before_final",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -153,7 +147,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "stateful_103_early_hints_before_final");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 
@@ -187,13 +181,12 @@ mod tests {
         tx.request.uri = "/z".to_string();
         tx.client = crate::test_helpers::make_test_client();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_103_early_hints_before_final",
             ]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

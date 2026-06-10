@@ -27,18 +27,15 @@ const RESERVED_SETTING_IDS: &[u64] = &[
 ];
 
 impl ProtocolRule for StatefulHttp3SettingsFrame {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "stateful_http3_settings_frame"
     }
 
-    fn check(
+    fn check_event(
         &self,
         event: &ProtocolEvent,
         history: &ProtocolEventHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let settings = match &event.kind {
@@ -128,12 +125,7 @@ mod tests {
                 (0x07, 100),  // SETTINGS_QPACK_BLOCKED_STREAMS
             ],
         );
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -142,12 +134,7 @@ mod tests {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![]);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -157,12 +144,7 @@ mod tests {
         let conn = Uuid::new_v4();
         // Extension/unknown setting identifiers are allowed.
         let evt = make_settings(conn, vec![(0x33, 1), (0xFF00, 42)]);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -175,12 +157,7 @@ mod tests {
         let prev = make_settings(conn, vec![(0x06, 4096)]);
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_settings(conn, vec![(0x06, 8192)]);
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("duplicate SETTINGS"));
     }
@@ -192,12 +169,7 @@ mod tests {
         let prev = make_settings(conn, vec![]);
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_settings(conn, vec![]);
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("duplicate SETTINGS"));
     }
@@ -216,12 +188,7 @@ mod tests {
         let closed = make_event_at(conn, ProtocolEventKind::H3StreamClosed { stream_id: 0 }, t);
         let history = ProtocolEventHistory::new(vec![opened, closed]);
         let evt = make_settings(conn, vec![(0x06, 4096)]);
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -259,12 +226,7 @@ mod tests {
         );
         let history = ProtocolEventHistory::new(vec![opened, prev_settings, transport]);
         let evt = make_settings(conn, vec![(0x06, 8192)]);
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_some());
     }
 
@@ -275,12 +237,7 @@ mod tests {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x00, 0)]);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x00"));
     }
@@ -290,12 +247,7 @@ mod tests {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x02, 1)]);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x02"));
     }
@@ -305,12 +257,7 @@ mod tests {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x03, 100)]);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x03"));
     }
@@ -320,12 +267,7 @@ mod tests {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x04, 65535)]);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x04"));
     }
@@ -335,12 +277,7 @@ mod tests {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x05, 16384)]);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x05"));
     }
@@ -351,12 +288,7 @@ mod tests {
         let conn = Uuid::new_v4();
         // Mix valid settings with one reserved.
         let evt = make_settings(conn, vec![(0x06, 8192), (0x03, 100), (0x07, 50)]);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x03"));
     }
@@ -369,12 +301,7 @@ mod tests {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x01, 4096)]);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -383,12 +310,7 @@ mod tests {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x06, 8192)]);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -397,12 +319,7 @@ mod tests {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x07, 200)]);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -412,12 +329,7 @@ mod tests {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x08, 1)]);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -427,12 +339,7 @@ mod tests {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x33, 1)]);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -443,12 +350,7 @@ mod tests {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_event(conn, ProtocolEventKind::H3StreamOpened { stream_id: 0 });
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -460,12 +362,7 @@ mod tests {
             conn,
             ProtocolEventKind::H3GoawayReceived { stream_id: Some(4) },
         );
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -474,12 +371,7 @@ mod tests {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_event(conn, ProtocolEventKind::H3MaxPushId { push_id: 10 });
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -493,12 +385,7 @@ mod tests {
         let prev = make_settings(conn, vec![(0x06, 4096)]);
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_settings(conn, vec![(0x02, 1)]); // reserved + duplicate
-        let result = rule.check(
-            &evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &history, &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("duplicate SETTINGS"));
     }
@@ -509,7 +396,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "stateful_http3_settings_frame");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

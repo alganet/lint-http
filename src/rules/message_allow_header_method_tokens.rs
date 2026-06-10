@@ -9,8 +9,6 @@ use hyper::HeaderMap;
 pub struct MessageAllowHeaderMethodTokens;
 
 impl Rule for MessageAllowHeaderMethodTokens {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_allow_header_method_tokens"
     }
@@ -19,12 +17,11 @@ impl Rule for MessageAllowHeaderMethodTokens {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let check = |headers: &HeaderMap| -> Option<Violation> {
@@ -115,11 +112,10 @@ mod tests {
             HeaderValue::from_str(allow_value).unwrap(),
         );
 
-        rule.check(
+        rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         )
     }
 
@@ -205,11 +201,10 @@ mod tests {
         let tx = make_test_transaction();
 
         // Transaction has no Allow header
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_none());
     }
@@ -226,8 +221,8 @@ mod tests {
             toml::Value::Table(table),
         );
 
-        // validate_and_box should succeed without error
-        let _config = rule.validate_and_box(&cfg)?;
+        // validate should succeed without error
+        rule.validate(&cfg)?;
         Ok(())
     }
 }

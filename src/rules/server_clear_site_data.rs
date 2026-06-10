@@ -80,8 +80,6 @@ paths = ["/logout"]"#
 }
 
 impl Rule for ServerClearSiteData {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_clear_site_data"
     }
@@ -90,20 +88,16 @@ impl Rule for ServerClearSiteData {
         crate::rules::RuleScope::Server
     }
 
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<std::sync::Arc<dyn std::any::Any + Send + Sync>> {
-        let parsed = parse_paths_config(config, self.id())?;
-        Ok(std::sync::Arc::new(parsed))
+    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
+        parse_paths_config(config, self.id())?;
+        Ok(())
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         // Only check successful responses
         let Some(resp) = &tx.response else {
@@ -217,11 +211,10 @@ mod tests {
             trailers: None,
         });
 
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -340,10 +333,10 @@ mod tests {
             _ => panic!("unknown scenario"),
         }
 
-        let res = rule.validate_and_box(&cfg);
+        let res = rule.validate(&cfg);
         if valid {
-            let boxed = res?;
-            let parsed = boxed.downcast::<super::ClearSiteDataConfig>().unwrap();
+            res?;
+            let parsed = super::parse_paths_config(&cfg, rule.id())?;
             assert_eq!(
                 parsed.paths,
                 vec!["/logout".to_string(), "/signout".to_string()]
@@ -380,11 +373,10 @@ mod tests {
             "server_clear_site_data",
             &["/logout"],
         );
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_none());
     }

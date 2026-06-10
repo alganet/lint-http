@@ -12,12 +12,10 @@ use tokio::time::sleep;
 use lint_http::capture::CaptureWriter;
 use lint_http::config::Config;
 use lint_http::proxy::run_proxy;
-use lint_http::rules::RuleConfigEngine;
 
 // Minimal helper: start run_proxy and wait until it is accepting and CA files exist
 pub async fn start_run_proxy_and_wait(
     cfg: Config,
-    engine: Arc<RuleConfigEngine>,
 ) -> anyhow::Result<(tokio::task::JoinHandle<()>, SocketAddr, String)> {
     // prepare capture file
     let tmp = std::env::temp_dir().join(format!("lint_integ_{}.jsonl", uuid::Uuid::new_v4()));
@@ -34,9 +32,8 @@ pub async fn start_run_proxy_and_wait(
 
     let cfg = Arc::new(cfg);
     let cfg_for_spawn = cfg.clone();
-    let engine2 = engine.clone();
     let handle = tokio::spawn(async move {
-        let _ = run_proxy(addr, cw, cfg_for_spawn, engine2).await;
+        let _ = run_proxy(addr, cw, cfg_for_spawn).await;
     });
 
     // Wait for server to accept connections

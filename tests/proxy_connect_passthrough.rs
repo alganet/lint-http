@@ -3,14 +3,12 @@
 // SPDX-License-Identifier: ISC
 
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
 
 use lint_http::config::Config;
-use lint_http::rules::RuleConfigEngine;
 
 mod common;
 use common::start_run_proxy_and_wait;
@@ -83,8 +81,7 @@ async fn connect_passthrough_tunnels_raw_tcp() -> anyhow::Result<()> {
     // Use a literal IP in passthrough domain so the proxy connects to the toy server
     cfg.tls.passthrough_domains = vec!["127.0.0.1".into()];
 
-    let engine = Arc::new(RuleConfigEngine::new());
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone(), engine.clone()).await?;
+    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone()).await?;
 
     // CONNECT and then send raw ping/pong to the toy server IP
     let mut stream = tokio::net::TcpStream::connect(addr).await?;
@@ -142,8 +139,7 @@ async fn connect_passthrough_upstream_unavailable() -> anyhow::Result<()> {
     // Use a literal IP in passthrough domain so the proxy connects to the toy server
     cfg.tls.passthrough_domains = vec!["127.0.0.1".into()];
 
-    let engine = Arc::new(RuleConfigEngine::new());
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone(), engine.clone()).await?;
+    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone()).await?;
 
     // CONNECT and expect it to succeed but subsequent I/O to close
     let mut stream = tokio::net::TcpStream::connect(addr).await?;
@@ -197,8 +193,7 @@ async fn connect_without_tls_returns_405() -> anyhow::Result<()> {
     // Start proxy with TLS disabled
     let mut cfg = Config::default();
     cfg.tls.enabled = false;
-    let engine = Arc::new(RuleConfigEngine::new());
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone(), engine.clone()).await?;
+    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone()).await?;
 
     // CONNECT and read response
     let res = do_connect_and_get_response(addr, "example.com", 12345).await?;

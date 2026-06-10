@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ClientRequestTargetFormChecks;
 
 impl Rule for ClientRequestTargetFormChecks {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "client_request_target_form_checks"
     }
@@ -18,12 +16,11 @@ impl Rule for ClientRequestTargetFormChecks {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let method = tx.request.method.as_str();
@@ -101,11 +98,10 @@ mod tests {
 
         let config = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
 
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -139,7 +135,7 @@ mod tests {
         // Enable the rule as it would be in a user's config
         crate::test_helpers::enable_rule(&mut cfg, "client_request_target_form_checks");
         // Should validate and produce an engine without error
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

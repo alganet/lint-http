@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageHttp3HostAuthorityConsistency;
 
 impl Rule for MessageHttp3HostAuthorityConsistency {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_http3_host_authority_consistency"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageHttp3HostAuthorityConsistency {
         crate::rules::RuleScope::Client
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to HTTP/3 transactions.
@@ -112,11 +109,10 @@ mod tests {
         let rule = MessageHttp3HostAuthorityConsistency;
         let tx = make_h3_transaction_with_uri_and_host(uri, Some(host));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -152,11 +148,10 @@ mod tests {
         let rule = MessageHttp3HostAuthorityConsistency;
         let tx = make_h3_transaction_with_uri_and_host(uri, Some(host));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -175,11 +170,10 @@ mod tests {
         let rule = MessageHttp3HostAuthorityConsistency;
         let tx = make_h3_transaction_with_uri_and_host("https://example.com/path", None);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -190,11 +184,10 @@ mod tests {
         let rule = MessageHttp3HostAuthorityConsistency;
         let tx = make_h3_transaction_with_uri_and_host("/path", Some("example.com"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -206,11 +199,10 @@ mod tests {
         let rule = MessageHttp3HostAuthorityConsistency;
         let tx = make_h3_transaction_with_uri_and_host("https://example.com/path", Some(""));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("must not be empty"));
@@ -221,11 +213,10 @@ mod tests {
         let rule = MessageHttp3HostAuthorityConsistency;
         let tx = make_h3_transaction_with_uri_and_host("https://example.com/path", Some("  "));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("must not be empty"));
@@ -240,11 +231,10 @@ mod tests {
             make_h3_transaction_with_uri_and_host("https://example.com/path", Some("other.com"));
         tx.request.version = "HTTP/1.1".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -256,11 +246,10 @@ mod tests {
             make_h3_transaction_with_uri_and_host("https://example.com/path", Some("other.com"));
         tx.request.version = "HTTP/2.0".into();
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -278,11 +267,10 @@ mod tests {
         tx.request.headers = hyper::HeaderMap::new();
         tx.request.headers.insert("host", bad);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-UTF-8"));
@@ -299,11 +287,10 @@ mod tests {
             Some("  example.com  "),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -315,11 +302,10 @@ mod tests {
         let rule = MessageHttp3HostAuthorityConsistency;
         let tx = make_h3_transaction_with_uri_and_host("example.com:443", Some("example.com:443"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -330,11 +316,10 @@ mod tests {
         let rule = MessageHttp3HostAuthorityConsistency;
         let tx = make_h3_transaction_with_uri_and_host("example.com:443", Some("other.com:443"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("inconsistent"));
@@ -345,11 +330,10 @@ mod tests {
         let rule = MessageHttp3HostAuthorityConsistency;
         let tx = make_h3_transaction_with_uri_and_host("https://[::1]/path", Some("[::1]"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -361,11 +345,10 @@ mod tests {
         let tx =
             make_h3_transaction_with_uri_and_host("https://example.com./path", Some("example.com"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("inconsistent"));
@@ -378,11 +361,10 @@ mod tests {
         let tx =
             make_h3_transaction_with_uri_and_host("https://example.com?q=1", Some("example.com"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -393,11 +375,10 @@ mod tests {
         let tx =
             make_h3_transaction_with_uri_and_host("https://example.com#frag", Some("example.com"));
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -414,7 +395,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "message_http3_host_authority_consistency");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

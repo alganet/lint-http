@@ -15,7 +15,6 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use lint_http::capture::CaptureWriter;
 use lint_http::config::Config;
-use lint_http::rules::RuleConfigEngine;
 
 /// Build a quinn client endpoint that trusts the CA at `ca_cert_path` and
 /// advertises ALPN `h3`.
@@ -88,11 +87,10 @@ async fn start_proxy_with_h3(
     let captures_path = tmp.to_str().unwrap().to_string();
     let cw = CaptureWriter::new(captures_path.clone(), false).await?;
 
-    let engine = Arc::new(RuleConfigEngine::new());
     let cfg = Arc::new(cfg);
     let cfg2 = cfg.clone();
     let handle = tokio::spawn(async move {
-        let _ = lint_http::proxy::run_proxy(tcp_addr, cw, cfg2, engine).await;
+        let _ = lint_http::proxy::run_proxy(tcp_addr, cw, cfg2).await;
     });
 
     // Wait for TCP listener

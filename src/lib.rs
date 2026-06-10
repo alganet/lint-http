@@ -48,8 +48,8 @@ mod test_helpers;
 #[cfg(test)]
 pub use test_helpers::{
     disable_rule, enable_rule, enable_rule_with_paths, make_headers_from_pairs, make_test_client,
-    make_test_config_with_enabled_rules, make_test_engine, make_test_rule_config,
-    make_test_transaction, make_test_transaction_with_response,
+    make_test_config_with_enabled_rules, make_test_rule_config, make_test_transaction,
+    make_test_transaction_with_response,
 };
 
 pub fn make_temp_captures_path(prefix: &str) -> std::path::PathBuf {

@@ -103,13 +103,6 @@ pub fn make_test_config_with_severity(rule_id: &str, severity: &str) -> crate::c
     cfg
 }
 
-/// Validate and build a `RuleConfigEngine` from a configuration.
-/// Panics if the configuration is invalid.
-#[cfg(test)]
-pub fn make_test_engine(cfg: &crate::config::Config) -> crate::rules::RuleConfigEngine {
-    crate::rules::validate_rules(cfg).expect("test config should be valid")
-}
-
 /// Create a minimal HTTP transaction for testing.
 /// Contains a GET request to `http://example/` with a standard test user agent.
 #[cfg(test)]

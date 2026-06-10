@@ -19,18 +19,15 @@ use crate::rules::ProtocolRule;
 pub struct StatefulWebsocketFrameOpcodeSequence;
 
 impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "stateful_websocket_frame_opcode_sequence"
     }
 
-    fn check(
+    fn check_event(
         &self,
         event: &ProtocolEvent,
         history: &ProtocolEventHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let (session_id, direction, opcode, payload_length) = match &event.kind {
@@ -149,12 +146,7 @@ mod tests {
         let conn = Uuid::new_v4();
         let session = Uuid::new_v4();
         let evt = make_ws_event(conn, session, MessageDirection::Client, 1, 42);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -164,12 +156,7 @@ mod tests {
         let conn = Uuid::new_v4();
         let session = Uuid::new_v4();
         let evt = make_ws_event(conn, session, MessageDirection::Server, 2, 1024);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 
@@ -181,12 +168,7 @@ mod tests {
 
         for opcode in [8, 9, 10] {
             let evt = make_ws_event(conn, session, MessageDirection::Client, opcode, 10);
-            let result = rule.check(
-                &evt,
-                &ProtocolEventHistory::empty(),
-                &make_config(),
-                &crate::rules::RuleConfigEngine::new(),
-            );
+            let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
             assert!(result.is_none(), "opcode {} should pass", opcode);
         }
     }
@@ -199,12 +181,7 @@ mod tests {
 
         for opcode in [3, 4, 5, 6, 7, 11, 12, 13, 14, 15] {
             let evt = make_ws_event(conn, session, MessageDirection::Client, opcode, 0);
-            let result = rule.check(
-                &evt,
-                &ProtocolEventHistory::empty(),
-                &make_config(),
-                &crate::rules::RuleConfigEngine::new(),
-            );
+            let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
             assert!(result.is_some(), "opcode {} should fail", opcode);
             assert!(result.unwrap().message.contains("reserved opcode"));
         }
@@ -218,12 +195,7 @@ mod tests {
 
         // Ping with 126 bytes payload
         let evt = make_ws_event(conn, session, MessageDirection::Client, 9, 126);
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("125-byte limit"));
     }
@@ -240,12 +212,7 @@ mod tests {
 
         // Now client sends a Text frame
         let text_evt = make_ws_event(conn, session, MessageDirection::Client, 1, 50);
-        let result = rule.check(
-            &text_evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&text_evt, &history, &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("after Close"));
     }
@@ -262,12 +229,7 @@ mod tests {
 
         // Server sends a Text frame (different direction — allowed during close handshake)
         let text_evt = make_ws_event(conn, session, MessageDirection::Server, 1, 50);
-        let result = rule.check(
-            &text_evt,
-            &history,
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&text_evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -279,12 +241,7 @@ mod tests {
             connection_id: Uuid::new_v4(),
             kind: ProtocolEventKind::H3GoawayReceived { stream_id: None },
         };
-        let result = rule.check(
-            &evt,
-            &ProtocolEventHistory::empty(),
-            &make_config(),
-            &crate::rules::RuleConfigEngine::new(),
-        );
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
 }

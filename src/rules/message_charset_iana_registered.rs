@@ -63,8 +63,6 @@ fn parse_allowed_config(
 pub struct MessageCharsetIanaRegistered;
 
 impl Rule for MessageCharsetIanaRegistered {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_charset_iana_registered"
     }
@@ -73,20 +71,16 @@ impl Rule for MessageCharsetIanaRegistered {
         crate::rules::RuleScope::Both
     }
 
-    fn validate_and_box(
-        &self,
-        config: &crate::config::Config,
-    ) -> anyhow::Result<std::sync::Arc<dyn std::any::Any + Send + Sync>> {
-        let parsed = parse_allowed_config(config, self.id())?;
-        Ok(std::sync::Arc::new(parsed))
+    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
+        parse_allowed_config(config, self.id())?;
+        Ok(())
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = parse_allowed_config(cfg, self.id()).ok()?;
         use crate::helpers::headers::parse_media_type;
@@ -253,11 +247,10 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", v)]);
         }
 
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(violation.is_some());
@@ -286,11 +279,10 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", v)]);
         }
 
-        let violation = rule.check(
+        let violation = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(violation.is_some());
@@ -392,11 +384,10 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text")]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -410,11 +401,10 @@ mod tests {
             "content-type",
             "text/plain; CHARSET = UTF-8",
         )]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -429,11 +419,10 @@ mod tests {
             "content-type",
             "text/plain; charset",
         )]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -448,11 +437,10 @@ mod tests {
             "content-type",
             "text/plain; charset",
         )]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -467,11 +455,10 @@ mod tests {
             "content-type",
             "text/plain; charset=utf-8;",
         )]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -485,11 +472,10 @@ mod tests {
             "content-type",
             "text/plain; charset=utf-8; charset=unknown-charset",
         )]);
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -504,7 +490,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_and_box_parses_config() -> anyhow::Result<()> {
+    fn validate_parses_config() -> anyhow::Result<()> {
         let rule = MessageCharsetIanaRegistered;
         let mut full_cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_charset_iana_registered",
@@ -523,10 +509,7 @@ mod tests {
             }),
         );
 
-        let boxed = rule.validate_and_box(&full_cfg)?;
-        let arc = boxed
-            .downcast::<CharsetConfig>()
-            .map_err(|_| anyhow::anyhow!("downcast failed"))?;
+        let arc = parse_allowed_config(&full_cfg, rule.id())?;
         assert!(arc.allowed.contains(&"utf-8".to_string()));
         Ok(())
     }
@@ -544,11 +527,10 @@ mod tests {
             .headers
             .insert("content-type", bad);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

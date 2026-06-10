@@ -9,8 +9,6 @@ use chrono::TimeZone;
 pub struct MessageSunsetAndDeprecationConsistency;
 
 impl Rule for MessageSunsetAndDeprecationConsistency {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_sunset_and_deprecation_consistency"
     }
@@ -20,12 +18,11 @@ impl Rule for MessageSunsetAndDeprecationConsistency {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // only applies to responses
@@ -124,11 +121,10 @@ mod tests {
             ],
         );
         let rule = MessageSunsetAndDeprecationConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         if let Some(v) = &v {
             eprintln!(
@@ -150,11 +146,10 @@ mod tests {
             ],
         );
         let rule = MessageSunsetAndDeprecationConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -172,11 +167,10 @@ mod tests {
             ],
         );
         let rule = MessageSunsetAndDeprecationConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -191,19 +185,17 @@ mod tests {
             crate::test_helpers::make_test_transaction_with_response(200, &[("deprecation", "@0")]);
         let rule = MessageSunsetAndDeprecationConsistency;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx1,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx2,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -228,11 +220,10 @@ mod tests {
         });
 
         let rule = MessageSunsetAndDeprecationConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -251,11 +242,10 @@ mod tests {
             ],
         );
         let rule = MessageSunsetAndDeprecationConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -267,11 +257,10 @@ mod tests {
             &[("sunset", "not-a-date"), ("deprecation", "@0")],
         );
         let rule = MessageSunsetAndDeprecationConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -290,11 +279,10 @@ mod tests {
         );
         let rule = MessageSunsetAndDeprecationConsistency;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -311,11 +299,10 @@ mod tests {
         );
         let rule = MessageSunsetAndDeprecationConsistency;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -331,11 +318,10 @@ mod tests {
             ],
         );
         let rule = MessageSunsetAndDeprecationConsistency;
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -352,11 +338,10 @@ mod tests {
         );
         let rule = MessageSunsetAndDeprecationConsistency;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -373,11 +358,10 @@ mod tests {
         );
         let rule = MessageSunsetAndDeprecationConsistency;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -400,11 +384,10 @@ mod tests {
 
         let rule = MessageSunsetAndDeprecationConsistency;
         assert!(rule
-            .check(
+            .check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -412,7 +395,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "message_sunset_and_deprecation_consistency");
-        let _engine = crate::rules::validate_rules(&cfg)?;
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 

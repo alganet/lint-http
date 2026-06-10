@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct MessageContentMd5VsDigestPreference;
 
 impl Rule for MessageContentMd5VsDigestPreference {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "message_content_md5_vs_digest_preference"
     }
@@ -18,12 +16,11 @@ impl Rule for MessageContentMd5VsDigestPreference {
         crate::rules::RuleScope::Both
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Helper to check a header map for both Content-Digest and Content-MD5
@@ -75,11 +72,10 @@ mod tests {
             ("content-md5", "dGVzdA=="),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -100,11 +96,10 @@ mod tests {
             ("content-md5", "dGVzdA=="),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -122,11 +117,10 @@ mod tests {
             "sha-256=:\tdGVzdA==:",
         )]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -143,11 +137,10 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-md5", "dGVzdA==")]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -173,11 +166,10 @@ mod tests {
             HeaderValue::from_static("sha-256=:\tdGVzdA==:"),
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -206,11 +198,10 @@ mod tests {
             ("content-md5", "dGVzdA=="),
         ]);
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -219,15 +210,11 @@ mod tests {
     }
 
     #[test]
-    fn validate_and_cache_parses_rule_config() -> anyhow::Result<()> {
+    fn validate_parses_rule_config() -> anyhow::Result<()> {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_content_md5_vs_digest_preference",
         ]);
-        let mut engine = crate::rules::RuleConfigEngine::new();
-        engine.validate_and_cache_all(&cfg)?;
-        let cfg_obj: std::sync::Arc<crate::rules::RuleConfig> =
-            engine.get_cached("message_content_md5_vs_digest_preference");
-        assert!(cfg_obj.enabled);
+        crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
 }

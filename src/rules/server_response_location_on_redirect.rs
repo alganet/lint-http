@@ -8,8 +8,6 @@ use crate::rules::Rule;
 pub struct ServerResponseLocationOnRedirect;
 
 impl Rule for ServerResponseLocationOnRedirect {
-    type Config = ();
-
     fn id(&self) -> &'static str {
         "server_response_location_on_redirect"
     }
@@ -18,12 +16,11 @@ impl Rule for ServerResponseLocationOnRedirect {
         crate::rules::RuleScope::Server
     }
 
-    fn check(
+    fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
-        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
@@ -95,11 +92,10 @@ mod tests {
             "warn",
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for status {}", status);
@@ -127,11 +123,10 @@ mod tests {
             "warn",
         );
 
-        let v = rule.check(
+        let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
-            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
