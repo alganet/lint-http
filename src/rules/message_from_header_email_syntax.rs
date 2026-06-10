@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageFromHeaderEmailSyntax;
 
 impl Rule for MessageFromHeaderEmailSyntax {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_from_header_email_syntax"
@@ -19,12 +19,14 @@ impl Rule for MessageFromHeaderEmailSyntax {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req = &tx.request;
 
         for hv in req.headers.get_all("from").iter() {
@@ -85,15 +87,16 @@ mod tests {
     fn check_from_header(#[case] from: &str, #[case] expect_violation: bool) {
         let rule = MessageFromHeaderEmailSyntax;
         let tx = make_tx_with_from(from);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_from_header_email_syntax",
+            "warn",
+        );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{}'", from);
@@ -114,15 +117,16 @@ mod tests {
         );
         tx.request.headers = headers;
 
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_from_header_email_syntax",
+            "warn",
+        );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not valid UTF-8"));

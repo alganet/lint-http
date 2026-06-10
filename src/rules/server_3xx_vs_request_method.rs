@@ -13,7 +13,7 @@ use crate::rules::Rule;
 pub struct Server3xxVsRequestMethod;
 
 impl Rule for Server3xxVsRequestMethod {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "server_3xx_vs_request_method"
@@ -23,12 +23,14 @@ impl Rule for Server3xxVsRequestMethod {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to responses
         let resp = match &tx.response {
             Some(r) => r,
@@ -94,12 +96,13 @@ mod tests {
     #[test]
     fn post_301_with_location_reports_violation() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "POST", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -111,12 +114,13 @@ mod tests {
     #[test]
     fn post_302_with_location_reports_violation() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(302, "POST", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -124,12 +128,13 @@ mod tests {
     #[test]
     fn post_303_with_location_is_ok() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(303, "POST", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -138,12 +143,13 @@ mod tests {
     fn post_200_with_location_is_ignored() {
         // Non-3xx status codes should be ignored even if a Location header is present
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(200, "POST", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none(), "non-3xx status should be ignored");
     }
@@ -151,12 +157,13 @@ mod tests {
     #[test]
     fn post_307_with_location_is_ok() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(307, "POST", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -164,12 +171,13 @@ mod tests {
     #[test]
     fn get_301_with_location_is_ok() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "GET", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -177,12 +185,13 @@ mod tests {
     #[test]
     fn post_301_without_location_is_ignored() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "POST", false);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -190,12 +199,13 @@ mod tests {
     #[test]
     fn lower_case_method_post_reports_violation() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "post", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -204,16 +214,17 @@ mod tests {
     fn non_utf8_location_still_counts() {
         use hyper::header::HeaderValue;
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let mut tx = make_tx(301, "POST", true);
         // Replace location header with a non-UTF8 value; presence alone should trigger the rule
         let mut hm = hyper::HeaderMap::new();
         hm.insert("location", HeaderValue::from_bytes(b"\xff").unwrap());
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -221,13 +232,14 @@ mod tests {
     #[test]
     fn options_and_trace_are_treated_as_safe() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         for m in &["OPTIONS", "TRACE"] {
             let tx = make_tx(301, m, true);
-            let v = rule.check_transaction(
+            let v = rule.check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             );
             assert!(v.is_none(), "method {} should be treated as safe", m);
         }
@@ -244,12 +256,13 @@ mod tests {
     #[test]
     fn post_300_with_location_is_ok() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(300, "POST", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -257,12 +270,13 @@ mod tests {
     #[test]
     fn post_308_with_location_is_ok() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(308, "POST", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -270,12 +284,13 @@ mod tests {
     #[test]
     fn head_301_with_location_is_ok() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "HEAD", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -283,12 +298,13 @@ mod tests {
     #[test]
     fn put_301_with_location_reports_violation() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "PUT", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -296,12 +312,13 @@ mod tests {
     #[test]
     fn patch_301_with_location_reports_violation() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "PATCH", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -309,12 +326,13 @@ mod tests {
     #[test]
     fn delete_301_with_location_reports_violation() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "DELETE", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -322,13 +340,14 @@ mod tests {
     #[test]
     fn empty_method_reports_violation() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let mut tx = make_tx(301, "POST", true);
         tx.request.method = "".to_string();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -337,16 +356,17 @@ mod tests {
     fn multiple_location_headers_count() {
         use hyper::header::HeaderValue;
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let mut tx = make_tx(301, "POST", false);
         let mut hm = hyper::HeaderMap::new();
         hm.append("location", HeaderValue::from_static("/first"));
         hm.append("location", HeaderValue::from_static("/second"));
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -355,15 +375,16 @@ mod tests {
     fn empty_location_value_counts() {
         use hyper::header::HeaderValue;
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let mut tx = make_tx(301, "POST", false);
         let mut hm = hyper::HeaderMap::new();
         hm.insert("location", HeaderValue::from_static(""));
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -372,12 +393,13 @@ mod tests {
     fn no_response_is_ignored() {
         // If there's no response, rule should return None
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = crate::test_helpers::make_test_transaction(); // no response
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -385,13 +407,13 @@ mod tests {
     #[test]
     fn post_302_violation_message_and_severity() {
         let rule = Server3xxVsRequestMethod;
-        let mut cfg = crate::test_helpers::make_test_rule_config();
-        cfg.severity = crate::lint::Severity::Error;
+        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
         let tx = make_tx(302, "POST", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -403,12 +425,13 @@ mod tests {
     #[test]
     fn connect_301_with_location_reports_violation() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "CONNECT", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -421,12 +444,13 @@ mod tests {
     #[test]
     fn options_mixed_case_treated_as_safe() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "oPtIoNs", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none(), "mixed-case OPTIONS should be treated as safe");
     }
@@ -434,12 +458,13 @@ mod tests {
     #[test]
     fn trace_mixed_case_treated_as_safe() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(302, "TrAcE", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none(), "mixed-case TRACE should be treated as safe");
     }
@@ -447,12 +472,13 @@ mod tests {
     #[test]
     fn connect_302_with_location_reports_violation() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(302, "CONNECT", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -463,12 +489,13 @@ mod tests {
     #[test]
     fn put_302_with_location_reports_violation() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(302, "PUT", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -479,12 +506,13 @@ mod tests {
     #[test]
     fn post_304_with_location_is_ok() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(304, "POST", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_none(),
@@ -495,12 +523,13 @@ mod tests {
     #[test]
     fn connect_lowercase_reports_violation() {
         let rule = Server3xxVsRequestMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_tx(301, "connect", true);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),

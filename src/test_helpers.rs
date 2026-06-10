@@ -87,6 +87,22 @@ pub fn make_test_config_with_enabled_rules(rules: &[&str]) -> crate::config::Con
     cfg
 }
 
+/// Create a configuration with a single rule enabled at the given severity.
+/// `severity` must be one of `"info"`, `"warn"`, `"error"`.
+#[cfg(test)]
+pub fn make_test_config_with_severity(rule_id: &str, severity: &str) -> crate::config::Config {
+    let mut cfg = crate::config::Config::default();
+    let mut table = toml::map::Map::new();
+    table.insert("enabled".to_string(), toml::Value::Boolean(true));
+    table.insert(
+        "severity".to_string(),
+        toml::Value::String(severity.to_string()),
+    );
+    cfg.rules
+        .insert(rule_id.to_string(), toml::Value::Table(table));
+    cfg
+}
+
 /// Validate and build a `RuleConfigEngine` from a configuration.
 /// Panics if the configuration is invalid.
 #[cfg(test)]

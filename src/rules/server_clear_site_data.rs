@@ -80,7 +80,7 @@ paths = ["/logout"]"#
 }
 
 impl Rule for ServerClearSiteData {
-    type Config = ClearSiteDataConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "server_clear_site_data"
@@ -98,11 +98,12 @@ impl Rule for ServerClearSiteData {
         Ok(std::sync::Arc::new(parsed))
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
         // Only check successful responses
         let Some(resp) = &tx.response else {
@@ -112,6 +113,10 @@ impl Rule for ServerClearSiteData {
         if !(200..300).contains(&status) {
             return None;
         }
+
+        // Parse config only after the cheap response/status guards — non-2xx
+        // responses (redirects, errors) skip the paths allocation entirely.
+        let config = parse_paths_config(cfg, self.id()).ok()?;
 
         // Check if the current resource path matches any configured path
         let resource_path = extract_path_from_resource(&tx.request.uri);
@@ -194,11 +199,12 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ServerClearSiteData;
 
-        let config = super::ClearSiteDataConfig {
-            enabled: true,
-            paths: config_paths.iter().map(|s| s.to_string()).collect(),
-            severity: crate::lint::Severity::Warn,
-        };
+        let mut config = crate::config::Config::default();
+        crate::test_helpers::enable_rule_with_paths(
+            &mut config,
+            "server_clear_site_data",
+            &config_paths,
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.uri = format!("http://test.com{}", resource_path);
@@ -211,10 +217,11 @@ mod tests {
             trailers: None,
         });
 
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -367,15 +374,17 @@ mod tests {
     fn check_missing_response() {
         let rule = ServerClearSiteData;
         let tx = crate::test_helpers::make_test_transaction();
-        let config = super::ClearSiteDataConfig {
-            enabled: true,
-            paths: vec!["/logout".to_string()],
-            severity: crate::lint::Severity::Warn,
-        };
-        let violation = rule.check_transaction(
+        let mut config = crate::config::Config::default();
+        crate::test_helpers::enable_rule_with_paths(
+            &mut config,
+            "server_clear_site_data",
+            &["/logout"],
+        );
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_none());
     }

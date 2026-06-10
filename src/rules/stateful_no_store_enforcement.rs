@@ -32,7 +32,7 @@ use crate::rules::Rule;
 pub struct StatefulNoStoreEnforcement;
 
 impl Rule for StatefulNoStoreEnforcement {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_no_store_enforcement"
@@ -43,12 +43,14 @@ impl Rule for StatefulNoStoreEnforcement {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Build maps of validators to a boolean indicating whether the most
         // recent occurrence of that validator came from a no-store response.
         //
@@ -208,7 +210,7 @@ fn header_has_no_store(headers: &hyper::HeaderMap) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_rule_config, make_test_transaction_with_response};
+    use crate::test_helpers::make_test_transaction_with_response;
     use chrono::Utc;
 
     /// Helper creating a previous transaction for the given resource and
@@ -236,13 +238,15 @@ mod tests {
     #[test]
     fn no_violation_without_history() {
         let rule = StatefulNoStoreEnforcement;
-        let cfg = make_test_rule_config();
         let tx = crate::test_helpers::make_test_transaction();
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_no_store_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -250,20 +254,27 @@ mod tests {
     #[test]
     fn no_violation_if_history_has_no_store_but_request_not_conditional() {
         let rule = StatefulNoStoreEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let prev = make_prev(&[("cache-control", "no-store")], &[("etag", "\"a\"")], ts);
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.client = crate::test_helpers::make_test_client();
         tx.request.uri = "/resource".to_string();
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_no_store_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn violation_on_if_none_match_matching_no_store() {
         let rule = StatefulNoStoreEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let prev = make_prev(&[("cache-control", "no-store")], &[("etag", "\"a\"")], ts);
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -272,7 +283,14 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_no_store_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("ETag"));
     }
@@ -282,7 +300,6 @@ mod tests {
         // a weak validator in history should match a strong one in request and
         // vice versa; normalization makes sure the rule doesn't miss this.
         let rule = StatefulNoStoreEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let prev = make_prev(&[("cache-control", "no-store")], &[("etag", "W/\"a\"")], ts);
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -291,13 +308,21 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_some());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_no_store_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_some());
     }
 
     #[test]
     fn violation_on_if_modified_since_matching_no_store() {
         let rule = StatefulNoStoreEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let prev = make_prev(
             &[("cache-control", "no-store")],
@@ -312,7 +337,14 @@ mod tests {
             "Wed, 21 Oct 2015 07:28:00 GMT",
         )]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_no_store_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Last-Modified"));
     }
@@ -320,7 +352,6 @@ mod tests {
     #[test]
     fn non_matching_validator_not_flagged() {
         let rule = StatefulNoStoreEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let prev = make_prev(&[("cache-control", "no-store")], &[("etag", "\"a\"")], ts);
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -329,7 +360,16 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"b\"")]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_no_store_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
@@ -338,7 +378,6 @@ mod tests {
         // non-no-store response, it should no longer be considered
         // prohibited even if an earlier entry had it with no-store.
         let rule = StatefulNoStoreEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let prev1 = make_prev(&[("cache-control", "no-store")], &[("etag", "\"a\"")], ts);
         let prev2 = make_prev(
@@ -353,14 +392,22 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         let history =
             crate::transaction_history::TransactionHistory::new(vec![prev2.clone(), prev1.clone()]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_no_store_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn later_non_no_store_supersedes_last_modified() {
         // same as above but for Last-Modified
         let rule = StatefulNoStoreEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let lm = "Wed, 21 Oct 2015 07:28:00 GMT";
         let prev1 = make_prev(
@@ -380,7 +427,16 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-modified-since", lm)]);
         let history =
             crate::transaction_history::TransactionHistory::new(vec![prev2.clone(), prev1.clone()]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_no_store_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
@@ -399,7 +455,6 @@ mod tests {
     #[test]
     fn multiple_if_none_match_values() {
         let rule = StatefulNoStoreEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let prev = make_prev(&[("cache-control", "no-store")], &[("etag", "\"a\"")], ts);
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -409,13 +464,21 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"x\", \"a\"")]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_some());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_no_store_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_some());
     }
 
     #[test]
     fn multiple_header_fields_for_if_none_match() {
         let rule = StatefulNoStoreEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let prev = make_prev(&[("cache-control", "no-store")], &[("etag", "\"a\"")], ts);
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -426,14 +489,22 @@ mod tests {
         hm.append("if-none-match", "\"a\"".parse().unwrap());
         tx.request.headers = hm;
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_some());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_no_store_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_some());
     }
 
     #[test]
     fn last_modified_date_string_inequality() {
         // If dates parse to same instant but differ in formatting we still want a violation.
         let rule = StatefulNoStoreEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let prev = make_prev(
             &[("cache-control", "no-store")],
@@ -449,7 +520,16 @@ mod tests {
             "Sun, 06 Nov 1994 08:49:37 GMT",
         )]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_some());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_no_store_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_some());
     }
 
     #[test]

@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageDigestAuthValidity;
 
 impl Rule for MessageDigestAuthValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_digest_auth_validity"
@@ -18,12 +18,14 @@ impl Rule for MessageDigestAuthValidity {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         for hv in tx.request.headers.get_all("authorization").iter() {
             match hv.to_str() {
                 Ok(s) => {
@@ -207,7 +209,9 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         if let Some(h) = header {
@@ -216,10 +220,11 @@ mod tests {
                 .append("authorization", h.parse().unwrap());
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -232,7 +237,9 @@ mod tests {
     #[test]
     fn invalid_param_name_reports_violation() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers.append(
@@ -242,10 +249,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -256,7 +264,9 @@ mod tests {
     #[test]
     fn lowercase_scheme_is_accepted() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers.append(
@@ -266,10 +276,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -278,7 +289,9 @@ mod tests {
     #[test]
     fn parse_params_missing_value_reports_violation() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers.append(
@@ -288,10 +301,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -307,10 +321,11 @@ mod tests {
             "authorization",
             hyper::header::HeaderValue::from_bytes(b"Digest \xff").unwrap(),
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -319,7 +334,9 @@ mod tests {
     #[test]
     fn required_param_quoted_empty_reports_violation() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers.append(
@@ -329,10 +346,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -346,7 +364,9 @@ mod tests {
     #[test]
     fn quoted_string_with_escaped_quote_is_accepted() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         // username contains an escaped quote inside the quoted-string which is valid
@@ -355,10 +375,11 @@ mod tests {
             "Digest username=\"Mu\\\"fasa\", realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"d\"".parse().unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -367,7 +388,9 @@ mod tests {
     #[test]
     fn invalid_quoted_string_reports_specific_message() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         // username quoted-string missing closing quote should trigger quoted-string validation error
@@ -378,10 +401,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -409,17 +433,20 @@ mod tests {
     #[test]
     fn digest_scheme_with_whitespace_but_no_params_reports_invalid_params() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request
             .headers
             .append("authorization", "Digest    ".parse().unwrap());
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -431,17 +458,20 @@ mod tests {
     #[test]
     fn digest_scheme_without_params_reports_missing_parameters_message() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request
             .headers
             .append("authorization", "Digest".parse().unwrap());
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -452,7 +482,9 @@ mod tests {
     #[test]
     fn invalid_response_value_token_char_reports_violation() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers.append(
@@ -462,10 +494,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -478,7 +511,9 @@ mod tests {
     #[test]
     fn invalid_quoted_string_extra_chars_reports_violation() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         // username quoted-string followed by extra chars should trigger quoted-string validation error
@@ -489,10 +524,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -505,7 +541,9 @@ mod tests {
     #[test]
     fn duplicate_param_last_empty_reports_violation() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         // username appears twice; last one is empty -> should trigger missing/empty required param
@@ -516,10 +554,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -533,7 +572,9 @@ mod tests {
     #[test]
     fn multiple_authorization_headers_one_invalid_triggers_violation() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         // add a Basic header first, then an invalid Digest (empty response)
@@ -547,10 +588,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -564,7 +606,9 @@ mod tests {
     #[test]
     fn multiple_digest_headers_one_invalid_after_valid_triggers_violation() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         // first a valid Digest, then an invalid Digest (empty response)
@@ -581,10 +625,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -593,7 +638,9 @@ mod tests {
     #[test]
     fn multiple_digest_headers_all_valid_no_violation() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers.append(
@@ -609,10 +656,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -621,17 +669,20 @@ mod tests {
     #[test]
     fn empty_authorization_header_ignored() {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         // An empty Authorization value should be ignored
         tx.request
             .headers
             .append("authorization", "".parse().unwrap());
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -639,7 +690,9 @@ mod tests {
     #[test]
     fn unquoted_username_with_space_reports_violation() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers.append(
@@ -649,10 +702,11 @@ mod tests {
                 .unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -661,7 +715,9 @@ mod tests {
     #[test]
     fn quoted_string_ends_with_escape_reports_violation() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers.append(
             "authorization",
@@ -669,10 +725,11 @@ mod tests {
                 .parse()
                 .unwrap(),
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -687,7 +744,9 @@ mod tests {
     #[test]
     fn required_param_unquoted_empty_reports_violation() -> anyhow::Result<()> {
         let rule = MessageDigestAuthValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_auth_validity",
+        ]);
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers.append(
             "authorization",
@@ -695,10 +754,11 @@ mod tests {
                 .parse()
                 .unwrap(),
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;

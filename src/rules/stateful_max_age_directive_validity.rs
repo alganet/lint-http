@@ -31,7 +31,7 @@ use crate::rules::Rule;
 pub struct StatefulMaxAgeDirectiveValidity;
 
 impl Rule for StatefulMaxAgeDirectiveValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_max_age_directive_validity"
@@ -42,12 +42,14 @@ impl Rule for StatefulMaxAgeDirectiveValidity {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // locate most recent prior response with a usable max-age
         let mut candidate: Option<(&crate::http_transaction::HttpTransaction, i64)> = None;
 
@@ -124,7 +126,7 @@ impl Rule for StatefulMaxAgeDirectiveValidity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_rule_config, make_test_transaction_with_response};
+    use crate::test_helpers::make_test_transaction_with_response;
     use chrono::Utc;
 
     fn make_prev_with_headers(
@@ -151,7 +153,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(30);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_max_age_directive_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -169,7 +178,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(10);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev.clone()]);
-        let v = rule.check_transaction(&tx, &history, &make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_max_age_directive_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(
             v.is_some(),
             "unconditional fetch at exact boundary should warn"
@@ -184,8 +200,15 @@ mod tests {
         tx2.timestamp = base + chrono::Duration::seconds(10);
         let history2 = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(
-            rule.check_transaction(&tx2, &history2, &make_test_rule_config())
-                .is_none(),
+            rule.check(
+                &tx2,
+                &history2,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_max_age_directive_validity"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none(),
             "conditional at boundary should not warn"
         );
     }
@@ -205,7 +228,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(10);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_max_age_directive_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("still fresh"));
     }
@@ -225,7 +255,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(5);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_max_age_directive_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -242,7 +279,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(5);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_max_age_directive_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Stale cached entry"));
     }
@@ -259,7 +303,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(5);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_max_age_directive_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -275,7 +326,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(10);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_max_age_directive_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -292,7 +350,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(10);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_max_age_directive_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(
             v.is_none(),
             "max-age should be ignored when no-cache present"
@@ -314,7 +379,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(30);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_max_age_directive_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some(), "expected violation because still fresh");
     }
 
@@ -338,7 +410,14 @@ mod tests {
         tx.timestamp = base;
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_max_age_directive_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(
             v.is_some(),
             "should flag stale unconditional with age header"
@@ -360,7 +439,14 @@ mod tests {
         let history = crate::transaction_history::TransactionHistory::new(vec![prev.clone()]);
         // age == max-age should be treated as stale; unconditional request
         // should therefore be flagged since validator exists.
-        let v = rule.check_transaction(&tx, &history, &make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_max_age_directive_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some(), "unconditional fetch at boundary should warn");
 
         // conditional at same moment is appropriate (entry stale) and should NOT trigger a violation
@@ -372,8 +458,15 @@ mod tests {
         tx2.timestamp = base;
         let history2 = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(
-            rule.check_transaction(&tx2, &history2, &make_test_rule_config())
-                .is_none(),
+            rule.check(
+                &tx2,
+                &history2,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_max_age_directive_validity"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none(),
             "conditional at boundary should not warn"
         );
     }
@@ -392,7 +485,14 @@ mod tests {
         tx.timestamp = base - chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         // age computed from elapsed clamped to 0 yields fresh state; no violation expected
-        let v = rule.check_transaction(&tx, &history, &make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_max_age_directive_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 

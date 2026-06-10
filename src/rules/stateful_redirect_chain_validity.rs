@@ -19,7 +19,7 @@ use crate::rules::Rule;
 pub struct StatefulRedirectChainValidity;
 
 impl Rule for StatefulRedirectChainValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_redirect_chain_validity"
@@ -29,12 +29,14 @@ impl Rule for StatefulRedirectChainValidity {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
             Some(r) => r,
             None => return None,
@@ -156,11 +158,13 @@ mod tests {
     fn detects_circular_redirect_for_equal_path(#[case] req: &str, #[case] loc: &str) {
         let rule = StatefulRedirectChainValidity;
         let tx = make_resp_tx(req, 301, Some(loc));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_redirect_chain_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("circular redirect"));
@@ -171,11 +175,13 @@ mod tests {
         let rule = StatefulRedirectChainValidity;
         // different host should NOT be considered circular
         let tx = make_resp_tx("http://example.com/a", 301, Some("http://other/a"));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_redirect_chain_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -190,11 +196,13 @@ mod tests {
         let mut tx = make_resp_tx("/r", 302, Some("/x"));
         tx.client = crate::test_helpers::make_test_client();
 
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_redirect_chain_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Repeated redirect"));
@@ -221,11 +229,13 @@ mod tests {
             trailers: None,
         });
 
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_redirect_chain_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not valid UTF-8"));
@@ -235,11 +245,13 @@ mod tests {
     fn non_redirect_status_with_location_is_ignored() {
         let rule = StatefulRedirectChainValidity;
         let tx = make_resp_tx("/r", 200, Some("/x"));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_redirect_chain_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         // This rule only inspects redirect/creation status codes — ignore otherwise
         assert!(v.is_none());
@@ -255,12 +267,14 @@ mod tests {
         let mut tx = make_resp_tx("/r", 302, Some("/x"));
         tx.client = crate::test_helpers::make_test_client();
 
-        let cfg = crate::test_helpers::make_test_rule_config();
         // previous had non-redirect status -> should NOT trigger repeated-redirect violation
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_redirect_chain_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -269,11 +283,13 @@ mod tests {
     fn no_location_is_ignored() {
         let rule = StatefulRedirectChainValidity;
         let tx = make_resp_tx("/r", 302, None);
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_redirect_chain_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

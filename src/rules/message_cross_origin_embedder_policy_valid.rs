@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageCrossOriginEmbedderPolicyValid;
 
 impl Rule for MessageCrossOriginEmbedderPolicyValid {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_cross_origin_embedder_policy_valid"
@@ -18,12 +18,14 @@ impl Rule for MessageCrossOriginEmbedderPolicyValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // COEP is a response-only header per spec; ignore requests
         let resp = if let Some(resp) = &tx.response {
             resp
@@ -92,7 +94,7 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    use crate::test_helpers::{make_test_rule_config, make_test_transaction};
+    use crate::test_helpers::make_test_transaction;
 
     #[rstest]
     #[case(Some("require-corp"), false)]
@@ -113,10 +115,11 @@ mod tests {
             );
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{:?}', got none", val);
@@ -134,10 +137,11 @@ mod tests {
     fn no_response_no_violation() {
         let rule = MessageCrossOriginEmbedderPolicyValid;
         let tx = make_test_transaction();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -163,10 +167,11 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v
@@ -196,10 +201,11 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-ASCII"));
@@ -234,10 +240,11 @@ mod tests {
             200,
             &[("cross-origin-embedder-policy", "require-corp ")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -250,10 +257,11 @@ mod tests {
             &[("cross-origin-embedder-policy", "unsafe-none")],
         );
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &make_test_rule_config(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("does not enable cross-origin isolation"));
@@ -271,10 +279,11 @@ mod tests {
             )],
         );
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &make_test_rule_config(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("single value"));
@@ -301,10 +310,11 @@ mod tests {
             200,
             &[("cross-origin-embedder-policy", "CrEdEntIalLess")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none(), "expected no violation for mixed-case value");
 

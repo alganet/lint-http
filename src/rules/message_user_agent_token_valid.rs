@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageUserAgentTokenValid;
 
 impl Rule for MessageUserAgentTokenValid {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_user_agent_token_valid"
@@ -18,12 +18,14 @@ impl Rule for MessageUserAgentTokenValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let check_value = |hdr: &str, val: &str| -> Option<Violation> {
             // Strip comments (e.g., parentheses) before token parsing
             let no_comments = match crate::helpers::headers::strip_comments(val) {
@@ -154,17 +156,20 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         if let Some(v) = ua {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("user-agent", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -177,17 +182,20 @@ mod tests {
     #[test]
     fn user_agent_product_and_version_invalid_chars_are_reported() -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
 
         // invalid character in product
         let mut tx1 = crate::test_helpers::make_test_transaction();
         tx1.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "A@gen/1.0")]);
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx1,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
 
@@ -196,10 +204,11 @@ mod tests {
         tx2.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent/1@0")]);
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx2,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
 
@@ -209,7 +218,9 @@ mod tests {
     #[test]
     fn multiple_user_agent_fields_are_checked() -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
 
         // one good and one bad header -> violation
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[("user-agent", "curl/7.68.0")]);
@@ -217,10 +228,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = hm;
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
 
@@ -230,17 +242,20 @@ mod tests {
     #[test]
     fn non_utf8_header_value_is_reported() -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
         hm.insert("user-agent", HeaderValue::from_bytes(b"\xff").unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -249,16 +264,19 @@ mod tests {
     #[test]
     fn response_user_agent_is_validated() -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Bad/UA!")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -267,17 +285,20 @@ mod tests {
     #[test]
     fn response_multiple_user_agent_fields_are_checked() -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[("user-agent", "curl/7.68.0")]);
         hm.append("user-agent", HeaderValue::from_static("Bad@UA/1.0"));
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -286,17 +307,20 @@ mod tests {
     #[test]
     fn response_non_utf8_header_value_is_reported() -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
         hm.insert("user-agent", HeaderValue::from_bytes(b"\xff").unwrap());
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(violation) = v {
@@ -308,16 +332,19 @@ mod tests {
     #[test]
     fn empty_product_token_from_whitespace_is_reported() -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent  /1.0")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(violation) = v {
@@ -329,15 +356,18 @@ mod tests {
     #[test]
     fn invalid_char_messages_include_char() -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
 
         let mut tx1 = crate::test_helpers::make_test_transaction();
         tx1.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "A@gen/1.0")]);
-        let v1 = rule.check_transaction(
+        let v1 = rule.check(
             &tx1,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v1.is_some());
         if let Some(violation) = v1 {
@@ -347,10 +377,11 @@ mod tests {
         let mut tx2 = crate::test_helpers::make_test_transaction();
         tx2.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent/1@0")]);
-        let v2 = rule.check_transaction(
+        let v2 = rule.check(
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_some());
         if let Some(violation) = v2 {
@@ -362,7 +393,9 @@ mod tests {
     #[test]
     fn user_agent_only_comments_is_reported() -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -370,10 +403,11 @@ mod tests {
             "(compatible; something)",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(violation) = v {
@@ -390,16 +424,19 @@ mod tests {
     #[test]
     fn user_agent_unmatched_parentheses_is_reported() -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent (unclosed")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(violation) = v {
@@ -412,16 +449,19 @@ mod tests {
     fn user_agent_unbalanced_comment_reports_violation() -> anyhow::Result<()> {
         // moved from helper tests: ensure unbalanced parenthesized comment in User-Agent is reported
         let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent (incomplete")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -432,16 +472,19 @@ mod tests {
         // Escaped parentheses should not be treated as comment delimiters; they will be preserved
         // by strip_comments and then validated for token characters by the rule.
         let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent\\(1.0\\)")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         // Parentheses are not allowed in token syntax, so we expect a violation, but the parser should
         // not treat them as comment delimiters (i.e., no parse error about unmatched comment).

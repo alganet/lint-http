@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageEarlyDataHeaderSafeMethod;
 
 impl Rule for MessageEarlyDataHeaderSafeMethod {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_early_data_header_safe_method"
@@ -19,12 +19,14 @@ impl Rule for MessageEarlyDataHeaderSafeMethod {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Early-Data is defined as a request header (RFC 8470). If present and equal to '1',
         // it should only be used with safe methods (GET, HEAD, OPTIONS, TRACE).
         // A request may include multiple Early-Data header fields. Per RFC 8470, any
@@ -76,7 +78,9 @@ mod tests {
         #[case] expect_violation: bool,
     ) {
         let rule = MessageEarlyDataHeaderSafeMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_early_data_header_safe_method",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.method = method.to_string();
@@ -84,10 +88,11 @@ mod tests {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("early-data", h)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -129,7 +134,9 @@ mod tests {
     #[test]
     fn multiple_header_instances_with_one_1_reports_violation() {
         let rule = MessageEarlyDataHeaderSafeMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_early_data_header_safe_method",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.method = "POST".to_string();
@@ -139,10 +146,11 @@ mod tests {
         hm.append("early-data", "1".parse::<HeaderValue>().unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -150,7 +158,9 @@ mod tests {
     #[test]
     fn non_utf8_header_value_is_ignored() {
         let rule = MessageEarlyDataHeaderSafeMethod;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_early_data_header_safe_method",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.method = "POST".to_string();
@@ -160,10 +170,11 @@ mod tests {
         hm.append("early-data", bad);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

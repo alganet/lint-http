@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct ClientAcceptRangesOnPartialContent;
 
 impl Rule for ClientAcceptRangesOnPartialContent {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "client_accept_ranges_on_partial_content"
@@ -18,12 +18,14 @@ impl Rule for ClientAcceptRangesOnPartialContent {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to requests that contain a UTF-8 Range header we can parse.
         let range_val = crate::helpers::headers::get_header_str(&tx.request.headers, "range")?;
         // Only treat the header as having a unit if it includes a '=' delimiter (e.g. 'bytes=0-499')
@@ -130,7 +132,7 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = ClientAcceptRangesOnPartialContent;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("range", range_val)]);
@@ -145,7 +147,7 @@ mod tests {
             None => crate::transaction_history::TransactionHistory::empty(),
         };
 
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(&tx, &history, &cfg, &crate::rules::RuleConfigEngine::new());
         if expect_violation {
             assert!(v.is_some());
         } else {
@@ -157,7 +159,7 @@ mod tests {
     #[test]
     fn invalid_accept_ranges_token_reports_violation() {
         let rule = ClientAcceptRangesOnPartialContent;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let mut p = make_prev_resp(200, Some("x@bad"));
         p.request.uri = crate::test_helpers::make_test_transaction()
             .request
@@ -168,10 +170,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-1")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -181,14 +184,15 @@ mod tests {
     #[test]
     fn no_previous_response_does_nothing() -> anyhow::Result<()> {
         let rule = ClientAcceptRangesOnPartialContent;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-1")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -211,7 +215,7 @@ mod tests {
     #[test]
     fn non_utf8_accept_ranges_treated_as_missing_reports_violation() -> anyhow::Result<()> {
         let rule = ClientAcceptRangesOnPartialContent;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         // Create a previous response 206 with non-UTF8 Accept-Ranges header
         let mut p = make_prev_resp(206, None);
@@ -237,10 +241,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-1")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -251,7 +256,7 @@ mod tests {
     #[test]
     fn non_utf8_range_with_accept_ranges_present_is_lenient() -> anyhow::Result<()> {
         let rule = ClientAcceptRangesOnPartialContent;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         // Previous response advertises 'bytes' in Accept-Ranges
         let mut p = make_prev_resp(200, Some("bytes"));
@@ -267,10 +272,11 @@ mod tests {
         hm.insert("range", HeaderValue::from_bytes(&[0xff]).unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         // Be lenient: if the request Range header is non-utf8, do not raise a violation when Accept-Ranges was present
         assert!(v.is_none());
@@ -280,7 +286,7 @@ mod tests {
     #[test]
     fn non_utf8_range_with_previous_206_is_lenient() -> anyhow::Result<()> {
         let rule = ClientAcceptRangesOnPartialContent;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         // Create a previous 206 response with no Accept-Ranges header
         let mut p = make_prev_resp(206, None);
@@ -296,10 +302,11 @@ mod tests {
         hm.insert("range", HeaderValue::from_bytes(&[0xff]).unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         // If Range header itself is not valid UTF-8, the rule should not emit a misleading violation about Accept-Ranges
         assert!(v.is_none());

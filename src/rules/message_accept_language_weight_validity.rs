@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageAcceptLanguageWeightValidity;
 
 impl Rule for MessageAcceptLanguageWeightValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_accept_language_weight_validity"
@@ -18,12 +18,14 @@ impl Rule for MessageAcceptLanguageWeightValidity {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Helper to validate a single Accept-Language header value (may contain comma-separated members)
         let validate_value = |hdr_value: &str| -> Option<Violation> {
             for member in crate::helpers::headers::parse_list_header(hdr_value) {
@@ -152,7 +154,9 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageAcceptLanguageWeightValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_language_weight_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         if let Some(v) = al {
@@ -160,10 +164,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("accept-language", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -192,12 +197,15 @@ mod tests {
         let bad = HeaderValue::from_bytes(&[0xff])?;
         hm.append("accept-language", bad);
         tx.request.headers = hm;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_language_weight_validity",
+        ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -206,7 +214,9 @@ mod tests {
     #[test]
     fn multiple_header_fields_are_checked() {
         let rule = MessageAcceptLanguageWeightValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_language_weight_validity",
+        ]);
 
         use hyper::header::HeaderValue;
         let mut headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -216,10 +226,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = headers;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -227,16 +238,19 @@ mod tests {
     #[test]
     fn response_header_invalid_q_reports_violation() {
         let rule = MessageAcceptLanguageWeightValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_language_weight_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("accept-language", "en;q=1.0000")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -250,12 +264,15 @@ mod tests {
         let bad = HeaderValue::from_bytes(&[0xff])?;
         hm.append("accept-language", bad);
         tx.response.as_mut().unwrap().headers = hm;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_language_weight_validity",
+        ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -264,17 +281,20 @@ mod tests {
     #[test]
     fn other_param_quoted_string_valid_and_invalid() {
         let rule = MessageAcceptLanguageWeightValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_language_weight_validity",
+        ]);
 
         // valid quoted-string
         let mut tx1 = crate::test_helpers::make_test_transaction();
         tx1.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("accept-language", "en;foo=\"ok\"")]);
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx1,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
 
@@ -285,10 +305,11 @@ mod tests {
             "en;foo=\"unterminated",
         )]);
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx2,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new()
             )
             .is_some());
     }
@@ -296,15 +317,18 @@ mod tests {
     #[test]
     fn invalid_param_name_reports_violation() {
         let rule = MessageAcceptLanguageWeightValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_language_weight_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("accept-language", "en;b@d=1")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -312,15 +336,18 @@ mod tests {
     #[test]
     fn param_without_value_reports_violation() {
         let rule = MessageAcceptLanguageWeightValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_language_weight_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("accept-language", "en;param")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -328,15 +355,18 @@ mod tests {
     #[test]
     fn wildcard_with_q_ok() {
         let rule = MessageAcceptLanguageWeightValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_language_weight_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("accept-language", "*;q=0.5")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -344,15 +374,18 @@ mod tests {
     #[test]
     fn uppercase_q_parameter_name_is_accepted() {
         let rule = MessageAcceptLanguageWeightValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_language_weight_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("accept-language", "en;Q=0.5")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -360,7 +393,9 @@ mod tests {
     #[test]
     fn multiple_header_fields_all_valid_no_violation() {
         let rule = MessageAcceptLanguageWeightValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_language_weight_validity",
+        ]);
 
         use hyper::header::HeaderValue;
         let mut headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -370,10 +405,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = headers;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -381,7 +417,9 @@ mod tests {
     #[test]
     fn quoted_string_with_escaped_quote_valid() {
         let rule = MessageAcceptLanguageWeightValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_language_weight_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         // quoted-string with escaped quote: "a\"b"
@@ -389,10 +427,11 @@ mod tests {
             "accept-language",
             "en;foo=\"a\\\"b\"",
         )]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

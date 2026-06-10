@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageContentSecurityPolicyAndFrameOptionsConsistency;
 
 impl Rule for MessageContentSecurityPolicyAndFrameOptionsConsistency {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_content_security_policy_and_frame_options_consistency"
@@ -18,12 +18,14 @@ impl Rule for MessageContentSecurityPolicyAndFrameOptionsConsistency {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check responses
         let resp = match &tx.response {
             Some(r) => r,
@@ -248,11 +250,11 @@ mod tests {
     use hyper::header::HeaderValue;
     use rstest::rstest;
 
-    fn make_cfg() -> crate::rules::RuleConfig {
-        crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        }
+    fn make_cfg() -> crate::config::Config {
+        crate::test_helpers::make_test_config_with_severity(
+            "message_content_security_policy_and_frame_options_consistency",
+            "warn",
+        )
     }
 
     #[rstest]
@@ -272,10 +274,11 @@ mod tests {
             ("x-frame-options", xfo),
         ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -310,10 +313,11 @@ mod tests {
         headers.insert("x-frame-options", bad);
         tx.response.as_mut().unwrap().headers = headers;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -331,10 +335,11 @@ mod tests {
         ]);
 
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("does not match"));
@@ -374,10 +379,11 @@ mod tests {
             ("x-frame-options", "ALLOW-FROM https://a"),
         ]);
         tx.response.as_mut().unwrap().headers = headers;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -393,10 +399,11 @@ mod tests {
             ("x-frame-options", "DENY"),
         ]);
         // since the directive is malformed (no members) we treat as absent and no violation
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -415,10 +422,11 @@ mod tests {
         headers.append("x-frame-options", "DENY".parse().unwrap());
         tx.response.as_mut().unwrap().headers = headers;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -433,10 +441,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://example"),
             ("x-frame-options", "ALLOW-FROM https://example/"),
         ]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -451,10 +460,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://example"),
             ("x-frame-options", "UNKNOWN https://example"),
         ]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -472,10 +482,11 @@ mod tests {
             ("x-frame-options", "ALLOW-FROM http://example"),
         ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -490,10 +501,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://a"),
             ("x-frame-options", "ALLOW-FROM"),
         ]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -508,10 +520,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors 'none'"),
             ("x-frame-options", "ALLOW-FROM https://example"),
         ]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -528,10 +541,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://EXample"),
             ("x-frame-options", "ALLOW-FROM https://example"),
         ]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -549,10 +563,11 @@ mod tests {
             ),
             ("x-frame-options", "ALLOW-FROM https://example"),
         ]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -567,10 +582,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://example"),
             ("x-frame-options", "SAMEORIGIN"),
         ]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -588,10 +604,11 @@ mod tests {
         ]);
         tx.response.as_mut().unwrap().headers = headers;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -609,10 +626,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://example"),
             ("x-frame-options", "allow-from https://example"),
         ]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -645,10 +663,11 @@ mod tests {
             ("x-frame-options", "SAMEORIGIN"),
         ]);
         // report-only policies should not affect framing enforcement -> ignore
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -663,10 +682,11 @@ mod tests {
             ("content-security-policy", "frame-ancestors 'self'"),
             ("x-frame-options", "SAMEORIGIN"),
         ]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -684,10 +704,11 @@ mod tests {
         headers.insert("content-security-policy", bad);
         tx.response.as_mut().unwrap().headers = headers;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -702,10 +723,11 @@ mod tests {
             "content-security-policy",
             "frame-ancestors https://example",
         )]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

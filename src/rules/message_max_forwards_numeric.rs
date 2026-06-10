@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageMaxForwardsNumeric;
 
 impl Rule for MessageMaxForwardsNumeric {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_max_forwards_numeric"
@@ -19,12 +19,14 @@ impl Rule for MessageMaxForwardsNumeric {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to requests
         for val in tx.request.headers.get_all("max-forwards").iter() {
             let s = match val.to_str() {
@@ -77,10 +79,11 @@ mod tests {
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(hdrs);
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -111,10 +114,11 @@ mod tests {
         hm.insert("max-forwards", bad);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;

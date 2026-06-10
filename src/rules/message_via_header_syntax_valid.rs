@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageViaHeaderSyntaxValid;
 
 impl Rule for MessageViaHeaderSyntaxValid {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_via_header_syntax_valid"
@@ -18,12 +18,14 @@ impl Rule for MessageViaHeaderSyntaxValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         use hyper::HeaderMap;
 
         // Helper to validate Via headers in a HeaderMap (reduces duplication)
@@ -46,12 +48,12 @@ impl Rule for MessageViaHeaderSyntaxValid {
             None
         }
 
-        if let Some(err) = check_headers(&tx.request.headers, config) {
+        if let Some(err) = check_headers(&tx.request.headers, &config) {
             return Some(err);
         }
 
         if let Some(resp) = &tx.response {
-            if let Some(err) = check_headers(&resp.headers, config) {
+            if let Some(err) = check_headers(&resp.headers, &config) {
                 return Some(err);
             }
         }
@@ -241,10 +243,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("via", "1.1 example.com")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -254,10 +257,11 @@ mod tests {
     fn check_response_header_invalid() -> anyhow::Result<()> {
         let rule = MessageViaHeaderSyntaxValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[("via", "1.1")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -298,10 +302,11 @@ mod tests {
         hm.insert("via", bad);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())

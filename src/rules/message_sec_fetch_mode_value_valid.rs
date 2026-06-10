@@ -11,7 +11,7 @@ use crate::rules::Rule;
 pub struct MessageSecFetchModeValueValid;
 
 impl Rule for MessageSecFetchModeValueValid {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_sec_fetch_mode_value_valid"
@@ -21,12 +21,14 @@ impl Rule for MessageSecFetchModeValueValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Sec-Fetch-* are request-sent headers; check only requests
         let headers = &tx.request.headers;
         let count = headers.get_all("sec-fetch-mode").iter().count();
@@ -104,7 +106,9 @@ mod tests {
     #[case(None, false)]
     fn sec_fetch_mode_cases(#[case] header: Option<&str>, #[case] expect_violation: bool) {
         let rule = MessageSecFetchModeValueValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_mode_value_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         if let Some(v) = header {
@@ -112,10 +116,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-mode", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header={:?}", header);
@@ -141,11 +146,14 @@ mod tests {
         hm.insert("sec-fetch-mode", bad);
         tx.request.headers = hm;
 
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_mode_value_valid",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-ASCII"));
@@ -154,16 +162,19 @@ mod tests {
     #[test]
     fn invalid_token_char_reports_violation() {
         let rule = MessageSecFetchModeValueValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_mode_value_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-mode", "b@d")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -176,7 +187,9 @@ mod tests {
         use hyper::HeaderMap;
 
         let rule = MessageSecFetchModeValueValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_mode_value_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = HeaderMap::new();
@@ -184,10 +197,11 @@ mod tests {
         hm.append("sec-fetch-mode", HeaderValue::from_static("invalid"));
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Multiple Sec-Fetch-Mode"));
@@ -199,7 +213,9 @@ mod tests {
         use hyper::HeaderMap;
 
         let rule = MessageSecFetchModeValueValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_mode_value_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = HeaderMap::new();
@@ -207,10 +223,11 @@ mod tests {
         hm.append("sec-fetch-mode", HeaderValue::from_static("navigate"));
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Multiple Sec-Fetch-Mode"));
@@ -222,7 +239,9 @@ mod tests {
         use hyper::HeaderMap;
 
         let rule = MessageSecFetchModeValueValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_mode_value_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = HeaderMap::new();
@@ -230,10 +249,11 @@ mod tests {
         hm.append("sec-fetch-mode", HeaderValue::from_static("bad2"));
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Multiple Sec-Fetch-Mode"));
@@ -242,16 +262,19 @@ mod tests {
     #[test]
     fn whitespace_around_value_is_accepted() {
         let rule = MessageSecFetchModeValueValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_mode_value_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-mode", " same-origin ")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_none(),

@@ -57,7 +57,7 @@ fn parse_keep_alive_config(
 pub struct ServerKeepAliveTimeoutReasonable;
 
 impl Rule for ServerKeepAliveTimeoutReasonable {
-    type Config = ServerKeepAliveConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "server_keep_alive_timeout_reasonable"
@@ -75,12 +75,14 @@ impl Rule for ServerKeepAliveTimeoutReasonable {
         Ok(std::sync::Arc::new(parsed))
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = parse_keep_alive_config(cfg, self.id()).ok()?;
         let Some(resp) = &tx.response else {
             return None;
         };
@@ -191,21 +193,17 @@ mod tests {
             }),
         );
 
-        let boxed = rule.validate_and_box(&full_cfg)?;
-        let cfg_arc = boxed
-            .downcast::<ServerKeepAliveConfig>()
-            .map_err(|_| anyhow::anyhow!("downcast failed"))?;
-
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         if let Some(v) = hv {
             tx.response.as_mut().unwrap().headers =
                 crate::test_helpers::make_headers_from_pairs(&[("keep-alive", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &*cfg_arc,
+            &full_cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for {:?}: got {:?}", hv, v);
@@ -241,15 +239,11 @@ mod tests {
                 t
             }),
         );
-        let boxed = rule.validate_and_box(&full_cfg)?;
-        let cfg_arc = boxed
-            .downcast::<ServerKeepAliveConfig>()
-            .map_err(|_| anyhow::anyhow!("downcast failed"))?;
-
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &*cfg_arc,
+            &full_cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())

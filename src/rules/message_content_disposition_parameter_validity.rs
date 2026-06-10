@@ -10,7 +10,7 @@ use crate::rules::Rule;
 pub struct MessageContentDispositionParameterValidity;
 
 impl Rule for MessageContentDispositionParameterValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_content_disposition_parameter_validity"
@@ -20,12 +20,14 @@ impl Rule for MessageContentDispositionParameterValidity {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let check_value = |hdr_name: &str, val: &str| -> Option<Violation> {
             let s = val.trim();
             if s.is_empty() {
@@ -317,15 +319,16 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-disposition", v)]);
         }
 
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{:?}'", value);
@@ -342,14 +345,15 @@ mod tests {
             "content-disposition",
             "form-data; name=\"x\"; filename=example.png",
         )]);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -363,14 +367,15 @@ mod tests {
         hm.insert("content-disposition", HeaderValue::from_bytes(&[0xff])?);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -390,14 +395,15 @@ mod tests {
             "content-disposition",
             "attachment; param=\"unterminated",
         )]);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -410,14 +416,15 @@ mod tests {
             "content-disposition",
             "attachment; size=\"12a\"",
         )]);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -431,14 +438,15 @@ mod tests {
         hm.insert("content-disposition", HeaderValue::from_bytes(&[0xff])?);
         tx.request.headers = hm;
 
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -460,14 +468,15 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -480,14 +489,15 @@ mod tests {
             "content-disposition",
             "attachment; ; filename=a",
         )]);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -500,14 +510,15 @@ mod tests {
             "content-disposition",
             "attachment; filename*=UTF-8''",
         )]);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -520,14 +531,15 @@ mod tests {
             "content-disposition",
             "attachment; title=\"a\\\"b\"",
         )]);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -540,15 +552,16 @@ mod tests {
             "content-disposition",
             "attachment; filename*=UTF-8''%zz",
         )]);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &config,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("filename* extended value invalid"));
@@ -562,15 +575,16 @@ mod tests {
             "content-disposition",
             "attachment; title*=UTF-8''hello@world",
         )]);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &config,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("extended parameter 'title*' invalid"));
@@ -584,14 +598,15 @@ mod tests {
             "content-disposition",
             "attachment; size=\"unterminated",
         )]);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -604,14 +619,15 @@ mod tests {
             "content-disposition",
             "form-data; filename=bad@name",
         )]);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_parameter_validity",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }

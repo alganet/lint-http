@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageWwwAuthenticateChallengeSyntax;
 
 impl Rule for MessageWwwAuthenticateChallengeSyntax {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_www_authenticate_challenge_syntax"
@@ -18,12 +18,14 @@ impl Rule for MessageWwwAuthenticateChallengeSyntax {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check response headers; ignore non-UTF8 header values
         if let Some(resp) = &tx.response {
             for hv in resp.headers.get_all("www-authenticate").iter() {
@@ -81,12 +83,15 @@ mod tests {
     #[case("Basic realm=\"unfinished", true)]
     fn check_www_authenticate_cases(#[case] val: &str, #[case] expect_violation: bool) {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = make_resp(val);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "val='{}' expected violation", val);
@@ -98,7 +103,9 @@ mod tests {
     #[test]
     fn non_utf8_header_values_are_ignored() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(401, &[]);
         let mut hm = hyper::HeaderMap::new();
@@ -108,10 +115,11 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -119,15 +127,18 @@ mod tests {
     #[test]
     fn parameter_before_scheme_is_violation() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "error=\"x\"")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v
@@ -139,15 +150,18 @@ mod tests {
     #[test]
     fn trailing_empty_parameter_is_violation() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "Basic realm=\"x\", ")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if let Some(vv) = v {
             assert!(
@@ -161,15 +175,18 @@ mod tests {
     #[test]
     fn multiple_challenges_and_token68_ok() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "Basic realm=\"a\", NewScheme abcdef=")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -184,15 +201,18 @@ mod tests {
     #[test]
     fn invalid_auth_param_name_is_violation() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "Basic re@alm=\"x\"")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("auth-param name"));
@@ -201,15 +221,18 @@ mod tests {
     #[test]
     fn invalid_auth_param_value_token_is_violation() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "Basic realm=abc@")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if let Some(vv) = v {
             assert!(
@@ -233,15 +256,18 @@ mod tests {
     #[test]
     fn auth_param_name_empty_is_violation() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "Basic =\"x\"")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("auth-param name is empty"));
@@ -250,15 +276,18 @@ mod tests {
     #[test]
     fn invalid_quoted_string_reports_message() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "Basic realm=\"unfinished")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let vv = v.unwrap();
@@ -270,15 +299,18 @@ mod tests {
     #[test]
     fn quoted_string_with_extra_chars_reports_invalid() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "Basic a=\"good\"extra")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let vv = v.unwrap();
@@ -290,15 +322,18 @@ mod tests {
     #[test]
     fn consecutive_commas_produce_empty_param_violation() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "Basic realm=\"x\", , error=\"y\"")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if let Some(vv) = v {
             assert!(
@@ -312,16 +347,19 @@ mod tests {
     #[test]
     fn challenge_missing_auth_scheme_is_violation() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         // member starts with whitespace -> missing scheme
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", " realm=\"x\"")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("missing auth-scheme"));
@@ -330,15 +368,18 @@ mod tests {
     #[test]
     fn empty_member_is_violation() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", ",")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("empty"));
@@ -347,7 +388,9 @@ mod tests {
     #[test]
     fn multiple_header_fields_checked() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let mut tx = crate::test_helpers::make_test_transaction_with_response(401, &[]);
         let mut hm = hyper::HeaderMap::new();
         hm.append(
@@ -359,10 +402,11 @@ mod tests {
             hyper::header::HeaderValue::from_static("NewScheme abc="),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -370,7 +414,9 @@ mod tests {
     #[test]
     fn invalid_among_multiple_headers_reports_violation() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let mut tx = crate::test_helpers::make_test_transaction_with_response(401, &[]);
         let mut hm = hyper::HeaderMap::new();
         hm.append(
@@ -382,10 +428,11 @@ mod tests {
             hyper::header::HeaderValue::from_static("Basic realm=\"x\""),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -393,15 +440,18 @@ mod tests {
     #[test]
     fn empty_auth_param_value_is_violation() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "Basic realm=")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(vv) = v {
@@ -412,16 +462,19 @@ mod tests {
     #[test]
     fn quoted_string_with_escaped_quote_is_accepted() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         // realm with escaped quote inside quoted-string
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "Basic realm=\"a\\\"b\"")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -429,15 +482,18 @@ mod tests {
     #[test]
     fn realm_token_unquoted_is_accepted() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "Basic realm=token123")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -445,15 +501,18 @@ mod tests {
     #[test]
     fn token68_with_common_chars_is_accepted() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "NewScheme abc+/.=-_123")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -461,16 +520,19 @@ mod tests {
     #[test]
     fn first_part_invalid_but_rhs_is_quoted_reports_invalid_name() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         // left side contains '/', RHS starts with '"' -> should be parsed as auth-param and reported
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "New abc/def=\"x\"")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("auth-param name"));
@@ -479,16 +541,19 @@ mod tests {
     #[test]
     fn first_part_invalid_treated_as_token68_if_rhs_not_quoted() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         // left contains invalid char '/', RHS does not start with '"' -> treat as token68
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "New abc/def=xyz")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -496,15 +561,18 @@ mod tests {
     #[test]
     fn non_common_scheme_trailing_eq_accepted_as_token68() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "NonCommon abc=")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -512,15 +580,18 @@ mod tests {
     #[test]
     fn common_scheme_trailing_eq_reports_missing_value() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "Basic abc=")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(vv) = v {
@@ -531,15 +602,18 @@ mod tests {
     #[test]
     fn suspicious_single_token_after_scheme_is_violation_for_non_token68() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "NewScheme realm")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("suspicious single token"));
@@ -548,15 +622,18 @@ mod tests {
     #[test]
     fn first_invalid_with_comma_parses_as_auth_param_and_reports_name() {
         let rule = MessageWwwAuthenticateChallengeSyntax;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_www_authenticate_challenge_syntax",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", "New abc/def=\"x\", realm=\"y\"")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("auth-param name"));

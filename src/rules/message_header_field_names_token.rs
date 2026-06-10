@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageHeaderFieldNamesToken;
 
 impl Rule for MessageHeaderFieldNamesToken {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_header_field_names_token"
@@ -18,16 +18,18 @@ impl Rule for MessageHeaderFieldNamesToken {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // token characters per RFC token (tchar) - use shared helper
         // Check request headers
         for (k, _v) in tx.request.headers.iter() {
-            if let Some(v) = check_header_name(k.as_str(), config) {
+            if let Some(v) = check_header_name(k.as_str(), &config) {
                 return Some(v);
             }
         }
@@ -35,7 +37,7 @@ impl Rule for MessageHeaderFieldNamesToken {
         // Check response headers if present
         if let Some(resp) = &tx.response {
             for (k, _v) in resp.headers.iter() {
-                if let Some(v) = check_header_name(k.as_str(), config) {
+                if let Some(v) = check_header_name(k.as_str(), &config) {
                     return Some(v);
                 }
             }
@@ -95,10 +97,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
 
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -132,10 +135,11 @@ mod tests {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, header_pairs.as_slice());
 
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {

@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct Server200Vs204BodyConsistency;
 
 impl Rule for Server200Vs204BodyConsistency {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "server_200_vs_204_body_consistency"
@@ -18,12 +18,14 @@ impl Rule for Server200Vs204BodyConsistency {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
             Some(r) => r,
             None => return None,
@@ -130,12 +132,13 @@ mod tests {
             }
         }
 
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -164,11 +167,12 @@ mod tests {
     fn no_response_returns_none() -> anyhow::Result<()> {
         let rule = Server200Vs204BodyConsistency;
         let tx = crate::test_helpers::make_test_transaction();
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -178,12 +182,13 @@ mod tests {
     fn violation_message_for_content_length_zero() -> anyhow::Result<()> {
         let rule = Server200Vs204BodyConsistency;
         let tx = make_tx_with_response(200, "GET", &[("content-length", "0")]);
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .expect("expected violation");
         assert!(v.message.contains("Content-Length: 0"));
@@ -198,12 +203,13 @@ mod tests {
         if let Some(resp) = tx.response.as_mut() {
             resp.body_length = Some(0);
         }
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .expect("expected violation");
         assert!(v.message.contains("captured length 0"));
@@ -239,11 +245,12 @@ mod tests {
             trailers: None,
         });
 
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())

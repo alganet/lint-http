@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct ClientCacheRespect;
 
 impl Rule for ClientCacheRespect {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "client_cache_respect"
@@ -18,12 +18,14 @@ impl Rule for ClientCacheRespect {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Use the previous transaction passed by the linter (if any)
         let previous_tx = history.previous()?;
         let resp = previous_tx.response.as_ref()?;
@@ -112,8 +114,12 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(req_headers_pairs.as_slice());
         let history = crate::queries::by_resource::by_resource(&store, &client, resource);
-        let violation =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
 
         if expect_violation {
             assert!(violation.is_some());
@@ -147,8 +153,12 @@ mod tests {
         tx.request.uri = resource.to_string();
 
         let history = crate::queries::by_resource::by_resource(&store, &client, resource);
-        let violation =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let violation = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
 
         assert!(violation.is_none());
         Ok(())

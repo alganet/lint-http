@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageWellKnownUriFormat;
 
 impl Rule for MessageWellKnownUriFormat {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_well_known_uri_format"
@@ -18,12 +18,14 @@ impl Rule for MessageWellKnownUriFormat {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let path = crate::helpers::uri::extract_path_from_request_target(&tx.request.uri)?;
 
         // Well-known URIs MUST be under the path prefix `/.well-known/` per RFC 8615.
@@ -66,22 +68,24 @@ mod tests {
     fn valid_well_known_paths_are_ok() {
         let rule = MessageWellKnownUriFormat;
         let mut tx = make_tx_with_uri("/.well-known/openid-configuration");
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_well_known_uri_format",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
 
         tx = make_tx_with_uri("https://example.com/.well-known/security.txt");
-        let v2 = rule.check_transaction(
+        let v2 = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_none());
     }
@@ -92,14 +96,15 @@ mod tests {
     fn missing_slash_reports_violation(#[case] uri: &str, #[case] _desc: &str) {
         let rule = MessageWellKnownUriFormat;
         let tx = make_tx_with_uri(uri);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_well_known_uri_format",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -110,14 +115,15 @@ mod tests {
     fn not_at_root_reports_violation() {
         let rule = MessageWellKnownUriFormat;
         let tx = make_tx_with_uri("/foo/.well-known/abc");
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_well_known_uri_format",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -128,14 +134,15 @@ mod tests {
     fn unrelated_paths_do_not_trigger() {
         let rule = MessageWellKnownUriFormat;
         let tx = make_tx_with_uri("/foo/bar");
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_well_known_uri_format",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -144,14 +151,15 @@ mod tests {
     fn absolute_form_without_path_does_not_trigger() {
         let rule = MessageWellKnownUriFormat;
         let tx = make_tx_with_uri("https://example.com");
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_well_known_uri_format",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

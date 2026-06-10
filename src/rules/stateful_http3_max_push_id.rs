@@ -12,23 +12,25 @@
 
 use crate::lint::Violation;
 use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
-use crate::rules::{ProtocolRule, RuleConfig};
+use crate::rules::ProtocolRule;
 
 pub struct StatefulHttp3MaxPushId;
 
 impl ProtocolRule for StatefulHttp3MaxPushId {
-    type Config = RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_http3_max_push_id"
     }
 
-    fn check_event(
+    fn check(
         &self,
         event: &ProtocolEvent,
         history: &ProtocolEventHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let current = match &event.kind {
             ProtocolEventKind::H3MaxPushId { push_id } => *push_id,
             _ => return None,
@@ -69,11 +71,8 @@ mod tests {
     use chrono::{DateTime, Utc};
     use uuid::Uuid;
 
-    fn make_config() -> RuleConfig {
-        RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        }
+    fn make_config() -> crate::config::Config {
+        crate::test_helpers::make_test_config_with_enabled_rules(&["stateful_http3_max_push_id"])
     }
 
     fn base_ts() -> DateTime<Utc> {
@@ -105,7 +104,12 @@ mod tests {
         let rule = StatefulHttp3MaxPushId;
         let conn = Uuid::new_v4();
         let evt = make_max_push_id(conn, 0);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = rule.check(
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_none());
     }
 
@@ -114,7 +118,12 @@ mod tests {
         let rule = StatefulHttp3MaxPushId;
         let conn = Uuid::new_v4();
         let evt = make_max_push_id(conn, 100);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = rule.check(
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_none());
     }
 
@@ -124,7 +133,12 @@ mod tests {
         let rule = StatefulHttp3MaxPushId;
         let conn = Uuid::new_v4();
         let evt = make_max_push_id(conn, (1u64 << 62) - 1);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = rule.check(
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_none());
     }
 
@@ -137,7 +151,12 @@ mod tests {
         let prev = make_max_push_id(conn, 5);
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_max_push_id(conn, 10);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = rule.check(
+            &evt,
+            &history,
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_none());
     }
 
@@ -149,7 +168,12 @@ mod tests {
         let prev = make_max_push_id(conn, 7);
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_max_push_id(conn, 7);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = rule.check(
+            &evt,
+            &history,
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_none());
     }
 
@@ -162,7 +186,12 @@ mod tests {
         let prev = make_max_push_id(conn, 10);
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_max_push_id(conn, 4);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = rule.check(
+            &evt,
+            &history,
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         let v = result.expect("expected violation");
         assert_eq!(v.rule, "stateful_http3_max_push_id");
         assert!(v.message.contains("MAX_PUSH_ID 4"));
@@ -177,7 +206,12 @@ mod tests {
         let prev = make_max_push_id(conn, 1);
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_max_push_id(conn, 0);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = rule.check(
+            &evt,
+            &history,
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         let v = result.expect("expected violation");
         assert!(v.message.contains("MAX_PUSH_ID 0"));
         assert!(v.message.contains("previous 1"));
@@ -190,7 +224,12 @@ mod tests {
         let prev = make_max_push_id(conn, 100);
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_max_push_id(conn, 99);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = rule.check(
+            &evt,
+            &history,
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_some());
     }
 
@@ -216,7 +255,12 @@ mod tests {
         let history = ProtocolEventHistory::new(vec![g1, g2, g3]);
         // 20 (most recent) == 20 -> OK
         let evt = make_max_push_id(conn, 20);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = rule.check(
+            &evt,
+            &history,
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_none());
     }
 
@@ -238,7 +282,12 @@ mod tests {
         let older = make_event_at(conn, ProtocolEventKind::H3MaxPushId { push_id: 50 }, t);
         let history = ProtocolEventHistory::new(vec![newer, older]);
         let evt = make_max_push_id(conn, 8);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = rule.check(
+            &evt,
+            &history,
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_none());
     }
 
@@ -256,7 +305,12 @@ mod tests {
         let older = make_event_at(conn, ProtocolEventKind::H3MaxPushId { push_id: 5 }, t);
         let history = ProtocolEventHistory::new(vec![newer, older]);
         let evt = make_max_push_id(conn, 10);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = rule.check(
+            &evt,
+            &history,
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         let v = result.expect("expected violation");
         assert!(v.message.contains("MAX_PUSH_ID 10"));
         assert!(v.message.contains("previous 20"));
@@ -287,7 +341,12 @@ mod tests {
 
         // New MAX_PUSH_ID = 5 < 10 → violation; settings should be skipped.
         let evt = make_max_push_id(conn, 5);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = rule.check(
+            &evt,
+            &history,
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_some());
     }
 
@@ -307,7 +366,12 @@ mod tests {
         let history = ProtocolEventHistory::new(vec![settings, stream]);
         // No prior MAX_PUSH_ID → first one is accepted at any value.
         let evt = make_max_push_id(conn, 0);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = rule.check(
+            &evt,
+            &history,
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_none());
     }
 
@@ -323,7 +387,12 @@ mod tests {
                 settings: vec![(0x06, 4096)],
             },
         );
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = rule.check(
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_none());
     }
 
@@ -335,7 +404,12 @@ mod tests {
             conn,
             ProtocolEventKind::H3GoawayReceived { stream_id: Some(4) },
         );
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = rule.check(
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_none());
     }
 
@@ -344,7 +418,12 @@ mod tests {
         let rule = StatefulHttp3MaxPushId;
         let conn = Uuid::new_v4();
         let evt = make_event(conn, ProtocolEventKind::H3StreamOpened { stream_id: 0 });
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = rule.check(
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_none());
     }
 
@@ -363,7 +442,12 @@ mod tests {
                 payload_length: 10,
             },
         );
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = rule.check(
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(result.is_none());
     }
 
@@ -377,17 +461,17 @@ mod tests {
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_max_push_id(conn, 5);
 
-        for sev in [
-            crate::lint::Severity::Info,
-            crate::lint::Severity::Warn,
-            crate::lint::Severity::Error,
+        for (sev, sev_str) in [
+            (crate::lint::Severity::Info, "info"),
+            (crate::lint::Severity::Warn, "warn"),
+            (crate::lint::Severity::Error, "error"),
         ] {
-            let cfg = RuleConfig {
-                enabled: true,
-                severity: sev,
-            };
+            let cfg = crate::test_helpers::make_test_config_with_severity(
+                "stateful_http3_max_push_id",
+                sev_str,
+            );
             let v = rule
-                .check_event(&evt, &history, &cfg)
+                .check(&evt, &history, &cfg, &crate::rules::RuleConfigEngine::new())
                 .expect("expected violation");
             assert_eq!(v.severity, sev);
             assert_eq!(v.rule, "stateful_http3_max_push_id");
@@ -412,7 +496,12 @@ mod tests {
         }
         let history = ProtocolEventHistory::new(history_vec);
         let evt = make_max_push_id(conn, 6);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = rule.check(
+            &evt,
+            &history,
+            &make_config(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         let v = result.expect("expected violation");
         assert!(v.message.contains("MAX_PUSH_ID 6"));
         assert!(v.message.contains("previous 7"));
@@ -453,7 +542,12 @@ mod tests {
         let history = ProtocolEventHistory::new(history_vec);
         let evt = make_max_push_id(conn, 14);
         let v = rule
-            .check_event(&evt, &history, &make_config())
+            .check(
+                &evt,
+                &history,
+                &make_config(),
+                &crate::rules::RuleConfigEngine::new(),
+            )
             .expect("expected violation");
         assert!(v.message.contains("MAX_PUSH_ID 14"));
         assert!(v.message.contains("previous 15"));
@@ -469,7 +563,12 @@ mod tests {
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_max_push_id(conn, 0);
         let v = rule
-            .check_event(&evt, &history, &make_config())
+            .check(
+                &evt,
+                &history,
+                &make_config(),
+                &crate::rules::RuleConfigEngine::new(),
+            )
             .expect("expected violation");
         // The message should reference RFC 9114 §7.2.7 and the H3_ID_ERROR
         // connection error code so operators can map it to the spec.

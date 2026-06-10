@@ -62,7 +62,7 @@ fn parse_allowed_config(
 pub struct ServerAltSvcProtocolIanaRegistered;
 
 impl Rule for ServerAltSvcProtocolIanaRegistered {
-    type Config = AltSvcProtocolConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "server_alt_svc_protocol_iana_registered"
@@ -80,12 +80,14 @@ impl Rule for ServerAltSvcProtocolIanaRegistered {
         Ok(std::sync::Arc::new(parsed))
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = parse_allowed_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
             Some(r) => r,
             None => return None,
@@ -153,18 +155,27 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    fn make_cfg() -> AltSvcProtocolConfig {
-        AltSvcProtocolConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-            allowed: vec![
-                "h2".to_string(),
-                "h3".to_string(),
-                "h2c".to_string(),
-                "ws".to_string(),
-                "wss".to_string(),
-            ],
-        }
+    fn make_cfg() -> crate::config::Config {
+        let mut cfg = crate::config::Config::default();
+        cfg.rules.insert(
+            "server_alt_svc_protocol_iana_registered".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert("severity".into(), toml::Value::String("warn".into()));
+                t.insert(
+                    "allowed".into(),
+                    toml::Value::Array(
+                        ["h2", "h3", "h2c", "ws", "wss"]
+                            .iter()
+                            .map(|p| toml::Value::String(p.to_string()))
+                            .collect(),
+                    ),
+                );
+                t
+            }),
+        );
+        cfg
     }
 
     #[rstest]
@@ -188,10 +199,11 @@ mod tests {
             None => crate::test_helpers::make_test_transaction_with_response(200, &[]),
         };
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header={:?}", header);
@@ -216,10 +228,11 @@ mod tests {
                 ("alt-svc", "xproto=example.com:443"),
             ],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v
@@ -236,10 +249,11 @@ mod tests {
             200,
             &[("alt-svc", "h2example.com:443")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         // syntax rule will report missing '='; this rule should be conservative and not panic or report
         assert!(v.is_none());
@@ -264,10 +278,11 @@ mod tests {
         });
 
         let cfg = make_cfg();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())

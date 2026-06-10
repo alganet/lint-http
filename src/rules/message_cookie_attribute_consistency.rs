@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageCookieAttributeConsistency;
 
 impl Rule for MessageCookieAttributeConsistency {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_cookie_attribute_consistency"
@@ -18,12 +18,14 @@ impl Rule for MessageCookieAttributeConsistency {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
             Some(r) => r,
             None => return None,
@@ -271,10 +273,11 @@ mod tests {
         use crate::test_helpers::make_test_transaction_with_response;
         let tx = make_test_transaction_with_response(200, &[("set-cookie", value)]);
         let rule = MessageCookieAttributeConsistency;
-        rule.check_transaction(
+        rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         )
     }
 
@@ -349,10 +352,11 @@ mod tests {
             .append("set-cookie", HeaderValue::from_bytes(&[0xff])?);
 
         let rule = MessageCookieAttributeConsistency;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -430,10 +434,11 @@ mod tests {
             .append("set-cookie", HeaderValue::from_static("=bad; Secure"));
 
         let rule = MessageCookieAttributeConsistency;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())

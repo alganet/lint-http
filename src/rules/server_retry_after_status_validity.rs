@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct ServerRetryAfterStatusValidity;
 
 impl Rule for ServerRetryAfterStatusValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "server_retry_after_status_validity"
@@ -18,12 +18,14 @@ impl Rule for ServerRetryAfterStatusValidity {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         resp.headers.get_all("retry-after").iter().next()?;
@@ -67,7 +69,7 @@ mod tests {
         #[case] expect_violation: bool,
     ) {
         let rule = ServerRetryAfterStatusValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
         if with_retry_after {
@@ -75,10 +77,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("retry-after", "120")]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert_eq!(v.is_some(), expect_violation);
     }
@@ -86,12 +89,13 @@ mod tests {
     #[test]
     fn no_response_no_violation() {
         let rule = ServerRetryAfterStatusValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -115,16 +119,17 @@ mod tests {
     #[test]
     fn violation_message_contains_status_and_expected_set() {
         let rule = ServerRetryAfterStatusValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let mut tx = crate::test_helpers::make_test_transaction_with_response(500, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("retry-after", "60")]);
 
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .expect("expected violation");
         assert!(v.message.contains("status 500"));

@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct ServerAuthenticationChallengeValidity;
 
 impl Rule for ServerAuthenticationChallengeValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "server_authentication_challenge_validity"
@@ -18,12 +18,14 @@ impl Rule for ServerAuthenticationChallengeValidity {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check response headers; ignore non-UTF8 header values
         if let Some(resp) = &tx.response {
             use std::collections::{HashMap, HashSet};
@@ -111,12 +113,13 @@ mod tests {
     #[test]
     fn single_challenge_no_violation() {
         let rule = ServerAuthenticationChallengeValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_resp("Basic realm=\"example\"");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -124,12 +127,13 @@ mod tests {
     #[test]
     fn multiple_schemes_same_realm_is_violation() {
         let rule = ServerAuthenticationChallengeValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_resp("Basic realm=\"a\", NewAuth realm=\"a\"");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let vv = v.unwrap();
@@ -139,12 +143,13 @@ mod tests {
     #[test]
     fn different_realms_no_violation() {
         let rule = ServerAuthenticationChallengeValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_resp("Basic realm=\"a\", NewAuth realm=\"b\"");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -152,7 +157,7 @@ mod tests {
     #[test]
     fn multiple_header_fields_checked() {
         let rule = ServerAuthenticationChallengeValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let mut tx = crate::test_helpers::make_test_transaction_with_response(401, &[]);
         let mut hm = hyper::HeaderMap::new();
         hm.append(
@@ -164,10 +169,11 @@ mod tests {
             hyper::header::HeaderValue::from_static("NewAuth realm=\"a\""),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -175,13 +181,14 @@ mod tests {
     #[test]
     fn quoted_and_unquoted_realm_match_is_violation() {
         let rule = ServerAuthenticationChallengeValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         // Basic realm="a" and NewAuth realm=a -> should be treated equal
         let tx = make_resp("Basic realm=\"a\", NewAuth realm=a");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -189,7 +196,7 @@ mod tests {
     #[test]
     fn non_utf8_header_values_are_ignored() {
         let rule = ServerAuthenticationChallengeValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(401, &[]);
         let mut hm = hyper::HeaderMap::new();
@@ -199,10 +206,11 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -210,13 +218,14 @@ mod tests {
     #[test]
     fn quoted_with_escaped_quote_matches() {
         let rule = ServerAuthenticationChallengeValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         // realm with escaped quote inside quoted-string
         let tx = make_resp("Basic realm=\"a\\\"b\", NewAuth realm=\"a\\\"b\"");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -224,13 +233,14 @@ mod tests {
     #[test]
     fn missing_realm_among_challenges_is_not_violation() {
         let rule = ServerAuthenticationChallengeValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         // NewAuth has no realm, Basic has realm a
         let tx = make_resp("Basic realm=\"a\", NewAuth");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

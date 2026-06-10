@@ -21,7 +21,7 @@ use crate::rules::Rule;
 pub struct Stateful101SwitchingProtocols;
 
 impl Rule for Stateful101SwitchingProtocols {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_101_switching_protocols"
@@ -31,12 +31,14 @@ impl Rule for Stateful101SwitchingProtocols {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         // ── Check: HTTP traffic after a prior 101 on the same connection ──
@@ -207,12 +209,14 @@ mod tests {
             &[("upgrade", "websocket"), ("connection", "Upgrade")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols"
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -226,12 +230,14 @@ mod tests {
             &[("upgrade", "h2c"), ("connection", "Upgrade")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols"
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -245,12 +251,14 @@ mod tests {
             &[("upgrade", "websocket"), ("connection", "Upgrade")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols"
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -264,12 +272,14 @@ mod tests {
             &[],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols"
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -283,12 +293,14 @@ mod tests {
         ]);
         tx.response = None;
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols"
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -299,12 +311,14 @@ mod tests {
     fn unsolicited_101_no_upgrade_in_request() {
         let tx = make_upgrade_tx("HTTP/1.1", &[], 101, &[("upgrade", "websocket")]);
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("did not include an Upgrade header"));
@@ -321,12 +335,14 @@ mod tests {
             &[("connection", "Upgrade")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("missing required Upgrade header"));
@@ -343,12 +359,14 @@ mod tests {
             &[("upgrade", "h2c"), ("connection", "Upgrade")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("was not offered by the client"));
@@ -365,12 +383,14 @@ mod tests {
             &[("upgrade", "websocket")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("HTTP/1.0"));
@@ -387,12 +407,14 @@ mod tests {
             &[("upgrade", "websocket")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("HTTP/2"));
@@ -407,12 +429,14 @@ mod tests {
             &[("upgrade", "websocket")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("HTTP/2"));
@@ -429,12 +453,14 @@ mod tests {
             &[("upgrade", "websocket")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("HTTP/3"));
@@ -463,8 +489,16 @@ mod tests {
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(&current, &history, &cfg).unwrap();
+        let v = rule
+            .check(
+                &current,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
+            )
+            .unwrap();
         assert!(v.message.contains("HTTP traffic after 101"));
     }
 
@@ -481,8 +515,16 @@ mod tests {
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
-        assert!(rule.check_transaction(&current, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &current,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     // ── Violation: multiple offered protocols, server picks one ──
@@ -496,12 +538,14 @@ mod tests {
             &[("upgrade", "websocket"), ("connection", "Upgrade")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols"
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -515,12 +559,14 @@ mod tests {
             &[("upgrade", "IRC/6.9"), ("connection", "Upgrade")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("was not offered"));
@@ -537,12 +583,14 @@ mod tests {
             &[("upgrade", " websocket "), ("connection", "Upgrade")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols"
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -565,12 +613,14 @@ mod tests {
             ("connection", "Upgrade"),
         ]);
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols"
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -584,12 +634,14 @@ mod tests {
             &[("upgrade", "websocket"), ("connection", "Upgrade")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("no protocol tokens"));
@@ -604,12 +656,14 @@ mod tests {
             &[("upgrade", " , , "), ("connection", "Upgrade")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("no protocol tokens"));
@@ -624,12 +678,14 @@ mod tests {
             &[("upgrade", "TLS/1.0"), ("connection", "Upgrade")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("was not offered"));
@@ -648,8 +704,16 @@ mod tests {
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         let rule = Stateful101SwitchingProtocols;
-        let cfg = crate::test_helpers::make_test_rule_config();
-        assert!(rule.check_transaction(&current, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &current,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_101_switching_protocols"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]

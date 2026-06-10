@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageContentLocationAndUriConsistency;
 
 impl Rule for MessageContentLocationAndUriConsistency {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_content_location_and_uri_consistency"
@@ -18,12 +18,14 @@ impl Rule for MessageContentLocationAndUriConsistency {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let Some(resp) = &tx.response else {
             return None;
         };
@@ -167,12 +169,15 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageContentLocationAndUriConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_location_and_uri_consistency",
+        ]);
         let tx = make_tx_with_req_uri(req_uri, status, headers);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -185,15 +190,18 @@ mod tests {
     #[test]
     fn bad_percent_encoding_reports_violation() {
         let rule = MessageContentLocationAndUriConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_location_and_uri_consistency",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
             &[("content-location", "/bad%2G")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid percent-encoding"));
@@ -202,15 +210,18 @@ mod tests {
     #[test]
     fn whitespace_in_value_reports_violation() {
         let rule = MessageContentLocationAndUriConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_location_and_uri_consistency",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
             &[("content-location", "/a b")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("must not contain whitespace"));
@@ -219,7 +230,9 @@ mod tests {
     #[test]
     fn non_utf8_header_value_is_violation() {
         let rule = MessageContentLocationAndUriConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_location_and_uri_consistency",
+        ]);
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = hyper::HeaderMap::new();
         hm.insert(
@@ -227,10 +240,11 @@ mod tests {
             HeaderValue::from_bytes(&[0xff]).unwrap(),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -238,15 +252,18 @@ mod tests {
     #[test]
     fn empty_value_reports_violation() {
         let rule = MessageContentLocationAndUriConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_location_and_uri_consistency",
+        ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
             &[("content-location", "")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -254,12 +271,15 @@ mod tests {
     #[test]
     fn fragment_in_content_location_is_ignored_for_matching() {
         let rule = MessageContentLocationAndUriConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_location_and_uri_consistency",
+        ]);
         let tx = make_tx_with_req_uri("/foo", 200, &[("content-location", "/foo#frag")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -267,12 +287,15 @@ mod tests {
     #[test]
     fn trailing_slash_mismatch_reports_violation() {
         let rule = MessageContentLocationAndUriConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_location_and_uri_consistency",
+        ]);
         let tx = make_tx_with_req_uri("/foo", 200, &[("content-location", "/foo/")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -280,16 +303,19 @@ mod tests {
     #[test]
     fn origin_case_insensitive_match() {
         let rule = MessageContentLocationAndUriConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_location_and_uri_consistency",
+        ]);
         let tx = make_tx_with_req_uri(
             "http://EXAMPLE.com/foo",
             200,
             &[("content-location", "http://example.com/foo")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

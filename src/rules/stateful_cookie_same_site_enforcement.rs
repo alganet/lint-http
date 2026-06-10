@@ -17,7 +17,7 @@ use crate::rules::Rule;
 pub struct StatefulCookieSameSiteEnforcement;
 
 impl Rule for StatefulCookieSameSiteEnforcement {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_cookie_same_site_enforcement"
@@ -27,12 +27,14 @@ impl Rule for StatefulCookieSameSiteEnforcement {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // only care about outgoing requests that carry Cookie headers
         let cookie_headers: Vec<_> = tx.request.headers.get_all("cookie").iter().collect();
         if cookie_headers.is_empty() {
@@ -159,9 +161,7 @@ impl Rule for StatefulCookieSameSiteEnforcement {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{
-        make_headers_from_pairs, make_test_rule_config, make_test_transaction,
-    };
+    use crate::test_helpers::{make_headers_from_pairs, make_test_transaction};
     use chrono::Utc;
     use hyper::header::HeaderValue;
 
@@ -204,19 +204,26 @@ mod tests {
     #[test]
     fn no_violation_without_history() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let mut tx = make_tx_with_req("https://example.com/", Some("foo=1"));
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn request_without_cookie_header_skips() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let mut tx = make_test_transaction();
         tx.request.uri = "https://example.com/".to_string();
         tx.request
@@ -227,13 +234,21 @@ mod tests {
             Some("a=1; SameSite=Strict"),
             Some(Utc::now()),
         )]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn fetch_site_none_skips() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let history = crate::transaction_history::TransactionHistory::new(vec![make_resp_tx(
             "https://example.com/",
@@ -244,13 +259,21 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("none"));
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn fetch_site_invalid_skips() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let history = crate::transaction_history::TransactionHistory::new(vec![make_resp_tx(
             "https://example.com/",
@@ -261,13 +284,21 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("invalid"));
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn unrelated_cookie_does_not_report() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         // history sets cookie b; request sends cookie a
         let history = crate::transaction_history::TransactionHistory::new(vec![make_resp_tx(
@@ -279,13 +310,21 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn secure_cookie_over_http_ignored_for_samesite() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let history = crate::transaction_history::TransactionHistory::new(vec![make_resp_tx(
             "http://example.com/",
@@ -297,13 +336,21 @@ mod tests {
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
         // even though cross-site, the secure cookie should not match because of scheme
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn strict_cookie_cross_site_reports() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         // history sets a Strict cookie
         let ts = Utc::now();
         let htx = make_resp_tx(
@@ -316,13 +363,21 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_some());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_some());
     }
 
     #[test]
     fn lax_cookie_cross_site_non_nav_reports() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let history = crate::transaction_history::TransactionHistory::new(vec![make_resp_tx(
             "https://example.com/",
@@ -337,13 +392,21 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-mode", HeaderValue::from_static("cors"));
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_some());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_some());
     }
 
     #[test]
     fn lax_cookie_cross_site_nav_get_allowed() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let history = crate::transaction_history::TransactionHistory::new(vec![make_resp_tx(
             "https://example.com/",
@@ -358,13 +421,21 @@ mod tests {
             .headers
             .append("sec-fetch-mode", HeaderValue::from_static("navigate"));
         tx.request.method = "GET".parse().unwrap();
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn lax_cookie_cross_site_nav_head_allowed() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let history = crate::transaction_history::TransactionHistory::new(vec![make_resp_tx(
             "https://example.com/",
@@ -379,13 +450,21 @@ mod tests {
             .headers
             .append("sec-fetch-mode", HeaderValue::from_static("navigate"));
         tx.request.method = "HEAD".parse().unwrap();
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn none_cookie_cross_site_allowed() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let history = crate::transaction_history::TransactionHistory::new(vec![make_resp_tx(
             "https://example.com/",
@@ -396,13 +475,21 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn unspecified_treated_as_lax() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let history = crate::transaction_history::TransactionHistory::new(vec![make_resp_tx(
             "https://example.com/",
@@ -416,16 +503,33 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-mode", HeaderValue::from_static("cors"));
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_some());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_some());
     }
 
     #[test]
     fn missing_fetch_site_skips() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let tx = make_tx_with_req("https://example.com/", Some("a=1"));
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
@@ -438,7 +542,6 @@ mod tests {
     #[test]
     fn same_site_context_allows_strict() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let history = crate::transaction_history::TransactionHistory::new(vec![make_resp_tx(
             "https://example.com/",
@@ -449,13 +552,21 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("same-site"));
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn mismatched_cookie_value_does_not_report() {
         let rule = StatefulCookieSameSiteEnforcement;
-        let cfg = make_test_rule_config();
         let ts = Utc::now();
         let history = crate::transaction_history::TransactionHistory::new(vec![make_resp_tx(
             "https://example.com/",
@@ -466,6 +577,15 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_same_site_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 }

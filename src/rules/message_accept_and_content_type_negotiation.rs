@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageAcceptAndContentTypeNegotiation;
 
 impl Rule for MessageAcceptAndContentTypeNegotiation {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_accept_and_content_type_negotiation"
@@ -18,12 +18,14 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check when request has Accept and response has Content-Type
         let accept = crate::helpers::headers::get_header_str(&tx.request.headers, "accept");
         let resp = match &tx.response {
@@ -139,7 +141,9 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageAcceptAndContentTypeNegotiation;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_and_content_type_negotiation",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
         if let Some(a) = accept {
@@ -150,10 +154,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", ct)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -188,7 +193,9 @@ mod tests {
     fn invalid_response_content_type_parsing_is_ignored() {
         // If the response Content-Type cannot be parsed, the rule conservatively does nothing
         let rule = MessageAcceptAndContentTypeNegotiation;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_and_content_type_negotiation",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.request.headers =
@@ -197,10 +204,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -209,7 +217,9 @@ mod tests {
     fn invalid_accept_member_is_ignored_but_may_cause_violation() {
         // An invalid media-range in Accept is ignored; if it is the only member, the response may be unacceptable
         let rule = MessageAcceptAndContentTypeNegotiation;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_and_content_type_negotiation",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.request.headers =
@@ -217,10 +227,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/plain")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -229,17 +240,20 @@ mod tests {
     fn star_in_accept_is_treated_as_invalid_member() {
         // A literal '*' is invalid per media-range syntax and is ignored; without other members this leads to violation
         let rule = MessageAcceptAndContentTypeNegotiation;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_and_content_type_negotiation",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("accept", "*")]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/plain")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -248,7 +262,9 @@ mod tests {
     fn invalid_q_value_is_ignored_and_does_not_make_member_unacceptable() {
         // If q value is malformed, we conservatively treat the member as acceptable unless q parses to 0
         let rule = MessageAcceptAndContentTypeNegotiation;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_and_content_type_negotiation",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.request.headers =
@@ -256,10 +272,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/plain")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -268,7 +285,9 @@ mod tests {
     fn empty_q_value_is_ignored_and_member_is_accepted() {
         // q= with empty RHS should not make member unacceptable
         let rule = MessageAcceptAndContentTypeNegotiation;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_and_content_type_negotiation",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.request.headers =
@@ -276,10 +295,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "application/json")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -287,14 +307,17 @@ mod tests {
     #[test]
     fn no_response_is_ignored() {
         let rule = MessageAcceptAndContentTypeNegotiation;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_and_content_type_negotiation",
+        ]);
 
         let tx = crate::test_helpers::make_test_transaction();
         // tx.response is None
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

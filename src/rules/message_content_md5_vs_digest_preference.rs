@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageContentMd5VsDigestPreference;
 
 impl Rule for MessageContentMd5VsDigestPreference {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_content_md5_vs_digest_preference"
@@ -18,12 +18,14 @@ impl Rule for MessageContentMd5VsDigestPreference {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Helper to check a header map for both Content-Digest and Content-MD5
         let check_map = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
             let has_new = headers.get_all("content-digest").iter().next().is_some();
@@ -63,7 +65,9 @@ mod tests {
     #[test]
     fn both_headers_in_request_reports_violation() {
         let rule = MessageContentMd5VsDigestPreference;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_md5_vs_digest_preference",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
@@ -71,10 +75,11 @@ mod tests {
             ("content-md5", "dGVzdA=="),
         ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -85,7 +90,9 @@ mod tests {
     #[test]
     fn both_headers_in_response_reports_violation() {
         let rule = MessageContentMd5VsDigestPreference;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_md5_vs_digest_preference",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[
@@ -93,10 +100,11 @@ mod tests {
             ("content-md5", "dGVzdA=="),
         ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -104,7 +112,9 @@ mod tests {
     #[test]
     fn only_content_digest_is_ok() {
         let rule = MessageContentMd5VsDigestPreference;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_md5_vs_digest_preference",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -112,10 +122,11 @@ mod tests {
             "sha-256=:\tdGVzdA==:",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -124,16 +135,19 @@ mod tests {
     fn only_content_md5_is_ok_for_this_specific_rule() {
         // Content-MD5 alone is handled by the digest header syntax rule for deprecation. This rule only flags when both are present.
         let rule = MessageContentMd5VsDigestPreference;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_md5_vs_digest_preference",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-md5", "dGVzdA==")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -141,7 +155,9 @@ mod tests {
     #[test]
     fn non_utf8_content_md5_but_content_digest_present_reports_violation() {
         let rule = MessageContentMd5VsDigestPreference;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_md5_vs_digest_preference",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         // Insert non-utf8 for content-md5
@@ -157,10 +173,11 @@ mod tests {
             HeaderValue::from_static("sha-256=:\tdGVzdA==:"),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -175,7 +192,9 @@ mod tests {
     #[test]
     fn request_precedence_over_response() {
         let rule = MessageContentMd5VsDigestPreference;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_md5_vs_digest_preference",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
@@ -187,10 +206,11 @@ mod tests {
             ("content-md5", "dGVzdA=="),
         ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();

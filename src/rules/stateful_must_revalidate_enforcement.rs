@@ -34,7 +34,7 @@ use crate::rules::Rule;
 pub struct StatefulMustRevalidateEnforcement;
 
 impl Rule for StatefulMustRevalidateEnforcement {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_must_revalidate_enforcement"
@@ -45,12 +45,14 @@ impl Rule for StatefulMustRevalidateEnforcement {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // find the most recent past response that contained must-revalidate
         let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
         for past in history.iter() {
@@ -154,10 +156,13 @@ mod tests {
     fn no_history_no_violation() {
         let rule = StatefulMustRevalidateEnforcement;
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_must_revalidate_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -168,8 +173,14 @@ mod tests {
         let prev = make_prev(200, &[("cache-control", "max-age=60")]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         let tx = crate::test_helpers::make_test_transaction();
-        let v =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_must_revalidate_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -222,8 +233,14 @@ mod tests {
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         // current_age should equal age header (5) not negative elapsed
-        let v =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_must_revalidate_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         // freshness zero and no validator -> no violation
         assert!(v.is_none());
     }
@@ -251,8 +268,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(1);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev.clone()]);
-        let v =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_must_revalidate_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
     }
 
@@ -281,8 +304,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(1);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_must_revalidate_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some(), "equal age should now be treated as stale");
     }
 
@@ -299,8 +328,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_must_revalidate_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
     }
 
@@ -315,8 +350,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_must_revalidate_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -336,8 +377,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(10);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_must_revalidate_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -357,8 +404,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_must_revalidate_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
     }
 
@@ -379,8 +432,14 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v\"")]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_must_revalidate_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -401,8 +460,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_must_revalidate_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some(), "equal age should be considered stale");
     }
 
@@ -422,8 +487,14 @@ mod tests {
         tx.timestamp = base; // no elapsed time
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_must_revalidate_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some(), "max-age=0 should be stale immediately");
     }
 
@@ -443,8 +514,14 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v\"")]);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_must_revalidate_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
