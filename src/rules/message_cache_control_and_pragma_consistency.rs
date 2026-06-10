@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageCacheControlAndPragmaConsistency;
 
 impl Rule for MessageCacheControlAndPragmaConsistency {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_cache_control_and_pragma_consistency"
@@ -18,12 +18,14 @@ impl Rule for MessageCacheControlAndPragmaConsistency {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check requests: Pragma: no-cache vs Cache-Control: only-if-cached contradiction
         for hv in tx.request.headers.get_all("pragma").iter() {
             let s = match hv.to_str() {
@@ -88,7 +90,9 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageCacheControlAndPragmaConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_cache_control_and_pragma_consistency",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         // Build headers map and append values so both headers can coexist
@@ -107,10 +111,11 @@ mod tests {
         }
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -125,16 +130,19 @@ mod tests {
     #[test]
     fn response_with_pragma_reports_violation() {
         let rule = MessageCacheControlAndPragmaConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_cache_control_and_pragma_consistency",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("pragma", "no-cache")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Pragma"));
@@ -144,7 +152,9 @@ mod tests {
     fn non_utf8_pragma_is_ignored() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = MessageCacheControlAndPragmaConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_cache_control_and_pragma_consistency",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let bad = HeaderValue::from_bytes(&[0xff])?;
@@ -153,10 +163,11 @@ mod tests {
         tx.request.headers = hm;
 
         // Non-UTF8 values are ignored by this consistency rule; syntax/token rules should report encoding problems.
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -165,7 +176,9 @@ mod tests {
     #[test]
     fn request_multiple_cache_control_headers_detection() -> anyhow::Result<()> {
         let rule = MessageCacheControlAndPragmaConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_cache_control_and_pragma_consistency",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -183,10 +196,11 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -195,7 +209,9 @@ mod tests {
     #[test]
     fn request_non_no_cache_pragma_no_violation() {
         let rule = MessageCacheControlAndPragmaConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_cache_control_and_pragma_consistency",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -206,10 +222,11 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -217,16 +234,19 @@ mod tests {
     #[test]
     fn response_non_no_cache_pragma_reports_violation() -> anyhow::Result<()> {
         let rule = MessageCacheControlAndPragmaConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_cache_control_and_pragma_consistency",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("pragma", "foo")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -235,7 +255,9 @@ mod tests {
     #[test]
     fn pragma_with_multiple_members_triggers_on_no_cache() {
         let rule = MessageCacheControlAndPragmaConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_cache_control_and_pragma_consistency",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -249,10 +271,11 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -260,7 +283,9 @@ mod tests {
     #[test]
     fn multiple_pragma_headers_trigger_on_response() {
         let rule = MessageCacheControlAndPragmaConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_cache_control_and_pragma_consistency",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -268,10 +293,11 @@ mod tests {
         hm.append("pragma", hyper::header::HeaderValue::from_static("bar"));
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }

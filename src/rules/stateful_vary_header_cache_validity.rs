@@ -35,7 +35,7 @@ use crate::rules::Rule;
 pub struct StatefulVaryHeaderCacheValidity;
 
 impl Rule for StatefulVaryHeaderCacheValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_vary_header_cache_validity"
@@ -46,12 +46,14 @@ impl Rule for StatefulVaryHeaderCacheValidity {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req = &tx.request;
         let has_inm = req.headers.contains_key("if-none-match");
         let has_ims = req.headers.contains_key("if-modified-since");
@@ -228,16 +230,23 @@ mod tests {
     #[test]
     fn no_violation_without_conditional() {
         let rule = StatefulVaryHeaderCacheValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let tx = make_tx_with_req("https://example.com/foo");
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_vary_header_cache_validity"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn inm_wildcard_skips() {
         let rule = StatefulVaryHeaderCacheValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut past = make_resp_tx(
             "https://example.com/foo",
@@ -254,13 +263,21 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![past]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_vary_header_cache_validity"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn mismatch_on_vary_field_triggers() {
         let rule = StatefulVaryHeaderCacheValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         // past response had Vary: Accept-Encoding, and request used gzip
         let mut past = make_resp_tx(
@@ -280,7 +297,14 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![past]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_vary_header_cache_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v
             .unwrap()
@@ -292,7 +316,6 @@ mod tests {
     #[test]
     fn match_on_vary_field_ok() {
         let rule = StatefulVaryHeaderCacheValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut past = make_resp_tx(
             "https://example.com/foo",
@@ -309,13 +332,21 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![past]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_vary_header_cache_validity"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn missing_vary_header_in_past_skips() {
         let rule = StatefulVaryHeaderCacheValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut past = make_resp_tx("https://example.com/foo", None, Some("\"etag1\""));
         past.request.headers =
@@ -328,13 +359,21 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![past]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_vary_header_cache_validity"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn vary_wildcard_ignored() {
         let rule = StatefulVaryHeaderCacheValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut past = make_resp_tx("https://example.com/foo", Some("*"), Some("\"etag1\""));
         past.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -346,13 +385,21 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![past]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_vary_header_cache_validity"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn case_insensitive_vary_name() {
         let rule = StatefulVaryHeaderCacheValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut past = make_resp_tx(
             "https://example.com/foo",
@@ -369,7 +416,14 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![past]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_vary_header_cache_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("accept-encoding"));
     }
@@ -377,7 +431,6 @@ mod tests {
     #[test]
     fn missing_current_header_is_mismatch() {
         let rule = StatefulVaryHeaderCacheValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut past = make_resp_tx(
             "https://example.com/foo",
@@ -394,7 +447,14 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![past]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_vary_header_cache_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v
             .unwrap()
@@ -406,7 +466,6 @@ mod tests {
     #[test]
     fn multiple_vary_fields_one_mismatch_reports() {
         let rule = StatefulVaryHeaderCacheValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut past = make_resp_tx(
             "https://example.com/foo",
@@ -426,7 +485,14 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![past]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_vary_header_cache_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("x-foo"));
     }
@@ -434,7 +500,6 @@ mod tests {
     #[test]
     fn ims_based_validation_respects_vary() {
         let rule = StatefulVaryHeaderCacheValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut past = make_resp_tx(
             "https://example.com/foo",
@@ -450,14 +515,20 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![past]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_vary_header_cache_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
     }
 
     #[test]
     fn different_validator_skips() {
         let rule = StatefulVaryHeaderCacheValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut past = make_resp_tx(
             "https://example.com/foo",
@@ -474,13 +545,21 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![past]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_vary_header_cache_validity"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn weak_etag_matches_and_respects_vary() {
         let rule = StatefulVaryHeaderCacheValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut past = make_resp_tx(
             "https://example.com/foo",
@@ -497,7 +576,14 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::new(vec![past]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_vary_header_cache_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v
             .unwrap()
@@ -509,7 +595,6 @@ mod tests {
     #[test]
     fn finds_match_in_later_history_entry() {
         let rule = StatefulVaryHeaderCacheValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         // first past entry has a different etag
         let mut old = make_resp_tx(
@@ -537,7 +622,14 @@ mod tests {
 
         // newest-first: later matching entry (good) must come first
         let history = crate::transaction_history::TransactionHistory::new(vec![good, old]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_vary_header_cache_validity",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some(), "should inspect later matching entry");
     }
 

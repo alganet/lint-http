@@ -9,7 +9,7 @@ use std::net::IpAddr;
 pub struct ClientHostHeader;
 
 impl Rule for ClientHostHeader {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "client_host_header"
@@ -19,12 +19,14 @@ impl Rule for ClientHostHeader {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let host_values = tx.request.headers.get_all("host");
         let host_count = host_values.iter().count();
         if host_count == 0 {
@@ -77,7 +79,7 @@ impl Rule for ClientHostHeader {
             match crate::helpers::ipv6::parse_bracketed_ipv6(s) {
                 Some((_inner, port_opt)) => {
                     if let Some(port) = port_opt {
-                        return self.validate_port(port, config);
+                        return self.validate_port(port, &config);
                     }
                     return None;
                 }
@@ -124,7 +126,7 @@ impl Rule for ClientHostHeader {
         // Single colon — interpret as host:port and validate the port
         if let Some(idx) = s.rfind(':') {
             let port = &s[idx + 1..];
-            return self.validate_port(port, config);
+            return self.validate_port(port, &config);
         }
 
         None
@@ -206,10 +208,11 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ClientHostHeader;
         let tx = crate::test_helpers::make_test_transaction_with_headers(&header_pairs);
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -230,10 +233,11 @@ mod tests {
             ("host", "example.com"),
             ("host", "other.example.com"),
         ]);
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_some());
         assert_eq!(
@@ -256,10 +260,11 @@ mod tests {
         hm.insert("host", HeaderValue::from_bytes(&[0xff]).unwrap());
         tx.request.headers = hm;
 
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
 
         assert!(violation.is_some());
@@ -289,10 +294,11 @@ mod tests {
             "example.com:999999999999999999999",
         )]);
 
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_some());
         let v = violation.unwrap();

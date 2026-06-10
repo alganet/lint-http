@@ -13,7 +13,7 @@ pub struct ServerAltSvcH3AdvertisementValid;
 const MAX_REASONABLE_MA: u64 = 365 * 24 * 3600;
 
 impl Rule for ServerAltSvcH3AdvertisementValid {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "server_alt_svc_h3_advertisement_valid"
@@ -23,12 +23,14 @@ impl Rule for ServerAltSvcH3AdvertisementValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         for hv in resp.headers.get_all("alt-svc").iter() {
@@ -83,7 +85,7 @@ impl Rule for ServerAltSvcH3AdvertisementValid {
                 }
 
                 // Parse parameters looking for `ma`
-                if let Some(v) = check_h3_ma_param(self.id(), config, params_str) {
+                if let Some(v) = check_h3_ma_param(self.id(), &config, params_str) {
                     return Some(v);
                 }
             }
@@ -221,15 +223,16 @@ mod tests {
             None => crate::test_helpers::make_test_transaction_with_response(200, &[]),
         };
 
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "server_alt_svc_h3_advertisement_valid",
+            "warn",
+        );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header={:?}", header);
@@ -250,12 +253,13 @@ mod tests {
             200,
             &[("alt-svc", "h3-29=\":443\"")],
         );
-        let config = crate::test_helpers::make_test_rule_config();
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &config,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("h3-29"));
@@ -269,12 +273,13 @@ mod tests {
             200,
             &[("alt-svc", "h3=\":443\"; ma=0")],
         );
-        let config = crate::test_helpers::make_test_rule_config();
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &config,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("ma=0"));
@@ -287,12 +292,13 @@ mod tests {
             200,
             &[("alt-svc", "h3=\":443\"; ma=99999999")],
         );
-        let config = crate::test_helpers::make_test_rule_config();
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &config,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("unreasonably large"));
@@ -305,12 +311,13 @@ mod tests {
             200,
             &[("alt-svc", "h3=\":443\"; ma=abc")],
         );
-        let config = crate::test_helpers::make_test_rule_config();
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &config,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("non-numeric"));
@@ -321,10 +328,11 @@ mod tests {
     fn missing_response_returns_none() {
         let rule = ServerAltSvcH3AdvertisementValid;
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -336,11 +344,12 @@ mod tests {
             200,
             &[("alt-svc", "h2=\":443\""), ("alt-svc", "h3-29=\":443\"")],
         );
-        let config = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -352,11 +361,12 @@ mod tests {
             200,
             &[("alt-svc", "h2=\":443\"; ma=0")],
         );
-        let config = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -368,12 +378,13 @@ mod tests {
             200,
             &[("alt-svc", "h3=\":443\"; ma=")],
         );
-        let config = crate::test_helpers::make_test_rule_config();
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &config,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("no value"));
@@ -397,10 +408,11 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_none(),
@@ -417,11 +429,12 @@ mod tests {
             200,
             &[("alt-svc", "h3example.com:443")],
         );
-        let config = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -433,11 +446,12 @@ mod tests {
             200,
             &[("alt-svc", "=\":443\"")],
         );
-        let config = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

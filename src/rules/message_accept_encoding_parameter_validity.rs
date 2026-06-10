@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageAcceptEncodingParameterValidity;
 
 impl Rule for MessageAcceptEncodingParameterValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_accept_encoding_parameter_validity"
@@ -18,12 +18,14 @@ impl Rule for MessageAcceptEncodingParameterValidity {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // This rule validates `Accept-Encoding` header parameters (q-values and param forms) in requests.
         for hv in tx.request.headers.get_all("accept-encoding").iter() {
             if let Ok(val) = hv.to_str() {
@@ -147,7 +149,9 @@ mod tests {
     #[case(Some("gzip;q=0.1234"), true)]
     fn check_request_cases(#[case] ae: Option<&str>, #[case] expect_violation: bool) {
         let rule = MessageAcceptEncodingParameterValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_encoding_parameter_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         if let Some(v) = ae {
@@ -155,10 +159,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("accept-encoding", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -186,13 +191,16 @@ mod tests {
         let bad = HeaderValue::from_bytes(&[0xff])?;
         hm.append("accept-encoding", bad);
         tx.request.headers = hm;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_encoding_parameter_validity",
+        ]);
 
         // Non-UTF8 header values should be considered a violation by this rule
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -217,7 +225,9 @@ mod tests {
     #[case(Some("gzip;param=bad@val"), true)]
     fn check_additional_parameter_cases(#[case] ae: Option<&str>, #[case] expect_violation: bool) {
         let rule = MessageAcceptEncodingParameterValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_encoding_parameter_validity",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         if let Some(v) = ae {
@@ -225,10 +235,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("accept-encoding", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -250,7 +261,9 @@ mod tests {
     #[test]
     fn multiple_header_fields_are_checked() {
         let rule = MessageAcceptEncodingParameterValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_encoding_parameter_validity",
+        ]);
 
         use hyper::header::HeaderValue;
         let mut headers = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -260,10 +273,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = headers;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }

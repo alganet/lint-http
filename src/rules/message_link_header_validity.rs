@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageLinkHeaderValidity;
 
 impl Rule for MessageLinkHeaderValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_link_header_validity"
@@ -18,12 +18,14 @@ impl Rule for MessageLinkHeaderValidity {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check response headers (Link is meaningful on responses / 103 Early Hints)
         let resp = match &tx.response {
             Some(r) => r,
@@ -236,7 +238,9 @@ mod tests {
     #[case(Some(("Link", "<https://example.com/>; bad@=1")), true)]
     fn check_link_cases(#[case] header: Option<(&str, &str)>, #[case] expect_violation: bool) {
         let rule = MessageLinkHeaderValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_link_header_validity",
+        ]);
 
         let tx = if let Some(h) = header {
             make_resp_with_header(200, h)
@@ -244,10 +248,11 @@ mod tests {
             crate::test_helpers::make_test_transaction()
         };
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header={:?}", header);
@@ -264,23 +269,27 @@ mod tests {
     #[test]
     fn early_hints_requires_preload_and_as() {
         let rule = MessageLinkHeaderValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_link_header_validity",
+        ]);
 
         // 103 with preload but missing as
         let tx = make_resp_with_header(103, ("Link", "<https://example.com/>; rel=preload"));
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
 
         // 103 with no rel -> violation
         let tx2 = make_resp_with_header(103, ("Link", "<https://example.com/>; title=\"x\""));
-        let v2 = rule.check_transaction(
+        let v2 = rule.check(
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_some());
     }
@@ -288,7 +297,9 @@ mod tests {
     #[test]
     fn additional_edge_cases_report_meaningful_messages() {
         let rule = MessageLinkHeaderValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_link_header_validity",
+        ]);
 
         // Non-UTF8 header
         use hyper::header::HeaderValue;
@@ -297,70 +308,77 @@ mod tests {
         hm.append("link", bad);
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-UTF8"));
 
         // Trailing comma -> empty member
         let tx2 = make_resp_with_header(200, ("Link", "<https://example/>; rel=next,"));
-        let v2 = rule.check_transaction(
+        let v2 = rule.check(
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_some());
         assert!(v2.unwrap().message.contains("empty member"));
 
         // Missing closing '>'
         let tx3 = make_resp_with_header(200, ("Link", "<https://example.com/; rel=next"));
-        let v3 = rule.check_transaction(
+        let v3 = rule.check(
             &tx3,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v3.is_some());
         assert!(v3.unwrap().message.contains("missing closing"));
 
         // Missing value for param
         let tx4 = make_resp_with_header(200, ("Link", "<https://example/>; rel"));
-        let v4 = rule.check_transaction(
+        let v4 = rule.check(
             &tx4,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v4.is_some());
         assert!(v4.unwrap().message.contains("missing '=' or value"));
 
         // Invalid quoted-string
         let tx5 = make_resp_with_header(200, ("Link", "<https://example/>; title=\"unterminated"));
-        let v5 = rule.check_transaction(
+        let v5 = rule.check(
             &tx5,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v5.is_some());
         assert!(v5.unwrap().message.contains("quoted-string"));
 
         // Invalid token char in param value
         let tx6 = make_resp_with_header(200, ("Link", "<https://example/>; as=bad@val"));
-        let v6 = rule.check_transaction(
+        let v6 = rule.check(
             &tx6,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v6.is_some());
         assert!(v6.unwrap().message.contains("invalid character"));
 
         // rel contains invalid char
         let tx7 = make_resp_with_header(200, ("Link", "<https://example/>; rel=bad@rel"));
-        let v7 = rule.check_transaction(
+        let v7 = rule.check(
             &tx7,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v7.is_some());
         let msg7 = v7.unwrap().message;
@@ -387,23 +405,27 @@ mod tests {
     #[test]
     fn additional_positive_and_multi_header_cases() {
         let rule = MessageLinkHeaderValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_link_header_validity",
+        ]);
 
         // rel with multiple types (space-separated) should be OK
         let tx = make_resp_with_header(200, ("Link", "<https://example/>; rel=next prev"));
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
 
         // quoted-string title with escaped quote is accepted
         let tx2 = make_resp_with_header(200, ("Link", "<https://example/>; title=\"a\\\"b\""));
-        let v2 = rule.check_transaction(
+        let v2 = rule.check(
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_none());
 
@@ -412,19 +434,21 @@ mod tests {
             200,
             ("Link", "<https://example/>; rel=preload; as=\"script\""),
         );
-        let v3 = rule.check_transaction(
+        let v3 = rule.check(
             &tx3,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v3.is_none());
 
         // trailing semicolon ignored
         let tx4 = make_resp_with_header(200, ("Link", "<https://example/>; rel=next;"));
-        let v4 = rule.check_transaction(
+        let v4 = rule.check(
             &tx4,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v4.is_none());
 
@@ -440,10 +464,11 @@ mod tests {
                 .parse::<HeaderValue>()
                 .unwrap(),
         );
-        let vm = rule.check_transaction(
+        let vm = rule.check(
             &txm,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(vm.is_some());
     }

@@ -62,7 +62,7 @@ fn parse_headers_config(
 }
 
 impl Rule for MessageStructuredHeadersValidity {
-    type Config = MessageStructuredHeadersConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_structured_headers_validity"
@@ -80,12 +80,14 @@ impl Rule for MessageStructuredHeadersValidity {
         Ok(std::sync::Arc::new(parsed))
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = parse_headers_config(cfg, self.id()).ok()?;
         for hdr in &config.headers {
             // Request
             for hv in tx.request.headers.get_all(hdr.as_str()).iter() {
@@ -344,12 +346,27 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    fn make_cfg_with_headers(headers: &[&str]) -> MessageStructuredHeadersConfig {
-        MessageStructuredHeadersConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-            headers: headers.iter().map(|s| s.to_string()).collect(),
-        }
+    fn make_cfg_with_headers(headers: &[&str]) -> crate::config::Config {
+        let mut cfg = crate::config::Config::default();
+        cfg.rules.insert(
+            "message_structured_headers_validity".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert("severity".into(), toml::Value::String("warn".into()));
+                t.insert(
+                    "headers".into(),
+                    toml::Value::Array(
+                        headers
+                            .iter()
+                            .map(|s| toml::Value::String(s.to_string()))
+                            .collect(),
+                    ),
+                );
+                t
+            }),
+        );
+        cfg
     }
 
     #[rstest]
@@ -419,10 +436,11 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(b"\xff").unwrap(),
         );
         tx.request.headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         // header.to_str() will error and we expect a violation reporting invalid utf-8
         assert!(v.is_some());
@@ -488,10 +506,11 @@ mod tests {
             200,
             &[("x-struct", "\"unterminated")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -863,10 +882,11 @@ mod tests {
             hyper::header::HeaderValue::from_static("\"unterminated"),
         );
         tx.request.headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(vi) = v {
@@ -889,10 +909,11 @@ mod tests {
         if let Some(resp) = &mut tx.response {
             resp.headers = rh;
         }
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         if let Some(vi) = v {

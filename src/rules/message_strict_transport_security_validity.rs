@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageStrictTransportSecurityValidity;
 
 impl Rule for MessageStrictTransportSecurityValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_strict_transport_security_validity"
@@ -18,12 +18,14 @@ impl Rule for MessageStrictTransportSecurityValidity {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applicable to responses
         let resp = match &tx.response {
             Some(r) => r,
@@ -234,15 +236,16 @@ mod tests {
     fn cases(#[case] val: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = MessageStrictTransportSecurityValidity;
         let tx = make_resp(val);
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         let got = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some();
         assert_eq!(got, expect_violation, "value: {}", val);
@@ -267,15 +270,16 @@ mod tests {
             trailers: None,
         });
         let rule = MessageStrictTransportSecurityValidity;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -284,15 +288,16 @@ mod tests {
     fn empty_value_is_violation() {
         let rule = MessageStrictTransportSecurityValidity;
         let tx = make_resp("");
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -301,15 +306,16 @@ mod tests {
     fn trailing_semicolon_reports_empty_directive() {
         let rule = MessageStrictTransportSecurityValidity;
         let tx = make_resp("max-age=1;");
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -318,15 +324,16 @@ mod tests {
     fn unknown_directive_with_bad_quoted_string_reports_violation() {
         let rule = MessageStrictTransportSecurityValidity;
         let tx = make_resp("max-age=1; foo=\"unterminated");
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -335,15 +342,16 @@ mod tests {
     fn unknown_directive_with_invalid_token_value_reports_violation() {
         let rule = MessageStrictTransportSecurityValidity;
         let tx = make_resp("max-age=1; bar=bad@val");
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -352,15 +360,16 @@ mod tests {
     fn unknown_directive_with_quoted_string_is_ok() {
         let rule = MessageStrictTransportSecurityValidity;
         let tx = make_resp("max-age=1; foo=\"valid\"");
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -369,15 +378,16 @@ mod tests {
     fn max_age_empty_value_is_violation() {
         let rule = MessageStrictTransportSecurityValidity;
         let tx = make_resp("max-age=");
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -386,15 +396,16 @@ mod tests {
     fn max_age_without_equals_is_violation() {
         let rule = MessageStrictTransportSecurityValidity;
         let tx = make_resp("max-age");
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -403,15 +414,16 @@ mod tests {
     fn max_age_quoted_is_violation() {
         let rule = MessageStrictTransportSecurityValidity;
         let tx = make_resp("max-age=\"3600\"");
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -420,15 +432,16 @@ mod tests {
     fn directive_name_with_invalid_char_is_violation() {
         let rule = MessageStrictTransportSecurityValidity;
         let tx = make_resp("ma x=1");
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }
@@ -437,15 +450,16 @@ mod tests {
     fn unknown_directive_with_token_value_is_ok() {
         let rule = MessageStrictTransportSecurityValidity;
         let tx = make_resp("max-age=1; foo=bar");
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -454,15 +468,16 @@ mod tests {
     fn include_subdomains_case_insensitive_is_ok() {
         let rule = MessageStrictTransportSecurityValidity;
         let tx = make_resp("max-age=1; IncludeSubDomains");
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }
@@ -483,15 +498,16 @@ mod tests {
             trailers: None,
         });
         let rule = MessageStrictTransportSecurityValidity;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_strict_transport_security_validity",
+            "warn",
+        );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_some());
     }

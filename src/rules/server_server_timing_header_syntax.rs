@@ -13,7 +13,7 @@ use crate::rules::Rule;
 pub struct ServerServerTimingHeaderSyntax;
 
 impl Rule for ServerServerTimingHeaderSyntax {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "server_server_timing_header_syntax"
@@ -23,12 +23,14 @@ impl Rule for ServerServerTimingHeaderSyntax {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let Some(resp) = &tx.response else {
             return None;
         };
@@ -268,15 +270,16 @@ mod tests {
             None => crate::test_helpers::make_test_transaction_with_response(200, &[]),
         };
 
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "server_server_timing_header_syntax",
+            "warn",
+        );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header={:?}", header);
@@ -302,10 +305,11 @@ mod tests {
             ],
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -329,10 +333,11 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -355,10 +360,11 @@ mod tests {
             200,
             &[("Server-Timing", "db;dur=50;dur=abc")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none(), "duplicate params should be ignored");
     }
@@ -370,10 +376,11 @@ mod tests {
             200,
             &[("Server-Timing", "db;=5")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none(), "empty parameter name should be ignored");
     }
@@ -385,10 +392,11 @@ mod tests {
             200,
             &[("Server-Timing", "db;desc=\"abc\"x")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -406,10 +414,11 @@ mod tests {
             200,
             &[("Server-Timing", "db;desc")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -423,10 +432,11 @@ mod tests {
             200,
             &[("Server-Timing", "db;desc=")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -440,10 +450,11 @@ mod tests {
             200,
             &[("Server-Timing", "db;desc=bad@value")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -455,10 +466,11 @@ mod tests {
         let rule = ServerServerTimingHeaderSyntax;
         let tx = crate::test_helpers::make_test_transaction();
         // tx.response is None
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

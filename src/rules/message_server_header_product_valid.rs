@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageServerHeaderProductValid;
 
 impl Rule for MessageServerHeaderProductValid {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_server_header_product_valid"
@@ -18,12 +18,14 @@ impl Rule for MessageServerHeaderProductValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let check_value = |hdr: &str, val: &str| -> Option<Violation> {
             // Strip top-level parenthesized comments (allowed in Server values)
             let no_comments = match crate::helpers::headers::strip_comments(val) {
@@ -140,7 +142,9 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageServerHeaderProductValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_server_header_product_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut resp = crate::test_helpers::make_test_transaction_with_response(200, &[]);
@@ -150,10 +154,11 @@ mod tests {
         }
         tx.response = resp.response;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -166,17 +171,20 @@ mod tests {
     #[test]
     fn multiple_server_fields_checked() -> anyhow::Result<()> {
         let rule = MessageServerHeaderProductValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_server_header_product_valid",
+        ]);
 
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[("server", "nginx/1.18.0")]);
         hm.append("server", HeaderValue::from_static("Bad@Srv/1.0"));
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -185,17 +193,20 @@ mod tests {
     #[test]
     fn non_utf8_header_value_is_reported() -> anyhow::Result<()> {
         let rule = MessageServerHeaderProductValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_server_header_product_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
         hm.insert("server", HeaderValue::from_bytes(b"\xff").unwrap());
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -204,16 +215,19 @@ mod tests {
     #[test]
     fn unterminated_comment_reports_violation() -> anyhow::Result<()> {
         let rule = MessageServerHeaderProductValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_server_header_product_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("server", "Bad (unbalanced")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -222,16 +236,19 @@ mod tests {
     #[test]
     fn server_only_comments_is_reported() -> anyhow::Result<()> {
         let rule = MessageServerHeaderProductValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_server_header_product_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("server", "(Apache)")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -240,16 +257,19 @@ mod tests {
     #[test]
     fn comment_before_product_is_accepted() -> anyhow::Result<()> {
         let rule = MessageServerHeaderProductValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_server_header_product_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("server", "(test) nginx/1.18.0")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())

@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageFormDataContentDispositionValid;
 
 impl Rule for MessageFormDataContentDispositionValid {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_form_data_content_disposition_valid"
@@ -18,12 +18,14 @@ impl Rule for MessageFormDataContentDispositionValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Helper that checks a single header value
         let check_value = |_hdr: &str, val: &str| -> Option<Violation> {
             let s = val.trim();
@@ -178,7 +180,9 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         if let Some(v) = cd {
@@ -186,10 +190,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-disposition", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{:?}'", cd);
@@ -209,7 +214,9 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         if let Some(v) = cd {
@@ -217,10 +224,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-disposition", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{:?}'", cd);
@@ -234,17 +242,20 @@ mod tests {
     fn non_utf8_header_is_reported() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
         hm.insert("content-disposition", HeaderValue::from_bytes(&[0xff])?);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -253,17 +264,20 @@ mod tests {
     #[test]
     fn quoted_empty_name_reports_violation() {
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
             "content-disposition",
             "form-data; name=\"\"",
         )]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -271,17 +285,20 @@ mod tests {
     #[test]
     fn quoted_whitespace_name_reports_violation() {
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
             "content-disposition",
             "form-data; name=\"   \"",
         )]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -289,17 +306,20 @@ mod tests {
     #[test]
     fn malformed_quoted_name_reports_violation() {
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
             "content-disposition",
             "form-data; name=\"unterminated",
         )]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -308,17 +328,20 @@ mod tests {
     fn request_non_utf8_header_is_reported() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
         hm.insert("content-disposition", HeaderValue::from_bytes(&[0xff])?);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -327,15 +350,18 @@ mod tests {
     #[test]
     fn form_data_without_params_reports_missing_name() {
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-disposition", "form-data")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -343,17 +369,20 @@ mod tests {
     #[test]
     fn case_insensitive_disposition_and_param_name_is_accepted() {
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
             "content-disposition",
             "Form-Data; NAME=User",
         )]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -361,15 +390,18 @@ mod tests {
     #[test]
     fn empty_disposition_type_is_ignored() {
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-disposition", "; name=user")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -377,15 +409,18 @@ mod tests {
     #[test]
     fn form_data_with_trailing_semicolon_reports_missing_name() {
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-disposition", "form-data;")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -394,7 +429,9 @@ mod tests {
     fn multiple_content_disposition_all_valid_is_ok() {
         use hyper::header::HeaderValue;
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers.append(
@@ -406,10 +443,11 @@ mod tests {
             HeaderValue::from_static("form-data; name=\"b\""),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -417,15 +455,18 @@ mod tests {
     #[test]
     fn empty_header_value_is_ignored() {
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-disposition", "")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -433,17 +474,20 @@ mod tests {
     #[test]
     fn malformed_param_without_eq_is_ignored_by_this_rule() {
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
             "content-disposition",
             "form-data; badparam",
         )]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         // Although a parameter is present, the absence of a 'name' parameter should still be
         // treated as a violation for 'form-data' dispositions.
@@ -454,7 +498,9 @@ mod tests {
     fn multiple_content_disposition_headers_one_invalid_reports_violation() {
         use hyper::header::HeaderValue;
         let rule = MessageFormDataContentDispositionValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_form_data_content_disposition_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         // append a valid and an invalid header
@@ -467,10 +513,11 @@ mod tests {
             HeaderValue::from_static("form-data; filename=example.txt"),
         );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }

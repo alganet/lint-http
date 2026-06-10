@@ -28,7 +28,7 @@ use crate::rules::Rule;
 pub struct StatefulOauth2CodeFlow;
 
 impl Rule for StatefulOauth2CodeFlow {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_oauth2_code_flow"
@@ -39,12 +39,14 @@ impl Rule for StatefulOauth2CodeFlow {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req_uri = &tx.request.uri;
         // simple query extraction: portion after '?' if present, ignoring any
         // URI fragment (`#...`) which is not part of the query string.
@@ -141,104 +143,179 @@ mod tests {
     #[test]
     fn auth_request_without_state_flagged() {
         let rule = StatefulOauth2CodeFlow;
-        let cfg = test_helpers::make_test_rule_config();
         let tx = make_tx("https://idp.example.com/authorize?response_type=code&client_id=1");
         let history = crate::transaction_history::TransactionHistory::empty();
-        let v = rule.check_transaction(&tx, &history, &cfg).unwrap();
+        let v = rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_oauth2_code_flow",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
+            )
+            .unwrap();
         assert!(v.message.contains("missing or empty state"));
     }
 
     #[test]
     fn auth_request_with_state_ok() {
         let rule = StatefulOauth2CodeFlow;
-        let cfg = test_helpers::make_test_rule_config();
         let tx = make_tx("https://idp.example.com/authorize?response_type=code&state=xyz");
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_oauth2_code_flow"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn callback_without_state_flagged() {
         let rule = StatefulOauth2CodeFlow;
-        let cfg = test_helpers::make_test_rule_config();
         let tx = make_tx("https://app.example.com/callback?code=abc");
         let history = crate::transaction_history::TransactionHistory::empty();
-        let v = rule.check_transaction(&tx, &history, &cfg).unwrap();
+        let v = rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_oauth2_code_flow",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
+            )
+            .unwrap();
         assert!(v.message.contains("missing or empty state"));
     }
 
     #[test]
     fn callback_with_unseen_state_flagged() {
         let rule = StatefulOauth2CodeFlow;
-        let cfg = test_helpers::make_test_rule_config();
         let tx = make_tx("https://app.example.com/callback?code=abc&state=xyz");
         let history = crate::transaction_history::TransactionHistory::empty();
-        let v = rule.check_transaction(&tx, &history, &cfg).unwrap();
+        let v = rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_oauth2_code_flow",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
+            )
+            .unwrap();
         assert!(v.message.contains("not seen"));
     }
 
     #[test]
     fn callback_with_matching_state_ok() {
         let rule = StatefulOauth2CodeFlow;
-        let cfg = test_helpers::make_test_rule_config();
         // initial auth request earlier in history
         let history = crate::transaction_history::TransactionHistory::new(vec![make_tx(
             "https://idp.example.com/authorize?response_type=code&state=xyz",
         )]);
         let tx = make_tx("https://app.example.com/callback?code=abc&state=xyz");
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_oauth2_code_flow"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn auth_and_callback_without_code_does_not_check_state() {
         let rule = StatefulOauth2CodeFlow;
-        let cfg = test_helpers::make_test_rule_config();
         // a request with state but not response_type=code shouldn't trigger
         let tx = make_tx("https://example.com/foo?state=xyz");
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_oauth2_code_flow"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn auth_and_callback_with_fragments_are_handled() {
         let rule = StatefulOauth2CodeFlow;
-        let cfg = test_helpers::make_test_rule_config();
         // auth request has fragment after query, should still record state
         let history = crate::transaction_history::TransactionHistory::new(vec![make_tx(
             "https://idp.example.com/authorize?response_type=code&state=foo#frag",
         )]);
         let tx = make_tx("https://app.example.com/callback?code=abc&state=foo#bar");
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_oauth2_code_flow"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn auth_request_fragment_missing_state_flagged() {
         let rule = StatefulOauth2CodeFlow;
-        let cfg = test_helpers::make_test_rule_config();
         let tx = make_tx("https://idp.example.com/authorize?response_type=code#frag");
         let history = crate::transaction_history::TransactionHistory::empty();
-        let v = rule.check_transaction(&tx, &history, &cfg).unwrap();
+        let v = rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_oauth2_code_flow",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
+            )
+            .unwrap();
         assert!(v.message.contains("missing or empty state"));
     }
 
     #[test]
     fn empty_state_value_flagged_both_sides() {
         let rule = StatefulOauth2CodeFlow;
-        let cfg = test_helpers::make_test_rule_config();
         // auth request with empty state
         let tx1 = make_tx("https://idp.example.com/authorize?response_type=code&state=");
         let history = crate::transaction_history::TransactionHistory::new(vec![tx1.clone()]);
         // callback with empty state should flag missing or empty
         let tx2 = make_tx("https://app.example.com/callback?code=123&state=");
         let v = rule
-            .check_transaction(
+            .check(
                 &tx1,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_oauth2_code_flow",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("missing or empty state"));
-        let v2 = rule.check_transaction(&tx2, &history, &cfg).unwrap();
+        let v2 = rule
+            .check(
+                &tx2,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_oauth2_code_flow",
+                ]),
+                &crate::rules::RuleConfigEngine::new(),
+            )
+            .unwrap();
         assert!(v2.message.contains("missing or empty state"));
     }
 

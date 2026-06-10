@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageAccessControlAllowCredentialsWhenOrigin;
 
 impl Rule for MessageAccessControlAllowCredentialsWhenOrigin {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_access_control_allow_credentials_when_origin"
@@ -18,12 +18,14 @@ impl Rule for MessageAccessControlAllowCredentialsWhenOrigin {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
             Some(r) => r,
             None => return None,
@@ -101,7 +103,7 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    use crate::test_helpers::{make_test_rule_config, make_test_transaction};
+    use crate::test_helpers::make_test_transaction;
 
     #[rstest]
     #[case(Some("*"), Some("true"), true)]
@@ -127,10 +129,11 @@ mod tests {
             tx = crate::test_helpers::make_test_transaction_with_response(200, &pairs);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for {:?} & {:?}", acao, acc);
@@ -165,10 +168,11 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-ASCII"));
@@ -194,10 +198,11 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-ASCII"));
@@ -207,10 +212,11 @@ mod tests {
     fn no_response_no_violation() {
         let rule = MessageAccessControlAllowCredentialsWhenOrigin;
         let tx = make_test_transaction();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -222,10 +228,11 @@ mod tests {
             200,
             &[("access-control-allow-credentials", "true")],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -240,10 +247,11 @@ mod tests {
                 ("access-control-allow-credentials", "true"),
             ],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -258,10 +266,11 @@ mod tests {
                 ("access-control-allow-credentials", "TRUE"),
             ],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -276,10 +285,11 @@ mod tests {
                 ("access-control-allow-credentials", "  true  "),
             ],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -307,10 +317,11 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -325,10 +336,11 @@ mod tests {
                 ("access-control-allow-credentials", "1"),
             ],
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

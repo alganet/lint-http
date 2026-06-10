@@ -21,7 +21,7 @@ use crate::rules::Rule;
 pub struct StatefulCookieDomainMatching;
 
 impl Rule for StatefulCookieDomainMatching {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_cookie_domain_matching"
@@ -31,12 +31,14 @@ impl Rule for StatefulCookieDomainMatching {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // only care about outgoing requests that carry Cookie headers
         let cookie_headers: Vec<_> = tx.request.headers.get_all("cookie").iter().collect();
         if cookie_headers.is_empty() {
@@ -167,28 +169,43 @@ mod tests {
     #[test]
     fn no_violation_without_history() {
         let rule = StatefulCookieDomainMatching;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let tx = make_tx_with_req("https://example.com/", Some("foo=1"));
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_domain_matching"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn valid_cookie_allowed() {
         let rule = StatefulCookieDomainMatching;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev = make_resp_tx("https://example.com/", Some("a=1; Path=/"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/foo", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_domain_matching"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn domain_mismatch_flagged() {
         let rule = StatefulCookieDomainMatching;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev = make_resp_tx(
             "https://example.com/",
@@ -198,7 +215,14 @@ mod tests {
         let mut tx = make_tx_with_req("https://other.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_cookie_domain_matching",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("different domain"));
     }
@@ -206,7 +230,6 @@ mod tests {
     #[test]
     fn domain_mismatch_but_value_matches_valid_cookie_not_flagged() {
         let rule = StatefulCookieDomainMatching;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev1 = make_resp_tx(
             "https://example.com/",
@@ -222,19 +245,34 @@ mod tests {
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history =
             crate::transaction_history::TransactionHistory::new(vec![prev2.clone(), prev1.clone()]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_domain_matching"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn path_mismatch_flagged() {
         let rule = StatefulCookieDomainMatching;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev = make_resp_tx("https://example.com/", Some("a=1; Path=/private"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/public", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_cookie_domain_matching",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not valid for path"));
     }
@@ -242,10 +280,18 @@ mod tests {
     #[test]
     fn no_cookie_header_ignored() {
         let rule = StatefulCookieDomainMatching;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let tx = make_tx_with_req("https://example.com/", None);
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_domain_matching"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
@@ -253,7 +299,6 @@ mod tests {
         // history has a cookie with same name but different value for another
         // domain; sending a different value should not trigger.
         let rule = StatefulCookieDomainMatching;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev = make_resp_tx(
             "https://example.com/",
@@ -263,27 +308,43 @@ mod tests {
         let mut tx = make_tx_with_req("https://other.com/", Some("a=2"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_domain_matching"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn http_scheme_valid_cookie() {
         // non-secure cookie should still be allowed over plain HTTP when domain/path match
         let rule = StatefulCookieDomainMatching;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev = make_resp_tx("http://example.com/", Some("a=1; Path=/"), Some(ts));
         let mut tx = make_tx_with_req("http://example.com/foo", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_domain_matching"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn secure_cookie_over_http_not_flagged() {
         // scheme logic should ensure secure cookies are simply ignored by this rule
         let rule = StatefulCookieDomainMatching;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev = make_resp_tx(
             "https://example.com/",
@@ -293,7 +354,16 @@ mod tests {
         let mut tx = make_tx_with_req("http://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_domain_matching"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]

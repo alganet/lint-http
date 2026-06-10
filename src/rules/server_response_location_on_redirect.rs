@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct ServerResponseLocationOnRedirect;
 
 impl Rule for ServerResponseLocationOnRedirect {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "server_response_location_on_redirect"
@@ -18,12 +18,14 @@ impl Rule for ServerResponseLocationOnRedirect {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
             Some(r) => r,
             None => return None,
@@ -88,15 +90,16 @@ mod tests {
     ) {
         let rule = ServerResponseLocationOnRedirect;
         let tx = make_tx(status, loc);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "server_response_location_on_redirect",
+            "warn",
+        );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for status {}", status);
@@ -119,15 +122,16 @@ mod tests {
     fn no_response_returns_none() {
         let rule = ServerResponseLocationOnRedirect;
         let tx = crate::test_helpers::make_test_transaction();
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "server_response_location_on_redirect",
+            "warn",
+        );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

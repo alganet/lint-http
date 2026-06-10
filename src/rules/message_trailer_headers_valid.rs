@@ -9,7 +9,7 @@ use crate::rules::Rule;
 pub struct MessageTrailerHeadersValid;
 
 impl Rule for MessageTrailerHeadersValid {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_trailer_headers_valid"
@@ -19,12 +19,14 @@ impl Rule for MessageTrailerHeadersValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Cache Connection header nomination once for both request and response checks
         let connection_val =
             crate::helpers::headers::get_header_str(&tx.request.headers, "connection").or_else(
@@ -122,20 +124,21 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
 
         // Response case
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("trailer", trailer_val)]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -162,10 +165,11 @@ mod tests {
                     ("connection", "Keep-Alive"),
                     ("trailer", "Keep-Alive"),
                 ]);
-            let v2 = rule.check_transaction(
+            let v2 = rule.check(
                 &tx2,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             );
             assert!(
                 v2.is_some(),
@@ -179,19 +183,20 @@ mod tests {
     #[test]
     fn trailer_empty_member_is_violation() -> anyhow::Result<()> {
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("trailer", "")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -200,17 +205,18 @@ mod tests {
     #[test]
     fn request_trailer_valid_is_ok() -> anyhow::Result<()> {
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("trailer", "ETag")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -219,18 +225,19 @@ mod tests {
     #[test]
     fn request_trailer_invalid_token_reports_violation() -> anyhow::Result<()> {
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("trailer", "bad token")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -239,19 +246,20 @@ mod tests {
     #[test]
     fn invalid_token_violation_message_includes_char_and_member() -> anyhow::Result<()> {
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("trailer", "bad token")]);
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("invalid character"));
@@ -262,19 +270,20 @@ mod tests {
     #[test]
     fn hop_by_hop_violation_message_includes_header_name() -> anyhow::Result<()> {
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("trailer", "Transfer-Encoding")]);
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("nominate") || v.message.contains("hop-by-hop"));
@@ -285,20 +294,21 @@ mod tests {
     #[test]
     fn request_trailer_connection_nominated_reports_violation() -> anyhow::Result<()> {
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
             ("connection", "Keep-Alive"),
             ("trailer", "Keep-Alive"),
         ]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -308,20 +318,21 @@ mod tests {
     fn non_utf8_trailer_is_violation() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = hyper::HeaderMap::new();
         hm.append("trailer", HeaderValue::from_bytes(&[0xff])?);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -331,20 +342,21 @@ mod tests {
     fn request_non_utf8_trailer_is_violation() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = hyper::HeaderMap::new();
         hm.append("trailer", HeaderValue::from_bytes(&[0xff])?);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -353,10 +365,10 @@ mod tests {
     #[test]
     fn request_trailer_response_connection_nominated_reports_violation() -> anyhow::Result<()> {
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
@@ -364,10 +376,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("trailer", "Keep-Alive")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -376,20 +389,21 @@ mod tests {
     #[test]
     fn request_trailer_lowercase_token_matches_connection_case_insensitive() -> anyhow::Result<()> {
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
             ("connection", "Keep-Alive"),
             ("trailer", "keep-alive"),
         ]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -398,17 +412,18 @@ mod tests {
     #[test]
     fn response_trailer_whitespace_only_is_violation() -> anyhow::Result<()> {
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("trailer", "   ")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -417,16 +432,17 @@ mod tests {
     #[test]
     fn request_trailer_whitespace_only_is_violation() -> anyhow::Result<()> {
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("trailer", "   ")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -436,19 +452,20 @@ mod tests {
     fn multiple_trailer_header_fields_iterated_reports_violation() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = hyper::HeaderMap::new();
         hm.append("trailer", HeaderValue::from_static("ETag"));
         hm.append("trailer", HeaderValue::from_static("bad token"));
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -457,17 +474,18 @@ mod tests {
     #[test]
     fn trailer_nominates_trailer_itself_is_violation() -> anyhow::Result<()> {
         let rule = MessageTrailerHeadersValid;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("trailer", "trailer")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())

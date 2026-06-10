@@ -9,7 +9,7 @@ use hyper::HeaderMap;
 pub struct MessageAllowHeaderMethodTokens;
 
 impl Rule for MessageAllowHeaderMethodTokens {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_allow_header_method_tokens"
@@ -19,12 +19,14 @@ impl Rule for MessageAllowHeaderMethodTokens {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let check = |headers: &HeaderMap| -> Option<Violation> {
             for hv in headers.get_all("allow").iter() {
                 let allow_str = match hv.to_str() {
@@ -84,7 +86,7 @@ mod tests {
 
     fn check_allow_header_helper(allow_value: &str, is_response: bool) -> Option<Violation> {
         use crate::http_transaction::ResponseInfo;
-        use crate::test_helpers::{make_test_rule_config, make_test_transaction};
+        use crate::test_helpers::make_test_transaction;
         use hyper::header::HeaderValue;
 
         let rule = MessageAllowHeaderMethodTokens;
@@ -113,10 +115,11 @@ mod tests {
             HeaderValue::from_str(allow_value).unwrap(),
         );
 
-        rule.check_transaction(
+        rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         )
     }
 
@@ -196,16 +199,17 @@ mod tests {
     #[test]
     fn test_no_allow_header_returns_none() {
         // If there's no Allow header at all, the rule should pass
-        use crate::test_helpers::{make_test_rule_config, make_test_transaction};
+        use crate::test_helpers::make_test_transaction;
 
         let rule = MessageAllowHeaderMethodTokens;
         let tx = make_test_transaction();
 
         // Transaction has no Allow header
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_none());
     }

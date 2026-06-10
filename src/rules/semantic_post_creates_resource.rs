@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct SemanticPostCreatesResource;
 
 impl Rule for SemanticPostCreatesResource {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "semantic_post_creates_resource"
@@ -18,12 +18,14 @@ impl Rule for SemanticPostCreatesResource {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // only consider POST requests with a response
         if !tx.request.method.eq_ignore_ascii_case("POST") {
             return None;
@@ -100,11 +102,12 @@ mod tests {
     ) {
         let rule = SemanticPostCreatesResource;
         let tx = make_tx(status, headers);
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for status {}", status);
@@ -122,11 +125,12 @@ mod tests {
     fn location_header_case_insensitive() {
         let rule = SemanticPostCreatesResource;
         let tx = make_tx(200, vec![("Location", "/new")]);
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -142,11 +146,12 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(&[0xff]).unwrap(),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -160,11 +165,12 @@ mod tests {
         // create headers with two Location lines; header-map will collapse but still
         // presence is what matters
         let tx = make_tx(200, vec![("location", "/a"), ("location", "/b")]);
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -177,12 +183,13 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(201, &[]);
         tx.request.method = "PUT".to_string();
         let rule = SemanticPostCreatesResource;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .is_none());
     }

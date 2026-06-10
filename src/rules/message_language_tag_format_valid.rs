@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageLanguageTagFormatValid;
 
 impl Rule for MessageLanguageTagFormatValid {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_language_tag_format_valid"
@@ -18,12 +18,14 @@ impl Rule for MessageLanguageTagFormatValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Helper to validate language-tag tokens according to helpers::language
         let check_tag = |hdr: &str, tag: &str| -> Option<Violation> {
             if let Err(e) = crate::helpers::language::validate_language_tag(tag) {
@@ -113,7 +115,9 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageLanguageTagFormatValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_language_tag_format_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         if let Some(v) = cl {
@@ -121,10 +125,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("accept-language", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -142,7 +147,9 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageLanguageTagFormatValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_language_tag_format_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         if let Some(v) = cl {
@@ -150,10 +157,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-language", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -187,7 +195,9 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageLanguageTagFormatValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_language_tag_format_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         if let Some(v) = al {
@@ -195,10 +205,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("accept-language", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -211,16 +222,19 @@ mod tests {
     #[test]
     fn check_content_language_in_request() -> anyhow::Result<()> {
         let rule = MessageLanguageTagFormatValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_language_tag_format_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-language", "en, fr")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())

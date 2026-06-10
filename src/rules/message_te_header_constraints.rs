@@ -9,7 +9,7 @@ use crate::rules::Rule;
 pub struct MessageTeHeaderConstraints;
 
 impl Rule for MessageTeHeaderConstraints {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_te_header_constraints"
@@ -19,12 +19,14 @@ impl Rule for MessageTeHeaderConstraints {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // TE should not appear in responses
         if let Some(resp) = &tx.response {
             if let Some(val) = crate::helpers::headers::get_header_str(&resp.headers, "te") {
@@ -190,10 +192,10 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageTeHeaderConstraints;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_te_header_constraints",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction();
         if let Some((k, v)) = te_hdr {
@@ -209,10 +211,11 @@ mod tests {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation but got none");
@@ -225,19 +228,20 @@ mod tests {
     #[test]
     fn te_in_response_is_violation() -> anyhow::Result<()> {
         let rule = MessageTeHeaderConstraints;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_te_header_constraints",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("te", "trailers")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -257,10 +261,10 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageTeHeaderConstraints;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_te_header_constraints",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction();
         if let Some((k, v)) = te_hdr {
@@ -276,10 +280,11 @@ mod tests {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation but got none");
@@ -306,10 +311,10 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessageTeHeaderConstraints;
-        let cfg = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_te_header_constraints",
+            "warn",
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction();
         if let Some((k, v)) = te_hdr {
@@ -325,10 +330,11 @@ mod tests {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation but got none");

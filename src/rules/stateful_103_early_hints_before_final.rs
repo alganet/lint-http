@@ -11,7 +11,7 @@ use crate::rules::Rule;
 pub struct Stateful103EarlyHintsBeforeFinal;
 
 impl Rule for Stateful103EarlyHintsBeforeFinal {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_103_early_hints_before_final"
@@ -21,12 +21,14 @@ impl Rule for Stateful103EarlyHintsBeforeFinal {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to responses with status 103
         let resp = match &tx.response {
             Some(r) => r,
@@ -79,7 +81,6 @@ mod tests {
     #[test]
     fn early_hints_103_after_final_is_reported() {
         let rule = Stateful103EarlyHintsBeforeFinal;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut prev = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         prev.request.uri = "/x".to_string();
@@ -89,10 +90,13 @@ mod tests {
         tx.request.uri = "/x".to_string();
         tx.client = crate::test_helpers::make_test_client();
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_103_early_hints_before_final",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
@@ -102,7 +106,6 @@ mod tests {
     #[test]
     fn early_hints_103_after_final_different_uri_is_ignored() {
         let rule = Stateful103EarlyHintsBeforeFinal;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut prev = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         prev.request.uri = "/a".to_string();
@@ -112,10 +115,13 @@ mod tests {
         tx.request.uri = "/b".to_string();
         tx.client = crate::test_helpers::make_test_client();
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_103_early_hints_before_final",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -123,7 +129,6 @@ mod tests {
     #[test]
     fn early_hints_103_before_final_is_allowed() {
         let rule = Stateful103EarlyHintsBeforeFinal;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut prev = crate::test_helpers::make_test_transaction_with_response(103, &[]);
         prev.request.uri = "/r".to_string();
@@ -133,10 +138,13 @@ mod tests {
         tx.request.uri = "/r".to_string();
         tx.client = crate::test_helpers::make_test_client();
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_103_early_hints_before_final",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -169,7 +177,6 @@ mod tests {
     #[test]
     fn previous_without_response_is_ignored() {
         let rule = Stateful103EarlyHintsBeforeFinal;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         // previous transaction exists but has no response -> rule should ignore
         let mut prev = crate::test_helpers::make_test_transaction();
@@ -180,10 +187,13 @@ mod tests {
         tx.request.uri = "/z".to_string();
         tx.client = crate::test_helpers::make_test_client();
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_103_early_hints_before_final",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

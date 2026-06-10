@@ -18,7 +18,7 @@ use crate::rules::Rule;
 pub struct SemanticCacheCoherence;
 
 impl Rule for SemanticCacheCoherence {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "semantic_cache_coherence"
@@ -30,12 +30,14 @@ impl Rule for SemanticCacheCoherence {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
             Some(r) => r,
             None => return None,
@@ -120,20 +122,22 @@ mod tests {
     #[test]
     fn no_violation_without_history() {
         let rule = SemanticCacheCoherence;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_resp_tx(
             "https://example.com/foo",
             200,
             &[("date", "Wed, 21 Oct 2015 07:28:00 GMT")],
         );
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(&tx, &history, &cfg, &crate::rules::RuleConfigEngine::new())
+            .is_none());
     }
 
     #[test]
     fn increasing_date_ok() {
         let rule = SemanticCacheCoherence;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let prev = make_resp_tx(
             "https://example.com/foo",
             200,
@@ -146,13 +150,20 @@ mod tests {
         );
         curr.timestamp = prev.timestamp + chrono::Duration::seconds(1);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&curr, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &curr,
+                &history,
+                &cfg,
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn out_of_order_date_flagged() {
         let rule = SemanticCacheCoherence;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let prev = make_resp_tx(
             "https://example.com/foo",
             200,
@@ -165,7 +176,12 @@ mod tests {
         );
         curr.timestamp = prev.timestamp + chrono::Duration::seconds(1);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&curr, &history, &cfg);
+        let v = rule.check(
+            &curr,
+            &history,
+            &cfg,
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("appears stale"));
     }
@@ -173,7 +189,7 @@ mod tests {
     #[test]
     fn last_modified_decrease_flagged() {
         let rule = SemanticCacheCoherence;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let prev = make_resp_tx(
             "https://example.com/foo",
             200,
@@ -186,19 +202,31 @@ mod tests {
         );
         curr.timestamp = prev.timestamp + chrono::Duration::seconds(1);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&curr, &history, &cfg);
+        let v = rule.check(
+            &curr,
+            &history,
+            &cfg,
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
     }
 
     #[test]
     fn no_time_headers_no_violation() {
         let rule = SemanticCacheCoherence;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let prev = make_resp_tx("https://example.com/foo", 200, &[]);
         let mut curr = make_resp_tx("https://example.com/foo", 200, &[]);
         curr.timestamp = prev.timestamp + chrono::Duration::seconds(1);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&curr, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &curr,
+                &history,
+                &cfg,
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]

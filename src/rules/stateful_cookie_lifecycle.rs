@@ -15,7 +15,7 @@ use crate::rules::Rule;
 pub struct StatefulCookieLifecycle;
 
 impl Rule for StatefulCookieLifecycle {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_cookie_lifecycle"
@@ -27,12 +27,14 @@ impl Rule for StatefulCookieLifecycle {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // only care about outgoing requests that carry Cookie headers
         let cookie_headers: Vec<_> = tx.request.headers.get_all("cookie").iter().collect();
         if cookie_headers.is_empty() {
@@ -248,60 +250,96 @@ mod tests {
     #[test]
     fn no_violation_without_history() {
         let rule = StatefulCookieLifecycle;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let tx = make_tx_with_req("https://example.com/", Some("foo=1"));
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_lifecycle"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn unrelated_cookie_ignored() {
         let rule = StatefulCookieLifecycle;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = chrono::Utc::now();
         // history contains a cookie named a
         let prev = make_resp_tx("https://example.com/", Some("a=1; Path=/"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/", Some("b=2"));
         tx.timestamp = ts + chrono::Duration::seconds(1);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_lifecycle"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn secure_cookie_over_https_ok() {
         let rule = StatefulCookieLifecycle;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = chrono::Utc::now();
         let prev = make_resp_tx("https://example.com/", Some("a=1; Secure"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_cookie_lifecycle",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
     #[test]
     fn cookie_sent_within_lifetime() {
         let rule = StatefulCookieLifecycle;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev = make_resp_tx("https://example.com/", Some("a=1; Max-Age=60"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(30);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(rule
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_lifecycle"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
+            .is_none());
     }
 
     #[test]
     fn expired_cookie_sent_flagged() {
         let rule = StatefulCookieLifecycle;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev = make_resp_tx("https://example.com/", Some("a=1; Max-Age=1"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(5);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_cookie_lifecycle",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("expired or removed"));
     }
@@ -309,7 +347,6 @@ mod tests {
     #[test]
     fn stale_value_flagged() {
         let rule = StatefulCookieLifecycle;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev1 = make_resp_tx("https://example.com/", Some("a=1; Max-Age=60"), Some(ts));
         let prev2 = make_resp_tx(
@@ -321,7 +358,14 @@ mod tests {
         tx.timestamp = ts + chrono::Duration::seconds(20);
         let history =
             crate::transaction_history::TransactionHistory::new(vec![prev2.clone(), prev1.clone()]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_cookie_lifecycle",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("value"));
     }
@@ -329,13 +373,19 @@ mod tests {
     #[test]
     fn secure_cookie_over_http_flagged() {
         let rule = StatefulCookieLifecycle;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev = make_resp_tx("https://example.com/", Some("a=1; Secure"), Some(ts));
         let mut tx = make_tx_with_req("http://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_cookie_lifecycle",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Secure cookie"));
     }
@@ -348,7 +398,6 @@ mod tests {
         // plain HTTP; the rule should *not* report a secure-over-http
         // violation (the sent pair doesn't actually match the secure cookie).
         let rule = StatefulCookieLifecycle;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev_secure = make_resp_tx(
             "https://example.com/",
@@ -366,7 +415,14 @@ mod tests {
             prev_nonsecure.clone(),
             prev_secure.clone(),
         ]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_cookie_lifecycle",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(
             v.is_none(),
             "should not flag secure cookie if sent value is different"
@@ -376,13 +432,19 @@ mod tests {
     #[test]
     fn path_mismatch_flagged() {
         let rule = StatefulCookieLifecycle;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev = make_resp_tx("https://example.com/", Some("a=1; Path=/private"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/public", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_cookie_lifecycle",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not valid for path"));
     }
@@ -391,13 +453,19 @@ mod tests {
     fn path_prefix_boundary_flagged() {
         // /foo should not match /foobar
         let rule = StatefulCookieLifecycle;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev = make_resp_tx("https://example.com/", Some("a=1; Path=/foo"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/foobar", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_cookie_lifecycle",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not valid for path"));
     }
@@ -405,7 +473,6 @@ mod tests {
     #[test]
     fn domain_mismatch_ignored() {
         let rule = StatefulCookieLifecycle;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let ts = Utc::now();
         let prev = make_resp_tx(
             "https://example.com/",
@@ -415,7 +482,14 @@ mod tests {
         let mut tx = make_tx_with_req("https://other.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_cookie_lifecycle",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         // request to other.com should not be influenced by cookie from example.com
         assert!(
             v.is_none(),

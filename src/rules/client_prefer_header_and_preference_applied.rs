@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct ClientPreferHeaderAndPreferenceApplied;
 
 impl Rule for ClientPreferHeaderAndPreferenceApplied {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "client_prefer_header_and_preference_applied"
@@ -18,12 +18,14 @@ impl Rule for ClientPreferHeaderAndPreferenceApplied {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only meaningful when request includes Prefer and response is present
         let saw_prefer = tx
             .request
@@ -86,7 +88,7 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = ClientPreferHeaderAndPreferenceApplied;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
 
@@ -103,10 +105,11 @@ mod tests {
             );
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some());
@@ -121,7 +124,7 @@ mod tests {
         use hyper::header::HeaderValue;
 
         let rule = ClientPreferHeaderAndPreferenceApplied;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.request.headers =
@@ -135,10 +138,11 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         // treat non-utf8 header as present -> no violation from this rule
         assert!(v.is_none());
@@ -157,7 +161,7 @@ mod tests {
         use hyper::header::HeaderValue;
 
         let rule = ClientPreferHeaderAndPreferenceApplied;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         // non-utf8 Prefer header should be ignored and not cause a missing Preference-Applied warning
@@ -165,10 +169,11 @@ mod tests {
         hm.insert("prefer", HeaderValue::from_bytes(&[0xff]).unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -177,7 +182,7 @@ mod tests {
     #[test]
     fn multiple_prefer_headers_some_empty_some_valid() -> anyhow::Result<()> {
         let rule = ClientPreferHeaderAndPreferenceApplied;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
@@ -185,10 +190,11 @@ mod tests {
             ("Prefer", "respond-async"),
         ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -197,15 +203,16 @@ mod tests {
     #[test]
     fn empty_prefer_header_only_is_ignored() -> anyhow::Result<()> {
         let rule = ClientPreferHeaderAndPreferenceApplied;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("Prefer", "")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())

@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct ServerRedirectStatusAndLocationValidity;
 
 impl Rule for ServerRedirectStatusAndLocationValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "server_redirect_status_and_location_validity"
@@ -18,12 +18,14 @@ impl Rule for ServerRedirectStatusAndLocationValidity {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // If response has a Location header but the status code is not one
         // that normally indicates a redirect or created resource, report it.
         if let Some(resp) = &tx.response {
@@ -69,7 +71,7 @@ mod tests {
         #[case] expect_violation: bool,
     ) {
         let rule = ServerRedirectStatusAndLocationValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
         if let Some(l) = loc {
@@ -77,10 +79,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("location", l)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -103,13 +106,14 @@ mod tests {
     #[test]
     fn no_response_is_ignored() {
         let rule = ServerRedirectStatusAndLocationValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

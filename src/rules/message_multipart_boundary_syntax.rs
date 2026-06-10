@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageMultipartBoundarySyntax;
 
 impl Rule for MessageMultipartBoundarySyntax {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_multipart_boundary_syntax"
@@ -18,16 +18,18 @@ impl Rule for MessageMultipartBoundarySyntax {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check request Content-Type
         if let Some(hv) = tx.request.headers.get("content-type") {
             if let Ok(s) = hv.to_str() {
-                if let Some(v) = check_multipart_boundary("request", s, config) {
+                if let Some(v) = check_multipart_boundary("request", s, &config) {
                     return Some(v);
                 }
             }
@@ -37,7 +39,7 @@ impl Rule for MessageMultipartBoundarySyntax {
         if let Some(resp) = &tx.response {
             if let Some(hv) = resp.headers.get("content-type") {
                 if let Ok(s) = hv.to_str() {
-                    if let Some(v) = check_multipart_boundary("response", s, config) {
+                    if let Some(v) = check_multipart_boundary("response", s, &config) {
                         return Some(v);
                     }
                 }
@@ -242,7 +244,9 @@ mod tests {
     #[case(Some("multipart/mixed; boundary=\"abc \""), true)]
     #[case(None, false)]
     fn multipart_boundary_cases(#[case] header: Option<&str>, #[case] expect_violation: bool) {
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_multipart_boundary_syntax",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         if let Some(h) = header {
@@ -250,10 +254,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", h)]);
         }
 
-        let v = MessageMultipartBoundarySyntax.check_transaction(
+        let v = MessageMultipartBoundarySyntax.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for {:?}", header);
@@ -267,16 +272,19 @@ mod tests {
         }
 
         // Also test response
-        let cfg2 = crate::test_helpers::make_test_rule_config();
+        let cfg2 = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_multipart_boundary_syntax",
+        ]);
         let mut tx2 = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         if let Some(h) = header {
             tx2.response.as_mut().unwrap().headers =
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", h)]);
         }
-        let v2 = MessageMultipartBoundarySyntax.check_transaction(
+        let v2 = MessageMultipartBoundarySyntax.check(
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg2,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v2.is_some(), "expected violation for response {:?}", header);
@@ -293,31 +301,37 @@ mod tests {
     #[test]
     fn parse_media_type_error_no_violation() {
         // malformed Content-Type that fails parse_media_type should not cause this rule to run
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_multipart_boundary_syntax",
+        ]);
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "not-a-media-type")]);
-        let v = MessageMultipartBoundarySyntax.check_transaction(
+        let v = MessageMultipartBoundarySyntax.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
 
     #[test]
     fn quoted_string_unterminated_reports_violation() {
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_multipart_boundary_syntax",
+        ]);
         let mut tx = crate::test_helpers::make_test_transaction();
         // boundary quoted-string not terminated
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
             "content-type",
             "multipart/mixed; boundary=\"unfinished",
         )]);
-        let v = MessageMultipartBoundarySyntax.check_transaction(
+        let v = MessageMultipartBoundarySyntax.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -326,33 +340,39 @@ mod tests {
 
     #[test]
     fn non_multipart_ignored() {
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_multipart_boundary_syntax",
+        ]);
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
             "content-type",
             "text/plain; boundary=abc",
         )]);
-        let v = MessageMultipartBoundarySyntax.check_transaction(
+        let v = MessageMultipartBoundarySyntax.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
 
     #[test]
     fn quoted_string_invalid_char_reports_violation() {
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_multipart_boundary_syntax",
+        ]);
         let mut tx = crate::test_helpers::make_test_transaction();
         // $ is not permitted in bchars set
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
             "content-type",
             "multipart/mixed; boundary=\"bad$\"",
         )]);
-        let v = MessageMultipartBoundarySyntax.check_transaction(
+        let v = MessageMultipartBoundarySyntax.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;

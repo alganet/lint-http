@@ -14,7 +14,7 @@ use crate::rules::Rule;
 pub struct MessageCachingDirectiveInteraction;
 
 impl Rule for MessageCachingDirectiveInteraction {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_caching_directive_interaction"
@@ -24,12 +24,14 @@ impl Rule for MessageCachingDirectiveInteraction {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Helper to check a single HeaderMap for contradictions
         let check_headers = |hdrs: &hyper::HeaderMap| -> Option<Violation> {
             use crate::helpers::headers::split_commas_respecting_quotes;
@@ -177,12 +179,15 @@ mod tests {
     #[case("s-maxage=60, s-maxage=30", true)]
     fn request_cases(#[case] val: &str, #[case] expect_violation: bool) {
         let rule = MessageCachingDirectiveInteraction;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_caching_directive_interaction",
+        ]);
         let tx = make_req(val);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{}', got none", val);
@@ -200,12 +205,15 @@ mod tests {
     #[case("s-maxage=60, s-maxage=30", true)]
     fn response_cases(#[case] val: &str, #[case] expect_violation: bool) {
         let rule = MessageCachingDirectiveInteraction;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_caching_directive_interaction",
+        ]);
         let tx = make_resp(val);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{}', got none", val);
@@ -223,11 +231,14 @@ mod tests {
         hm.insert("cache-control", bad);
         tx.request.headers = hm;
         let rule = MessageCachingDirectiveInteraction;
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_caching_directive_interaction",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -236,11 +247,14 @@ mod tests {
     fn empty_member_is_violation() {
         let rule = MessageCachingDirectiveInteraction;
         let tx = make_req(",max-age=1");
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_caching_directive_interaction",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -249,11 +263,14 @@ mod tests {
     fn quoted_max_age_zero_no_violation() {
         let rule = MessageCachingDirectiveInteraction;
         let tx = make_req("no-cache, max-age=\"0\"");
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_caching_directive_interaction",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -262,16 +279,19 @@ mod tests {
     fn multiple_header_fields_combined_reports_violation() {
         use hyper::header::HeaderValue;
         let rule = MessageCachingDirectiveInteraction;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_caching_directive_interaction",
+        ]);
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = hyper::HeaderMap::new();
         hm.append("cache-control", HeaderValue::from_static("no-store"));
         hm.append("cache-control", HeaderValue::from_static("public"));
         tx.request.headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -280,11 +300,14 @@ mod tests {
     fn conflicting_max_age_values_reports_violation() {
         let rule = MessageCachingDirectiveInteraction;
         let tx = make_req("max-age=60, max-age=\"30\"");
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_caching_directive_interaction",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -293,11 +316,14 @@ mod tests {
     fn no_cache_control_header_no_violation() {
         let rule = MessageCachingDirectiveInteraction;
         let tx = crate::test_helpers::make_test_transaction();
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_caching_directive_interaction",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

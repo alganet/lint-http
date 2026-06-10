@@ -62,7 +62,7 @@ fn parse_allowed_config(
 pub struct MessageAuthSchemeIanaRegistered;
 
 impl Rule for MessageAuthSchemeIanaRegistered {
-    type Config = AuthSchemeConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_auth_scheme_iana_registered"
@@ -80,12 +80,14 @@ impl Rule for MessageAuthSchemeIanaRegistered {
         Ok(std::sync::Arc::new(parsed))
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = parse_allowed_config(cfg, self.id()).ok()?;
         // Helper to check a single scheme token against allowed list
         let check_scheme =
             |hdr_name: &str, scheme: &str, allowed: &Vec<String>| -> Option<Violation> {
@@ -178,16 +180,26 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    fn make_cfg() -> AuthSchemeConfig {
-        AuthSchemeConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-            allowed: vec![
-                "basic".to_string(),
-                "bearer".to_string(),
-                "digest".to_string(),
-            ],
-        }
+    fn make_cfg() -> crate::config::Config {
+        let mut cfg = crate::config::Config::default();
+        cfg.rules.insert(
+            "message_auth_scheme_iana_registered".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert("severity".into(), toml::Value::String("warn".into()));
+                t.insert(
+                    "allowed".into(),
+                    toml::Value::Array(vec![
+                        toml::Value::String("basic".into()),
+                        toml::Value::String("bearer".into()),
+                        toml::Value::String("digest".into()),
+                    ]),
+                );
+                t
+            }),
+        );
+        cfg
     }
 
     #[rstest]
@@ -206,10 +218,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("www-authenticate", v)]);
         }
 
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(violation.is_some());
@@ -234,10 +247,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("authorization", v)]);
         }
 
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(violation.is_some());
@@ -279,10 +293,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("www-authenticate", " realm=\"x\"")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v
@@ -308,10 +323,11 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-UTF8"));
@@ -334,10 +350,11 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-UTF8"));
@@ -352,10 +369,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("authorization", "Basic")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid Authorization header"));
@@ -462,10 +480,11 @@ mod tests {
             "Basic realm=\"x\", NewScheme abc=",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -491,10 +510,11 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -510,10 +530,11 @@ mod tests {
             "bAsIc realm=\"x\"",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -539,10 +560,11 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -558,10 +580,11 @@ mod tests {
             "bAsIc QWxhZGRpbjpvcGVuIHNlc2FtZQ==",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -583,18 +606,17 @@ mod tests {
                 t
             }),
         );
-        let parsed = parse_allowed_config(&cfgt, "message_auth_scheme_iana_registered")?;
-
         let mut tx = crate::test_helpers::make_test_transaction_with_response(401, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
             "www-authenticate",
             "Basic realm=\"x\"",
         )]);
 
-        let v = MessageAuthSchemeIanaRegistered.check_transaction(
+        let v = MessageAuthSchemeIanaRegistered.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &parsed,
+            &cfgt,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())

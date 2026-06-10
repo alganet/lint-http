@@ -58,7 +58,7 @@ const PROHIBITED_TRAILER_FIELDS: &[&str] = &[
 pub struct MessageTrailerFieldsValidity;
 
 impl Rule for MessageTrailerFieldsValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_trailer_fields_validity"
@@ -68,18 +68,20 @@ impl Rule for MessageTrailerFieldsValidity {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check request trailers.
         if let Some(ref trailers) = tx.request.trailers {
             let declared = collect_declared_trailers(&tx.request.headers);
             let conn_val =
                 crate::helpers::headers::get_header_str(&tx.request.headers, "connection");
-            if let Some(v) = check_trailers(self.id(), config, trailers, &declared, conn_val) {
+            if let Some(v) = check_trailers(self.id(), &config, trailers, &declared, conn_val) {
                 return Some(v);
             }
         }
@@ -89,7 +91,7 @@ impl Rule for MessageTrailerFieldsValidity {
             if let Some(ref trailers) = resp.trailers {
                 let declared = collect_declared_trailers(&resp.headers);
                 let conn_val = crate::helpers::headers::get_header_str(&resp.headers, "connection");
-                if let Some(v) = check_trailers(self.id(), config, trailers, &declared, conn_val) {
+                if let Some(v) = check_trailers(self.id(), &config, trailers, &declared, conn_val) {
                     return Some(v);
                 }
             }
@@ -203,14 +205,15 @@ fn check_trailers(
 mod tests {
     use super::*;
     use crate::test_helpers::{
-        make_headers_from_pairs, make_test_rule_config, make_test_transaction,
-        make_test_transaction_with_response,
+        make_headers_from_pairs, make_test_transaction, make_test_transaction_with_response,
     };
     use crate::transaction_history::TransactionHistory;
     use rstest::rstest;
 
-    fn cfg() -> crate::rules::RuleConfig {
-        make_test_rule_config()
+    fn cfg() -> crate::config::Config {
+        crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_trailer_fields_validity",
+        ])
     }
 
     fn empty_history() -> TransactionHistory {
@@ -264,7 +267,12 @@ mod tests {
         );
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(
             v.is_some(),
             "expected violation for prohibited trailer '{field}'"
@@ -291,7 +299,12 @@ mod tests {
         );
         tx.request.trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(
             v.is_some(),
             "expected violation for prohibited request trailer '{field}'"
@@ -309,7 +322,12 @@ mod tests {
         trailers.insert("x-checksum", "abc123".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -321,7 +339,12 @@ mod tests {
         trailers.insert("x-checksum", "abc123".parse().unwrap());
         tx.request.trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -331,7 +354,12 @@ mod tests {
     fn no_trailers_no_violation() {
         let rule = MessageTrailerFieldsValidity;
         let tx = make_test_transaction_with_response(200, &[]);
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -339,7 +367,12 @@ mod tests {
     fn request_only_no_trailers_no_violation() {
         let rule = MessageTrailerFieldsValidity;
         let tx = make_test_transaction();
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -353,7 +386,12 @@ mod tests {
         trailers.insert("x-signature", "sig-value".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not declared"));
     }
@@ -367,7 +405,12 @@ mod tests {
         trailers.insert("x-signature", "sig-value".parse().unwrap());
         tx.request.trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not declared"));
     }
@@ -380,7 +423,12 @@ mod tests {
         trailers.insert("x-checksum", "abc123".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -392,7 +440,12 @@ mod tests {
         trailers.insert("x-checksum", "abc123".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -406,7 +459,12 @@ mod tests {
         trailers.insert("x-signature", "sig-value".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -421,7 +479,12 @@ mod tests {
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
         // No Trailer header → declared is empty → undeclared check skipped
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -435,7 +498,12 @@ mod tests {
         trailers.insert("content-length", "42".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("prohibited"));
     }
@@ -450,7 +518,12 @@ mod tests {
         trailers.insert("x-custom-hop", "value".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("hop-by-hop"));
     }
@@ -464,7 +537,12 @@ mod tests {
         trailers.insert("x-req-hop", "value".parse().unwrap());
         tx.request.trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("hop-by-hop"));
     }
@@ -477,7 +555,12 @@ mod tests {
         trailers.insert("x-custom-hop", "value".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("hop-by-hop"));
     }
@@ -490,7 +573,12 @@ mod tests {
         trailers.insert("x-other", "value".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -504,7 +592,12 @@ mod tests {
         trailers.insert("transfer-encoding", "chunked".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         // Should say "prohibited", not "hop-by-hop", since static check runs first.
         assert!(v.unwrap().message.contains("prohibited"));
@@ -527,7 +620,12 @@ mod tests {
         resp_trailers.insert("x-checksum", "abc".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(resp_trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("host"));
     }
@@ -554,7 +652,12 @@ mod tests {
         trailers.insert("x-signature", "sig".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -566,7 +669,12 @@ mod tests {
         let mut tx = make_test_transaction_with_response(200, &[("trailer", "x-checksum")]);
         tx.response.as_mut().unwrap().trailers = Some(hyper::HeaderMap::new());
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -582,7 +690,12 @@ mod tests {
         trailers.insert("x-checksum", "abc".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not declared"));
     }
@@ -598,7 +711,12 @@ mod tests {
         trailers.insert("etag", "\"abc\"".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -610,7 +728,12 @@ mod tests {
         trailers.insert("server-timing", "db;dur=53".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -623,7 +746,12 @@ mod tests {
         trailers.insert("transfer-encoding", "chunked".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("prohibited"));
     }
@@ -638,7 +766,12 @@ mod tests {
         trailers.insert("x-extra", "extra".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not declared"));
     }
@@ -660,7 +793,12 @@ mod tests {
         trailers.insert("content-type", "text/plain".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("prohibited"));
     }
@@ -678,7 +816,12 @@ mod tests {
         resp_trailers.insert("content-length", "99".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(resp_trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("authorization"));
     }
@@ -696,7 +839,12 @@ mod tests {
         resp_trailers.insert("date", "Sat, 01 Jan 2026 00:00:00 GMT".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(resp_trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("date"));
     }
@@ -714,7 +862,12 @@ mod tests {
         trailers.insert("server-timing", "total;dur=100".parse().unwrap());
         tx.response.as_mut().unwrap().trailers = Some(trailers);
 
-        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        let v = rule.check(
+            &tx,
+            &empty_history(),
+            &cfg(),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 

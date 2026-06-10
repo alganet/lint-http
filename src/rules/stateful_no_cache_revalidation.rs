@@ -32,7 +32,7 @@ use crate::rules::Rule;
 pub struct StatefulNoCacheRevalidation;
 
 impl Rule for StatefulNoCacheRevalidation {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_no_cache_revalidation"
@@ -44,12 +44,14 @@ impl Rule for StatefulNoCacheRevalidation {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // locate the most recent past response with a no-cache directive.
         let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
         for past in history.iter() {
@@ -123,10 +125,13 @@ mod tests {
     fn no_history_no_violation() {
         let rule = StatefulNoCacheRevalidation;
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_no_cache_revalidation",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -177,8 +182,14 @@ mod tests {
         tx.request.uri = "/resource".to_string();
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v =
-            rule.check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_no_cache_revalidation",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("no-cache"));
     }
@@ -197,7 +208,14 @@ mod tests {
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config())
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_no_cache_revalidation"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
             .is_none());
     }
 
@@ -213,7 +231,14 @@ mod tests {
 
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check_transaction(&tx, &history, &crate::test_helpers::make_test_rule_config())
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_no_cache_revalidation"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
             .is_none());
     }
 

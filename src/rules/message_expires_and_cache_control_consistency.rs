@@ -13,7 +13,7 @@ use chrono::{DateTime, Utc};
 pub struct MessageExpiresAndCacheControlConsistency;
 
 impl Rule for MessageExpiresAndCacheControlConsistency {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_expires_and_cache_control_consistency"
@@ -23,12 +23,14 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
             Some(r) => r,
             None => return None,
@@ -161,7 +163,7 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_rule_config, make_test_transaction_with_response};
+    use crate::test_helpers::make_test_transaction_with_response;
     use rstest::rstest;
 
     #[rstest]
@@ -188,11 +190,14 @@ mod tests {
 
         let tx = make_test_transaction_with_response(200, &headers);
         let rule = MessageExpiresAndCacheControlConsistency;
-        let cfg = make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_expires_and_cache_control_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for headers={:?}", headers);
@@ -227,11 +232,14 @@ mod tests {
             ],
         );
         let rule = MessageExpiresAndCacheControlConsistency;
-        let cfg = make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_expires_and_cache_control_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -244,11 +252,14 @@ mod tests {
             &[("cache-control", "max-age=60"), ("expires", "not-a-date")],
         );
         let rule = MessageExpiresAndCacheControlConsistency;
-        let cfg = make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_expires_and_cache_control_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         // invalid Expires is left to other rules; this rule returns None
         assert!(v.is_none());
@@ -266,11 +277,14 @@ mod tests {
             ],
         );
         let rule = MessageExpiresAndCacheControlConsistency;
-        let cfg = make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_expires_and_cache_control_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -290,11 +304,14 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
         let rule = MessageExpiresAndCacheControlConsistency;
-        let cfg = make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_expires_and_cache_control_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         // non-UTF8 cache-control means cc_present stays false -> no violation
         assert!(v.is_none());
@@ -312,11 +329,14 @@ mod tests {
             ],
         );
         let rule = MessageExpiresAndCacheControlConsistency;
-        let cfg = make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_expires_and_cache_control_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -338,11 +358,14 @@ mod tests {
             &[("cache-control", "no-cache"), ("expires", &expires)],
         );
         let rule = MessageExpiresAndCacheControlConsistency;
-        let cfg = make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_expires_and_cache_control_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some(), "got {:?}", v);
         Ok(())
@@ -380,11 +403,14 @@ mod tests {
             ],
         );
         let rule = MessageExpiresAndCacheControlConsistency;
-        let cfg = make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_expires_and_cache_control_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -404,11 +430,14 @@ mod tests {
             &[("cache-control", "no-store"), ("expires", &expires)],
         );
         let rule = MessageExpiresAndCacheControlConsistency;
-        let cfg = make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_expires_and_cache_control_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -478,11 +507,14 @@ mod tests {
         );
 
         let rule = MessageExpiresAndCacheControlConsistency;
-        let cfg = make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_expires_and_cache_control_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -499,11 +531,14 @@ mod tests {
         hm.insert("expires", bad);
         tx.response.as_mut().unwrap().headers = hm;
         let rule = MessageExpiresAndCacheControlConsistency;
-        let cfg = make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_expires_and_cache_control_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         // non-UTF8 expires means has_expires stays false -> no violation
         assert!(v.is_none());

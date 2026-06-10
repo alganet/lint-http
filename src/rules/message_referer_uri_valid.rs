@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageRefererUriValid;
 
 impl Rule for MessageRefererUriValid {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_referer_uri_valid"
@@ -19,12 +19,14 @@ impl Rule for MessageRefererUriValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req = &tx.request;
 
         for hv in req.headers.get_all("referer").iter() {
@@ -98,15 +100,16 @@ mod tests {
     fn check_referer_header(#[case] referer: &str, #[case] expect_violation: bool) {
         let rule = MessageRefererUriValid;
         let tx = make_tx_with_referer(referer);
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_referer_uri_valid",
+            "warn",
+        );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{}'", referer);
@@ -127,15 +130,16 @@ mod tests {
         );
         tx.request.headers = headers;
 
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_referer_uri_valid",
+            "warn",
+        );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("not valid UTF-8"));
@@ -148,15 +152,16 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("referer", "1http://ex")]);
 
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_referer_uri_valid",
+            "warn",
+        );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid scheme"));
@@ -169,15 +174,16 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("referer", "ht!tp://ex")]);
 
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_referer_uri_valid",
+            "warn",
+        );
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid character"));
@@ -191,14 +197,15 @@ mod tests {
         headers.append("referer", "bad%ZZ".parse().unwrap());
         tx.request.headers = headers;
 
-        let config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-        };
-        let v = rule.check_transaction(
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_referer_uri_valid",
+            "warn",
+        );
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid percent-encoding"));

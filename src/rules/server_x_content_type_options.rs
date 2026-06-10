@@ -60,7 +60,7 @@ fn parse_x_content_type_options_config(
 }
 
 impl Rule for ServerXContentTypeOptions {
-    type Config = XContentTypeOptionsConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "server_x_content_type_options"
@@ -78,12 +78,14 @@ impl Rule for ServerXContentTypeOptions {
         Ok(std::sync::Arc::new(parsed))
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = parse_x_content_type_options_config(cfg, self.id()).ok()?;
         let Some(resp) = &tx.response else {
             return None;
         };
@@ -134,11 +136,25 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = ServerXContentTypeOptions;
 
-        let config = super::XContentTypeOptionsConfig {
-            enabled: true,
-            content_types: content_types.iter().map(|s| s.to_string()).collect(),
-            severity: crate::lint::Severity::Warn,
-        };
+        let mut config = crate::config::Config::default();
+        config.rules.insert(
+            "server_x_content_type_options".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert("severity".into(), toml::Value::String("warn".into()));
+                t.insert(
+                    "content_types".into(),
+                    toml::Value::Array(
+                        content_types
+                            .iter()
+                            .map(|s| toml::Value::String(s.to_string()))
+                            .collect(),
+                    ),
+                );
+                t
+            }),
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
@@ -150,10 +166,11 @@ mod tests {
             trailers: None,
         });
 
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -270,23 +287,21 @@ mod tests {
         let rule = ServerXContentTypeOptions;
 
         let status = 200;
-        let mut cfg = crate::config::Config::default();
+        let mut config = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        table.insert(
+            "severity".to_string(),
+            toml::Value::String("warn".to_string()),
+        );
         table.insert(
             "content_types".to_string(),
             toml::Value::Array(vec![toml::Value::String("text/html".to_string())]),
         );
-        cfg.rules.insert(
+        config.rules.insert(
             "server_x_content_type_options".to_string(),
             toml::Value::Table(table),
         );
-
-        let config = super::XContentTypeOptionsConfig {
-            enabled: true,
-            content_types: vec!["text/html".to_string()],
-            severity: crate::lint::Severity::Warn,
-        };
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
@@ -301,10 +316,11 @@ mod tests {
             trailers: None,
         });
 
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_some());
         Ok(())
@@ -314,15 +330,26 @@ mod tests {
     fn check_missing_response() {
         let rule = ServerXContentTypeOptions;
         let tx = crate::test_helpers::make_test_transaction();
-        let config = super::XContentTypeOptionsConfig {
-            enabled: true,
-            content_types: vec!["text/html".to_string()],
-            severity: crate::lint::Severity::Warn,
-        };
-        let violation = rule.check_transaction(
+        let mut config = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        table.insert(
+            "severity".to_string(),
+            toml::Value::String("warn".to_string()),
+        );
+        table.insert(
+            "content_types".to_string(),
+            toml::Value::Array(vec![toml::Value::String("text/html".to_string())]),
+        );
+        config.rules.insert(
+            "server_x_content_type_options".to_string(),
+            toml::Value::Table(table),
+        );
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_none());
     }

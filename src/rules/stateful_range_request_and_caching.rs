@@ -29,7 +29,7 @@ use crate::rules::Rule;
 pub struct StatefulRangeRequestAndCaching;
 
 impl Rule for StatefulRangeRequestAndCaching {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_range_request_and_caching"
@@ -39,12 +39,14 @@ impl Rule for StatefulRangeRequestAndCaching {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req = &tx.request;
         let has_range = req.headers.get("range").is_some();
         if !has_range {
@@ -148,15 +150,17 @@ mod tests {
     #[test]
     fn range_without_if_range_with_no_history_is_ok() {
         let rule = StatefulRangeRequestAndCaching;
-        let cfg = crate::test_helpers::make_test_rule_config();
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-0")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_range_request_and_caching",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -164,7 +168,6 @@ mod tests {
     #[test]
     fn range_without_if_range_after_partial_reports() {
         let rule = StatefulRangeRequestAndCaching;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut prev = make_prev_with_status_and_headers(206, &[("etag", "\"a\"")]);
         prev.request.uri = "/r".to_string();
@@ -176,10 +179,13 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-0")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_range_request_and_caching",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("missing If-Range"));
@@ -188,7 +194,6 @@ mod tests {
     #[test]
     fn range_with_matching_if_range_is_ok() {
         let rule = StatefulRangeRequestAndCaching;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut prev = make_prev_with_status_and_headers(206, &[("etag", "\"a\"")]);
         prev.request.uri = "/r".to_string();
@@ -202,10 +207,13 @@ mod tests {
             ("if-range", "\"a\""),
         ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_range_request_and_caching",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -213,7 +221,6 @@ mod tests {
     #[test]
     fn last_modified_validator_matching_if_range_is_ok() {
         let rule = StatefulRangeRequestAndCaching;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut prev = make_prev_with_status_and_headers(
             206,
@@ -230,10 +237,13 @@ mod tests {
             ("if-range", "Wed, 21 Oct 2015 07:28:00 GMT"),
         ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_range_request_and_caching",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -241,7 +251,6 @@ mod tests {
     #[test]
     fn last_modified_validator_mismatch_reports() {
         let rule = StatefulRangeRequestAndCaching;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut prev = make_prev_with_status_and_headers(
             206,
@@ -258,10 +267,13 @@ mod tests {
             ("if-range", "Wed, 20 Oct 2015 07:28:00 GMT"),
         ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_range_request_and_caching",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("does not match"));
@@ -270,7 +282,6 @@ mod tests {
     #[test]
     fn range_with_mismatched_if_range_reports() {
         let rule = StatefulRangeRequestAndCaching;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut prev = make_prev_with_status_and_headers(206, &[("etag", "\"a\"")]);
         prev.request.uri = "/r".to_string();
@@ -284,10 +295,13 @@ mod tests {
             ("if-range", "\"b\""),
         ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_range_request_and_caching",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("does not match"));
@@ -296,7 +310,6 @@ mod tests {
     #[test]
     fn partial_without_validator_skips() {
         let rule = StatefulRangeRequestAndCaching;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut prev = make_prev_with_status_and_headers(206, &[]);
         prev.request.uri = "/r".to_string();
@@ -308,10 +321,13 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-0")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_range_request_and_caching",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -319,7 +335,6 @@ mod tests {
     #[test]
     fn previous_not_206_ignored() {
         let rule = StatefulRangeRequestAndCaching;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut prev = make_prev_with_status_and_headers(200, &[("etag", "\"a\"")]);
         prev.request.uri = "/r".to_string();
@@ -331,10 +346,13 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-0")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_range_request_and_caching",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -342,7 +360,6 @@ mod tests {
     #[test]
     fn weak_etag_in_prev_does_not_count_as_validator() {
         let rule = StatefulRangeRequestAndCaching;
-        let cfg = crate::test_helpers::make_test_rule_config();
 
         let mut prev = make_prev_with_status_and_headers(206, &[("etag", "W/\"weak\"")]);
         prev.request.uri = "/r".to_string();
@@ -354,10 +371,13 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-0")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_range_request_and_caching",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

@@ -9,7 +9,7 @@ use base64::Engine;
 pub struct ClientSecWebsocketHeadersConsistency;
 
 impl Rule for ClientSecWebsocketHeadersConsistency {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "client_sec_websocket_headers_consistency"
@@ -19,12 +19,14 @@ impl Rule for ClientSecWebsocketHeadersConsistency {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only consider WebSocket handshake requests: GET method and Upgrade includes 'websocket'
         if tx.request.method != "GET" {
             return None;
@@ -186,12 +188,12 @@ mod tests {
     ) {
         let rule = ClientSecWebsocketHeadersConsistency;
         let tx = make_ws_request(headers);
-        let mut cfg = crate::test_helpers::make_test_rule_config();
-        cfg.severity = crate::lint::Severity::Error;
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert_eq!(v.is_some(), expect_violation);
     }
@@ -203,13 +205,13 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("upgrade", "websocket")]);
         let rule = ClientSecWebsocketHeadersConsistency;
-        let mut cfg = crate::test_helpers::make_test_rule_config();
-        cfg.severity = crate::lint::Severity::Error;
+        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -219,13 +221,13 @@ mod tests {
         // Upgrade: h2
         let tx = make_ws_request(vec![("upgrade", "h2"), ("connection", "Upgrade")]);
         let rule = ClientSecWebsocketHeadersConsistency;
-        let mut cfg = crate::test_helpers::make_test_rule_config();
-        cfg.severity = crate::lint::Severity::Error;
+        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -239,12 +241,12 @@ mod tests {
             ("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ=="),
         ]);
         let rule = ClientSecWebsocketHeadersConsistency;
-        let mut cfg = crate::test_helpers::make_test_rule_config();
-        cfg.severity = crate::lint::Severity::Error;
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Connection: Upgrade"));
@@ -258,12 +260,12 @@ mod tests {
             ("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ=="),
         ]);
         let rule = ClientSecWebsocketHeadersConsistency;
-        let mut cfg = crate::test_helpers::make_test_rule_config();
-        cfg.severity = crate::lint::Severity::Error;
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Sec-WebSocket-Version"));
@@ -279,13 +281,13 @@ mod tests {
             ("sec-websocket-key", " dGhlIHNhbXBsZSBub25jZQ== "),
         ]);
         let rule = ClientSecWebsocketHeadersConsistency;
-        let mut cfg = crate::test_helpers::make_test_rule_config();
-        cfg.severity = crate::lint::Severity::Error;
+        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -315,12 +317,12 @@ mod tests {
         tx.request.headers = hm;
 
         let rule = ClientSecWebsocketHeadersConsistency;
-        let mut cfg = crate::test_helpers::make_test_rule_config();
-        cfg.severity = crate::lint::Severity::Error;
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Sec-WebSocket-Key"));
@@ -338,13 +340,13 @@ mod tests {
         tx.request.headers = hm;
 
         let rule = ClientSecWebsocketHeadersConsistency;
-        let mut cfg = crate::test_helpers::make_test_rule_config();
-        cfg.severity = crate::lint::Severity::Error;
+        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }

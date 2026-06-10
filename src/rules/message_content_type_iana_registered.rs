@@ -64,7 +64,7 @@ fn parse_allowed_config(
 pub struct MessageContentTypeIanaRegistered;
 
 impl Rule for MessageContentTypeIanaRegistered {
-    type Config = ContentTypeConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_content_type_iana_registered"
@@ -82,12 +82,14 @@ impl Rule for MessageContentTypeIanaRegistered {
         Ok(std::sync::Arc::new(parsed))
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = parse_allowed_config(cfg, self.id()).ok()?;
         let check_media_type =
             |hdr_name: &str, val: &str, allowed: &Vec<String>| -> Option<Violation> {
                 // Parse media-type; if it fails, let other rules (well-formed) report it.
@@ -156,17 +158,27 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    fn make_cfg() -> ContentTypeConfig {
-        ContentTypeConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-            allowed: vec![
-                "text/plain".to_string(),
-                "application/json".to_string(),
-                "image/*".to_string(),
-                "+json".to_string(),
-            ],
-        }
+    fn make_cfg() -> crate::config::Config {
+        let mut cfg = crate::config::Config::default();
+        cfg.rules.insert(
+            "message_content_type_iana_registered".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert("severity".into(), toml::Value::String("warn".into()));
+                t.insert(
+                    "allowed".into(),
+                    toml::Value::Array(vec![
+                        toml::Value::String("text/plain".into()),
+                        toml::Value::String("application/json".into()),
+                        toml::Value::String("image/*".into()),
+                        toml::Value::String("+json".into()),
+                    ]),
+                );
+                t
+            }),
+        );
+        cfg
     }
 
     #[rstest]
@@ -190,10 +202,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", v)]);
         }
 
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(violation.is_some());
@@ -221,10 +234,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", v)]);
         }
 
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(violation.is_some());
@@ -241,10 +255,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -252,20 +267,30 @@ mod tests {
     #[test]
     fn wildcard_allowed_accepts_any() {
         let rule = MessageContentTypeIanaRegistered;
-        let cfg = ContentTypeConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-            allowed: vec!["*/*".to_string()],
-        };
+        let mut cfg = crate::config::Config::default();
+        cfg.rules.insert(
+            "message_content_type_iana_registered".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert("severity".into(), toml::Value::String("warn".into()));
+                t.insert(
+                    "allowed".into(),
+                    toml::Value::Array(vec![toml::Value::String("*/*".into())]),
+                );
+                t
+            }),
+        );
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
             "content-type",
             "application/vnd.unknown",
         )]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -302,10 +327,11 @@ mod tests {
         tx1.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "application/json")]);
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx1,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
 
@@ -315,10 +341,11 @@ mod tests {
             "application/ld+json",
         )]);
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx2,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
     }
@@ -332,10 +359,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/x-custom")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -452,10 +480,11 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(b"\xff").unwrap(),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
 
@@ -467,10 +496,11 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(b"\xff").unwrap(),
         );
         tx2.request.headers = hm2;
-        let v2 = rule.check_transaction(
+        let v2 = rule.check(
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_none());
     }

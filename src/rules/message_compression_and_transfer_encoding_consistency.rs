@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageCompressionAndTransferEncodingConsistency;
 
 impl Rule for MessageCompressionAndTransferEncodingConsistency {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_compression_and_transfer_encoding_consistency"
@@ -18,12 +18,14 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to responses
         let resp = match &tx.response {
             Some(r) => r,
@@ -128,11 +130,14 @@ mod tests {
     ) {
         let tx = make_tx_with_headers(ce, te);
         let rule = MessageCompressionAndTransferEncodingConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_compression_and_transfer_encoding_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(
@@ -163,11 +168,14 @@ mod tests {
         tx.response.as_mut().unwrap().headers = hm;
 
         let rule = MessageCompressionAndTransferEncodingConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_compression_and_transfer_encoding_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -195,11 +203,14 @@ mod tests {
         );
 
         let rule = MessageCompressionAndTransferEncodingConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_compression_and_transfer_encoding_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         // Non-UTF8 content-encoding should be ignored and not cause a panic or violation
         assert!(v.is_none());
@@ -209,11 +220,14 @@ mod tests {
     fn overlapping_multiple_tokens_message_contains_both_sorted() {
         let tx = make_tx_with_headers(Some("gzip, br"), Some("br, gzip"));
         let rule = MessageCompressionAndTransferEncodingConsistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_compression_and_transfer_encoding_consistency",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;

@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct ServerNoBodyFor1xx204304;
 
 impl Rule for ServerNoBodyFor1xx204304 {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "server_no_body_for_1xx_204_304"
@@ -18,12 +18,14 @@ impl Rule for ServerNoBodyFor1xx204304 {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let Some(resp) = &tx.response else {
             return None;
         };
@@ -115,14 +117,15 @@ mod tests {
             trailers: None,
         });
 
-        let test_rule_config = crate::rules::RuleConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Error,
-        };
-        let violation = rule.check_transaction(
+        let test_rule_config = crate::test_helpers::make_test_config_with_severity(
+            "server_no_body_for_1xx_204_304",
+            "error",
+        );
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &test_rule_config,
+            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -143,13 +146,14 @@ mod tests {
     fn check_missing_response() {
         let rule = ServerNoBodyFor1xx204304;
         let tx = crate::test_helpers::make_test_transaction();
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::rules::RuleConfig {
-                enabled: true,
-                severity: crate::lint::Severity::Error,
-            },
+            &crate::test_helpers::make_test_config_with_severity(
+                "server_no_body_for_1xx_204_304",
+                "error",
+            ),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(violation.is_none());
     }

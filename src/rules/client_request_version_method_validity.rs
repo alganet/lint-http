@@ -26,7 +26,7 @@ use crate::rules::Rule;
 pub struct ClientRequestVersionMethodValidity;
 
 impl Rule for ClientRequestVersionMethodValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "client_request_version_method_validity"
@@ -36,12 +36,14 @@ impl Rule for ClientRequestVersionMethodValidity {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let method = tx.request.method.as_str();
 
         // Determine whether the request seems to include a body by looking at
@@ -109,11 +111,12 @@ mod tests {
     ) {
         let rule = ClientRequestVersionMethodValidity;
         let tx = make_tx_with_req(method, headers);
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -127,11 +130,12 @@ mod tests {
     fn invalid_content_length_is_ignored() {
         let rule = ClientRequestVersionMethodValidity;
         let tx = make_tx_with_req("GET", vec![("content-length", "not-a-number")]);
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -141,11 +145,12 @@ mod tests {
         let rule = ClientRequestVersionMethodValidity;
         let huge = "9".repeat(100);
         let tx = make_tx_with_req("GET", vec![("content-length", huge.as_str())]);
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -155,19 +160,21 @@ mod tests {
         let rule = ClientRequestVersionMethodValidity;
         let tx_empty = make_tx_with_req("GET", vec![("content-length", "")]);
         let tx_space = make_tx_with_req("GET", vec![("content-length", "   ")]);
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
-        let v_empty = rule.check_transaction(
+        let v_empty = rule.check(
             &tx_empty,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v_empty.is_none());
 
-        let v_space = rule.check_transaction(
+        let v_space = rule.check(
             &tx_space,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v_space.is_none());
     }
@@ -175,24 +182,26 @@ mod tests {
     #[test]
     fn violation_messages_are_informative() {
         let rule = ClientRequestVersionMethodValidity;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let tx = make_tx_with_req("GET", vec![("content-length", "10")]);
         let v = rule
-            .check_transaction(
+            .check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v.message.contains("GET request"));
 
         let tx2 = make_tx_with_req("TRACE", vec![("transfer-encoding", "chunked")]);
         let v2 = rule
-            .check_transaction(
+            .check(
                 &tx2,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             )
             .unwrap();
         assert!(v2.message.contains("TRACE request"));

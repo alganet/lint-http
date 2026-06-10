@@ -10,7 +10,7 @@ use crate::rules::Rule;
 pub struct ClientPatchMethodContentTypeMatch;
 
 impl Rule for ClientPatchMethodContentTypeMatch {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "client_patch_method_content_type_match"
@@ -20,12 +20,14 @@ impl Rule for ClientPatchMethodContentTypeMatch {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to PATCH requests
         if !tx.request.method.eq_ignore_ascii_case("PATCH") {
             return None;
@@ -202,7 +204,7 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         // Build current PATCH request
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -224,7 +226,7 @@ mod tests {
             Some(p) => crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
             None => crate::transaction_history::TransactionHistory::empty(),
         };
-        let v = rule.check_transaction(&tx, &history, &cfg);
+        let v = rule.check(&tx, &history, &cfg, &crate::rules::RuleConfigEngine::new());
         if expect_violation {
             assert!(v.is_some());
         } else {
@@ -236,7 +238,7 @@ mod tests {
     #[test]
     fn multiple_accept_patch_fields_are_merged() -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.method = "PATCH".into();
@@ -261,10 +263,11 @@ mod tests {
         prev.request.uri = tx.request.uri.clone();
         prev.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -273,7 +276,7 @@ mod tests {
     #[test]
     fn malformed_accept_patch_reports_violation() -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut prev = make_prev_with_accept_patch(Some("badmedia"));
         prev.request.uri = crate::test_helpers::make_test_transaction()
@@ -288,10 +291,11 @@ mod tests {
             "application/example-patch+json",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -302,7 +306,7 @@ mod tests {
     #[test]
     fn trailing_comma_in_accept_patch_is_violation() -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut prev = make_prev_with_accept_patch(Some("application/json,"));
         prev.request.uri = crate::test_helpers::make_test_transaction()
@@ -315,10 +319,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "application/json")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -329,7 +334,7 @@ mod tests {
     #[test]
     fn bad_and_good_accept_patch_accepts_if_one_valid() -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut prev = make_prev_with_accept_patch(Some("badmedia, application/merge-patch+json"));
         prev.request.uri = crate::test_helpers::make_test_transaction()
@@ -344,10 +349,11 @@ mod tests {
             "application/merge-patch+json",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -356,7 +362,7 @@ mod tests {
     #[test]
     fn wildcard_accept_patch_matches_type_star() -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut prev = make_prev_with_accept_patch(Some("application/*"));
         prev.request.uri = crate::test_helpers::make_test_transaction()
@@ -371,10 +377,11 @@ mod tests {
             "application/example+json",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -383,7 +390,7 @@ mod tests {
     #[test]
     fn accept_patch_with_params_is_accepted() -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut prev = make_prev_with_accept_patch(Some("application/merge-patch+json; version=1"));
         prev.request.uri = crate::test_helpers::make_test_transaction()
@@ -398,10 +405,11 @@ mod tests {
             "application/merge-patch+json",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -410,7 +418,7 @@ mod tests {
     #[test]
     fn star_star_accept_patch_matches_any() -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut prev = make_prev_with_accept_patch(Some("*/*"));
         prev.request.uri = crate::test_helpers::make_test_transaction()
@@ -425,10 +433,11 @@ mod tests {
             "application/merge-patch+json",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -437,7 +446,7 @@ mod tests {
     #[test]
     fn whitespace_only_accept_patch_reports_violation() -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut prev = make_prev_with_accept_patch(Some("   "));
         prev.request.uri = crate::test_helpers::make_test_transaction()
@@ -452,10 +461,11 @@ mod tests {
             "application/merge-patch+json",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         // whitespace-only header triggers empty token detection and thus a violation
         assert!(v.is_some());
@@ -465,7 +475,7 @@ mod tests {
     #[test]
     fn request_content_type_non_utf8_is_treated_as_missing() -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut prev = make_prev_with_accept_patch(Some("application/merge-patch+json"));
         prev.request.uri = crate::test_helpers::make_test_transaction()
@@ -481,10 +491,11 @@ mod tests {
         hm.insert("content-type", HeaderValue::from_bytes(&[0xff]).unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -493,7 +504,7 @@ mod tests {
     #[test]
     fn malformed_request_content_type_is_ignored_and_no_violation() -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut prev = make_prev_with_accept_patch(Some("application/merge-patch+json"));
         prev.request.uri = crate::test_helpers::make_test_transaction()
@@ -506,10 +517,11 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "bad")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         // malformed Content-Type is delegated to other rules; this rule should not emit a violation
         assert!(v.is_none());
@@ -519,7 +531,7 @@ mod tests {
     #[test]
     fn non_utf8_accept_patch_is_violation() -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         use hyper::header::HeaderValue;
         use hyper::HeaderMap;
 
@@ -541,10 +553,11 @@ mod tests {
             "application/example-patch+json",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -561,7 +574,7 @@ mod tests {
     #[test]
     fn non_patch_requests_are_ignored() -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.method = "GET".into();
@@ -569,10 +582,11 @@ mod tests {
         let mut prev = make_prev_with_accept_patch(Some("application/merge-patch+json"));
         prev.request.uri = tx.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -581,7 +595,7 @@ mod tests {
     #[test]
     fn previous_without_response_is_ignored() -> anyhow::Result<()> {
         let rule = ClientPatchMethodContentTypeMatch;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.method = "PATCH".into();
@@ -594,10 +608,11 @@ mod tests {
         let mut prev = crate::test_helpers::make_test_transaction();
         prev.request.uri = tx.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())

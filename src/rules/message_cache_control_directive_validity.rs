@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageCacheControlDirectiveValidity;
 
 impl Rule for MessageCacheControlDirectiveValidity {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_cache_control_directive_validity"
@@ -18,12 +18,14 @@ impl Rule for MessageCacheControlDirectiveValidity {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Apply to both request and response messages
         for header_val in tx.request.headers.get_all("cache-control").iter() {
             if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
@@ -237,10 +239,11 @@ mod tests {
     fn request_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req(value);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{}', got none", value);
@@ -266,10 +269,11 @@ mod tests {
     fn response_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_resp(value);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{}', got none", value);
@@ -286,10 +290,11 @@ mod tests {
             ("cache-control", "no-cache"),
             ("cache-control", "max-age=60"),
         ]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -304,10 +309,11 @@ mod tests {
         let mut hm = hyper::HeaderMap::new();
         hm.insert("cache-control", bad);
         tx.request.headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -317,10 +323,11 @@ mod tests {
     fn whitespace_only_request_is_violation() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req("   ");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -333,10 +340,11 @@ mod tests {
     fn whitespace_only_response_is_violation() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_resp("   ");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -349,10 +357,11 @@ mod tests {
     fn private_unterminated_quoted_reports_violation() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req("private=\"unterminated");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -367,10 +376,11 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("cache-control", ",max-age=1")]);
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -403,10 +413,11 @@ mod tests {
     fn foo_empty_value_allowed() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req("foo=");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -416,10 +427,11 @@ mod tests {
     fn foo_quoted_value_allowed() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req("foo=\"bar\"");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -429,10 +441,11 @@ mod tests {
     fn directive_value_invalid_token() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req("foo=bad@val");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -442,10 +455,11 @@ mod tests {
     fn max_age_too_large_is_violation() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req("max-age=18446744073709551616");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -455,10 +469,11 @@ mod tests {
     fn empty_directive_name_is_violation() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req("=bar");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -468,10 +483,11 @@ mod tests {
     fn private_quoted_empty_field_is_violation() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req("private=\"field1,,field3\"");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -481,10 +497,11 @@ mod tests {
     fn private_quoted_invalid_field_char_is_violation() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req("private=\"field1,bad@field\"");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -506,10 +523,11 @@ mod tests {
             body_length: None,
             trailers: None,
         });
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -519,10 +537,11 @@ mod tests {
     fn whitespace_around_name_value_accepted() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req(" max-age = 3600 ");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -532,10 +551,11 @@ mod tests {
     fn quoted_string_with_extra_chars_reports_violation() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req("foo=\"bar\"x");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -545,10 +565,11 @@ mod tests {
     fn multiple_directives_unquoted_comma_accepted() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req("foo=bar,baz");
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())

@@ -64,7 +64,7 @@ fn parse_allowed_config(
 pub struct MessageContentEncodingIanaRegistered;
 
 impl Rule for MessageContentEncodingIanaRegistered {
-    type Config = ContentEncodingConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_content_encoding_iana_registered"
@@ -82,12 +82,14 @@ impl Rule for MessageContentEncodingIanaRegistered {
         Ok(std::sync::Arc::new(parsed))
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = parse_allowed_config(cfg, self.id()).ok()?;
         // Helper to check a single header value against allowed list
         let check_value = |hdr_name: &str, val: &str, allowed: &Vec<String>| -> Option<Violation> {
             for part in crate::helpers::headers::parse_list_header(val) {
@@ -148,17 +150,27 @@ mod tests {
     use hyper::header::HeaderValue;
     use rstest::rstest;
 
-    fn make_cfg() -> ContentEncodingConfig {
-        ContentEncodingConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-            allowed: vec![
-                "gzip".to_string(),
-                "br".to_string(),
-                "deflate".to_string(),
-                "zstd".to_string(),
-            ],
-        }
+    fn make_cfg() -> crate::config::Config {
+        let mut cfg = crate::config::Config::default();
+        cfg.rules.insert(
+            "message_content_encoding_iana_registered".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert("severity".into(), toml::Value::String("warn".into()));
+                t.insert(
+                    "allowed".into(),
+                    toml::Value::Array(vec![
+                        toml::Value::String("gzip".into()),
+                        toml::Value::String("br".into()),
+                        toml::Value::String("deflate".into()),
+                        toml::Value::String("zstd".into()),
+                    ]),
+                );
+                t
+            }),
+        );
+        cfg
     }
 
     #[rstest]
@@ -183,10 +195,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-encoding", v)]);
         }
 
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(violation.is_some());
@@ -216,10 +229,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("accept-encoding", v)]);
         }
 
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(violation.is_some());
@@ -409,10 +423,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "x!bad")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -438,10 +453,11 @@ mod tests {
             HeaderValue::from_bytes(b"\xff").unwrap(),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
 
@@ -450,10 +466,11 @@ mod tests {
         let mut hm2 = hyper::HeaderMap::new();
         hm2.insert("accept-encoding", HeaderValue::from_bytes(b"\xff").unwrap());
         tx2.request.headers = hm2;
-        let v2 = rule.check_transaction(
+        let v2 = rule.check(
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_none());
     }
@@ -477,16 +494,15 @@ mod tests {
             }),
         );
 
-        let parsed = parse_allowed_config(&full_cfg, "message_content_encoding_iana_registered")?;
-
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("accept-encoding", "x-custom;q=0.5")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &parsed,
+            &full_cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -512,16 +528,15 @@ mod tests {
             }),
         );
 
-        let parsed = parse_allowed_config(&full_cfg, "message_content_encoding_iana_registered")?;
-
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "x-custom")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &parsed,
+            &full_cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -536,20 +551,22 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "gzip, ")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
 
         let mut tx2 = crate::test_helpers::make_test_transaction();
         tx2.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("accept-encoding", "gzip, ")]);
-        let v2 = rule.check_transaction(
+        let v2 = rule.check(
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v2.is_none());
         Ok(())
@@ -564,10 +581,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "gzip; param=1")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -576,39 +594,55 @@ mod tests {
     #[test]
     fn iana_registry_entries_are_accepted() -> anyhow::Result<()> {
         let rule = MessageContentEncodingIanaRegistered;
-        let cfg = ContentEncodingConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Warn,
-            allowed: vec![
-                "aes128gcm",
-                "br",
-                "compress",
-                "dcb",
-                "dcz",
-                "deflate",
-                "exi",
-                "gzip",
-                "identity",
-                "pack200-gzip",
-                "x-compress",
-                "x-gzip",
-                "zstd",
-            ]
-            .iter()
-            .map(|s| s.to_string())
-            .collect(),
-        };
+        let codings: Vec<String> = vec![
+            "aes128gcm",
+            "br",
+            "compress",
+            "dcb",
+            "dcz",
+            "deflate",
+            "exi",
+            "gzip",
+            "identity",
+            "pack200-gzip",
+            "x-compress",
+            "x-gzip",
+            "zstd",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let mut cfg = crate::config::Config::default();
+        cfg.rules.insert(
+            "message_content_encoding_iana_registered".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert("severity".into(), toml::Value::String("warn".into()));
+                t.insert(
+                    "allowed".into(),
+                    toml::Value::Array(
+                        codings
+                            .iter()
+                            .map(|s| toml::Value::String(s.clone()))
+                            .collect(),
+                    ),
+                );
+                t
+            }),
+        );
 
-        for coding in &cfg.allowed {
+        for coding in &codings {
             // response
             let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
             tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(
                 &[("content-encoding", coding.as_str())],
             );
-            let v = rule.check_transaction(
+            let v = rule.check(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             );
             assert!(
                 v.is_none(),
@@ -622,10 +656,11 @@ mod tests {
                 "accept-encoding",
                 coding.as_str(),
             )]);
-            let v2 = rule.check_transaction(
+            let v2 = rule.check(
                 &tx2,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
+                &crate::rules::RuleConfigEngine::new(),
             );
             assert!(
                 v2.is_none(),
@@ -663,20 +698,30 @@ mod tests {
     #[test]
     fn unrecognized_content_coding_message_and_severity() -> anyhow::Result<()> {
         let rule = MessageContentEncodingIanaRegistered;
-        let cfg = ContentEncodingConfig {
-            enabled: true,
-            severity: crate::lint::Severity::Error,
-            allowed: vec!["gzip".to_string()],
-        };
+        let mut cfg = crate::config::Config::default();
+        cfg.rules.insert(
+            "message_content_encoding_iana_registered".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert("severity".into(), toml::Value::String("error".into()));
+                t.insert(
+                    "allowed".into(),
+                    toml::Value::Array(vec![toml::Value::String("gzip".into())]),
+                );
+                t
+            }),
+        );
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "x-foo")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();
@@ -698,10 +743,11 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-encoding", "x@bad")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let v = v.unwrap();

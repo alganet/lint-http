@@ -25,7 +25,7 @@ use crate::rules::Rule;
 pub struct StatefulSMaxAgeEnforcement;
 
 impl Rule for StatefulSMaxAgeEnforcement {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_s_max_age_enforcement"
@@ -36,12 +36,14 @@ impl Rule for StatefulSMaxAgeEnforcement {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // locate the most recent prior response with both s-maxage and a
         // larger max-age value.  s-maxage by itself is not actionable for this
         // check; we need a "real" private freshness lifetime to compare.
@@ -109,7 +111,7 @@ impl Rule for StatefulSMaxAgeEnforcement {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_test_rule_config, make_test_transaction_with_response};
+    use crate::test_helpers::make_test_transaction_with_response;
     use chrono::Utc;
 
     fn make_prev_with_headers(
@@ -128,10 +130,13 @@ mod tests {
     fn no_history_no_violation() {
         let rule = StatefulSMaxAgeEnforcement;
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_s_max_age_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -150,7 +155,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check_transaction(&tx, &history, &make_test_rule_config())
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_s_max_age_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
             .is_none());
     }
 
@@ -169,7 +181,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(6);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check_transaction(&tx, &history, &make_test_rule_config())
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_s_max_age_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
             .is_none());
 
         // max-age smaller than s-maxage also irrelevant
@@ -182,7 +201,14 @@ mod tests {
         tx2.timestamp = base + chrono::Duration::seconds(4);
         let history2 = crate::transaction_history::TransactionHistory::new(vec![prev2]);
         assert!(rule
-            .check_transaction(&tx2, &history2, &make_test_rule_config())
+            .check(
+                &tx2,
+                &history2,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_s_max_age_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
             .is_none());
     }
 
@@ -206,7 +232,14 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"e\"")]);
         tx.timestamp = base + chrono::Duration::seconds(20);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
-        let v = rule.check_transaction(&tx, &history, &make_test_rule_config());
+        let v = rule.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_s_max_age_enforcement",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("s-maxage=10"));
     }
@@ -231,7 +264,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check_transaction(&tx, &history, &make_test_rule_config())
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_s_max_age_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
             .is_some());
     }
 
@@ -255,7 +295,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(40);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check_transaction(&tx, &history, &make_test_rule_config())
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_s_max_age_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
             .is_none());
     }
 
@@ -277,7 +324,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(20);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check_transaction(&tx, &history, &make_test_rule_config())
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_s_max_age_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
             .is_none());
     }
 
@@ -303,7 +357,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(5);
         let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
         assert!(rule
-            .check_transaction(&tx, &history, &make_test_rule_config())
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_s_max_age_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
             .is_some());
     }
 
@@ -330,7 +391,14 @@ mod tests {
         // age clamped to 0, so current_age=0 < s_max_age -> no violation even though
         // the conditional header is present
         assert!(rule
-            .check_transaction(&tx, &history, &make_test_rule_config())
+            .check(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_s_max_age_enforcement"
+                ]),
+                &crate::rules::RuleConfigEngine::new()
+            )
             .is_none());
     }
 

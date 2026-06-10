@@ -14,7 +14,7 @@ use crate::rules::Rule;
 pub struct MessageSecFetchDestValueValid;
 
 impl Rule for MessageSecFetchDestValueValid {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_sec_fetch_dest_value_valid"
@@ -24,12 +24,14 @@ impl Rule for MessageSecFetchDestValueValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Sec-Fetch-* are request-sent headers; check only requests
         let headers = &tx.request.headers;
         let count = headers.get_all("sec-fetch-dest").iter().count();
@@ -128,7 +130,9 @@ mod tests {
     #[case(None, false)]
     fn sec_fetch_dest_cases(#[case] header: Option<&str>, #[case] expect_violation: bool) {
         let rule = MessageSecFetchDestValueValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_dest_value_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         if let Some(v) = header {
@@ -136,10 +140,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-dest", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for header={:?}", header);
@@ -165,11 +170,14 @@ mod tests {
         hm.insert("sec-fetch-dest", bad);
         tx.request.headers = hm;
 
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = rule.check_transaction(
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_dest_value_valid",
+        ]);
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("non-ASCII"));
@@ -178,16 +186,19 @@ mod tests {
     #[test]
     fn invalid_token_char_reports_violation() {
         let rule = MessageSecFetchDestValueValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_dest_value_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-dest", "b@d")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -197,16 +208,19 @@ mod tests {
     #[test]
     fn whitespace_around_value_is_accepted() {
         let rule = MessageSecFetchDestValueValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_dest_value_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-dest", " image ")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_none(),
@@ -217,17 +231,20 @@ mod tests {
     #[test]
     fn multiple_header_fields_first_valid_second_invalid() {
         let rule = MessageSecFetchDestValueValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_dest_value_valid",
+        ]);
 
         let tx = crate::test_helpers::make_test_transaction_with_headers(&[
             ("sec-fetch-dest", "image"),
             ("sec-fetch-dest", "invalid"),
         ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some(), "expected violation for multiple header fields");
         let msg = v.unwrap().message;
@@ -237,17 +254,20 @@ mod tests {
     #[test]
     fn multiple_header_fields_both_invalid_reports_violation() {
         let rule = MessageSecFetchDestValueValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_dest_value_valid",
+        ]);
 
         let tx = crate::test_helpers::make_test_transaction_with_headers(&[
             ("sec-fetch-dest", "bad1"),
             ("sec-fetch-dest", "bad2"),
         ]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(
             v.is_some(),
@@ -258,16 +278,19 @@ mod tests {
     #[test]
     fn unrecognized_value_reports_unrecognized_message() {
         let rule = MessageSecFetchDestValueValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_dest_value_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-dest", "bogus")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some(), "expected violation for unrecognized token");
         let msg = v.unwrap().message;
@@ -278,16 +301,19 @@ mod tests {
     #[test]
     fn comma_in_value_reports_invalid_token_char() {
         let rule = MessageSecFetchDestValueValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_sec_fetch_dest_value_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-dest", "image,script")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some(), "expected violation for comma-separated value");
         let msg = v.unwrap().message;

@@ -31,7 +31,7 @@ use crate::rules::Rule;
 pub struct StatefulDigestAuthNonceHandling;
 
 impl Rule for StatefulDigestAuthNonceHandling {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "stateful_digest_auth_nonce_handling"
@@ -41,12 +41,14 @@ impl Rule for StatefulDigestAuthNonceHandling {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // only care about client-side requests with Digest Authorization
         for hv in tx.request.headers.get_all("authorization").iter() {
             let s = match hv.to_str() {
@@ -301,11 +303,13 @@ mod tests {
     fn no_challenge_before_auth_is_reported() {
         let nonce1 = random_nonce();
         let tx = tx_req_with_auth(&make_auth(&nonce1, Some("00000001"), None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(
+        let v = StatefulDigestAuthNonceHandling.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v
@@ -322,8 +326,14 @@ mod tests {
                 &make_challenge(&nonce1, Some("o1"), None),
             )]);
         let tx = tx_req_with_auth(&make_auth(&nonce1, Some("00000001"), Some("o2")));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("opaque does not match"));
     }
@@ -336,8 +346,14 @@ mod tests {
                 &make_challenge(&nonce1, Some("o1"), None),
             )]);
         let tx = tx_req_with_auth(&make_auth(&nonce1, Some("00000001"), None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("missing opaque"));
     }
@@ -347,11 +363,13 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("authorization", "Basic abc")]);
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(
+        let v = StatefulDigestAuthNonceHandling.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -363,11 +381,13 @@ mod tests {
             "authorization",
             "Digest realm=\"r\"",
         )]);
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(
+        let v = StatefulDigestAuthNonceHandling.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -380,11 +400,13 @@ mod tests {
             "authorization",
             "Digest bogus=\"x\", =bad",
         )]);
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(
+        let v = StatefulDigestAuthNonceHandling.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -404,8 +426,14 @@ mod tests {
         let history =
             crate::transaction_history::TransactionHistory::new(vec![prev_request, prev_challenge]);
         let tx = tx_req_with_auth(&auth2);
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("nonce-count did not increase"));
     }
@@ -421,8 +449,14 @@ mod tests {
             )]);
         // client correctly uses same nonce but wrong nc
         let tx = tx_req_with_auth(&make_auth(&nonce, Some("00000005"), None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("must reset nc"));
     }
@@ -437,8 +471,14 @@ mod tests {
         let history =
             crate::transaction_history::TransactionHistory::new(vec![prev_request, prev_challenge]);
         let tx = tx_req_with_auth(&make_auth(&nonce1, Some("00000002"), Some("o1")));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -451,8 +491,14 @@ mod tests {
                 &make_challenge(&nonce1, None, None),
             )]);
         let tx = tx_req_with_auth(&make_auth(&nonce2, Some("00000001"), None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("nonce differs"));
     }
@@ -466,8 +512,14 @@ mod tests {
             )]);
         // request omits opaque entirely
         let tx = tx_req_with_auth(&make_auth(&nonce1, Some("00000001"), None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("missing opaque"));
     }
@@ -482,8 +534,14 @@ mod tests {
             )]);
         // client uses different nonce entirely
         let tx = tx_req_with_auth(&make_auth(&nonce2, Some("00000001"), None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v
             .unwrap()
@@ -499,8 +557,14 @@ mod tests {
                 &make_challenge(&nonce1, None, None),
             )]);
         let tx = tx_req_with_auth(&make_auth(&nonce1, None, None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -512,8 +576,14 @@ mod tests {
                 &make_challenge(&nonce1, None, None),
             )]);
         let tx = tx_req_with_auth(&make_auth(&nonce1, Some("GARBAGE"), None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Invalid nc"));
     }
@@ -527,8 +597,14 @@ mod tests {
                 &make_challenge(&nonce1, None, Some("true")),
             )]);
         let tx = tx_req_with_auth(&make_auth(&nonce2, Some("00000001"), None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("nonce differs"), "got message: {}", msg);
@@ -543,8 +619,14 @@ mod tests {
             )]);
         // correct reset
         let tx = tx_req_with_auth(&make_auth(&nonce, Some("00000001"), None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -559,8 +641,14 @@ mod tests {
         );
         let history = crate::transaction_history::TransactionHistory::new(vec![txh]);
         let tx = tx_req_with_auth(&make_auth(&nonce, Some("00000001"), None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -572,8 +660,14 @@ mod tests {
                 &make_challenge(&nonce, None, None),
             )]);
         let tx = tx_req_with_auth(&make_auth(&nonce, None, None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -589,8 +683,14 @@ mod tests {
         );
         let history = crate::transaction_history::TransactionHistory::new(vec![txh]);
         let tx = tx_req_with_auth(&make_auth(&nonce, Some("00000001"), None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         assert!(v.is_none());
     }
 
@@ -608,8 +708,14 @@ mod tests {
         let history = crate::transaction_history::TransactionHistory::new(vec![txh]);
         let nonce = random_nonce();
         let tx = tx_req_with_auth(&make_auth(&nonce, Some("00000001"), None));
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(&tx, &history, &cfg);
+        let v = StatefulDigestAuthNonceHandling.check(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
+        );
         // no digest challenge seen -> violation for missing challenge
         assert!(v.is_some());
         assert!(v
@@ -623,11 +729,13 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("authorization", "Digest")]);
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(
+        let v = StatefulDigestAuthNonceHandling.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -642,11 +750,13 @@ mod tests {
             HeaderValue::from_bytes(&[0xff, 0xff]).unwrap(),
         );
         tx.request.headers = headers;
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let v = StatefulDigestAuthNonceHandling.check_transaction(
+        let v = StatefulDigestAuthNonceHandling.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

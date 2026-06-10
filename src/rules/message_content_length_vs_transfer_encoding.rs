@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageContentLengthVsTransferEncoding;
 
 impl Rule for MessageContentLengthVsTransferEncoding {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_content_length_vs_transfer_encoding"
@@ -18,12 +18,14 @@ impl Rule for MessageContentLengthVsTransferEncoding {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check request headers
         if tx.request.headers.contains_key("content-length")
             && tx.request.headers.contains_key("transfer-encoding")
@@ -72,10 +74,11 @@ mod tests {
         use crate::test_helpers::make_test_transaction;
         let mut tx = make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(header_pairs.as_slice());
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {
@@ -100,10 +103,11 @@ mod tests {
         let status = 200;
         use crate::test_helpers::make_test_transaction_with_response;
         let tx = make_test_transaction_with_response(status, &header_pairs);
-        let violation = rule.check_transaction(
+        let violation = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_rule_config(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            &crate::rules::RuleConfigEngine::new(),
         );
 
         if expect_violation {

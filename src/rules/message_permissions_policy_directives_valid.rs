@@ -9,7 +9,7 @@ use crate::rules::Rule;
 pub struct MessagePermissionsPolicyDirectivesValid;
 
 impl Rule for MessagePermissionsPolicyDirectivesValid {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_permissions_policy_directives_valid"
@@ -19,12 +19,14 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only inspect responses (server header)
         let resp = match &tx.response {
             Some(r) => r,
@@ -252,7 +254,9 @@ mod tests {
         #[case] expect_violation: bool,
     ) -> anyhow::Result<()> {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         if let Some(v) = hdr {
@@ -260,10 +264,11 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("permissions-policy", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for {:?}: got none", hdr);
@@ -281,7 +286,9 @@ mod tests {
     #[test]
     fn non_utf8_is_violation() -> anyhow::Result<()> {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = hyper::HeaderMap::new();
@@ -291,10 +298,11 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -326,7 +334,9 @@ mod tests {
     #[test]
     fn empty_directive_is_reported() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -334,10 +344,11 @@ mod tests {
             ",geolocation=(self)",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("empty directive"));
@@ -346,16 +357,19 @@ mod tests {
     #[test]
     fn empty_value_is_reported() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("permissions-policy", "geolocation=")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("has empty value"));
@@ -364,7 +378,9 @@ mod tests {
     #[test]
     fn numeric_values_are_rejected() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -372,10 +388,11 @@ mod tests {
             "geolocation=1",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("numeric value"));
@@ -384,7 +401,9 @@ mod tests {
     #[test]
     fn unterminated_inner_list_is_rejected() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -392,10 +411,11 @@ mod tests {
             "geolocation=(self",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("unterminated inner-list"));
@@ -404,7 +424,9 @@ mod tests {
     #[test]
     fn empty_inner_list_member_is_rejected() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -412,10 +434,11 @@ mod tests {
             "geolocation=(self  )",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("empty inner-list"));
@@ -424,7 +447,9 @@ mod tests {
     #[test]
     fn invalid_quoted_string_is_rejected() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -432,10 +457,11 @@ mod tests {
             "geolocation=\"abc",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("invalid quoted-string"));
@@ -444,7 +470,9 @@ mod tests {
     #[test]
     fn invalid_token_like_is_rejected() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -452,10 +480,11 @@ mod tests {
             "geolocation=1abc",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("invalid token value"));
@@ -464,7 +493,9 @@ mod tests {
     #[test]
     fn empty_parameter_is_rejected() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -472,10 +503,11 @@ mod tests {
             "geolocation=(self);",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("empty parameter"));
@@ -484,7 +516,9 @@ mod tests {
     #[test]
     fn invalid_bare_parameter_is_rejected() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -492,10 +526,11 @@ mod tests {
             "geolocation=(self);123",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("invalid bare parameter"));
@@ -504,7 +539,9 @@ mod tests {
     #[test]
     fn invalid_parameter_value_is_rejected() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -512,10 +549,11 @@ mod tests {
             "geolocation=(self);foo=!",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("invalid parameter 'foo'"));
@@ -524,7 +562,9 @@ mod tests {
     #[test]
     fn report_to_quoted_is_ok() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -532,10 +572,11 @@ mod tests {
             "geolocation=(self);report-to=\"endpoint\"",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -544,7 +585,9 @@ mod tests {
     fn feature_part_params_ignored() {
         // a semicolon before the '=' with its own '=' makes the member malformed and should be rejected
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -552,10 +595,11 @@ mod tests {
             "geolocation;meta=1=(self)",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
     }
@@ -563,7 +607,9 @@ mod tests {
     #[test]
     fn decimal_number_value_is_rejected() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -571,10 +617,11 @@ mod tests {
             "geolocation=1.2",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("numeric value"));
@@ -583,7 +630,9 @@ mod tests {
     #[test]
     fn byte_sequence_is_rejected() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -591,10 +640,11 @@ mod tests {
             "geolocation=:YWJj:",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("byte-sequence"));
@@ -603,7 +653,9 @@ mod tests {
     #[test]
     fn param_with_number_value_is_ok() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -611,10 +663,11 @@ mod tests {
             "geolocation=(self);foo=1",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -622,7 +675,9 @@ mod tests {
     #[test]
     fn bare_param_is_ok() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -630,10 +685,11 @@ mod tests {
             "geolocation=(self);foo",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -641,7 +697,9 @@ mod tests {
     #[test]
     fn param_with_quoted_value_is_ok() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -649,10 +707,11 @@ mod tests {
             "geolocation=(self);foo=\"bar\"",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -660,7 +719,9 @@ mod tests {
     #[test]
     fn token_with_special_chars_is_ok() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -668,10 +729,11 @@ mod tests {
             "geolocation=feat:sub/1.2-_",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -679,7 +741,9 @@ mod tests {
     #[test]
     fn star_param_name_is_ok() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -687,10 +751,11 @@ mod tests {
             "geolocation=(self);*=1",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -698,7 +763,9 @@ mod tests {
     #[test]
     fn invalid_param_name_uppercase_is_rejected() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -706,10 +773,11 @@ mod tests {
             "geolocation=(self);Foo=1",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("invalid parameter 'Foo'"));
@@ -719,16 +787,19 @@ mod tests {
     fn feature_starting_with_digit_is_accepted() {
         // feature identifiers may start with a digit per our conservative validation
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("permissions-policy", "1geo=(self)")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }
@@ -736,16 +807,19 @@ mod tests {
     #[test]
     fn empty_header_value_is_violation() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("permissions-policy", "")]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         assert!(v
@@ -757,7 +831,9 @@ mod tests {
     #[test]
     fn param_name_with_dot_underscore_star_is_ok() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_permissions_policy_directives_valid",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
@@ -765,10 +841,11 @@ mod tests {
             "geolocation=(self);a.b_c*=1",
         )]);
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
     }

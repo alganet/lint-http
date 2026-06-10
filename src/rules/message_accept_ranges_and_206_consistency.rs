@@ -8,7 +8,7 @@ use crate::rules::Rule;
 pub struct MessageAcceptRangesAnd206Consistency;
 
 impl Rule for MessageAcceptRangesAnd206Consistency {
-    type Config = crate::rules::RuleConfig;
+    type Config = ();
 
     fn id(&self) -> &'static str {
         "message_accept_ranges_and_206_consistency"
@@ -18,12 +18,14 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn check(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        config: &Self::Config,
+        cfg: &crate::config::Config,
+        _engine: &crate::rules::RuleConfigEngine,
     ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = match &tx.response {
             Some(r) => r,
             None => return None,
@@ -115,7 +117,9 @@ mod tests {
     ) -> anyhow::Result<()> {
         // input: (status, Option<(content-range-unit, accept-ranges-value)>)
         let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_ranges_and_206_consistency",
+        ]);
 
         let tx = match input {
             Some((status, maybe)) => {
@@ -136,10 +140,11 @@ mod tests {
             None => crate::test_helpers::make_test_transaction(),
         };
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         if expect_violation {
             assert!(v.is_some(), "expected violation for input={:?}", input);
@@ -157,7 +162,9 @@ mod tests {
     #[test]
     fn accept_ranges_case_insensitive_and_multiple_values_are_accepted() -> anyhow::Result<()> {
         let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_ranges_and_206_consistency",
+        ]);
 
         // uppercase Accept-Ranges matches lowercase Content-Range
         let tx1 = crate::test_helpers::make_test_transaction_with_response(
@@ -165,10 +172,11 @@ mod tests {
             &[("content-range", "bytes 0-0/1"), ("accept-ranges", "BYTES")],
         );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx1,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
 
@@ -181,10 +189,11 @@ mod tests {
             ],
         );
         assert!(rule
-            .check_transaction(
+            .check(
                 &tx2,
                 &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
+                &cfg,
+                &crate::rules::RuleConfigEngine::new()
             )
             .is_none());
 
@@ -194,16 +203,19 @@ mod tests {
     #[test]
     fn invalid_token_in_accept_ranges_is_reported() {
         let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_ranges_and_206_consistency",
+        ]);
 
         let tx = crate::test_helpers::make_test_transaction_with_response(
             206,
             [("accept-ranges", "x@bad")].as_slice(),
         );
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
@@ -213,7 +225,9 @@ mod tests {
     #[test]
     fn multiple_accept_ranges_fields_are_combined_and_checked() -> anyhow::Result<()> {
         let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_ranges_and_206_consistency",
+        ]);
 
         // Two separate header fields that together advertise the needed unit
         use hyper::header::HeaderValue;
@@ -230,10 +244,11 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_none());
         Ok(())
@@ -242,7 +257,9 @@ mod tests {
     #[test]
     fn accept_ranges_none_in_any_field_reports_violation() -> anyhow::Result<()> {
         let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_ranges_and_206_consistency",
+        ]);
 
         use hyper::header::HeaderValue;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(206, &[]);
@@ -258,10 +275,11 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -270,7 +288,9 @@ mod tests {
     #[test]
     fn multiple_accept_ranges_fields_invalid_token_reports_violation() -> anyhow::Result<()> {
         let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_ranges_and_206_consistency",
+        ]);
 
         use hyper::header::HeaderValue;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(206, &[]);
@@ -285,10 +305,11 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -297,7 +318,9 @@ mod tests {
     #[test]
     fn all_accept_ranges_fields_non_utf8_treated_as_missing() -> anyhow::Result<()> {
         let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_ranges_and_206_consistency",
+        ]);
 
         use hyper::header::HeaderValue;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(206, &[]);
@@ -312,10 +335,11 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         Ok(())
@@ -324,7 +348,9 @@ mod tests {
     #[test]
     fn non_utf8_accept_ranges_treated_as_missing() -> anyhow::Result<()> {
         let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_rule_config();
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_ranges_and_206_consistency",
+        ]);
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(206, &[]);
         use hyper::header::HeaderValue;
@@ -338,10 +364,11 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = rule.check(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
+            &crate::rules::RuleConfigEngine::new(),
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
