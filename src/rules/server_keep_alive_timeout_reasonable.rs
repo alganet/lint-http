@@ -149,6 +149,36 @@ impl Rule for ServerKeepAliveTimeoutReasonable {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "When a `Keep-Alive` header includes a `timeout` directive, this rule checks that the `timeout` value is reasonable. The `timeout` value should be a non-negative integer greater than zero and not unreasonably large (e.g., not several hours). `Keep-Alive` is a legacy header used to tune connection persistence; conservative, reasonable values help prevent resource exhaustion on servers and clients."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 7230 §6.7 - Connection management and the `Keep-Alive` discussion](https://www.rfc-editor.org/rfc/rfc7230.html#section-6.7) — `Keep-Alive` is a legacy header and must be treated conservatively; this rule validates `timeout` semantics only.")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nKeep-Alive: timeout=30, max=100",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nKeep-Alive: timeout=0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nKeep-Alive: timeout=999999",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nKeep-Alive: timeout=\"60\"   # quoted numeric values are invalid",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

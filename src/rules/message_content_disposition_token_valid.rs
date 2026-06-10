@@ -92,6 +92,36 @@ impl Rule for MessageContentDispositionTokenValid {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate that the `Content-Disposition` header's `disposition-type` is a valid `token` and not empty. The `disposition-type` appears before any `;` parameter list (e.g., `attachment; filename=\"a.txt\"`) and must follow the `token` grammar (no whitespace, control, or special characters)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 6266 §4](https://www.rfc-editor.org/rfc/rfc6266.html#section-4) — Use of `Content-Disposition` in HTTP (disposition-type is a `token` and followed by optional parameters)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Content-Disposition: attachment; filename=\"example.txt\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Content-Disposition: inline",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Content-Disposition: ; filename=\"example.txt\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Content-Disposition: bad@type; filename=\"a\"",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

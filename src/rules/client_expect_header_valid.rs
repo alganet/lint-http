@@ -56,6 +56,30 @@ impl Rule for ClientExpectHeaderValid {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Checks that the `Expect` request header, when present, follows the syntax defined by the HTTP specification. This rule validates that each list member is a `token` (ABNF token) and that any parameter (on the right-hand side of `=`) is either a token or a `quoted-string`. Quoted-string content is validated and supports quoted-pair escapes (`\\\"`); unescaped control characters (except HTAB) are rejected. Additionally, the special expectation `100-continue` MUST NOT be accompanied by parameters."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some(
+            "[RFC 9110 §10.1.1 Expect](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.1)",
+        )
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "PUT /upload HTTP/1.1\nHost: example.com\nContent-Length: 123456\nExpect: 100-continue\n\nGET /foo HTTP/1.1\nHost: example.com\nExpect: foo\n\nGET /bar HTTP/1.1\nHost: example.com\nExpect: a=\"quoted\", b=token",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /bad HTTP/1.1\nHost: example.com\nExpect:\n# Empty element\n\nGET /bad2 HTTP/1.1\nHost: example.com\nExpect: a/b\n# '/' illegal in token\n\nPOST /upload HTTP/1.1\nHost: example.com\nExpect: 100-continue=param\n# 100-continue must not have parameters",
+            },
+        ]
+    }
 }
 
 // Helper to validate a single Expect list-member string (trimmed). Returns Some(message)

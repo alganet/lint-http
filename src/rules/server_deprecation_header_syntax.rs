@@ -86,6 +86,28 @@ impl Rule for ServerDeprecationHeaderSyntax {
             message: format!("Deprecation value '{}' is invalid: must be a structured Date item (e.g., '@1688169599') per RFC 9745", s),
         })
     }
+
+    fn description(&self) -> &'static str {
+        "The `Deprecation` response header signals that a resource is deprecated. RFC 9745 defines the header as a Structured Field `Date` item (a numeric timestamp expressed as `@<seconds>`). This rule validates the canonical structured form and flags legacy or invalid forms (literal `true`, HTTP-date, non-numeric `@` values) with helpful messages."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9745 §2 — The `Deprecation` HTTP Response Header Field](https://www.rfc-editor.org/rfc/rfc9745.html#section-2)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Deprecation: @1688169599\nDeprecation:   @0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Deprecation: true\nDeprecation: Wed, 11 Nov 2015 07:28:00 GMT\nDeprecation: @\nDeprecation: @-1\nDeprecation: @abc",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

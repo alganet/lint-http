@@ -163,6 +163,42 @@ impl Rule for MessageTeHeaderConstraints {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate the `TE` request header for syntax and usage:\n\n- Each member must be either the literal `trailers` or a transfer-coding token with optional parameters.\n- `q` (quality) parameter, if present, must be a valid qvalue between `0` and `1` with up to three decimals (e.g., `0.8`, `0.123`, `1.0`).\n- Parameter values must be a `token` or a `quoted-string`.\n- If a request includes a `TE` header, the `Connection` header MUST include the `TE` token.\n- `TE` MUST NOT appear in responses."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some(
+            "[RFC 9110 §10.1.4](https://www.rfc-editor.org/rfc/rfc9110#section-10.1.4) — TE header",
+        )
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nConnection: TE\nTE: trailers",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nConnection: keep-alive, TE\nTE: chunked;q=0.8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nTE: chunked;q=0.8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nConnection: TE\nTE: x!bad",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nTE: trailers",
+            },
+        ]
+    }
 }
 
 // Find the first invalid character in a TE transfer-coding token per rule's stricter policy.

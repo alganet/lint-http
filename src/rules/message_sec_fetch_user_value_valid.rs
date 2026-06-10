@@ -74,6 +74,40 @@ impl Rule for MessageSecFetchUserValueValid {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Requests that include the `Sec-Fetch-User` request header MUST only include the structured-boolean `true` value (serialized as `?1`) when present. This header is sent by user agents for navigation requests that were triggered by a user activation. Multiple header fields or non-ASCII values will be flagged as violations."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("Fetch Metadata (W3C) — `Sec-Fetch-User` header (boolean, serialized as `?1`): https://www.w3.org/TR/fetch-metadata/#sec-fetch-user-header")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Sec-Fetch-User: ?1",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Sec-Fetch-User:  ?1  # whitespace is allowed and trimmed",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Sec-Fetch-User: true",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Sec-Fetch-User:",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Sec-Fetch-User: 1",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

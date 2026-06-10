@@ -45,6 +45,36 @@ impl Rule for MessageAuthorizationCredentialsPresent {
         }
         None
     }
+
+    fn description(&self) -> &'static str {
+        "The `Authorization` request header field MUST include an authentication scheme followed by credentials. This rule flags requests where the header is empty, contains an invalid auth-scheme token, or is missing credentials after the scheme. Ensuring credentials are present helps detect malformed or truncated authorization attempts."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §7.6.2 — Authorization](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Bearer abc123",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Digest username=\"Mufasa\", realm=\"test\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Basic",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: B@sic abc",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

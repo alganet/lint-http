@@ -150,6 +150,32 @@ impl Rule for StatefulConditionalRequestHandling {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Warn when conditional requests are used without a prior validator (ETag / Last-Modified) observed for the same resource and client. Also flag obvious cases where a server returns a `200` for a conditional `GET`/`HEAD` when the validator clearly matches (the server should return `304 Not Modified`)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §13.1 — Preconditions](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "> GET /resource HTTP/1.1\n> If-None-Match: \"abc\"\n\n< 304 Not Modified  HTTP/1.1\n< ETag: \"abc\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "> GET /resource HTTP/1.1\n> If-None-Match: \"abc\"\n\n< 200 OK  HTTP/1.1\n< ETag: \"abc\"\n< (body)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "> GET /resource HTTP/1.1\n> If-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT\n\n< 200 OK  HTTP/1.1\n< Last-Modified: Wed, 21 Oct 2015 07:28:00 GMT",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

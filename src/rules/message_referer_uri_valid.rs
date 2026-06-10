@@ -73,6 +73,36 @@ impl Rule for MessageRefererUriValid {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "This rule checks that the `Referer` request header, when present, is a syntactically valid URI-reference per the HTTP specification. Malformed `Referer` values can break referrer-based logic and leak incorrect information to servers."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §7.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#name-referer)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nReferer: https://example.com/path",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nReferer: /relative/path",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET / HTTP/1.1\nReferer: /bad%2Gencoding",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET / HTTP/1.1\nReferer: https://example.com/ bad",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

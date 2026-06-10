@@ -62,6 +62,36 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate `Permissions-Policy` HTTP response header directives for correct feature identifiers and member value forms. The header must be a structured-field dictionary (RFC 8941) and each directive must map a feature identifier (alphanumerics and hyphens) to an allowlist value (token `*`, token `self`, a `\"string\"`, or an inner-list `( ... )`). The optional `report-to` parameter (on the member value) must be a quoted-string when present."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[W3C Permissions Policy — Permissions-Policy HTTP header (directive syntax and serialization) §5.2](https://w3c.github.io/webappsec-permissions-policy/#permissions-policy-http-header-field)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self \"https://example.com\"), fullscreen=(), payment=(\"https://pay.example\") ; report-to=\"endpoint\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation ;  # missing '=value' -> invalid",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: bad_name=(self)  # invalid feature identifier (underscore)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self);report-to=endpoint  # report-to must be a quoted-string",
+            },
+        ]
+    }
 }
 
 // Minimal validator focused on semantics required by the Permissions Policy spec:

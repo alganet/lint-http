@@ -230,6 +230,44 @@ impl Rule for MessageHttp2PseudoHeadersValidity {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate HTTP/2 pseudo-header fields used in requests and responses. Requests that include pseudo-headers must include the appropriate fields (e.g., `:method` and `:path` for most requests, `:authority` for CONNECT), and response pseudo-headers must be limited to `:status`. Values are validated for basic syntax (tokens, percent-encoding, numeric status) to detect malformed or protocol-inconsistent headers. The rule also accepts the asterisk-form (`*`) only when the method is `OPTIONS` (see specifications)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9113 §8.3.1 — Request pseudo-header fields](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1) — defines `:method`, `:scheme`, `:authority`, and `:path` and their presence/format rules (including `*` for OPTIONS and omitted `:path` for CONNECT).")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: ":method: GET\n:scheme: https\n:authority: example.com\n:path: /",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: ":method: OPTIONS\n:path: *",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: ":status: 200",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: ":method: GET",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: ":status: OK",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: ":method: CONNECT\n:authority: example.com:443\n:path: /",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

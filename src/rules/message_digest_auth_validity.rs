@@ -169,6 +169,32 @@ impl Rule for MessageDigestAuthValidity {
         }
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Digest `Authorization` credentials must include the required auth-params and use syntactically valid tokens or quoted-strings. This rule checks `Authorization: Digest ...` request headers for presence of required fields and basic syntactic validity (e.g., `username`, `realm`, `nonce`, `uri`, `response`).\n\nServers and clients relying on Digest authentication may behave incorrectly when required parameters are missing or malformed."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 7616 §3.2.2 — HTTP Digest Access Authentication](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.2)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8cd98f00b204e9800998ecf8427e\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/protected\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=Mu!fasa, realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8c\"",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

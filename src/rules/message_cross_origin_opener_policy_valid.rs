@@ -82,6 +82,40 @@ impl Rule for MessageCrossOriginOpenerPolicyValid {
             ),
         })
     }
+
+    fn description(&self) -> &'static str {
+        "This rule checks the `Cross-Origin-Opener-Policy` response header value and ensures it is one of the allowed tokens: **`same-origin`**, **`same-origin-allow-popups`**, or **`unsafe-none`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. This header is response-only per the HTML and W3C Cross-Origin-Opener-Policy specifications; the rule applies to server responses (RuleScope::Server)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("MDN: Cross-Origin-Opener-Policy — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Opener-Policy")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: same-origin",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy:  SAME-ORIGIN-ALLOW-POPUPS  ",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: other",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: same-origin, unsafe-none",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: same-origin\nCross-Origin-Opener-Policy: unsafe-none",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

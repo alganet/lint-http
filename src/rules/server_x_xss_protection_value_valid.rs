@@ -74,6 +74,40 @@ impl Rule for ServerXXssProtectionValueValid {
             message: format!("X-XSS-Protection contains unsupported value: '{}'", val),
         })
     }
+
+    fn description(&self) -> &'static str {
+        "This rule checks that the `X-XSS-Protection` response header, when present, uses an expected and safe value. Historically, the header accepted `0` to disable the browser's cross-site scripting filter and `1; mode=block` to enable blocking; other values are unsupported or ambiguous and should be avoided."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("MDN: X-XSS-Protection — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-XSS-Protection")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 0",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 1; mode=block",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 2",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 1; report=1",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

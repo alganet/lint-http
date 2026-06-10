@@ -84,6 +84,40 @@ impl Rule for MessageCrossOriginEmbedderPolicyValid {
             ),
         })
     }
+
+    fn description(&self) -> &'static str {
+        "This rule checks the `Cross-Origin-Embedder-Policy` response header value and ensures it uses one of the secure tokens that enable cross-origin isolation: **`require-corp`** or **`credentialless`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `unsafe-none` is a valid COEP token per the specification, but it does not enable cross-origin isolation; this rule rejects it intentionally to encourage more secure configurations. The rule applies to server responses (RuleScope::Server)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("MDN: Cross-Origin-Embedder-Policy — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Embedder-Policy")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy: require-corp",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy:  CREDENTIALLESS  ",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy: unsafe-none",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy: require-corp, credentialless",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy: require-corp\nCross-Origin-Embedder-Policy: unsafe-none",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

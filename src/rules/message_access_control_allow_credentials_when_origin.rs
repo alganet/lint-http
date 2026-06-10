@@ -93,6 +93,32 @@ impl Rule for MessageAccessControlAllowCredentialsWhenOrigin {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "This rule checks Cross-Origin Resource Sharing (CORS) response headers to ensure that `Access-Control-Allow-Credentials` is **not** set to `true` when `Access-Control-Allow-Origin` is `*` (wildcard). Allowing credentials with a wildcard origin is insecure and disallowed by the CORS model."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("MDN: Access-Control-Allow-Credentials — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.com\nAccess-Control-Allow-Credentials: true",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *\nAccess-Control-Allow-Credentials: true",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

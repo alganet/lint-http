@@ -128,6 +128,28 @@ impl Rule for ClientHostHeader {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "This rule enforces that HTTP requests include a valid `Host` header and validates common syntax mistakes.\n\n- The `Host` header is required for HTTP/1.1 origin-form requests and is used by servers to determine the target host.\n- If a port is present (for example, `example.com:8080`), the port MUST be numeric and in the range 1–65535.\n- If an IPv6 address literal is used with a port, the IPv6 literal MUST be enclosed in square brackets (for example, `[::1]:443`).\n- The `Host` header MUST NOT include userinfo (for example, `user:pass@host`).\n\nThis rule combines presence and syntax checks previously implemented in separate rules."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §7.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2): Host header field")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /path HTTP/1.1\nHost: example.com\n\nHost: example.com:80\nHost: [::1]:443\nHost: fe80::1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /path HTTP/1.1\n# Missing Host header\n\nHost:\nHost: example.com:abc\nHost: example.com:\nHost: example.com:0\nHost: example.com:65536\nHost: fe80::1:80\nHost: fe80::abcd:8080\nHost: user:pass@example.com\nHost: user@example.com:80\nHost: user:pass@[::1]:80",
+            },
+        ]
+    }
 }
 
 impl ClientHostHeader {

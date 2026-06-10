@@ -51,6 +51,32 @@ impl Rule for SemanticOptionsMethodCapabilities {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "When a server responds to an `OPTIONS` request with a successful status code, it\nis expected to advertise the set of communication options supported for the\nselected resource.  An `Allow` header field is the canonical way to list the\nmethods that are allowed, and absence of the header hinders clients and\nintermediaries from discovering what operations are permitted.\n\nThis rule flags successful `OPTIONS` responses that omit the `Allow` header."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §9.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7):\n  OPTIONS method semantics (\"A server generating a successful response to\n  OPTIONS SHOULD send any header that might indicate optional features\n  implemented by the server and applicable to the target resource (e.g.,\n  Allow)\").")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nAllow: GET, POST, OPTIONS",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 204 No Content\nAllow: OPTIONS",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\n# missing Allow header",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

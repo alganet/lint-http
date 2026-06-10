@@ -128,6 +128,14 @@ impl Rule for StatefulPrivateCacheVisibility {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Responses with `Cache-Control: private` are intended for a single user agent's private cache and **must not be stored or served** by shared caches (RFC 9111 §5.2).  If a shared cache accidentally retains such a response, other clients may later receive the representation, violating privacy and correctness expectations.\n\nThis stateful rule examines a sequence of transactions for the same resource across **all clients**.  When a request includes a conditional validator (ETag or Last-Modified) that matches a value previously seen in a response carrying the `private` directive **and** that earlier response was sent to a **different** client, we infer that some intermediate cache reused the private entry.  A warning is emitted in that case.\n\nThe rule relies on a cross-client history; the engine handles this by scoping the query to all clients for the resource rather than the default per-client history.  Only conditional requests trigger the check, since they provide tangible evidence that a particular validator value was reused."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9111 §5.2 — Cache-Control field semantics](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2) — `private` directive applies only to private caches.")
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

@@ -125,6 +125,14 @@ impl ProtocolRule for ServerQuicTransportParameters {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validates that QUIC transport parameters negotiated during the handshake are reasonable for HTTP/3 usage.  This rule inspects protocol-level `QuicTransportParams` events and checks:\n\n* **Bidirectional streams allowed** — `initial_max_streams_bidi` must be non-zero so that at least one HTTP/3 request stream can be opened.\n* **Connection flow control** — `initial_max_data` must be non-zero so that data can actually be transferred.\n* **Stream flow control** — `initial_max_stream_data_bidi_local`, `initial_max_stream_data_bidi_remote`, and `initial_max_stream_data_uni` must be non-zero for their respective stream types to carry data.\n* **Idle timeout** — `max_idle_timeout_ms` should be set (non-zero) to prevent idle connections from consuming server resources indefinitely, and should not be excessively large (>10 minutes)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9000 §18.2](https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2) — Transport Parameter Definitions.")
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

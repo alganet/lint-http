@@ -43,6 +43,28 @@ impl Rule for ClientRequestMethodTokenValid {
         }
         None
     }
+
+    fn description(&self) -> &'static str {
+        "HTTP request methods are tokens and must conform to the `token` (tchar) grammar. This rule flags method tokens that contain invalid characters (for example, spaces, control characters, `@`) or include lowercase alphabetic characters."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9112 §5.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-5.1): Methods")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /index.html HTTP/1.1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "get /index.html HTTP/1.1",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

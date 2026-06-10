@@ -228,6 +228,48 @@ impl Rule for MessageWarningHeaderSyntax {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate `Warning` header members follow the syntax described in RFC 7234 §5.5. Each member (a comma-separated `warn-value`) consists of:\n\n- A three-digit `warn-code` (e.g., `110`, `214`)\n- Whitespace and a `warn-agent` (host[:port] or pseudonym)\n- Whitespace and a `warn-text` which MUST be a `quoted-string`\n- Optionally, whitespace and a `warn-date` which MUST be a `quoted-string` containing an IMF-fixdate (an HTTP-date)\n\nThis rule flags empty members, invalid 3-digit codes, missing or unquoted `warn-text`, malformed `warn-date` (including invalid HTTP dates), and non-UTF8 header values."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 7234 §5.5](https://www.rfc-editor.org/rfc/rfc7234.html#section-5.5): Warning header field")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nWarning: 110 - \"Response is stale\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nWarning: 214 example.com:80 \"Transformation applied\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nWarning: 214 example.com \"Text\" \"Wed, 21 Oct 2015 07:28:00 GMT\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nWarning: ,",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nWarning: 21a host \"text\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nWarning: 214 host text",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nWarning: 214 host \"x\" \"not-a-date\"",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

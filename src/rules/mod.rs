@@ -92,7 +92,8 @@ pub trait Rule: Send + Sync {
 
     /// Human-readable summary of what this rule checks and why it matters.
     /// Renders as the "Description" section of the generated per-rule doc.
-    /// Empty by default; #11c fills these in from the existing docs/rules/ files.
+    /// Empty by default; rules override it with content sourced from
+    /// `docs/rules/`.
     fn description(&self) -> &'static str {
         ""
     }
@@ -273,7 +274,8 @@ pub trait ProtocolRule: Send + Sync {
 
     /// Human-readable summary of what this rule checks and why it matters.
     /// Renders as the "Description" section of the generated per-rule doc.
-    /// Empty by default; #11c fills these in from the existing docs/rules/ files.
+    /// Empty by default; rules override it with content sourced from
+    /// `docs/rules/`.
     fn description(&self) -> &'static str {
         ""
     }
@@ -522,20 +524,38 @@ mod tests {
     }
 
     #[test]
-    fn metadata_accessors_dispatch_with_empty_defaults() {
-        // #11a only adds the metadata surface; no rule overrides it yet, so
-        // every collected rule must report the empty defaults. This proves the
-        // three accessors exist and dispatch through `&dyn Rule` /
-        // `&dyn ProtocolRule`. #11c will fill in real content per rule.
+    fn metadata_accessors_are_populated_and_dispatch() {
+        // #11c fills real per-rule metadata sourced from `docs/rules/`. Every
+        // rule must now report a non-empty description and a specification
+        // reference, dispatched through `&dyn Rule` / `&dyn ProtocolRule`. This
+        // doubles as a completeness gate: a future rule added without metadata
+        // fails here. Examples are exercised for dispatch only — a handful of
+        // docs carry no `http` snippet, so emptiness is not asserted.
         for r in RULES.iter() {
-            assert_eq!(r.description(), "", "{} description default", r.id());
-            assert_eq!(r.rfc_reference(), None, "{} rfc default", r.id());
-            assert!(r.examples().is_empty(), "{} examples default", r.id());
+            assert!(
+                !r.description().trim().is_empty(),
+                "{} missing description",
+                r.id()
+            );
+            assert!(
+                r.rfc_reference().is_some(),
+                "{} missing rfc_reference",
+                r.id()
+            );
+            let _ = r.examples();
         }
         for r in PROTOCOL_RULES.iter() {
-            assert_eq!(r.description(), "", "{} description default", r.id());
-            assert_eq!(r.rfc_reference(), None, "{} rfc default", r.id());
-            assert!(r.examples().is_empty(), "{} examples default", r.id());
+            assert!(
+                !r.description().trim().is_empty(),
+                "{} missing description",
+                r.id()
+            );
+            assert!(
+                r.rfc_reference().is_some(),
+                "{} missing rfc_reference",
+                r.id()
+            );
+            let _ = r.examples();
         }
     }
 

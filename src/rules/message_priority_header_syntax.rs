@@ -67,6 +67,36 @@ impl Rule for MessagePriorityHeaderSyntax {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "The `Priority` header (RFC 9218) conveys priority parameters as a Structured Fields Dictionary. This rule validates basic syntax for the header and enforces the defined semantics for the standard parameters:\n\n- `u` (urgency) MUST be an integer in the range 0..=7 (inclusive).\n- `i` (incremental) is a boolean: it may be present without a value (indicating `true`) or use `?1`/`?0` notation. Unknown parameters are allowed and ignored.\n\nReceivers MUST ignore unknown members and parameters; this rule flags clear parsing errors and out-of-range `u` values."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9218 §4–§5 (Priority header and parameters)](https://www.rfc-editor.org/rfc/rfc9218.html)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /image.jpg HTTP/1.1\nPriority: u=5, i",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nPriority: u=1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /script.js HTTP/1.1\nPriority: u=8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Priority: u",
+            },
+        ]
+    }
 }
 
 /// Return Some(error_msg) on parse/validation failure, None on success.

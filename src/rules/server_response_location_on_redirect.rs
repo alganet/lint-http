@@ -45,6 +45,14 @@ impl Rule for ServerResponseLocationOnRedirect {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Checks that responses where the semantics call for a `Location` header include one. In particular, a `201 (Created)` response and many redirection responses (300, 301, 302, 303, 307, 308) SHOULD include a `Location` header referring to the created or preferred target resource."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2) — `Location = URI-reference` and semantics for `201` and `3xx` responses.")
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

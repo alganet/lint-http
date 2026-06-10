@@ -129,6 +129,36 @@ impl Rule for StatefulRangeRequestAndCaching {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Caches that store partial responses (206 Partial Content) risk serving stale or incomplete data if they later satisfy a Range request without validating that those partial fragments still match the current representation.  To avoid this, caches SHOULD supply an `If-Range` validator when issuing a subsequent request that contains a `Range` header; the origin server can then return the entire representation if the stored fragments are out of date (RFC 7233 §3.2).\n\nThis rule tracks earlier transactions for the same client and resource.  If a previous response was 206 and included a **strong** validator (a strong `ETag` – weak tags are ignored – or a `Last-Modified` date), a later Range request is expected to provide `If-Range`.  The rule warns when the header is missing or when its value does not match the validator observed in the earlier 206 response.  Note that while `If-Range` can use either kind of validator, combining partial responses into a complete representation requires a shared strong `ETag` (RFC 9111 §3.4)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 7233 §3.2 — `If-Range` precondition to `Range` requests.](https://www.rfc-editor.org/rfc/rfc7233.html#section-3.2)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/1.1\nRange: bytes=0-99\nIf-Range: \"etag123\"\n\nHTTP/1.1 206 Partial Content\nETag: \"etag123\"\nContent-Range: bytes 0-99/1000",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/1.1\nRange: bytes=0-99\nIf-Range: Wed, 21 Oct 2015 07:28:00 GMT\n\nHTTP/1.1 206 Partial Content\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\nContent-Range: bytes 0-99/1000",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/1.1\nRange: bytes=0-99\n\nHTTP/1.1 206 Partial Content\nETag: \"etag123\"\nContent-Range: bytes 0-99/1000",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/1.1\nRange: bytes=0-99\nIf-Range: \"other\"\n\nHTTP/1.1 206 Partial Content\nETag: \"etag123\"\nContent-Range: bytes 0-99/1000",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

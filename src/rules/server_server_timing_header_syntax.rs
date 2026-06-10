@@ -203,6 +203,28 @@ impl Rule for ServerServerTimingHeaderSyntax {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "The `Server-Timing` response header communicates server-side performance metrics. Each metric must be a `metric-name` followed by optional `;`-separated parameters such as `dur` (duration, numeric) and `desc` (description, token or quoted-string). This rule validates that each metric name and parameter-name is a `token`, parameter values are either `token` or a well-formed `quoted-string`, and that `dur` parses as a number when present."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("W3C Server-Timing Header Field — Section \"The `Server-Timing` Header Field\" (syntax and examples): https://w3c.github.io/server-timing/#the-server-timing-header-field")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Server-Timing: miss, db;dur=53, app;dur=47.2\nServer-Timing: cache;desc=\"Cache Read\";dur=23.2\nServer-Timing: customView, dc;desc=atl",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Server-Timing: ,miss\nServer-Timing: b@d;dur=5\nServer-Timing: db;dur=abc\nServer-Timing: db;desc=Cache Read\nServer-Timing: db;desc=\"unfinished",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

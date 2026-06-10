@@ -58,6 +58,32 @@ impl Rule for MessageIfModifiedSinceDateFormat {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "The `If-Modified-Since` request header, when present, MUST be a valid HTTP-date (IMF-fixdate). This rule flags `If-Modified-Since` header values that are not valid HTTP-date strings or contain non-UTF8 bytes."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §7.8.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.1): If-Modified-Since header")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/1.1\nIf-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/1.1\nIf-Modified-Since: not-a-date",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/1.1\nIf-Modified-Since: \\xff",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

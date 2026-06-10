@@ -167,6 +167,28 @@ impl Rule for MessageAuthSchemeIanaRegistered {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate authentication schemes used in `WWW-Authenticate` and `Authorization` headers. The `auth-scheme` is a `token` and SHOULD be an IANA-registered authentication scheme (for example, `Basic`, `Bearer`, `Digest`). This rule allows an operator-configured allowlist of acceptable schemes; values not present in the allowlist are flagged."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §7.2.1 — WWW-Authenticate](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "WWW-Authenticate: Basic realm=\"example\"\nAuthorization: Bearer abc123",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "WWW-Authenticate: NewScheme abc=\nAuthorization: X-MyAuth abc",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

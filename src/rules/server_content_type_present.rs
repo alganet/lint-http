@@ -64,6 +64,29 @@ impl Rule for ServerContentTypePresent {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "This rule ensures that responses which likely contain a body include a `Content-Type` header. This helps downstream components and user agents interpret the response bytes correctly.\n\nThe rule considers a response to likely have a body when any of:\n- `Content-Length` is present and > 0\n- `Transfer-Encoding` is present\n- Response status is 2xx and neither `Content-Length` nor `Transfer-Encoding` is present"
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type header")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet:
+                    "HTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8\nContent-Length: 123",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nContent-Length: 123\n# Missing Content-Type",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

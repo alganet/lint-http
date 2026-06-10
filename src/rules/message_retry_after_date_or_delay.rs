@@ -65,6 +65,28 @@ impl Rule for MessageRetryAfterDateOrDelay {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "The `Retry-After` header, when present in responses, MUST be either a non-negative integer (delay-seconds) or an HTTP-date (IMF-fixdate). This rule flags `Retry-After` values that do not match either form."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3): Retry-After header")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 503 Service Unavailable\nRetry-After: 120\n\nHTTP/1.1 503 Service Unavailable\nRetry-After: Wed, 21 Oct 2015 07:28:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 503 Service Unavailable\nRetry-After: tomorrow\n\nHTTP/1.1 503 Service Unavailable\nRetry-After: -1",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

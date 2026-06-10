@@ -166,6 +166,36 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate that the `Preference-Applied` response header follows the ABNF in RFC 7240 §3 and that each applied preference corresponds to a preference present in the request's `Prefer` header. Parameters (semicolon-separated) are not allowed in `Preference-Applied` members."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 7240 §3](https://www.rfc-editor.org/rfc/rfc7240.html#section-3) — `Preference-Applied` header field and syntax")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: return=representation",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: return",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nPreference-Applied: respond-async",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nPreference-Applied: return; foo=bar",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

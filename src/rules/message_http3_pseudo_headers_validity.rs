@@ -139,6 +139,52 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "HTTP/3 requests encode control data as pseudo-header fields. This rule validates that every request includes exactly one `:method` pseudo-header field and that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\nResponses MUST include exactly one `:status` pseudo-header field containing a three-digit integer status code (100-599)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9114 §4.3 — HTTP Control Data](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/3\nHost: example.com\nAccept: text/html",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "OPTIONS * HTTP/3\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "CONNECT example.com:443 HTTP/3",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/3 200 OK\nContent-Type: text/html",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/3\nAccept: text/html",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: " HTTP/3\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET * HTTP/3\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/3 0",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

@@ -103,6 +103,28 @@ impl Rule for MessageSunsetAndDeprecationConsistency {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "When both `Sunset` and `Deprecation` response headers are present, they should be logically consistent: `Deprecation` indicates when a resource was (or will be) deprecated and `Sunset` indicates the removal/shutdown date. This rule validates that, when both headers are parseable, the `Deprecation` timestamp is not later than the `Sunset` date. Additionally, the rule validates the `Sunset` header syntax: if a `Sunset` header is present but not a valid IMF-fixdate, the rule reports a violation (the `Sunset` header must be a valid IMF-fixdate per RFC 8594), even when `Deprecation` is absent."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 8594 §3 — `Sunset` header semantics (IMF-fixdate)](https://www.rfc-editor.org/rfc/rfc8594.html#section-3)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2025 07:28:00 GMT\nDeprecation: @1730000000\nSunset: Tue, 01 Jan 2030 00:00:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2025 07:28:00 GMT\nDeprecation: @4102444800   # year 2100\nSunset: Tue, 01 Jan 2030 00:00:00 GMT",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

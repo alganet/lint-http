@@ -57,6 +57,44 @@ impl Rule for MessageFromHeaderEmailSyntax {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "This rule validates the `From` request header's mailbox-list syntax. It accepts common mailbox forms such as a bare `addr-spec` (e.g., `alice@example.com`) or a `display-name <addr-spec>` entry. The validator is conservative: it rejects obvious errors such as missing `@`, empty local-part or domain, unbalanced angle brackets, control characters, or malformed quoted local-parts."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#name-from) — Header field definition and reference")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nFrom: alice@example.com",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nFrom: Alice <alice@example.com>",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nFrom: Alice <alice@example.com>, bob@example.org",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET / HTTP/1.1\nFrom: not-an-email",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET / HTTP/1.1\nFrom: alice@",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET / HTTP/1.1\nFrom: Alice <alice@example.com",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

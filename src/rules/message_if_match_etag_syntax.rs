@@ -64,6 +64,44 @@ impl Rule for MessageIfMatchEtagSyntax {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "`If-Match` header must be either `*` or a comma-separated list of entity-tags. Entity-tags follow the grammar in RFC 9110 §7.6 and may be weak (prefix `W/`). This rule validates the basic syntax (quoting, escaping, and prohibition of control characters)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §7.6 — ETag header field](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: \"abc123\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: W/\"weaktag\", \"strong\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: *",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: abc123   # missing quotes",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: W/abc    # missing quoted-string after W/",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: \"unterminated",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

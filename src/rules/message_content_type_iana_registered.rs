@@ -145,6 +145,28 @@ impl Rule for MessageContentTypeIanaRegistered {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "This rule checks that `Content-Type` media types (both requests and responses) are either a known, allowed media type or match an explicitly configured allowlist. This helps flag unregistered or accidental vendor types that may cause interoperability problems."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type header and media type syntax")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Content-Type: text/plain\nContent-Type: application/json; charset=utf-8\nContent-Type: application/ld+json\nContent-Type: image/png",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Content-Type: application/vnd.unknown\nContent-Type: text/x-custom",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

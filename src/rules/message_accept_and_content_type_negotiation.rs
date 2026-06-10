@@ -115,6 +115,28 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate that a server response's `Content-Type` matches the client's `Accept` header when present. If the request provides an `Accept` header that does not allow the response media type (for example `Accept: application/json` but response `Content-Type: text/html`), the server should consider returning `406 Not Acceptable` or use a matching representation."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §12.5.1 — Accept (media ranges and q-values)](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/1.1\nAccept: application/json\n\nHTTP/1.1 200 OK\nContent-Type: application/json; charset=utf-8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/1.1\nAccept: application/json\n\nHTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
