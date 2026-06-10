@@ -42,6 +42,9 @@ pub fn lint_transaction(
         crate::transaction_history::TransactionHistory,
     > = None;
     let mut history_by_connection: Option<crate::transaction_history::TransactionHistory> = None;
+    // Rules that don't read history (the vast majority) are dispatched against
+    // this shared empty history instead of an unused per-resource query.
+    let empty_history = crate::transaction_history::TransactionHistory::empty();
 
     // Cache origin extraction since it's used by any rule requiring ByOrigin
     let origin = crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
@@ -53,14 +56,13 @@ pub fn lint_transaction(
         if !cfg.is_enabled(rule.id()) {
             continue;
         }
-        let query_type = crate::queries::mapping::get_query_type_for_rule(rule.id());
-
-        let history = match query_type {
-            crate::queries::mapping::QueryType::ByResource => history_by_resource
-                .get_or_insert_with(|| {
+        let history = match crate::rules::query_type_for(rule.id()) {
+            Some(crate::queries::QueryType::ByResource) => {
+                history_by_resource.get_or_insert_with(|| {
                     crate::queries::by_resource::by_resource(state, &tx.client, &tx.request.uri)
-                }),
-            crate::queries::mapping::QueryType::ByOrigin => {
+                })
+            }
+            Some(crate::queries::QueryType::ByOrigin) => {
                 history_by_origin.get_or_insert_with(|| {
                     if let Some(o) = &origin {
                         crate::queries::by_origin::by_origin(state, &tx.client, o)
@@ -69,14 +71,14 @@ pub fn lint_transaction(
                     }
                 })
             }
-            crate::queries::mapping::QueryType::ByResourceAll => history_by_resource_all_clients
+            Some(crate::queries::QueryType::ByResourceAll) => history_by_resource_all_clients
                 .get_or_insert_with(|| {
                     crate::queries::by_resource_all_clients::by_resource_all_clients(
                         state,
                         &tx.request.uri,
                     )
                 }),
-            crate::queries::mapping::QueryType::ByConnection => history_by_connection
+            Some(crate::queries::QueryType::ByConnection) => history_by_connection
                 .get_or_insert_with(|| {
                     if let Some(conn_id) = tx.connection_id {
                         crate::queries::by_connection::by_connection(state, conn_id)
@@ -84,6 +86,8 @@ pub fn lint_transaction(
                         crate::transaction_history::TransactionHistory::empty()
                     }
                 }),
+            // Rule reads no history.
+            None => &empty_history,
         };
 
         out.extend(rule.check_transaction(tx, history, cfg));
