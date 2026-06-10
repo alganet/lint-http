@@ -34,6 +34,26 @@ pub enum RuleScope {
     Both,
 }
 
+/// Whether an [`Example`] illustrates traffic the rule accepts or rejects.
+/// Maps to the ✅ Good / ❌ Bad sections of `docs/rules/TEMPLATE.md`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Compliance {
+    /// Traffic the rule accepts (a "✅ Good" docs example).
+    Compliant,
+    /// Traffic the rule flags (a "❌ Bad" docs example).
+    NonCompliant,
+}
+
+/// A documentation example for a rule: a snippet of HTTP traffic tagged with
+/// whether the rule accepts or rejects it. Consumed by the docs generator
+/// (#11b) and `rules list` (#18c). Intrinsic to the rule, so it lives in the
+/// rule crate alongside the trait rather than in downstream tooling.
+#[derive(Copy, Clone, Debug)]
+pub struct Example {
+    pub compliance: Compliance,
+    pub snippet: &'static str,
+}
+
 pub trait Rule: Send + Sync {
     fn id(&self) -> &'static str;
 
@@ -69,6 +89,25 @@ pub trait Rule: Send + Sync {
         history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation>;
+
+    /// Human-readable summary of what this rule checks and why it matters.
+    /// Renders as the "Description" section of the generated per-rule doc.
+    /// Empty by default; #11c fills these in from the existing docs/rules/ files.
+    fn description(&self) -> &'static str {
+        ""
+    }
+
+    /// Canonical specification reference (e.g. "RFC 9110 §5.2"), if any.
+    /// Renders into the "Specifications" section of the generated doc.
+    fn rfc_reference(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Compliant / non-compliant traffic examples for the generated doc's
+    /// "Examples" section. Empty by default.
+    fn examples(&self) -> &'static [Example] {
+        &[]
+    }
 }
 
 /// Get rule enabled flag, failing if not explicitly configured.
@@ -231,6 +270,25 @@ pub trait ProtocolRule: Send + Sync {
         history: &crate::protocol_event::ProtocolEventHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation>;
+
+    /// Human-readable summary of what this rule checks and why it matters.
+    /// Renders as the "Description" section of the generated per-rule doc.
+    /// Empty by default; #11c fills these in from the existing docs/rules/ files.
+    fn description(&self) -> &'static str {
+        ""
+    }
+
+    /// Canonical specification reference (e.g. "RFC 9000 §18.2"), if any.
+    /// Renders into the "Specifications" section of the generated doc.
+    fn rfc_reference(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Compliant / non-compliant traffic examples for the generated doc's
+    /// "Examples" section. Empty by default.
+    fn examples(&self) -> &'static [Example] {
+        &[]
+    }
 }
 
 /// Every transaction rule, self-registered at link time via
@@ -461,6 +519,24 @@ mod tests {
         let mut psorted = pids.clone();
         psorted.sort_unstable();
         assert_eq!(pids, psorted, "PROTOCOL_RULES must be sorted by id");
+    }
+
+    #[test]
+    fn metadata_accessors_dispatch_with_empty_defaults() {
+        // #11a only adds the metadata surface; no rule overrides it yet, so
+        // every collected rule must report the empty defaults. This proves the
+        // three accessors exist and dispatch through `&dyn Rule` /
+        // `&dyn ProtocolRule`. #11c will fill in real content per rule.
+        for r in RULES.iter() {
+            assert_eq!(r.description(), "", "{} description default", r.id());
+            assert_eq!(r.rfc_reference(), None, "{} rfc default", r.id());
+            assert!(r.examples().is_empty(), "{} examples default", r.id());
+        }
+        for r in PROTOCOL_RULES.iter() {
+            assert_eq!(r.description(), "", "{} description default", r.id());
+            assert_eq!(r.rfc_reference(), None, "{} rfc default", r.id());
+            assert!(r.examples().is_empty(), "{} examples default", r.id());
+        }
     }
 
     #[test]
