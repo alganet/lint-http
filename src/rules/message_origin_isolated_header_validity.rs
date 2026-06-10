@@ -74,6 +74,36 @@ impl Rule for MessageOriginIsolatedHeaderValidity {
             message: format!("Origin-Isolation header value '{}' is invalid: expected '?1' to enable origin isolation", val),
         })
     }
+
+    fn description(&self) -> &'static str {
+        "Checks the `Origin-Isolation` response header and ensures it uses the structured-header boolean value `?1` to request document origin isolation. The header must be a single value and must not contain comma-separated lists or multiple header fields. `?1` signals that the origin requests origin isolation for documents served from it; other values are rejected by this rule."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("Origin Isolation explainer: https://github.com/davidben/origin-isolation/blob/master/README.md (See \"Example\" and \"How it works\")")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nOrigin-Isolation: ?1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nOrigin-Isolation: ?0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nOrigin-Isolation: ?1, ?1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nOrigin-Isolation: unsafe-none",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

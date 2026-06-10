@@ -43,6 +43,32 @@ impl Rule for ServerRedirectStatusAndLocationValidity {
         }
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Responses that indicate a resource has moved or been created (3xx redirections and 201 Created) commonly use the `Location` header to point to the target resource. A `Location` header appearing on responses that are not redirects or creations may indicate a misconfiguration or misuse; this rule flags `Location` header presence on non-redirect responses."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2) — `Location = URI-reference` and semantics for redirection responses (3xx).")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/plain\n\nHello",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 302 Found\nLocation: /new",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nLocation: /unexpected",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

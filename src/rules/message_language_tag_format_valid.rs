@@ -92,6 +92,28 @@ impl Rule for MessageLanguageTagFormatValid {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate that any language tag appearing in HTTP headers such as `Content-Language` and `Accept-Language` follows a well-formed BCP 47-style syntax (RFC 5646). This check is conservative: it rejects obvious syntax problems (invalid characters, empty subtags, consecutive hyphens, or overly long subtags) while accepting common valid forms such as `en`, `en-US`, `zh-Hant`, `sr-Latn-RS`, and private-use tags like `x-custom`."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 5646 — BCP 47 language tag syntax](https://www.rfc-editor.org/rfc/rfc5646.html)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Accept-Language: en, fr-CA;q=0.8\nContent-Language: en-US",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Accept-Language: en_US\nContent-Language: en-TooLongSubtag123",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

@@ -84,6 +84,44 @@ impl Rule for MessageHttp3NoConnectionHeader {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "HTTP/3 does not use the `Connection` header field to indicate connection-specific options. Connection-specific header fields such as `Connection`, `Keep-Alive`, `Proxy-Connection`, `Transfer-Encoding`, and `Upgrade` have no meaning in HTTP/3 and their presence indicates a malformed message. An endpoint MUST NOT generate an HTTP/3 field section containing any of these headers.\n\nThe only exception is the `TE` header field, which MAY be present in an HTTP/3 request but MUST NOT contain any value other than `trailers`. Since `TE` is a request-only field (RFC 9110 §10.1.4), any `TE` header in an HTTP/3 response is also invalid.\n\nRequest headers are checked when the request version is `HTTP/3`. Response headers are checked only when the response's own version is `HTTP/3`; in a reverse-proxy setup the upstream response may arrive via HTTP/1.1 or HTTP/2 and legitimately carry connection-specific headers that are stripped before forwarding over HTTP/3."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9114 §4.2 — HTTP Fields](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/3\nHost: example.com\nAccept: text/html",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/3\nHost: example.com\nTE: trailers",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/3\nHost: example.com\nConnection: keep-alive",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "POST /data HTTP/3\nHost: example.com\nTransfer-Encoding: chunked",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/3\nHost: example.com\nUpgrade: websocket",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/3\nHost: example.com\nTE: gzip, trailers",
+            },
+        ]
+    }
 }
 
 /// Check for the presence of any forbidden connection-specific header.

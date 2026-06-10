@@ -32,6 +32,32 @@ impl Rule for ClientRequestTargetNoFragment {
         }
         None
     }
+
+    fn description(&self) -> &'static str {
+        "The request-target (URI) sent in the request line MUST NOT include a fragment identifier (`#`). This applies to all forms of request-target, including `origin-form` and `absolute-form`.\n\nFragment identifiers are intended for client-side use only (e.g., to scroll to a specific part of a page) and have no meaning to the server. Sending them in the request line is a protocol violation."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 3986 §3.5](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.5): Fragment")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /index.html HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /index.html#section1 HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET http://example.com/index.html#section1 HTTP/1.1",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

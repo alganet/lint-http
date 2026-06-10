@@ -132,6 +132,28 @@ impl Rule for MessageRefreshHeaderSyntaxValid {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate syntax of the non-standard `Refresh` response header. The header is commonly used to perform a delayed redirect or refresh using a `delta-seconds` value optionally followed by a `url=<URI>` parameter (e.g., `5; url=/new`). This rule flags malformed values such as non-numeric delays, missing `url` values, unrecognized parameters, and invalid URI syntax in the `url` parameter."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("MDN: [Refresh](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Refresh) — non-standard header commonly used for delayed redirects.")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nRefresh: 5\n\nHTTP/1.1 200 OK\nRefresh: 10; url=/new",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nRefresh: bad\n\nHTTP/1.1 200 OK\nRefresh: 5; url=\n\nHTTP/1.1 200 OK\nRefresh: 5; foo=bar\n\nHTTP/1.1 200 OK\nRefresh: 5, 10  # comma-separated values are not valid",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

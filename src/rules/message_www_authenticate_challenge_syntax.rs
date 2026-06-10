@@ -56,6 +56,44 @@ impl Rule for MessageWwwAuthenticateChallengeSyntax {
         }
         None
     }
+
+    fn description(&self) -> &'static str {
+        "The `WWW-Authenticate` response header advertises authentication schemes that the server supports. Each challenge consists of an `auth-scheme` (a `token`) followed by optional parameters (`auth-param`) or a `token68` value.\n\nThis rule validates that each challenge:\n\n- Begins with a valid `auth-scheme` token (no illegal characters).\n- If parameters are present, each parameter is of the form `token=token` or `token=\"quoted-string\"` and quoted-strings are well-formed.\n- Token68 values are accepted as a single token-like remainder (no control characters)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §7.2.1 — WWW-Authenticate](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=\"example\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Bearer realm=\"example\", error=\"invalid_token\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: NewScheme abcdef123=",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: b@d realm=\"x\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=\"unfinished",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

@@ -115,6 +115,28 @@ impl Rule for MessageExtensionHeadersRegistered {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Non-standard or extension header field-names (i.e., those not registered in the IANA HTTP Field Name registry) SHOULD be explicitly allowed by configuration to avoid accidental custom headers, typos, and interoperability issues. This rule flags header field-names that are not present in the rule's `allowed` list."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §5.1 — Field names](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Host: example.com\nContent-Type: text/plain\nX-Custom: 1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "X-Custome: 1   # typo or unregistered header not allowed\nX-Unknown: 2   # unregistered header not in allowed list",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

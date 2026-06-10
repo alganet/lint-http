@@ -170,6 +170,28 @@ impl Rule for MessagePreferHeaderValid {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate that the `Prefer` request header follows the ABNF in RFC 7240 §2. Each preference token must be a `token` and optional values must be either a `token` or a `quoted-string`. Parameters (semicolon-separated) must have `token` names and their values must be `token` or `quoted-string` when present."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 7240 §2](https://www.rfc-editor.org/rfc/rfc7240#section-2) — Prefer header syntax and semantics.")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: respond-async\n\nPOST /items HTTP/1.1\nHost: example.org\nPrefer: return=representation; foo=\"bar\"\n\nPOST /items HTTP/1.1\nHost: example.org\nPrefer: handling=lenient, wait=100",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: =foo   # empty token\n\nPOST /items HTTP/1.1\nHost: example.org\nPrefer: \"quoted\"   # token must not be quoted\n\nPOST /items HTTP/1.1\nHost: example.org\nPrefer: return=\"bad\\x01\"  # control characters inside quoted-string",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

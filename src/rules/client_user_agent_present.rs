@@ -33,6 +33,28 @@ impl Rule for ClientUserAgentPresent {
             None
         }
     }
+
+    fn description(&self) -> &'static str {
+        "This rule checks if the client sends a `User-Agent` header in the request.\n\nWhile not strictly mandatory for all HTTP requests, the `User-Agent` header is highly recommended for identifying the client software, version, and operating system. It helps servers tailor responses and administrators debug issues."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5): User-Agent header")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /api/data HTTP/1.1\nHost: example.com\nUser-Agent: MyClient/1.0 (Linux; x64)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /api/data HTTP/1.1\nHost: example.com\nAccept: application/json",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

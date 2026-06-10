@@ -74,6 +74,40 @@ impl Rule for MessageHttp3HostAuthorityConsistency {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "In HTTP/3 the `:authority` pseudo-header field carries the authority component of the target URI. When a request also includes a `Host` header, both fields MUST contain the same value; a mismatch indicates either a misconfigured intermediary or a potential request-smuggling vector. A server SHOULD treat such a request as malformed.\n\nIf both fields are present, neither may be empty for `http` or `https` URIs. The comparison is case-insensitive for the hostname portion, as required by URI syntax (RFC 3986 §3.2.2).\n\nThis rule only applies to HTTP/3 requests. When the request version is not HTTP/3, or when only one of the two fields is present, no check is performed."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9114 §4.3.1 — Request Pseudo-Header Fields](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/3\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/3\nHost: example.com:8080",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/3\nHost: other.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/3\nHost: example.com:9090",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/3\nHost:",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

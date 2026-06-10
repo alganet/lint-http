@@ -120,6 +120,48 @@ impl Rule for MessageAcceptEncodingParameterValidity {
         }
         None
     }
+
+    fn description(&self) -> &'static str {
+        "`Accept-Encoding` members may include parameters such as `q` weights. This rule validates each member's parameters:\n\n- Parameter names must be `token` characters.\n- Parameter values must be a `token` or a `quoted-string`.\n- The special `q` parameter must be a valid qvalue (for example: `0`, `0.5`, `1.0`, `0.123`).\n\nInvalid parameter forms or `q` values are flagged."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §12.5.3 — Accept-Encoding](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;q=0.8",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: br;q=1.0",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: *;q=0.5, gzip;q=0.8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;q=1.0000",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip@;q=0.5",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;q=",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

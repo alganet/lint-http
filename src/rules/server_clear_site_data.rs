@@ -131,6 +131,28 @@ impl Rule for ServerClearSiteData {
             None
         }
     }
+
+    fn description(&self) -> &'static str {
+        "Checks that configured logout paths include a `Clear-Site-Data` header so client-side storage (cookies, cache, storage) is cleared on logout."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[W3C Clear Site Data Specification](https://www.w3.org/TR/clear-site-data/)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "POST /logout HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nClear-Site-Data: \"*\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "POST /logout HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: application/json\n# Missing Clear-Site-Data",
+            },
+        ]
+    }
 }
 
 /// Extract the path from a resource URL string

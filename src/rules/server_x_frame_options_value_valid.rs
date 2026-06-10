@@ -91,6 +91,40 @@ impl Rule for ServerXFrameOptionsValueValid {
             message: format!("X-Frame-Options contains unsupported value: '{}'", val),
         })
     }
+
+    fn description(&self) -> &'static str {
+        "The `X-Frame-Options` response header protects content from being embedded in frames by other origins. This rule validates that the header, when present, uses one of the allowed values: `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <serialized-origin>`. It also rejects multiple header occurrences and malformed `ALLOW-FROM` origins."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 7034 §2.1](https://www.rfc-editor.org/rfc/rfc7034.html#section-2.1) — `X-Frame-Options` header values: `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <serialized-origin>`.")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: DENY\n\n...response body...",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: ALLOW-FROM https://example.com/\n\n...response body...",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: ALLOW-FROM example.com\n\n...response body...",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: DENY, SAMEORIGIN\n\n...response body...",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: SOMETHINGELSE\n\n...response body...",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

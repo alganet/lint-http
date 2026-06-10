@@ -59,6 +59,28 @@ impl Rule for ClientPreferHeaderAndPreferenceApplied {
             message: "Request included Prefer header but response did not include Preference-Applied to indicate which preferences were applied".into(),
         })
     }
+
+    fn description(&self) -> &'static str {
+        "When a client sends a `Prefer` request header, servers MAY include a `Preference-Applied` response header to indicate which preferences were applied. This rule warns when a request included `Prefer` but the response did not include `Preference-Applied`, which makes it harder for clients to know which preferences the server applied. This is a best-practice suggestion; servers are not strictly required to include `Preference-Applied`."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 7240 §3](https://www.rfc-editor.org/rfc/rfc7240.html#section-3) — `Preference-Applied` header and ABNF")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: return=representation",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET / HTTP/1.1\nPrefer: return=representation\n\nHTTP/1.1 200 OK",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

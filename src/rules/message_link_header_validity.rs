@@ -209,6 +209,28 @@ impl Rule for MessageLinkHeaderValidity {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate `Link` header field syntax and common semantics. Ensures each link member contains an angle-bracketed URI (`<...>`), parameter names and values conform to `token`/`quoted-string` rules, and that `rel` values are syntactically valid. When `rel=preload` is used, include an `as` parameter where appropriate (see preload / Early Hints guidance). For `103 Early Hints` responses, `Link` members are commonly used to advertise `preload` hints."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 8288](https://www.rfc-editor.org/rfc/rfc8288.html) — Web Linking (Link header field)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Link: <https://example.com/style.css>; rel=preload; as=style\nLink: <https://example.com/page2>; rel=\"next\"; title=\"Next page\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Link: https://example.com/style.css; rel=preload     # missing angle brackets\nLink: <https://example.com/script.js>; rel=preload    # missing 'as' parameter for preload\nLink: <https://example.com/>; bad@=1                  # invalid character in parameter name",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

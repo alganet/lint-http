@@ -188,6 +188,36 @@ impl Rule for StatefulNoStoreEnforcement {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "The `no-store` cache-control directive (RFC 9111 §5.2.2.3) tells caches that **they must not retain any part of the response or request**.  A cache that breaks this rule may later reuse stale or private data inappropriately.\n\nThis stateful rule observes the history of a particular client+resource and remembers which validator values (ETag or Last-Modified) were seen on responses that carried `Cache-Control: no-store`.  Only the most recent occurrence of each validator is kept; if the same value later appears on a non‑`no-store` response it is no longer considered forbidden.  When the current request carries a conditional header whose value matches one of those \"no-store\" validators, we infer that the response must have been stored at some point, and a violation is reported.\n\nThe check is scoped to resource histories (the engine filters transactions by URI) and therefore does not attempt to reason about unrelated traffic.  The rule does not flag unconditional requests, nor does it attempt to detect improper storage of requests (which is rarely visible from traffic capture)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9111 §5.2.2.3 — `no-store`](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.3)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< ETag: \"a\"\n\n# later the client issues a fresh request with no conditional headers;\n# since there is nothing to compare the rule does not fire.\n> GET /foo HTTP/1.1\n> Host: example.com",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< ETag: \"a\"\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=60\n< ETag: \"a\"\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> If-None-Match: \"a\"    # this value now comes from a cacheable response",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< ETag: \"x\"\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> If-None-Match: \"x\"    # validator derived from a no-store entry",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< Last-Modified: Wed, 21 Oct 2015 07:28:00 GMT\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> If-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT",
+            },
+        ]
+    }
 }
 
 /// Look for a `no-store` directive in any Cache-Control header field.

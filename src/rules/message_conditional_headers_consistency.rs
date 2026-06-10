@@ -100,6 +100,44 @@ impl Rule for MessageConditionalHeadersConsistency {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate consistency and mutual exclusivity of conditional request headers. This rule enforces the evaluation precedence of conditional headers (ETag-based conditionals take precedence over date-based ones), ensures `If-Range` is only used with `Range` requests, and disallows weak ETags in `If-Range` when an entity-tag is used."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §13.1 — Preconditions](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-99\nIf-Range: \"abc\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "POST /resource HTTP/1.1\nHost: example.com\nIf-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT   # If-Modified-Since is not meaningful for POST",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"\nIf-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT   # If-Modified-Since MUST be ignored when If-None-Match present",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-99\nIf-Range: W/\"weaktag\"   # If-Range must not contain a weak entity-tag",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-Range: \"strongtag\"   # missing Range header -> invalid use of If-Range",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

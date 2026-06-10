@@ -43,6 +43,28 @@ impl Rule for ServerRetryAfterStatusValidity {
             ),
         })
     }
+
+    fn description(&self) -> &'static str {
+        "`Retry-After` is primarily defined for temporary unavailability and redirects. This rule flags responses that include `Retry-After` on statuses where its semantics are unusual.\n\nThe rule allows `Retry-After` on:\n- `503 Service Unavailable` (RFC 9110)\n- any `3xx` redirection (RFC 9110)\n- `429 Too Many Requests` (RFC 6585)"
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3): Retry-After with 503 and 3xx responses")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 503 Service Unavailable\nRetry-After: 120\n\nHTTP/1.1 301 Moved Permanently\nLocation: /new-path\nRetry-After: 30\n\nHTTP/1.1 429 Too Many Requests\nRetry-After: 60",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nRetry-After: 10\n\nHTTP/1.1 500 Internal Server Error\nRetry-After: 120",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

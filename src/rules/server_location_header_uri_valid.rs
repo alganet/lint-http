@@ -71,6 +71,36 @@ impl Rule for ServerLocationHeaderUriValid {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "This rule checks that the `Location` response header, when present, is a syntactically valid URI-reference. `Location` is commonly used in redirects and SHOULD be a URI-reference per the HTTP spec; malformed values can break clients."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §7.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#name-location)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 302 Found\nLocation: https://example.com/new-location",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 302 Found\nLocation: /new-location?ref=1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 302 Found\nLocation: /bad%2Gencoding",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 302 Found\nLocation: https://example.com/ bad",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

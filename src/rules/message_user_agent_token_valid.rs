@@ -130,6 +130,36 @@ impl Rule for MessageUserAgentTokenValid {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "`User-Agent` header values SHOULD be syntactically valid `product` tokens as defined by HTTP (token [\"/\" token]) and MAY include parenthesized comments. This rule validates product tokens and their optional version tokens, and flags invalid characters, empty tokens, or malformed comments."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5) — `User-Agent` header field and `product` syntax (token [\"/\" product-version])")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: curl/7.68.0",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Mozilla/5.0 (compatible; Bot/1.0; +http://example.com)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Bad UA!",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: /1.0",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

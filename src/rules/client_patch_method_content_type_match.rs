@@ -152,6 +152,28 @@ impl Rule for ClientPatchMethodContentTypeMatch {
             message: format!("PATCH request Content-Type '{}' does not match any media-type advertised in previous Accept-Patch", full),
         })
     }
+
+    fn description(&self) -> &'static str {
+        "When a server advertises supported patch formats using `Accept-Patch`, clients issuing `PATCH` requests SHOULD include a `Content-Type` that matches one of the advertised media types. This rule flags `PATCH` requests whose `Content-Type` does not match any media type previously advertised in an `Accept-Patch` response. It helps avoid unexpected or unsupported patch document formats (RFC 5789 §2.2)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 5789 §2.2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2) — `PATCH` and `Accept-Patch` header; Accept-Patch advertises supported patch media types.")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "# Previous response included an Accept-Patch advertising merge-patch+json\nHTTP/1.1 200 OK\nAccept-Patch: application/merge-patch+json\n\n# Client PATCH uses a matching Content-Type\nPATCH /resource HTTP/1.1\nContent-Type: application/merge-patch+json\n\n{ \"op\": \"replace\", \"path\": \"/name\", \"value\": \"x\" }",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "# Previous response advertised application/merge-patch+json\nHTTP/1.1 200 OK\nAccept-Patch: application/merge-patch+json\n\n# Client PATCH uses a different Content-Type -> violation\nPATCH /resource HTTP/1.1\nContent-Type: application/json\n\n{ \"name\": \"x\" }",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

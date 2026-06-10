@@ -144,6 +144,28 @@ impl Rule for MessageCachingDirectiveInteraction {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Detect contradictions or redundant combinations in `Cache-Control` directives that affect caching semantics. Examples include `public` and `private` appearing together (contradictory visibility), `no-store` combined with `public`/`private`, and `no-cache` together with `max-age=0` (redundant)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3) — Cache-Control directives and cache semantics")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Cache-Control: public, max-age=3600",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Cache-Control: public, private\n\nCache-Control: no-store, public\n\nCache-Control: no-cache, max-age=0",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

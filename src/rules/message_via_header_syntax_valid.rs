@@ -57,6 +57,28 @@ impl Rule for MessageViaHeaderSyntaxValid {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validates `Via` header field-values follow the list of received-protocol and received-by entries as specified by RFC 9110 §7.6.3. Each entry should include a protocol token (e.g., `1.1` or `HTTP/1.1`) and a `received-by` token (host, pseudonym, or IP with optional port); comments are allowed in parentheses."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §7.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.3): Via header")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Via: 1.1 example.com\nVia: HTTP/1.1 example.com, 1.0 proxy.example.com:8080\nVia: 1.1 example.com (cached)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Via: 1.1\n# missing received-by\n\nVia: HT@P/1.1 proxy.example.com\n# invalid protocol token\n\nVia: 1.1 example.com:port\n# non-numeric port\n\nVia: 1.1 example.com, , 1.0 proxy\n# empty element",
+            },
+        ]
+    }
 }
 
 // Split on commas that are not inside parentheses

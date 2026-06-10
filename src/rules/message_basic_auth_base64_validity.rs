@@ -57,6 +57,32 @@ impl Rule for MessageBasicAuthBase64Validity {
         }
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate that `Authorization: Basic ...` credentials are syntactically valid Base64-encoded `user-id:password` octet sequences as defined by RFC 7617. The rule ensures the credentials decode successfully, include the required `:` separator, and that neither the user-id nor the password contains control characters."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 7617 §2 — The Basic authentication scheme and the `user-pass` encoding (Base64)](https://www.rfc-editor.org/rfc/rfc7617.html#section-2)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic not-base64",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic YWJj",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

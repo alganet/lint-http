@@ -259,6 +259,41 @@ impl Rule for MessageCookieAttributeConsistency {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate `Set-Cookie` attributes for syntactic correctness and common security consistency rules. This rule parses `Set-Cookie` header values and flags:\n\n- Invalid cookie-name tokens.\n- Malformed attributes (e.g., `Max-Age` non-numeric, `Expires` not an HTTP-date).\n- `Path` values that don't start with `/`.\n- `Domain` values that are empty or contain spaces.\n- `SameSite` values other than `Strict`, `Lax`, or `None`.\n- `SameSite=None` cookies that are not marked `Secure` (browser behaviour / compatibility requirement).\n- `Secure` and `HttpOnly` attributes that incorrectly include a value (they must be flags)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 6265 §5.2.2 — Set-Cookie header attributes and semantics](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.2)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet:
+                    "Set-Cookie: SID=31d4d96e407aad42; Secure; HttpOnly; Path=/; SameSite=None",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Set-Cookie: sid=abcd; Path=/login; HttpOnly",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Set-Cookie: id=1; SameSite=None",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Set-Cookie: SID=1; Max-Age=abc",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Set-Cookie: SID=1; Expires=NotADate",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

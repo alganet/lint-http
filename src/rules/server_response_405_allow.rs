@@ -34,6 +34,28 @@ impl Rule for ServerResponse405Allow {
         }
         None
     }
+
+    fn description(&self) -> &'static str {
+        "This rule checks if `405 Method Not Allowed` responses include an `Allow` header.\n\nThe `Allow` header is required in `405` responses to indicate the set of methods supported by the resource, so clients can discover what operations are permitted."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §10.5.6](https://www.rfc-editor.org/rfc/rfc9110.html#name-405-method-not-allowed): 405 Method Not Allowed")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 405 Method Not Allowed\nContent-Type: text/plain\nAllow: GET, HEAD",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 405 Method Not Allowed\nContent-Type: text/plain\n# Missing Allow header",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

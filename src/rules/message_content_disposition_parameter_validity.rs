@@ -262,6 +262,28 @@ impl Rule for MessageContentDispositionParameterValidity {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "`Content-Disposition` parameters provide metadata about how to handle a payload (for example, the suggested filename). Malformed parameters can break user agents or enable confusing behavior. This rule validates parameter name syntax and performs focused checks on common parameters:\n\n- `filename` — must be a `token` or a valid `quoted-string`.\n- `filename*` — must be a valid RFC 5987 `ext-value` (e.g., `UTF-8''%e2%82%ac%20rates`).\n- `size` — must be a numeric value (digits only), optionally quoted.\n\nWhen a parameter value is syntactically invalid, the rule raises a `warn`-level violation by default."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 6266 §4](https://www.rfc-editor.org/rfc/rfc6266.html#section-4) — Use of `Content-Disposition` in HTTP (parameters, `filename`, `filename*`, `size` notes).")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Content-Disposition: attachment; filename=\"example.txt\"\nContent-Disposition: attachment; filename*=UTF-8''%e2%82%ac%20rates\nContent-Disposition: attachment; filename=example.txt; size=12345",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Content-Disposition: attachment; filename=unclosed\nContent-Disposition: attachment; filename*=UTF-8'%e2%82%ac   ;  # missing second quote\nContent-Disposition: attachment; size=12a\nContent-Disposition: attachment; filename=foo; filename=bar  # duplicate parameter name",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

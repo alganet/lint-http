@@ -103,6 +103,14 @@ impl Rule for StatefulSMaxAgeEnforcement {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Responses that include a `Cache-Control: s-maxage=<seconds>` directive are intended to limit how long **shared** caches may consider the representation fresh.  Private caches (e.g. in a browser or single-client proxy) **must ignore** `s-maxage` and instead rely on the ordinary freshness lifetime (`max-age`, `Expires`, heuristics, etc.).  Misinterpreting `s-maxage` on the client side can lead to unnecessary conditional requests and wasted network traffic.\n\nThis rule watches a series of transactions from the same client and examines the most recent prior response for the same resource that carried both an `<s-maxage>` value and a larger `max-age`.  If the client subsequently issues a conditional request **after** the `s-maxage` interval but **before** the `max-age` interval has elapsed, the cached entry was still fresh according to the private-cache semantics and revalidation was premature.  A warning is issued in that case."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9111 §5.2 — `s-maxage` directive](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2) — applies only to shared caches and overrides `max-age`/`Expires` for those caches.")
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

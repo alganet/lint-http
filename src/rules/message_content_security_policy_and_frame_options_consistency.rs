@@ -213,6 +213,36 @@ impl Rule for MessageContentSecurityPolicyAndFrameOptionsConsistency {
         // Unsupported XFO form -> ignore (other rule flags)
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Detect contradictory framing directives between `Content-Security-Policy` (the `frame-ancestors` directive) and `X-Frame-Options`. These headers express framing restrictions; when they conflict, they create ambiguity that may cause different user agents to allow or block framing inconsistently.\n\nNote: this check considers only enforceable header-delivered CSP policies (`Content-Security-Policy`); `Content-Security-Policy-Report-Only` is ignored because it does not itself change framing enforcement."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[Content Security Policy (CSP) — `frame-ancestors` directive (W3C CSP spec §6.4.2)](https://www.w3.org/TR/CSP3/#directive-frame-ancestors). Note: when present and enforceable, `frame-ancestors` overrides `X-Frame-Options` (see §6.4.2.2).")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Content-Security-Policy: frame-ancestors 'none'\n# No X-Frame-Options header present",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Content-Security-Policy: frame-ancestors https://example.com\nX-Frame-Options: ALLOW-FROM https://example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Content-Security-Policy: frame-ancestors 'none'\nX-Frame-Options: SAMEORIGIN\n# CSP disallows all framing but XFO says allow same origin -> contradiction",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Content-Security-Policy: frame-ancestors 'self'\nX-Frame-Options: DENY\n# CSP allows same-origin framing while XFO denies all framing -> contradiction",
+            },
+        ]
+    }
 }
 
 // Helper to derive origin from a request uri like "http://example/" -> "http://example"

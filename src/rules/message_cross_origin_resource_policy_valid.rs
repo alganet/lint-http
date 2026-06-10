@@ -87,6 +87,36 @@ impl Rule for MessageCrossOriginResourcePolicyValid {
             ),
         })
     }
+
+    fn description(&self) -> &'static str {
+        "This rule checks the `Cross-Origin-Resource-Policy` response header value and ensures it is one of the allowed tokens: **`same-site`**, **`same-origin`**, or **`cross-origin`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. This header is response-only per the W3C Cross-Origin Resource Policy specification; the rule applies to server responses (RuleScope::Server)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("W3C: Cross-Origin Resource Policy — https://w3c.github.io/webappsec-corp/")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: same-site",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: SAME-ORIGIN ",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: private",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: same-origin, cross-origin",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

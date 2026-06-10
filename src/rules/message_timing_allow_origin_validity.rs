@@ -93,6 +93,44 @@ impl Rule for MessageTimingAllowOriginValidity {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate the `Timing-Allow-Origin` response header values. The header's value\nmust be `*` (wildcard), `null` (case-insensitive), or one or more serialized\norigins (`scheme://host[:port]`). Multiple header fields are allowed and their\nvalues are combined using HTTP list semantics. This rule detects header values\nthat cannot be decoded as visible US-ASCII, an entirely empty header value, and\ninvalid origin serializations."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[Resource Timing §4.5.1 — `Timing-Allow-Origin` response header](https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: *",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https://example.com",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https://a, https://b",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https:///foo",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: ",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: \t",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

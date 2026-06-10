@@ -122,6 +122,36 @@ impl Rule for MessageContentLocationAndUriConsistency {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate `Content-Location` header values to ensure they are well-formed URI references and, for 2xx responses, that they consistently identify the representation. If the response's `Content-Location` resolves to the same URI as the request target, the response clearly identifies the representation of the target resource; otherwise, the header indicates the representation is identified by a different URI (allowed, but worth flagging)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §8.7 — Content-Location](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /foo HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Location: /foo\nContent-Type: text/plain\n\nHello",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /foo HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Location: http://example.com/foo\nContent-Type: text/plain\n\nHello",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nContent-Location: /bad%2G",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nContent-Location: /bad path",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

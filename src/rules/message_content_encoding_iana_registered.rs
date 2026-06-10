@@ -136,6 +136,28 @@ impl Rule for MessageContentEncodingIanaRegistered {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate `Content-Encoding` and `Accept-Encoding` header values to ensure content-coding tokens are syntactically valid and are recognised (SHOULD be IANA-registered or explicitly allowed via configuration). The rule flags unrecognised content-coding tokens and invalid token characters."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §5.3 — Content Coding](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Content-Encoding: gzip\nContent-Encoding: gzip, br\nAccept-Encoding: gzip;q=0.8, br;q=1.0\nAccept-Encoding: *",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Content-Encoding: x-custom\nAccept-Encoding: x-custom;q=0.5\nAccept-Encoding: x!bad  # invalid token character '!'",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

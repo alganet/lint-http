@@ -134,6 +134,28 @@ impl Rule for MessageStructuredHeadersValidity {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate that specified header fields are valid RFC 8941 Structured Field values (Item, List, or Dictionary). This rule checks for syntactic correctness (tokens, quoted-strings, numbers, booleans, byte-sequences, and simple parameters) and reports malformed header values. It is intentionally conservative and focuses on common syntactic errors."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 8941 — Structured Field Values for HTTP](https://www.rfc-editor.org/rfc/rfc8941.html)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Priority: u=3, i\nPermissions-Policy: interest-cohort=()\nAccept-Patch: application/json-patch+json\nContent-Digest: sha-256=:BASE64=",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Priority: u=INVALID  # invalid token (structured field tokens cannot start with uppercase)\nPermissions-Policy: bad(token)  # invalid token characters: '(' and ')'\nAccept-Patch: \"unterminated  # unbalanced quoted-string\nContent-Digest: sha-256=:???=  # invalid byte-sequence",
+            },
+        ]
+    }
 }
 
 // Minimal conservative structured-field validator. Returns Some(error_msg) on failure.

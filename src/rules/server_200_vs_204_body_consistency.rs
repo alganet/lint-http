@@ -81,6 +81,32 @@ impl Rule for Server200Vs204BodyConsistency {
         // If no explicit indicators (no content-length, no transfer-encoding, and unknown body length), be conservative and do not report.
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Warn when a server returns a 200 (OK) response that contains no message body and the request method is not `HEAD`. When a response intentionally has no content, the `204 No Content` status code is a more appropriate and explicit choice. This rule helps catch server misconfigurations that return `200` with an empty payload where `204` would better express the intent."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §15.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.1): 200 (OK) response semantics — expected to contain message content unless the message framing explicitly indicates zero length; consider using 204 when no content is preferred.")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nContent-Type: application/json\nContent-Length: 27\n\n{\"status\":\"ok\",\"data\":1}",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nDate: Mon, 01 Jan 2024 00:00:00 GMT\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nContent-Length: 0\n",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

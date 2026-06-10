@@ -41,6 +41,32 @@ impl Rule for ServerStatusCodeValidRange {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "HTTP response status codes MUST be in the range 100 through 599. This rule flags responses with status codes outside this range.\n\nThe status-code element is a three-digit integer that attempts to understand and satisfy the request. Standardized status codes are grouped into five classes (Informational, Success, Redirection, Client Error, and Server Error), all within the 100-599 range. Codes outside this range are not valid HTTP."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §15.1](https://www.rfc-editor.org/rfc/rfc9110.html#name-overview-of-status-codes): Status Codes")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 600 Invalid Status",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 99 Something",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

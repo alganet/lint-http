@@ -69,6 +69,36 @@ impl Rule for MessageCacheControlAndPragmaConsistency {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Flags contradictions between `Pragma` and `Cache-Control` in requests (for example, `Pragma: no-cache` together with `Cache-Control: only-if-cached`), and warns when `Pragma` appears in responses since its meaning there is unspecified. This helps avoid ambiguous or conflicting cache directives that can lead to cache-serving mistakes."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 7234 §5.4](https://www.rfc-editor.org/rfc/rfc7234.html#section-5.4) — `Pragma` and its relationship to `Cache-Control`.")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nCache-Control: no-cache, max-age=0\n\nHTTP/1.1 200 OK\nCache-Control: no-cache",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nPragma: no-cache\nCache-Control: only-if-cached\n\n# Contradictory directives: 'no-cache' requests should not force 'only-if-cached'",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nPragma: no-cache\n\n# 'Pragma' in responses has unspecified semantics; use 'Cache-Control' instead",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nPragma: foo\n\n# Any Pragma in responses is discouraged; prefer Cache-Control",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

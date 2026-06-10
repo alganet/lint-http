@@ -106,6 +106,32 @@ impl Rule for MessageRequestBodyLengthAccuracy {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "When a request includes a `Content-Length` header, its numeric value MUST match the actual length in bytes of the captured request body after HTTP framing has been resolved (for example, after processing chunked transfer-coding), but not necessarily after any `Content-Encoding` (such as gzip) has been decoded. Mismatches indicate truncated or malformed requests and can lead to framing errors or request smuggling vulnerabilities. This rule validates that `Content-Length` (when present and syntactically valid) equals the captured body length recorded in the transaction."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): Content-Length header field usage.")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "POST /upload HTTP/1.1\nContent-Length: 3\n\nabc",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "POST /upload HTTP/1.1\nContent-Length: 10\n\nabc",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "POST /upload HTTP/1.1\nContent-Length: abc\n\nabc",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

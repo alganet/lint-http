@@ -34,6 +34,28 @@ impl Rule for ClientRequestUriPercentEncodingValid {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "This rule checks that percent-encodings (pct-encodings) in the request-target are well-formed: each `%` must be followed by exactly two hexadecimal digits. Malformed percent-encodings can lead to ambiguous URIs or incorrect parsing by intermediaries."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /path%20with%20spaces HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /path%2 HTTP/1.1\nHost: example.com\n# incomplete percent-encoding\n\nGET /path%GG HTTP/1.1\nHost: example.com\n# invalid hex digits",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

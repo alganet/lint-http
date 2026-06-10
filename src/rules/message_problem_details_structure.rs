@@ -112,6 +112,28 @@ impl Rule for MessageProblemDetailsStructure {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "When a server expresses an error using the Problem Details media type (`application/problem+json`), the response body SHOULD be a JSON object carrying problem details (see RFC 7807). This rule performs conservative, syntactic checks on such responses: it verifies the response is an error (4xx/5xx) and that `application/problem+json` responses include a non-empty body. Captured bodies are available to rules in memory; the `captures_include_body` setting only controls whether bodies are persisted to the captures file. When body bytes are present, the rule will attempt to parse the body and ensure it is a non-empty JSON object. If body bytes are not present, the rule conservatively flags when a captured or indicated Content-Length of zero is present."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 7807 §3.1 — Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc7807.html#section-3.1)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 400 Bad Request\nContent-Type: application/problem+json\nContent-Length: 123\n\n{\"type\":\"about:blank\",\"title\":\"Bad Request\",\"detail\":\"invalid input\"}",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 500 Internal Server Error\nContent-Type: application/problem+json\nContent-Length: 0\n",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

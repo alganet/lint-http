@@ -78,6 +78,28 @@ impl Rule for MessageCacheControlDirectiveValidity {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate `Cache-Control` directive names and argument formats for common correctness issues. This rule enforces directive-specific semantics such as:\n\n- `max-age` and `s-maxage` must have non-negative integer values (delta-seconds).\n- `private` and `no-cache` when carrying a field-name-list must provide a comma-separated list of field-names (tokens) either as an unquoted list or inside a quoted-string.\n- Unquoted directive values must follow the `token` grammar and quoted values must be valid `quoted-string`s.\n\nThis rule complements `message_cache_control_token_valid` which enforces general token/quoted-string syntax."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2) — Cache-Control directives and general directive syntax")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Cache-Control: max-age=3600\nCache-Control: s-maxage=0, public\nCache-Control: private=\"Set-Cookie, X-Foo\"\nCache-Control: private=Foo,bar",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Cache-Control: max-age=abc     # non-numeric max-age\nCache-Control: max-age=-1      # negative values not allowed\nCache-Control: s-maxage=1.5    # fractional values invalid\nCache-Control: private=Set Cookie  # space in token\nCache-Control: private=\"Set Cookie\" # quoted content contains space-separated token",
+            },
+        ]
+    }
 }
 
 fn check_cache_control_directives(s: &str) -> Option<String> {

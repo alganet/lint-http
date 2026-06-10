@@ -129,6 +129,45 @@ impl Rule for MessageAcceptLanguageWeightValidity {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "The `Accept-Language` header allows clients to specify languages and optional `q` weights that indicate preference. This rule validates that any parameters in `Accept-Language` members use valid `token` names and that `q` parameters are valid quality values in the range 0..1 with up to three decimal places."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §7.2.5 — Accept-Language](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.5)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en-US, fr;q=0.8",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: *;q=0.5, en;q=0.7",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;foo=\"a\\\"b\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;q=1.0000",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet:
+                    "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;badparam=bad value",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;q=",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

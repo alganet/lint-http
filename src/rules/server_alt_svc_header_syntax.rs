@@ -174,6 +174,28 @@ impl Rule for ServerAltSvcHeaderSyntax {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate the `Alt-Svc` response header. Each value must be of the form `protocol=authority` with optional `;` parameters (e.g., `ma`). The `protocol` token must be a valid HTTP `token`, and `authority` should be a non-empty host[:port] or a quoted authority. If a port is present, it must be numeric."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 7838](https://www.rfc-editor.org/rfc/rfc7838.html) — Alternative Services")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "Alt-Svc: h2=\":443\"; ma=2592000\nAlt-Svc: h2=example.com:443\nAlt-Svc: h2=example.com:443, h3=example.com:8443\nAlt-Svc: h2=\"[::1]:443\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "Alt-Svc: h@=example.com:443  # invalid protocol token\nAlt-Svc: h2=example.com:notaport  # invalid port\nAlt-Svc: h2example.com:443  # missing '='\nAlt-Svc: ,  # empty token",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

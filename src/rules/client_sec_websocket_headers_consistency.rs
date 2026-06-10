@@ -129,6 +129,32 @@ impl Rule for ClientSecWebsocketHeadersConsistency {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "For `GET` requests with `Upgrade: websocket`, validate that the WebSocket client handshake request includes required headers and well-formed values:\n\n- `Connection` header includes the `Upgrade` token.\n- `Sec-WebSocket-Version` is present and equals `13`.\n- `Sec-WebSocket-Key` is present and decodes from base64 to 16 bytes (nonce).\n\nThis rule helps detect malformed WebSocket upgrade requests that will be rejected by compliant servers (RFC 6455)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 6455 §4.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1) — Client Handshake: request must be GET and include `Upgrade: websocket` and `Connection: Upgrade`.")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 13\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 13",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 8\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

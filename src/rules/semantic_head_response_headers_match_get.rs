@@ -236,6 +236,32 @@ impl Rule for SemanticHeadResponseHeadersMatchGet {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Ensure responses to `HEAD` mirror the header fields that would have been sent for a `GET` on the same resource. A `HEAD` response MUST omit the message body but SHOULD include the same representation metadata and header fields as the corresponding `GET` response. The rule flags cases where the observed `HEAD` response omits or adds header fields compared with a previously observed `GET` for the same request-target, with a small set of RFC-permitted exceptions (see Specifications)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §9.3.2 — The HEAD method and header-field equivalence](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2): \"The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.\" (exceptions allowed for headers whose values are determined only while generating content.)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "# Previous GET\nGET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 42\n\n...body...\n\n# Later HEAD for same resource (headers match)\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 42",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "# Previous GET\nGET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\n\n...body...\n\n# Later HEAD for same resource (missing ETag)\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "# Previous GET\nGET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 100\n\n...body...\n\n# Later HEAD for same resource (Content-Length differs)\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 50",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

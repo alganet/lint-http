@@ -191,6 +191,28 @@ impl Rule for MessageDateAndTimeHeadersConsistency {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validate that date/time related headers are well-formed and mutually consistent. This rule checks `Date`, `Last-Modified`, `If-Modified-Since`, and `Sunset` for valid IMF-fixdate syntax and simple logical consistency: e.g., `Last-Modified` SHOULD NOT be later than `Date`, `Sunset` SHOULD indicate a future time relative to `Date`, and conditional request `If-Modified-Since` values should not be in the future relative to the request `Date`."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1): `Date` header (IMF-fixdate)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nLast-Modified: Wed, 21 Oct 2015 07:20:00 GMT\nSunset: Tue, 01 Jan 2030 00:00:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nLast-Modified: Wed, 21 Oct 2015 07:30:00 GMT  # Last-Modified after Date\nSunset: Wed, 21 Oct 2015 07:27:00 GMT        # Sunset is in the past relative to Date",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

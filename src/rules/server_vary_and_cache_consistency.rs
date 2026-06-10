@@ -93,6 +93,28 @@ impl Rule for ServerVaryAndCacheConsistency {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "When a response includes `Vary: *`, caches cannot select that stored response for subsequent requests (a `Vary: *` always fails to match). If the same response advertises explicit cacheability directives (such as `Cache-Control: max-age`/`s-maxage` or `public`), those directives are likely ineffective for reuse by caches. This rule flags cases where `Vary: *` and explicit cacheability directives are both present."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 7234 §4.1](https://www.rfc-editor.org/rfc/rfc7234.html#section-4.1) — Calculating Secondary Keys with Vary (Vary semantics)")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "HTTP/1.1 200 OK\nVary: Accept-Encoding\nCache-Control: max-age=3600\n\n<response body>",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "HTTP/1.1 200 OK\nVary: *\nCache-Control: max-age=3600\n\n<response body>",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

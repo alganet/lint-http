@@ -79,6 +79,36 @@ impl Rule for ClientRequestOriginHeaderPresentForCors {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "This rule enforces that requests which indicate cross-origin intent include an `Origin` header. In particular:\n\n- CORS preflight requests (an `OPTIONS` request with `Access-Control-Request-Method` or `Access-Control-Request-Headers`) MUST include an `Origin` header.\n- If a client uses an absolute-form request-target whose origin differs from the `Host` header, the request is treated as cross-origin and SHOULD include an `Origin` header.\n\nThe rule validates that `Origin` is present where required and that its value is syntactically plausible (a serialized origin such as `https://example.com` or the literal `null`). This rule applies to client requests (RuleScope::Client)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("RFC 6454 — The Web Origin Concept — https://datatracker.ietf.org/doc/html/rfc6454")
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\nOrigin: https://example.org\nAccess-Control-Request-Method: POST",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                snippet: "GET http://example.com/resource HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\nAccess-Control-Request-Method: POST",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                snippet: "GET http://other.example/resource HTTP/1.1\nHost: example.com",
+            },
+        ]
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

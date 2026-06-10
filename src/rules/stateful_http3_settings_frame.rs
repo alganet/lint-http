@@ -76,6 +76,14 @@ impl ProtocolRule for StatefulHttp3SettingsFrame {
 
         None
     }
+
+    fn description(&self) -> &'static str {
+        "Validates HTTP/3 SETTINGS frame semantics on the control stream.  This rule inspects protocol-level events emitted by the QUIC stream wrapper and checks:\n\n* **No duplicate SETTINGS** — an endpoint MUST NOT send a SETTINGS frame more than once over a connection (RFC 9114 §7.2.4).  A second `H3SettingsReceived` event on the same connection is a violation.\n* **No reserved HTTP/2 setting identifiers** — setting identifiers that were defined in HTTP/2 but have no corresponding HTTP/3 setting are reserved.  Their receipt MUST be treated as a connection error of type `H3_SETTINGS_ERROR` (RFC 9114 §7.2.4.1).  The reserved identifiers are `0x00`, `0x02` (SETTINGS_ENABLE_PUSH), `0x03` (SETTINGS_MAX_CONCURRENT_STREAMS), `0x04` (SETTINGS_INITIAL_WINDOW_SIZE), and `0x05` (SETTINGS_MAX_FRAME_SIZE)."
+    }
+
+    fn rfc_reference(&self) -> Option<&'static str> {
+        Some("[RFC 9114 §7.2.4](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4) — SETTINGS.")
+    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
