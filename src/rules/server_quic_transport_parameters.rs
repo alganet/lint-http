@@ -127,6 +127,10 @@ impl ProtocolRule for ServerQuicTransportParameters {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_PROTOCOL_RULES)]
+static REGISTRATION: &dyn crate::rules::ProtocolRule = &ServerQuicTransportParameters;
+
 #[cfg(test)]
 mod tests {
     use super::*;

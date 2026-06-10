@@ -35,6 +35,10 @@ impl Rule for ClientAcceptEncodingPresent {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &ClientAcceptEncodingPresent;
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -195,6 +195,10 @@ fn check_via_value(val: &str, config: &crate::rules::RuleConfig) -> Option<Viola
     None
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageViaHeaderSyntaxValid;
+
 #[cfg(test)]
 mod tests {
     use super::*;

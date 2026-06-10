@@ -80,6 +80,10 @@ fn check_version_token(s: &str) -> Option<String> {
     None
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageHttpVersionSyntaxValid;
+
 #[cfg(test)]
 mod tests {
     use super::*;

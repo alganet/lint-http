@@ -76,6 +76,10 @@ impl Rule for MessageHttp3HostAuthorityConsistency {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageHttp3HostAuthorityConsistency;
+
 #[cfg(test)]
 mod tests {
     use super::*;

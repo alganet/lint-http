@@ -45,6 +45,10 @@ impl Rule for ClientRequestMethodTokenValid {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &ClientRequestMethodTokenValid;
+
 #[cfg(test)]
 mod tests {
     use super::*;

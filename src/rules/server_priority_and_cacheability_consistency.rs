@@ -65,6 +65,10 @@ impl Rule for ServerPriorityAndCacheabilityConsistency {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &ServerPriorityAndCacheabilityConsistency;
+
 #[cfg(test)]
 mod tests {
     use super::*;

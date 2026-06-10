@@ -131,6 +131,10 @@ impl Rule for ClientSecWebsocketHeadersConsistency {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &ClientSecWebsocketHeadersConsistency;
+
 #[cfg(test)]
 mod tests {
     use super::*;

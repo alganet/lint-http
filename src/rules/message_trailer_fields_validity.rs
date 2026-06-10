@@ -198,6 +198,10 @@ fn check_trailers(
     None
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageTrailerFieldsValidity;
+
 #[cfg(test)]
 mod tests {
     use super::*;

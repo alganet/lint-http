@@ -83,6 +83,10 @@ impl Rule for Server200Vs204BodyConsistency {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &Server200Vs204BodyConsistency;
+
 #[cfg(test)]
 mod tests {
     use super::*;

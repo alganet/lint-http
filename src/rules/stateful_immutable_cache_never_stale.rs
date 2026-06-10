@@ -128,6 +128,10 @@ fn header_has_immutable(headers: &hyper::HeaderMap) -> bool {
     false
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &StatefulImmutableCacheNeverStale;
+
 #[cfg(test)]
 mod tests {
     use super::*;

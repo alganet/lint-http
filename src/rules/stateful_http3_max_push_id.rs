@@ -61,6 +61,10 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_PROTOCOL_RULES)]
+static REGISTRATION: &dyn crate::rules::ProtocolRule = &StatefulHttp3MaxPushId;
+
 #[cfg(test)]
 mod tests {
     use super::*;

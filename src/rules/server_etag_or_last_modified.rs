@@ -42,6 +42,10 @@ impl Rule for ServerEtagOrLastModified {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &ServerEtagOrLastModified;
+
 #[cfg(test)]
 mod tests {
     use super::*;

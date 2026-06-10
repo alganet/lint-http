@@ -87,6 +87,10 @@ impl ProtocolRule for StatefulHttp3GoawaySemantics {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_PROTOCOL_RULES)]
+static REGISTRATION: &dyn crate::rules::ProtocolRule = &StatefulHttp3GoawaySemantics;
+
 #[cfg(test)]
 mod tests {
     use super::*;

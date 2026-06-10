@@ -186,6 +186,10 @@ impl Rule for StatefulVaryHeaderCacheValidity {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &StatefulVaryHeaderCacheValidity;
+
 #[cfg(test)]
 mod tests {
     use super::*;

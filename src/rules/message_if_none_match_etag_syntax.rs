@@ -66,6 +66,10 @@ impl Rule for MessageIfNoneMatchEtagSyntax {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageIfNoneMatchEtagSyntax;
+
 #[cfg(test)]
 mod tests {
     use super::*;

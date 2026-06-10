@@ -172,6 +172,10 @@ fn find_invalid_te_token_char(s: &str) -> Option<char> {
         .find(|&c| !(c.is_ascii_alphanumeric() || c == '-'))
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageTeHeaderConstraints;
+
 #[cfg(test)]
 mod tests {
     use super::*;

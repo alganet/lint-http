@@ -34,6 +34,10 @@ impl Rule for ClientRequestTargetNoFragment {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &ClientRequestTargetNoFragment;
+
 #[cfg(test)]
 mod tests {
     use super::*;

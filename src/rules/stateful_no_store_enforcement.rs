@@ -204,6 +204,10 @@ fn header_has_no_store(headers: &hyper::HeaderMap) -> bool {
     false
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &StatefulNoStoreEnforcement;
+
 #[cfg(test)]
 mod tests {
     use super::*;

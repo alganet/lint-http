@@ -69,6 +69,10 @@ impl Rule for Server3xxVsRequestMethod {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &Server3xxVsRequestMethod;
+
 #[cfg(test)]
 mod tests {
     use super::*;

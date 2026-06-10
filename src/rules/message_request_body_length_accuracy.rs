@@ -108,6 +108,10 @@ impl Rule for MessageRequestBodyLengthAccuracy {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageRequestBodyLengthAccuracy;
+
 #[cfg(test)]
 mod tests {
     use super::*;

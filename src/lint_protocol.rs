@@ -24,7 +24,7 @@ pub fn lint_protocol_event(
     // Lazily computed history for this connection.
     let mut history_by_connection: Option<ProtocolEventHistory> = None;
 
-    for rule in crate::rules::PROTOCOL_RULES {
+    for rule in crate::rules::PROTOCOL_RULES.iter() {
         if cfg.is_enabled(rule.id()) {
             let history = history_by_connection.get_or_insert_with(|| {
                 let entries = event_store.get_history_for_connection(event.connection_id);

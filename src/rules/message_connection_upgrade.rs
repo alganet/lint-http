@@ -64,6 +64,10 @@ fn check_connection_upgrade_map(headers: &hyper::HeaderMap) -> Option<String> {
     None
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageConnectionUpgrade;
+
 #[cfg(test)]
 mod tests {
     use super::*;

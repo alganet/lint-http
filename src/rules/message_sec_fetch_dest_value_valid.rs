@@ -92,6 +92,10 @@ impl Rule for MessageSecFetchDestValueValid {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageSecFetchDestValueValid;
+
 #[cfg(test)]
 mod tests {
     use super::*;

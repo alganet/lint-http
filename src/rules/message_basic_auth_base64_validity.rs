@@ -59,6 +59,10 @@ impl Rule for MessageBasicAuthBase64Validity {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageBasicAuthBase64Validity;
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -126,6 +126,10 @@ impl Rule for StatefulOauth2CodeFlow {
     }
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &StatefulOauth2CodeFlow;
+
 #[cfg(test)]
 mod tests {
     use super::*;

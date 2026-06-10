@@ -195,6 +195,10 @@ fn check_multipart_boundary(
     None
 }
 
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MessageMultipartBoundarySyntax;
+
 #[cfg(test)]
 mod tests {
     use super::*;
