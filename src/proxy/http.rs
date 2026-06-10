@@ -10,10 +10,9 @@ use hyper::{Method, Request, Response, Uri};
 use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::time::Instant;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::capture::CaptureWriter;
-use crate::lint;
 
 use super::connect::handle_connect;
 use super::hop_by_hop::{format_http_version, is_hop_by_hop_header, parse_connection_tokens};
@@ -123,7 +122,7 @@ async fn build_and_write_transaction(
     response_headers: Option<hyper::HeaderMap<hyper::header::HeaderValue>>,
     duration_ms: u64,
     req_body: Option<bytes::Bytes>,
-) -> anyhow::Result<()> {
+) {
     let mut tx = crate::http_transaction::HttpTransaction::new(
         client_id.clone(),
         method.to_string(),
@@ -143,8 +142,9 @@ async fn build_and_write_transaction(
         trailers: None,
     });
     tx.timing = crate::http_transaction::TimingInfo { duration_ms };
-    captures.write_transaction(&tx).await?;
-    Ok(())
+    if let Err(e) = captures.write_transaction(&tx).await {
+        warn!(error = %e, "failed to write transaction capture");
+    }
 }
 
 async fn handle_http_logic<B>(
@@ -234,7 +234,7 @@ where
                     Response::new(Full::new(Bytes::from("request body collect error")).boxed())
                 });
             let duration = started.elapsed().as_millis() as u64;
-            let _ = build_and_write_transaction(
+            build_and_write_transaction(
                 captures,
                 &client_id,
                 method.as_str(),
@@ -264,7 +264,7 @@ where
                 });
             // record a failed capture with 500
             let duration = started.elapsed().as_millis() as u64;
-            let _ = build_and_write_transaction(
+            build_and_write_transaction(
                 captures,
                 &client_id,
                 method.as_str(),
@@ -316,7 +316,7 @@ where
                     Response::new(Full::new(Bytes::from("upstream error")).boxed())
                 });
             let duration = started.elapsed().as_millis() as u64;
-            let _ = build_and_write_transaction(
+            build_and_write_transaction(
                 captures,
                 &client_id,
                 method.as_str(),
@@ -356,7 +356,7 @@ where
                     Response::new(Full::new(Bytes::from("upstream error")).boxed())
                 });
             let duration = started.elapsed().as_millis() as u64;
-            let _ = build_and_write_transaction(
+            build_and_write_transaction(
                 captures,
                 &client_id,
                 method.as_str(),
@@ -408,11 +408,7 @@ where
             .map(|s| s.to_string());
     }
 
-    let violations = lint::lint_transaction(&tx, &shared.cfg, &shared.state);
-    tx.violations = violations.clone();
-
-    shared.state.record_transaction(&tx);
-    let _ = captures.write_transaction(&tx).await;
+    shared.pipeline().commit(tx).await;
 
     let mut resp_builder = Response::builder().status(status);
 

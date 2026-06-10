@@ -8,6 +8,7 @@ mod connect;
 mod hop_by_hop;
 mod http;
 mod http3;
+mod pipeline;
 #[cfg(test)]
 mod test_support;
 mod websocket;

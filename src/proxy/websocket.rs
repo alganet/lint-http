@@ -14,10 +14,9 @@ use tokio::time::Instant;
 use tracing::error;
 
 use crate::capture::CaptureWriter;
-use crate::config::Config;
-use crate::lint;
 
 use super::hop_by_hop::{format_http_version, is_hop_by_hop_header, parse_connection_tokens};
+use super::pipeline::ProtocolEventPipeline;
 use super::Shared;
 
 /// Check if a request is a WebSocket upgrade request.
@@ -55,8 +54,6 @@ pub(super) async fn handle_websocket_upgrade(
     shared: Arc<Shared>,
     conn_metadata: Arc<crate::connection::ConnectionMetadata>,
 ) -> Result<Response<BoxBody<Bytes, Infallible>>, Infallible> {
-    let captures = &shared.captures;
-
     // Connect directly to upstream with upgrade support
     let (mut sender, _conn_handle) = match connect_upstream_for_upgrade(uri, scheme).await {
         Ok(s) => s,
@@ -125,12 +122,8 @@ pub(super) async fn handle_websocket_upgrade(
             .map(|s| s.to_string());
     }
 
-    let violations = lint::lint_transaction(&tx, &shared.cfg, &shared.state);
-    tx.violations = violations.clone();
-    shared.state.record_transaction(&tx);
-    let _ = captures.write_transaction(&tx).await;
-
     let tx_id = tx.id;
+    shared.pipeline().commit(tx).await;
 
     if status == 101 {
         // Extract the server-side upgraded IO
@@ -149,11 +142,8 @@ pub(super) async fn handle_websocket_upgrade(
 
         // Spawn background relay task
         let captures_clone = shared.captures.clone();
-        let pe_ctx = ProtocolLintCtx {
-            connection_id: conn_metadata.id,
-            store: shared.protocol_event_store.clone(),
-            cfg: shared.cfg.clone(),
-        };
+        let connection_id = conn_metadata.id;
+        let pe_pipeline = shared.protocol_event_pipeline();
         tokio::spawn(async move {
             // Wait for both sides to complete the upgrade
             let (client_io, server_io) = match tokio::try_join!(client_on_upgrade, server_upgraded)
@@ -170,7 +160,8 @@ pub(super) async fn handle_websocket_upgrade(
                 TokioIo::new(server_io),
                 tx_id,
                 captures_clone,
-                pe_ctx,
+                connection_id,
+                pe_pipeline,
             )
             .await;
         });
@@ -260,11 +251,24 @@ async fn connect_upstream_for_upgrade(
     }
 }
 
-/// Context for protocol-event linting during WebSocket relay.
-struct ProtocolLintCtx {
+/// Build the protocol event for a single relayed WebSocket frame.
+fn ws_frame_event(
     connection_id: uuid::Uuid,
-    store: Arc<crate::protocol_event_store::ProtocolEventStore>,
-    cfg: Arc<Config>,
+    session_id: uuid::Uuid,
+    info: &crate::websocket_session::WebSocketMessageInfo,
+) -> crate::protocol_event::ProtocolEvent {
+    crate::protocol_event::ProtocolEvent {
+        timestamp: chrono::Utc::now(),
+        connection_id,
+        kind: crate::protocol_event::ProtocolEventKind::WebSocketFrame {
+            session_id,
+            direction: info.direction,
+            fin: info.fin,
+            opcode: info.opcode,
+            rsv: info.rsv,
+            payload_length: info.payload_length,
+        },
+    }
 }
 
 /// Relay WebSocket messages between client and server, recording each message
@@ -274,7 +278,8 @@ async fn relay_websocket(
     server_io: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
     tx_id: uuid::Uuid,
     captures: CaptureWriter,
-    pe_ctx: ProtocolLintCtx,
+    connection_id: uuid::Uuid,
+    pipeline: ProtocolEventPipeline,
 ) {
     use crate::websocket_session::{MessageDirection, WebSocketMessageInfo, WebSocketSession};
     use futures_util::{SinkExt, StreamExt};
@@ -294,15 +299,10 @@ async fn relay_websocket(
     let close_code = Arc::new(tokio::sync::Mutex::new(None::<u16>));
     let start = Instant::now();
 
-    let pe_store = pe_ctx.store;
-    let pe_cfg = pe_ctx.cfg;
-    let connection_id = pe_ctx.connection_id;
-
     let msgs_c2s = messages.clone();
     let viols_c2s = violations.clone();
     let close_c2s = close_code.clone();
-    let pe_store_c2s = pe_store.clone();
-    let cfg_c2s = pe_cfg.clone();
+    let pipe_c2s = pipeline.clone();
     let c2s = async move {
         while let Some(result) = client_read.next().await {
             match result {
@@ -315,20 +315,8 @@ async fn relay_websocket(
                         }
                     }
                     // Emit protocol event and lint it
-                    let pe = crate::protocol_event::ProtocolEvent {
-                        timestamp: chrono::Utc::now(),
-                        connection_id,
-                        kind: crate::protocol_event::ProtocolEventKind::WebSocketFrame {
-                            session_id,
-                            direction: info.direction,
-                            fin: info.fin,
-                            opcode: info.opcode,
-                            rsv: info.rsv,
-                            payload_length: info.payload_length,
-                        },
-                    };
-                    let v = crate::lint_protocol::lint_protocol_event(&pe, &cfg_c2s, &pe_store_c2s);
-                    pe_store_c2s.record_event(&pe);
+                    let pe = ws_frame_event(connection_id, session_id, &info);
+                    let v = pipe_c2s.commit(&pe);
                     if !v.is_empty() {
                         viols_c2s.lock().await.extend(v);
                     }
@@ -346,8 +334,7 @@ async fn relay_websocket(
     let msgs_s2c = messages.clone();
     let viols_s2c = violations.clone();
     let close_s2c = close_code.clone();
-    let pe_store_s2c = pe_store.clone();
-    let cfg_s2c = pe_cfg.clone();
+    let pipe_s2c = pipeline;
     let s2c = async move {
         while let Some(result) = server_read.next().await {
             match result {
@@ -360,20 +347,8 @@ async fn relay_websocket(
                         }
                     }
                     // Emit protocol event and lint it
-                    let pe = crate::protocol_event::ProtocolEvent {
-                        timestamp: chrono::Utc::now(),
-                        connection_id,
-                        kind: crate::protocol_event::ProtocolEventKind::WebSocketFrame {
-                            session_id,
-                            direction: info.direction,
-                            fin: info.fin,
-                            opcode: info.opcode,
-                            rsv: info.rsv,
-                            payload_length: info.payload_length,
-                        },
-                    };
-                    let v = crate::lint_protocol::lint_protocol_event(&pe, &cfg_s2c, &pe_store_s2c);
-                    pe_store_s2c.record_event(&pe);
+                    let pe = ws_frame_event(connection_id, session_id, &info);
+                    let v = pipe_s2c.commit(&pe);
                     if !v.is_empty() {
                         viols_s2c.lock().await.extend(v);
                     }
@@ -468,6 +443,15 @@ mod tests {
     use std::sync::Arc as StdArc;
     use tokio::time::Instant;
     use uuid::Uuid;
+
+    fn test_pe_pipeline() -> ProtocolEventPipeline {
+        ProtocolEventPipeline::new(
+            StdArc::new(crate::config::Config::default()),
+            StdArc::new(crate::protocol_event_store::ProtocolEventStore::new(
+                300, 100,
+            )),
+        )
+    }
 
     #[test]
     fn is_websocket_upgrade_detects_valid_upgrade() {
@@ -600,13 +584,8 @@ mod tests {
                 proxy_server_side,
                 tx_id,
                 cw_clone,
-                ProtocolLintCtx {
-                    connection_id: uuid::Uuid::new_v4(),
-                    store: std::sync::Arc::new(
-                        crate::protocol_event_store::ProtocolEventStore::new(300, 100),
-                    ),
-                    cfg: std::sync::Arc::new(crate::config::Config::default()),
-                },
+                uuid::Uuid::new_v4(),
+                test_pe_pipeline(),
             )
             .await;
         });
@@ -871,13 +850,8 @@ mod tests {
                 proxy_server_side,
                 tx_id,
                 cw_clone,
-                ProtocolLintCtx {
-                    connection_id: uuid::Uuid::new_v4(),
-                    store: std::sync::Arc::new(
-                        crate::protocol_event_store::ProtocolEventStore::new(300, 100),
-                    ),
-                    cfg: std::sync::Arc::new(crate::config::Config::default()),
-                },
+                uuid::Uuid::new_v4(),
+                test_pe_pipeline(),
             )
             .await;
         });
@@ -967,13 +941,8 @@ mod tests {
                 proxy_server_side,
                 tx_id,
                 cw_clone,
-                ProtocolLintCtx {
-                    connection_id: uuid::Uuid::new_v4(),
-                    store: std::sync::Arc::new(
-                        crate::protocol_event_store::ProtocolEventStore::new(300, 100),
-                    ),
-                    cfg: std::sync::Arc::new(crate::config::Config::default()),
-                },
+                uuid::Uuid::new_v4(),
+                test_pe_pipeline(),
             )
             .await;
         });
@@ -1141,13 +1110,8 @@ mod tests {
                 proxy_server_side,
                 tx_id,
                 cw_clone,
-                ProtocolLintCtx {
-                    connection_id: uuid::Uuid::new_v4(),
-                    store: std::sync::Arc::new(
-                        crate::protocol_event_store::ProtocolEventStore::new(300, 100),
-                    ),
-                    cfg: std::sync::Arc::new(crate::config::Config::default()),
-                },
+                uuid::Uuid::new_v4(),
+                test_pe_pipeline(),
             )
             .await;
         });
