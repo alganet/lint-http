@@ -14,7 +14,6 @@ use tracing::{error, info, trace, warn};
 
 use crate::ca::CertificateAuthority;
 use crate::capture::CaptureWriter;
-use crate::lint;
 
 use super::connect::AlwaysResolves;
 use super::hop_by_hop::{format_http_version, is_hop_by_hop_header, parse_connection_tokens};
@@ -222,9 +221,7 @@ fn emit_h3_protocol_event(
         connection_id,
         kind,
     };
-    let violations =
-        crate::lint_protocol::lint_protocol_event(&pe, &shared.cfg, &shared.protocol_event_store);
-    shared.protocol_event_store.record_event(&pe);
+    let violations = shared.protocol_event_pipeline().commit(&pe);
     for v in &violations {
         warn!(
             rule = %v.rule,
@@ -363,7 +360,9 @@ async fn handle_h3_request(
         tx.timing = crate::http_transaction::TimingInfo { duration_ms };
         tx.connection_id = Some(conn_metadata.id);
         tx.sequence_number = Some(sequence_number);
-        let _ = captures.write_transaction(&tx).await;
+        if let Err(e) = captures.write_transaction(&tx).await {
+            warn!(error = %e, "failed to write transaction capture");
+        }
     }
 
     let resp = match shared.client.request(upstream_req).await {
@@ -458,11 +457,7 @@ async fn handle_h3_request(
     tx.connection_id = Some(conn_metadata.id);
     tx.sequence_number = Some(stream_id as u32);
 
-    let violations = lint::lint_transaction(&tx, &shared.cfg, &shared.state);
-    tx.violations = violations;
-
-    shared.state.record_transaction(&tx);
-    let _ = shared.captures.write_transaction(&tx).await;
+    shared.pipeline().commit(tx).await;
 
     // Send the response back over HTTP/3.
     // HTTP/3 has no hop-by-hop headers (RFC 9114 §4.2), but the upstream
