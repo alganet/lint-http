@@ -118,8 +118,13 @@ pub struct Config {
 }
 
 impl Config {
-    /// Load configuration from a TOML file, validating every enabled rule's
-    /// config section so a malformed config fails fast at startup.
+    /// Load configuration from a TOML file.
+    ///
+    /// This performs only structural parsing and config-level invariants (e.g.
+    /// `h3_listen` requires TLS). Per-rule config validation lives in the rule
+    /// layer (`rules::validate_rules`) and is invoked by the caller after load
+    /// — this keeps `config` free of any dependency on the rule catalogue, so
+    /// it can sit in a lower crate than the rules.
     pub async fn load_from_path<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Self> {
         let path_ref = path.as_ref();
         let s = tokio::fs::read_to_string(path_ref).await?;
@@ -129,9 +134,6 @@ impl Config {
         if cfg.general.h3_listen.is_some() && !cfg.tls.enabled {
             anyhow::bail!("h3_listen requires [tls] enabled = true");
         }
-
-        // Validate all enabled rules' configurations.
-        crate::rules::validate_rules(&cfg)?;
 
         Ok(cfg)
     }
@@ -338,144 +340,11 @@ enabled = false
 #[cfg(test)]
 mod error_tests {
     use super::*;
-    use rstest::rstest;
-    use tokio::fs;
-    use uuid::Uuid;
 
     #[tokio::test]
     async fn load_missing_file_errors() {
         let p = std::env::temp_dir().join("lint-http_cfg_missing_does_not_exist.toml");
         let res = Config::load_from_path(&p).await;
         assert!(res.is_err());
-    }
-
-    #[rstest]
-    #[case(
-        r#"[general]
-listen = "127.0.0.1:3000"
-captures = "captures.jsonl"
-
-[tls]
-enabled = false
-
-[rules.server_clear_site_data]
-enabled = true
-severity = "warn"
-paths = []  # Invalid: empty array
-"#,
-        "server_clear_site_data",
-        "cannot be empty"
-    )]
-    #[case(
-        r#"[general]
-listen = "127.0.0.1:3000"
-captures = "captures.jsonl"
-
-[tls]
-enabled = false
-
-[rules.server_clear_site_data]
-enabled = true
-severity = "warn"
-paths = ["/logout", 42, "/signout"]  # Invalid: contains non-string
-"#,
-        "server_clear_site_data",
-        "not a string"
-    )]
-    #[case(
-        r#"[general]
-listen = "127.0.0.1:3000"
-captures = "captures.jsonl"
-
-[tls]
-enabled = false
-
-[rules.server_clear_site_data]
-enabled = true
-severity = "warn"
-# Missing "paths" field entirely
-other_field = "value"
-"#,
-        "server_clear_site_data",
-        "'paths' field"
-    )]
-    #[case(
-        r#"[general]
-listen = "127.0.0.1:3000"
-captures = "captures.jsonl"
-
-[tls]
-enabled = false
-
-[rules.some_rule]
-enabled = true
-# Missing severity key
-"#,
-        "some_rule",
-        "Missing required 'severity'"
-    )]
-    #[case(
-        r#"[general]
-listen = "127.0.0.1:3000"
-captures = "captures.jsonl"
-
-[tls]
-enabled = false
-
-[rules.some_rule]
-enabled = true
-severity = "critical"
-"#,
-        "some_rule",
-        "must be one of"
-    )]
-    #[case(
-        r#"[general]
-listen = "127.0.0.1:3000"
-captures = "captures.jsonl"
-
-[tls]
-enabled = false
-
-[rules.some_rule]
-severity = "warn"
-"#,
-        "some_rule",
-        "Missing required 'enabled'"
-    )]
-    #[case(
-        r#"[general]
-listen = "127.0.0.1:3000"
-captures = "captures.jsonl"
-
-[tls]
-enabled = false
-
-[rules.some_rule]
-enabled = "true"
-severity = "warn"
-"#,
-        "some_rule",
-        "Invalid 'enabled' for rule"
-    )]
-    #[tokio::test]
-    async fn load_invalid_rule_config_cases(
-        #[case] toml: &str,
-        #[case] rule: &str,
-        #[case] expected_substring: &str,
-    ) -> anyhow::Result<()> {
-        let tmp_toml =
-            std::env::temp_dir().join(format!("lint-http_cfg_invalid_{}.toml", Uuid::new_v4()));
-        fs::write(&tmp_toml, toml).await?;
-        let res = Config::load_from_path(&tmp_toml).await;
-
-        // Should error during validation
-        assert!(res.is_err());
-        let err_msg = res.unwrap_err().to_string();
-        assert!(err_msg.contains(rule));
-        assert!(err_msg.contains(expected_substring));
-
-        fs::remove_file(&tmp_toml).await?;
-        Ok(())
     }
 }

@@ -509,6 +509,144 @@ pub fn rules_for_scope(has_response: bool) -> &'static [&'static dyn Rule] {
 mod tests {
     use super::*;
     use crate::test_helpers::{enable_rule, enable_rule_with_paths};
+    use rstest::rstest;
+
+    // Per-rule config validation lives here, not in `Config::load_from_path`
+    // (which only parses). These cases load a structurally-valid config and
+    // assert `validate_rules` rejects it — the compose path callers run.
+    #[rstest]
+    #[case(
+        r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.server_clear_site_data]
+enabled = true
+severity = "warn"
+paths = []  # Invalid: empty array
+"#,
+        "server_clear_site_data",
+        "cannot be empty"
+    )]
+    #[case(
+        r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.server_clear_site_data]
+enabled = true
+severity = "warn"
+paths = ["/logout", 42, "/signout"]  # Invalid: contains non-string
+"#,
+        "server_clear_site_data",
+        "not a string"
+    )]
+    #[case(
+        r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.server_clear_site_data]
+enabled = true
+severity = "warn"
+# Missing "paths" field entirely
+other_field = "value"
+"#,
+        "server_clear_site_data",
+        "'paths' field"
+    )]
+    #[case(
+        r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.some_rule]
+enabled = true
+# Missing severity key
+"#,
+        "some_rule",
+        "Missing required 'severity'"
+    )]
+    #[case(
+        r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.some_rule]
+enabled = true
+severity = "critical"
+"#,
+        "some_rule",
+        "must be one of"
+    )]
+    #[case(
+        r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.some_rule]
+severity = "warn"
+"#,
+        "some_rule",
+        "Missing required 'enabled'"
+    )]
+    #[case(
+        r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.some_rule]
+enabled = "true"
+severity = "warn"
+"#,
+        "some_rule",
+        "Invalid 'enabled' for rule"
+    )]
+    #[tokio::test]
+    async fn validate_rejects_invalid_rule_config_cases(
+        #[case] toml: &str,
+        #[case] rule: &str,
+        #[case] expected_substring: &str,
+    ) -> anyhow::Result<()> {
+        let tmp_toml = std::env::temp_dir().join(format!(
+            "lint-http_cfg_invalid_{}.toml",
+            uuid::Uuid::new_v4()
+        ));
+        tokio::fs::write(&tmp_toml, toml).await?;
+
+        // Structural load succeeds; rule validation is the gate.
+        let cfg = crate::config::Config::load_from_path(&tmp_toml).await?;
+        let res = validate_rules(&cfg);
+
+        assert!(res.is_err());
+        let err_msg = res.unwrap_err().to_string();
+        assert!(err_msg.contains(rule));
+        assert!(err_msg.contains(expected_substring));
+
+        tokio::fs::remove_file(&tmp_toml).await?;
+        Ok(())
+    }
 
     #[test]
     fn linkme_collects_full_catalogue() {

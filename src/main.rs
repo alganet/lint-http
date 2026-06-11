@@ -5,7 +5,7 @@
 use clap::Parser;
 use std::net::SocketAddr;
 
-use lint_http::{capture, config, proxy};
+use lint_http::{capture, config, proxy, rules};
 
 #[derive(Parser, Debug)]
 #[command(name = "lint-http", version)]
@@ -20,6 +20,9 @@ async fn run_app(args: Args) -> anyhow::Result<()> {
     let _ = tracing_subscriber::fmt::try_init();
 
     let cfg = config::Config::load_from_path(&args.config).await?;
+    // Validate every enabled rule's config section before binding, so a
+    // malformed config fails fast rather than after the proxy is up.
+    rules::validate_rules(&cfg)?;
     let cfg = std::sync::Arc::new(cfg);
 
     let addr: SocketAddr = cfg.general.listen.parse()?;
@@ -40,6 +43,7 @@ async fn run_app_with_limit(args: Args, accept_limit: Option<usize>) -> anyhow::
     let _ = tracing_subscriber::fmt::try_init();
 
     let cfg = config::Config::load_from_path(&args.config).await?;
+    rules::validate_rules(&cfg)?;
     let cfg = std::sync::Arc::new(cfg);
 
     let addr: SocketAddr = cfg.general.listen.parse()?;
@@ -117,8 +121,12 @@ enabled = false
 "#;
         fs::write(&tmp, toml).await?;
 
-        // Config load should fail during validation, before any proxy starts
-        let result = config::Config::load_from_path(&tmp).await;
+        let args = Args {
+            config: tmp.to_str().expect("valid utf8 path").to_string(),
+        };
+
+        // run_app must fail during rule validation, before binding any socket.
+        let result = run_app(args).await;
 
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
