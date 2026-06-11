@@ -19,6 +19,16 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use uuid::Uuid;
 
+/// Direction of a WebSocket message relative to the proxy.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum MessageDirection {
+    /// Client to server.
+    Client,
+    /// Server to client.
+    Server,
+}
+
 /// A single protocol-level event observed on a connection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProtocolEvent {
@@ -40,7 +50,7 @@ pub enum ProtocolEventKind {
     WebSocketFrame {
         /// Session ID linking back to the `WebSocketSession`.
         session_id: Uuid,
-        direction: crate::websocket_session::MessageDirection,
+        direction: MessageDirection,
         /// FIN bit.  `true` for assembled messages (tungstenite default);
         /// raw `Frame` variant exposes the actual bit.
         fin: bool,
@@ -213,7 +223,7 @@ mod tests {
     fn serde_roundtrip_websocket_frame() {
         let evt = make_event(ProtocolEventKind::WebSocketFrame {
             session_id: Uuid::new_v4(),
-            direction: crate::websocket_session::MessageDirection::Client,
+            direction: MessageDirection::Client,
             fin: true,
             opcode: 1,
             rsv: 0,

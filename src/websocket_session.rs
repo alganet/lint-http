@@ -13,14 +13,12 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Direction of a WebSocket message relative to the proxy.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum MessageDirection {
-    /// Client to server.
-    Client,
-    /// Server to client.
-    Server,
-}
+///
+/// Defined in [`protocol_event`](crate::protocol_event) (core) so the
+/// protocol-event model can reference it without depending on this
+/// capture-layer module; re-exported here for the proxy/capture call-sites
+/// that build [`WebSocketSession`]s.
+pub use crate::protocol_event::MessageDirection;
 
 /// A single WebSocket message observed during relay.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
