@@ -1,10 +1,10 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
 
-# message_content_security_policy_and_frame_options_consistency
+# Message Content Security Policy And Frame Options Consistency
 
 ## Description
 
@@ -35,8 +35,6 @@ Content-Security-Policy: frame-ancestors 'none'
 # No X-Frame-Options header present
 ```
 
-### ✅ Good
-
 ```http
 Content-Security-Policy: frame-ancestors https://example.com
 X-Frame-Options: ALLOW-FROM https://example.com
@@ -49,8 +47,6 @@ Content-Security-Policy: frame-ancestors 'none'
 X-Frame-Options: SAMEORIGIN
 # CSP disallows all framing but XFO says allow same origin -> contradiction
 ```
-
-### ❌ Bad
 
 ```http
 Content-Security-Policy: frame-ancestors 'self'

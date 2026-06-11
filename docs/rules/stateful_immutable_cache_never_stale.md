@@ -8,26 +8,9 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-The `immutable` cache-control directive (RFC 8246) signals that the
-representation is not expected to change.  Clients and caches are therefore
-encouraged to treat the response as fresh for the duration of its advertised
-freshness lifetime and to avoid revalidation during that period.  Revalidating
-(issuing a conditional request) while the entry is still fresh is wasteful and
-undermines the purpose of `immutable`.
+The `immutable` cache-control directive (RFC 8246) signals that the representation is not expected to change.  Clients and caches are therefore encouraged to treat the response as fresh for the duration of its advertised freshness lifetime and to avoid revalidation during that period.  Revalidating (issuing a conditional request) while the entry is still fresh is wasteful and undermines the purpose of `immutable`.
 
-This rule reconstructs a small piece of cache state for a given client and
-resource by locating the most recent prior response bearing an `immutable`
-directive that does not simultaneously forbid caching (`no-store` or
-`no-cache`).  It estimates the "age" of that response using any `Age` header
-and the elapsed time since the response was observed.  The advertised freshness
-lifetime is computed using the shared helper in `helpers::headers`, which
-honours `Cache-Control: max-age` and falls back to an `Expires` header if
-necessary.  If a subsequent request for the same resource includes a
-conditional header (`If-None-Match` or `If-Modified-Since`) **and** the
-calculated age is still less than the freshness lifetime, a warning is
-produced.  Unconditional requests and conditional requests made after the
-freshness lifetime expires are permitted, since `immutable` entries may still
-be reused without revalidation once stale.
+This rule reconstructs a small piece of cache state for a given client and resource by locating the most recent prior response bearing an `immutable` directive that does not simultaneously forbid caching (`no-store` or `no-cache`).  It estimates the "age" of that response using any `Age` header and the elapsed time since the response was observed.  The advertised freshness lifetime is computed using the shared helper in `helpers::headers`, which honours `Cache-Control: max-age` and falls back to an `Expires` header if necessary.  If a subsequent request for the same resource includes a conditional header (`If-None-Match` or `If-Modified-Since`) **and** the calculated age is still less than the freshness lifetime, a warning is produced.  Unconditional requests and conditional requests made after the freshness lifetime expires are permitted, since `immutable` entries may still be reused without revalidation once stale.
 
 ## Specifications
 

@@ -49,18 +49,12 @@ GET /resource HTTP/3
 Host: other.com
 ```
 
-The `:authority` pseudo-header targets `example.com` but the `Host` header says `other.com`.
-
 ```http
 GET /resource HTTP/3
 Host: example.com:9090
 ```
 
-The port in `:authority` (`8080`) differs from the port in the `Host` header (`9090`).
-
 ```http
 GET /resource HTTP/3
 Host:
 ```
-
-The `Host` header is empty while `:authority` is present.

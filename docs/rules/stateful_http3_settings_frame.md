@@ -8,20 +8,10 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validates HTTP/3 SETTINGS frame semantics on the control stream.  This
-rule inspects protocol-level events emitted by the QUIC stream wrapper
-and checks:
+Validates HTTP/3 SETTINGS frame semantics on the control stream.  This rule inspects protocol-level events emitted by the QUIC stream wrapper and checks:
 
-* **No duplicate SETTINGS** — an endpoint MUST NOT send a SETTINGS frame
-  more than once over a connection (RFC 9114 §7.2.4).  A second
-  `H3SettingsReceived` event on the same connection is a violation.
-* **No reserved HTTP/2 setting identifiers** — setting identifiers that
-  were defined in HTTP/2 but have no corresponding HTTP/3 setting are
-  reserved.  Their receipt MUST be treated as a connection error of type
-  `H3_SETTINGS_ERROR` (RFC 9114 §7.2.4.1).  The reserved identifiers
-  are `0x00`, `0x02` (SETTINGS_ENABLE_PUSH), `0x03`
-  (SETTINGS_MAX_CONCURRENT_STREAMS), `0x04`
-  (SETTINGS_INITIAL_WINDOW_SIZE), and `0x05` (SETTINGS_MAX_FRAME_SIZE).
+* **No duplicate SETTINGS** — an endpoint MUST NOT send a SETTINGS frame more than once over a connection (RFC 9114 §7.2.4).  A second `H3SettingsReceived` event on the same connection is a violation.
+* **No reserved HTTP/2 setting identifiers** — setting identifiers that were defined in HTTP/2 but have no corresponding HTTP/3 setting are reserved.  Their receipt MUST be treated as a connection error of type `H3_SETTINGS_ERROR` (RFC 9114 §7.2.4.1).  The reserved identifiers are `0x00`, `0x02` (SETTINGS_ENABLE_PUSH), `0x03` (SETTINGS_MAX_CONCURRENT_STREAMS), `0x04` (SETTINGS_INITIAL_WINDOW_SIZE), and `0x05` (SETTINGS_MAX_FRAME_SIZE).
 
 ## Specifications
 
@@ -38,12 +28,9 @@ severity = "warn"
 
 ## Examples
 
-### Good
+### ✅ Good
 
-A single SETTINGS frame on the control stream with valid HTTP/3
-identifiers:
-
-```
+```http
 # Control stream sends SETTINGS:
 #   SETTINGS_MAX_FIELD_SECTION_SIZE (0x06) = 8192
 #   SETTINGS_QPACK_MAX_TABLE_CAPACITY (0x01) = 4096
@@ -51,17 +38,17 @@ identifiers:
 # No further SETTINGS frames on this connection
 ```
 
-### Bad (duplicate SETTINGS)
+### ❌ Bad (duplicate SETTINGS)
 
-```
+```http
 # Control stream sends SETTINGS { 0x06 = 8192 }
 # Control stream sends SETTINGS { 0x06 = 4096 }
 # Violation: duplicate SETTINGS frame on the same connection (RFC 9114 §7.2.4)
 ```
 
-### Bad (reserved HTTP/2 setting identifier)
+### ❌ Bad (reserved HTTP/2 setting identifier)
 
-```
+```http
 # Control stream sends SETTINGS { 0x03 = 100 }
 # Violation: SETTINGS contains reserved HTTP/2 setting identifier 0x03 (RFC 9114 §7.2.4.1)
 ```

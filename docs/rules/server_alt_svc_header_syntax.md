@@ -24,7 +24,7 @@ severity = "warn"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 Alt-Svc: h2=":443"; ma=2592000
@@ -33,7 +33,7 @@ Alt-Svc: h2=example.com:443, h3=example.com:8443
 Alt-Svc: h2="[::1]:443"
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 Alt-Svc: h@=example.com:443  # invalid protocol token

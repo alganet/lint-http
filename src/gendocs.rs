@@ -413,4 +413,56 @@ mod tests {
 
         std::fs::remove_dir_all(&dir).ok();
     }
+
+    /// #11d drift gate: the committed `docs/rules/` files must equal what
+    /// `gendocs` regenerates from rule metadata. This makes the docs a verified
+    /// generated artifact — editing a rule (or `config_example.toml`) without
+    /// regenerating fails CI. Run `cargo run --bin gendocs` to fix drift.
+    #[test]
+    fn docs_match_generated() {
+        let config_toml =
+            std::fs::read_to_string("config_example.toml").expect("config_example.toml");
+        let check = |id: &str, expected: String| {
+            let path = format!("docs/rules/{}.md", id);
+            let on_disk = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("cannot read {}: {}", path, e));
+            assert!(
+                on_disk == expected,
+                "docs/rules/{}.md is out of date — run `cargo run --bin gendocs`",
+                id
+            );
+        };
+        for rule in crate::rules::RULES.iter() {
+            check(
+                rule.id(),
+                render_doc(
+                    rule.id(),
+                    rule.title(),
+                    rule.description(),
+                    rule.rfc_references(),
+                    rule.examples(),
+                    config_block_for(rule.id(), &config_toml).as_deref(),
+                ),
+            );
+        }
+        for rule in crate::rules::PROTOCOL_RULES.iter() {
+            check(
+                rule.id(),
+                render_doc(
+                    rule.id(),
+                    rule.title(),
+                    rule.description(),
+                    rule.rfc_references(),
+                    rule.examples(),
+                    config_block_for(rule.id(), &config_toml).as_deref(),
+                ),
+            );
+        }
+        let index = render_index(&crate::rules::RULES, &crate::rules::PROTOCOL_RULES);
+        let on_disk = std::fs::read_to_string("docs/rules.md").expect("docs/rules.md");
+        assert!(
+            on_disk == index,
+            "docs/rules.md is out of date — run `cargo run --bin gendocs`"
+        );
+    }
 }

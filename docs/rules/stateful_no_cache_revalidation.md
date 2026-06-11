@@ -8,27 +8,11 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-The `no-cache` cache-control directive (RFC 9111 §5.2.2.5) permits a cache to
-store a response, but it **must not** use that stored entry to satisfy a
-subsequent request without first validating it with the origin server.  In
-practice, caches are expected to issue a conditional request using a validator
-(usually an `ETag` or `Last-Modified` value) when they have one; if no validator
-is available the cache may perform an unconditional request, which still
-contacts the origin server.
+The `no-cache` cache-control directive (RFC 9111 §5.2.2.5) permits a cache to store a response, but it **must not** use that stored entry to satisfy a subsequent request without first validating it with the origin server.  In practice, caches are expected to issue a conditional request using a validator (usually an `ETag` or `Last-Modified` value) when they have one; if no validator is available the cache may perform an unconditional request, which still contacts the origin server.
 
-This stateful rule reconstructs a small portion of cache state for the current
-client+resource by locating the most recent prior response that included
-`Cache-Control: no-cache`.  If that response also carried a validator and the
-current request is unconditional (no `If-None-Match` or `If-Modified-Since`
-headers), the rule emits a warning.  The presence of validators is required to
-avoid false alarms in cases where the entry could not possibly be revalidated.
+This stateful rule reconstructs a small portion of cache state for the current client+resource by locating the most recent prior response that included `Cache-Control: no-cache`.  If that response also carried a validator and the current request is unconditional (no `If-None-Match` or `If-Modified-Since` headers), the rule emits a warning.  The presence of validators is required to avoid false alarms in cases where the entry could not possibly be revalidated.
 
-The check deliberately ignores request-side `Cache-Control: no-cache` clauses
-and makes no attempt to calculate freshness; it simply tracks whether a
-conditional header was omitted.  This rule complements
-`stateful_max_age_directive_validity` and
-`stateful_must_revalidate_enforcement` by focussing on the specific behaviour
-mandated by the `no-cache` directive.
+The check deliberately ignores request-side `Cache-Control: no-cache` clauses and makes no attempt to calculate freshness; it simply tracks whether a conditional header was omitted.  This rule complements `stateful_max_age_directive_validity` and `stateful_must_revalidate_enforcement` by focussing on the specific behaviour mandated by the `no-cache` directive.
 
 ## Specifications
 

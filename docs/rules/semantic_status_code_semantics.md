@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# semantic_status_code_semantics
+# Semantic Status Code Semantics
 
 ## Description
 
@@ -18,8 +18,6 @@ Detects clear mismatches between HTTP response status codes and the headers/payl
 
 ## Configuration
 
-Enable the rule and set severity in your TOML config file:
-
 ```toml
 [rules.semantic_status_code_semantics]
 enabled = true
@@ -28,7 +26,7 @@ severity = "warn"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 HTTP/1.1 401 Unauthorized
@@ -40,10 +38,9 @@ WWW-Authenticate: Basic realm="example"
 ```http
 HTTP/1.1 407 Proxy Authentication Required
 Proxy-Authenticate: Basic realm="proxy"
-
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 HTTP/1.1 200 OK

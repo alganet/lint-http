@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_server_header_product_valid
+# Message Server Header Product Valid
 
 ## Description
 
@@ -15,8 +15,6 @@ Validate the `Server` response header's product tokens and optional product vers
 - [RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1) — `Server` header field and `product` grammar: product = token ["/" product-version] *( RWS ( product / comment ) )
 
 ## Configuration
-
-Enable the rule in the TOML configuration (rules are disabled by default):
 
 ```toml
 [rules.message_server_header_product_valid]

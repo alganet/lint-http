@@ -4,9 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_early_data_header_safe_method
-
-Validate that `Early-Data: 1` appears only on safe HTTP methods. `Early-Data` (RFC 8470) is used to indicate TLS 1.3 0-RTT early data; it should only be present on safe methods that are side-effect free (GET, HEAD, OPTIONS, TRACE).
+# Message Early Data Header Safe Method
 
 ## Description
 

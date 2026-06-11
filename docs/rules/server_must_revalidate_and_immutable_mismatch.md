@@ -8,12 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-This rule flags responses whose `Cache-Control` header contains both
-`must-revalidate` and `immutable`. These directives have conflicting operational
-implications: `must-revalidate` requires caches to revalidate once a response
-becomes stale, while `immutable` signals that a response is intended to remain
-unchanged and avoid revalidation during its freshness lifetime (RFC 8246).
-Having both in the same response is likely a configuration mistake.
+This rule flags responses whose `Cache-Control` header contains both `must-revalidate` and `immutable`. These directives have conflicting operational implications: `must-revalidate` requires caches to revalidate once a response becomes stale, while `immutable` signals that a response is intended to remain unchanged and avoid revalidation during its freshness lifetime (RFC 8246). Having both in the same response is likely a configuration mistake.
 
 ## Specifications
 

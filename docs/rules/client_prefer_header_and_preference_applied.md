@@ -16,8 +16,6 @@ When a client sends a `Prefer` request header, servers MAY include a `Preference
 
 ## Configuration
 
-Minimal example to enable the rule:
-
 ```toml
 [rules.client_prefer_header_and_preference_applied]
 enabled = true

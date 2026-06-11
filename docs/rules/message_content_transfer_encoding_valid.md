@@ -1,10 +1,10 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
 
-# message_content_transfer_encoding_valid
+# Message Content Transfer Encoding Valid
 
 ## Description
 

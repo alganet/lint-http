@@ -23,8 +23,6 @@ severity = "warn"
 allowed = ["h2", "h3", "h2c", "ws", "wss"]
 ```
 
-The `allowed` array is required and lists the protocol identifiers your deployment accepts in `Alt-Svc`.
-
 ## Examples
 
 ### ✅ Good

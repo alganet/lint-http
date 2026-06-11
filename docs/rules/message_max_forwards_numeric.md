@@ -1,10 +1,10 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
 
-# message_max_forwards_numeric
+# Message Max Forwards Numeric
 
 ## Description
 
@@ -16,8 +16,6 @@ Validate that the `Max-Forwards` request header value is a decimal integer consi
 
 ## Configuration
 
-Enable the rule in your TOML config (example):
-
 ```toml
 [rules.message_max_forwards_numeric]
 enabled = true
@@ -26,34 +24,30 @@ severity = "warn"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 TRACE / HTTP/1.1
 Host: example.com
 Max-Forwards: 0
-
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 TRACE / HTTP/1.1
 Host: example.com
 Max-Forwards: -1
-
-``` 
+```
 
 ```http
 OPTIONS * HTTP/1.1
 Host: example.com
 Max-Forwards: 1.0
-
 ```
 
 ```http
 TRACE / HTTP/1.1
 Host: example.com
 Max-Forwards: 120, 240
-
 ```

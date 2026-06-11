@@ -1,10 +1,10 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
 
-# message_http_version_syntax_valid
+# Message Http Version Syntax Valid
 
 ## Description
 
@@ -16,8 +16,6 @@ Validate that the HTTP start-line version token matches the ABNF syntax defined 
 
 ## Configuration
 
-Enable the rule in `config.toml`:
-
 ```toml
 [rules.message_http_version_syntax_valid]
 enabled = true
@@ -26,7 +24,7 @@ severity = "error"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 GET /path HTTP/1.1
@@ -38,7 +36,7 @@ Content-Type: text/plain
 Hello
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 GET /path http/1.1

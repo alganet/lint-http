@@ -40,8 +40,6 @@ severity = "warn"
 
 ### ✅ Good
 
-A newer response has a later `Date` header; no violation is raised.
-
 ```http
 > GET /foo HTTP/1.1
 > Host: example.com

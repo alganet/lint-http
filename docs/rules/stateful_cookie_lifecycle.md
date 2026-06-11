@@ -8,22 +8,13 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Cookies sent by servers via the `Set-Cookie` header establish state
-that a client is expected to retain and present on subsequent requests.
-This rule reconstructs a simplistic cookie store for a given origin and
-verifies that outgoing requests are consistent with that store.  It
-flags three broad classes of client misbehaviour:
+Cookies sent by servers via the `Set-Cookie` header establish state that a client is expected to retain and present on subsequent requests. This rule reconstructs a simplistic cookie store for a given origin and verifies that outgoing requests are consistent with that store.  It flags three broad classes of client misbehaviour:
 
 * Sending cookies after they have clearly expired or been removed.
-* Continuing to send an old value after a newer cookie with the same
-  name/domain/path has been observed.
-* Transmitting a cookie marked `Secure` over an insecure (HTTP) transport.  The rule only flags this if the actual
-  name/value pair sent corresponds to a known secure cookie, which avoids
-  false positives when a non‑secure cookie with the same name is used.
+* Continuing to send an old value after a newer cookie with the same name/domain/path has been observed.
+* Transmitting a cookie marked `Secure` over an insecure (HTTP) transport.  The rule only flags this if the actual name/value pair sent corresponds to a known secure cookie, which avoids false positives when a non‑secure cookie with the same name is used.
 
-The check relies solely on the captured traffic for a given client+origin;
-if a cookie appears in a request but the linter has never seen it set in the
-past, the rule assumes it pre‑dates the capture and does not complain.
+The check relies solely on the captured traffic for a given client+origin; if a cookie appears in a request but the linter has never seen it set in the past, the rule assumes it pre‑dates the capture and does not complain.
 
 ## Specifications
 
@@ -57,10 +48,6 @@ severity = "warn"
 
 ### ✅ Good — different non-secure cookie over HTTP
 
-A secure cookie may exist in the store for a broader path, but a more
-specific non‑secure cookie with the same name is sent.  No violation should
-be raised because the value does not match the secure entry.
-
 ```http
 > GET / HTTP/1.1
 > Host: example.com
@@ -78,6 +65,7 @@ be raised because the value does not match the secure entry.
 > Host: example.com
 > Cookie: id=plain           # only the non-secure value is sent over HTTP
 ```
+
 ### ❌ Bad — expired cookie sent
 
 ```http

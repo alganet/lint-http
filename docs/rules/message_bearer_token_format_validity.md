@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_bearer_token_format_validity
+# Message Bearer Token Format Validity
 
 ## Description
 
@@ -16,8 +16,6 @@ Validate `Authorization: Bearer <token>` header values. The Bearer token MUST be
 - [RFC 7235 §2.1 — token68 syntax used for credentials](https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1)
 
 ## Configuration
-
-TOML snippet to enable the rule (disabled by default):
 
 ```toml
 [rules.message_bearer_token_format_validity]

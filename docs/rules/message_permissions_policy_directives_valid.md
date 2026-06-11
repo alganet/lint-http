@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_permissions_policy_directives_valid
+# Message Permissions Policy Directives Valid
 
 ## Description
 
@@ -16,8 +16,6 @@ Validate `Permissions-Policy` HTTP response header directives for correct featur
 - [RFC 8941 — Structured Field Values for HTTP §3–§5 (Items, Lists, Dictionaries)](https://www.rfc-editor.org/rfc/rfc8941.html#section-3)
 
 ## Configuration
-
-TOML snippet enabling the rule (add to `[rules]`):
 
 ```toml
 [rules.message_permissions_policy_directives_valid]

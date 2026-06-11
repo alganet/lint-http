@@ -16,8 +16,6 @@ Validate that the `Preference-Applied` response header follows the ABNF in RFC 7
 
 ## Configuration
 
-Minimal example to enable the rule:
-
 ```toml
 [rules.message_preference_applied_header_valid]
 enabled = true

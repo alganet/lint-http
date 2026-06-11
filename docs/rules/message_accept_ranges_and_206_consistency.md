@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_accept_ranges_and_206_consistency
+# Message Accept Ranges And 206 Consistency
 
 ## Description
 

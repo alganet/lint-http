@@ -3,9 +3,8 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
-# Media Type Suffix Validity
 
-Validate that media-type subtype suffixes (e.g., `+json`, `+xml`) use known structured-syntax suffixes. Subtype suffixes are defined by the media type registration and indicate that the media type is based on a known structured syntax (for example, `application/ld+json`).
+# Media Type Suffix Validity
 
 ## Description
 
@@ -17,8 +16,6 @@ This rule flags media types (in `Content-Type` or `Accept`) whose subtype ends w
 - IANA Structured Syntax Suffix registry: https://www.iana.org/assignments/media-type-structured-suffix/media-type-structured-suffix.xhtml
 
 ## Configuration
-
-Minimal example:
 
 ```toml
 [rules.message_media_type_suffix_validity]

@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_accept_and_content_type_negotiation
+# Message Accept And Content Type Negotiation
 
 ## Description
 
@@ -17,8 +17,6 @@ Validate that a server response's `Content-Type` matches the client's `Accept` h
 - [RFC 9110 §15.5.7 — 406 Not Acceptable](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.7)
 
 ## Configuration
-
-Minimal example to enable this rule:
 
 ```toml
 [rules.message_accept_and_content_type_negotiation]

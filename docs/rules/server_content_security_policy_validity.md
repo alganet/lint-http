@@ -21,8 +21,8 @@ This rule is intentionally conservative: it is not a full CSP grammar validator,
 
 ```toml
 [rules.server_content_security_policy_validity]
-# enabled = true
-# severity = "warn" # info|warn|error
+enabled = true
+severity = "warn"
 ```
 
 ## Examples
@@ -38,7 +38,7 @@ Content-Security-Policy: default-src 'self'; script-src 'nonce-abc123' https://e
 
 ```http
 HTTP/1.1 200 OK
-Content-Security-Policy: 
+Content-Security-Policy:
 ```
 
 ```http
@@ -48,7 +48,7 @@ Content-Security-Policy: def@ult-src 'self'
 
 ```http
 HTTP/1.1 200 OK
-Content-Security-Policy: default-src 'self'; 
+Content-Security-Policy: default-src 'self';
 ```
 
 ```http

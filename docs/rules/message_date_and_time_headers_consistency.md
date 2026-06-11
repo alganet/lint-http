@@ -6,7 +6,6 @@ SPDX-License-Identifier: ISC
 
 # Message Date and Time Headers Consistency
 
-
 ## Description
 
 Validate that date/time related headers are well-formed and mutually consistent. This rule checks `Date`, `Last-Modified`, `If-Modified-Since`, and `Sunset` for valid IMF-fixdate syntax and simple logical consistency: e.g., `Last-Modified` SHOULD NOT be later than `Date`, `Sunset` SHOULD indicate a future time relative to `Date`, and conditional request `If-Modified-Since` values should not be in the future relative to the request `Date`.

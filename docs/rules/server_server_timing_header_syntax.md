@@ -18,13 +18,13 @@ The `Server-Timing` response header communicates server-side performance metrics
 
 ```toml
 [rules.server_server_timing_header_syntax]
-# enabled = true
-# severity = "warn" # info|warn|error
+enabled = true
+severity = "warn"
 ```
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 Server-Timing: miss, db;dur=53, app;dur=47.2
@@ -32,7 +32,7 @@ Server-Timing: cache;desc="Cache Read";dur=23.2
 Server-Timing: customView, dc;desc=atl
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 Server-Timing: ,miss

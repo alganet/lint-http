@@ -54,14 +54,10 @@ HTTP/3 101 Switching Protocols
 Upgrade: websocket
 ```
 
-HTTP/3 does not support protocol switching; use extended CONNECT instead.
-
 ```http
 HTTP/3 100 Continue
 Content-Length: 0
 ```
-
-Informational responses must not include `Content-Length`.
 
 ```http
 HTTP/3 103 Early Hints
@@ -69,5 +65,3 @@ Link: </style.css>; rel=preload; as=style
 
 <body data follows>
 ```
-
-Informational responses must not contain a message body.

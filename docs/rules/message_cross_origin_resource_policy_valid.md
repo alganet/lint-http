@@ -6,6 +6,8 @@ SPDX-License-Identifier: ISC
 
 # Cross-Origin Resource Policy Value
 
+## Description
+
 This rule checks the `Cross-Origin-Resource-Policy` response header value and ensures it is one of the allowed tokens: **`same-site`**, **`same-origin`**, or **`cross-origin`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. This header is response-only per the W3C Cross-Origin Resource Policy specification; the rule applies to server responses (RuleScope::Server).
 
 ## Specifications

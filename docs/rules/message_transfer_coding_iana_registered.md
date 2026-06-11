@@ -1,10 +1,10 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
 
-# message_transfer_coding_iana_registered
+# Message Transfer Coding Iana Registered
 
 ## Description
 
@@ -17,10 +17,6 @@ Validate `Transfer-Encoding` and `TE` header values to ensure transfer-coding to
 - [IANA Transfer Coding registry](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#transfer-coding)
 
 ## Configuration
-
-This rule **requires** an `allowed` list (array of strings) that declares the transfer-codings considered acceptable. The project does not embed a default allow-list in code; include the canonical IANA Transfer Coding registry (or a subset you trust) in your configuration. See the IANA registry: https://www.iana.org/assignments/http-parameters/transfer-coding.csv
-
-Example (minimal):
 
 ```toml
 [rules.message_transfer_coding_iana_registered]
@@ -38,7 +34,6 @@ HTTP/1.1 200 OK
 Transfer-Encoding: chunked
 
 0
-
 ```
 
 ### ✅ Good (TE request)
@@ -47,7 +42,6 @@ Transfer-Encoding: chunked
 GET / HTTP/1.1
 Host: example.com
 TE: trailers
-
 ```
 
 ### ❌ Bad
@@ -55,5 +49,4 @@ TE: trailers
 ```http
 HTTP/1.1 200 OK
 Transfer-Encoding: x-custom
-
 ```

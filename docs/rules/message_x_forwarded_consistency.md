@@ -19,12 +19,9 @@ These checks help detect misconfigured proxies that may produce malformed or mis
 ## Specifications
 
 - [RFC 7239 §4](https://www.rfc-editor.org/rfc/rfc7239.html#section-4): `Forwarded` header syntax (standardized alternative to `X-Forwarded-*`).
-
 - Practical usage: `X-Forwarded-For` is commonly used to record client addresses in order; this rule conservatively accepts `unknown` token for cases where the sender can't be determined.
 
 ## Configuration
-
-Minimal example to enable this rule:
 
 ```toml
 [rules.message_x_forwarded_consistency]

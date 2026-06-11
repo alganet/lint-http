@@ -3,7 +3,8 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
-# message_www_authenticate_challenge_syntax
+
+# Message Www Authenticate Challenge Syntax
 
 ## Description
 
@@ -21,8 +22,6 @@ This rule validates that each challenge:
 - [RFC 7235 §2.1 — Challenge and `token68`](https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1)
 
 ## Configuration
-
-Minimal example to enable the rule:
 
 ```toml
 [rules.message_www_authenticate_challenge_syntax]

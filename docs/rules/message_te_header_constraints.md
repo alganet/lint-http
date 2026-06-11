@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_te_header_constraints
+# Message Te Header Constraints
 
 ## Description
 
@@ -23,8 +23,6 @@ Validate the `TE` request header for syntax and usage:
 
 ## Configuration
 
-Enable the rule in TOML:
-
 ```toml
 [rules.message_te_header_constraints]
 enabled = true
@@ -35,7 +33,7 @@ severity = "warn"
 
 ### ✅ Good
 
-```
+```http
 GET /resource HTTP/1.1
 Host: example.com
 Connection: TE
@@ -44,7 +42,7 @@ TE: trailers
 
 ### ✅ Good (chunked listed in TE with quality)
 
-```
+```http
 GET /resource HTTP/1.1
 Host: example.com
 Connection: keep-alive, TE
@@ -53,7 +51,7 @@ TE: chunked;q=0.8
 
 ### ❌ Bad (TE without Connection: TE)
 
-```
+```http
 GET /resource HTTP/1.1
 Host: example.com
 TE: chunked;q=0.8
@@ -61,7 +59,7 @@ TE: chunked;q=0.8
 
 ### ❌ Bad (invalid token)
 
-```
+```http
 GET /resource HTTP/1.1
 Host: example.com
 Connection: TE
@@ -70,7 +68,7 @@ TE: x!bad
 
 ### ❌ Bad (TE in response)
 
-```
+```http
 HTTP/1.1 200 OK
 TE: trailers
 ```

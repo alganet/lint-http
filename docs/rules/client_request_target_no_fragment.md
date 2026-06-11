@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
@@ -28,18 +28,21 @@ severity = "error"
 ## Examples
 
 ### ✅ Good Request
+
 ```http
 GET /index.html HTTP/1.1
 Host: example.com
 ```
 
 ### ❌ Bad Request (Fragment in origin-form)
+
 ```http
 GET /index.html#section1 HTTP/1.1
 Host: example.com
 ```
 
 ### ❌ Bad Request (Fragment in absolute-form)
+
 ```http
 GET http://example.com/index.html#section1 HTTP/1.1
 ```

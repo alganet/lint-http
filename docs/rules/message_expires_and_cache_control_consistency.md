@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_expires_and_cache_control_consistency
+# Message Expires And Cache Control Consistency
 
 ## Description
 
@@ -20,8 +20,6 @@ misconfiguration and should be corrected.
 - [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2) — Freshness and age calculations using `max-age`, `s-maxage`, and `Expires`.
 
 ## Configuration
-
-Minimal example to enable the rule:
 
 ```toml
 [rules.message_expires_and_cache_control_consistency]

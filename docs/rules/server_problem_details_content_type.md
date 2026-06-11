@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# server_problem_details_content_type
+# Server Problem Details Content Type
 
 ## Description
 
@@ -15,8 +15,6 @@ Problem Details responses (RFC 7807) SHOULD use the media types `application/pro
 - [RFC 7807 §6](https://www.rfc-editor.org/rfc/rfc7807#section-6) — Problem Details for HTTP APIs
 
 ## Configuration
-
-Enable the rule in your TOML config example:
 
 ```toml
 [rules.server_problem_details_content_type]

@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
@@ -22,6 +22,8 @@ Missing the `Upgrade` header while advertising `upgrade` in `Connection` can cau
 [rules.message_connection_upgrade]
 enabled = true
 severity = "warn"
+
+# Server Rules
 ```
 
 ## Examples

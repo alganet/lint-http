@@ -1,10 +1,10 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
 
-# message_auth_scheme_iana_registered
+# Message Auth Scheme Iana Registered
 
 ## Description
 
@@ -16,8 +16,6 @@ Validate authentication schemes used in `WWW-Authenticate` and `Authorization` h
 - [IANA HTTP Authentication Scheme Registry](https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml)
 
 ## Configuration
-
-Enable the rule and provide an `allowed` array listing acceptable scheme names (case-insensitive):
 
 ```toml
 [rules.message_auth_scheme_iana_registered]

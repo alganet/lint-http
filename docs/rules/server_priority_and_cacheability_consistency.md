@@ -53,5 +53,3 @@ Priority: u=2
 
 <body...>
 ```
-
-> In the bad example, the server emitted a `Priority` response header but did not provide `Cache-Control` or `Vary` to control how caches store or reuse the response.

@@ -8,16 +8,11 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validates message-level opcode sequencing rules for WebSocket frames observed
-during relay.  This rule inspects each frame event and checks:
+Validates message-level opcode sequencing rules for WebSocket frames observed during relay.  This rule inspects each frame event and checks:
 
-* **Reserved opcodes** (3-7, 11-15) must not appear without a negotiated
-  extension (RFC 6455 §5.2).
-* **Control frame payload limit** — Close (8), Ping (9), and Pong (10) frames
-  must not exceed 125 bytes of payload data (RFC 6455 §5.5).
-* **Data after Close** — once a Close frame has been sent in a given direction,
-  no further data frames (Text=1, Binary=2) should follow in that same
-  direction (RFC 6455 §5.5.1).
+* **Reserved opcodes** (3-7, 11-15) must not appear without a negotiated extension (RFC 6455 §5.2).
+* **Control frame payload limit** — Close (8), Ping (9), and Pong (10) frames must not exceed 125 bytes of payload data (RFC 6455 §5.5).
+* **Data after Close** — once a Close frame has been sent in a given direction, no further data frames (Text=1, Binary=2) should follow in that same direction (RFC 6455 §5.5.1).
 
 ## Specifications
 

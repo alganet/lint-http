@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_multipart_content_type_and_body_consistency
+# Message Multipart Content Type And Body Consistency
 
 ## Description
 
@@ -15,8 +15,6 @@ When a `Content-Type` header declares `multipart/*` it MUST include a `boundary`
 - [RFC 2046 §5.1.1 — Multipart common syntax and the `boundary` parameter](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1)
 
 ## Configuration
-
-Minimal example to enable the rule (default severity is `warn`):
 
 ```toml
 [rules.message_multipart_content_type_and_body_consistency]

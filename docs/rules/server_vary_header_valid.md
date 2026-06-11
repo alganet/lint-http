@@ -28,25 +28,22 @@ severity = "warn"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 Vary: Accept-Encoding
 Vary: User-Agent
 ```
-✅ Good
 
 ```http
 Vary: Accept-Encoding, User-Agent
 ```
 
-✅ Good
-
 ```http
 Vary: *
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 Vary: *, Accept-Encoding   # '*' must not be combined with other field-names

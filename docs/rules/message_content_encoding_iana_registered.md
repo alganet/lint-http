@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_content_encoding_iana_registered
+# Message Content Encoding Iana Registered
 
 ## Description
 
@@ -17,10 +17,6 @@ Validate `Content-Encoding` and `Accept-Encoding` header values to ensure conten
 
 ## Configuration
 
-This rule **requires** an `allowed` list (array of strings) that declares the content-codings considered acceptable. The project does not embed a default allow-list in code; include the canonical IANA Content Coding registry (or a subset you trust) in your configuration. See the IANA registry: https://www.iana.org/assignments/http-parameters/content-coding.csv
-
-Example (canonical IANA list):
-
 ```toml
 [rules.message_content_encoding_iana_registered]
 enabled = true
@@ -30,7 +26,7 @@ allowed = ["aes128gcm", "br", "compress", "dcb", "dcz", "deflate", "exi", "gzip"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 Content-Encoding: gzip
@@ -39,7 +35,7 @@ Accept-Encoding: gzip;q=0.8, br;q=1.0
 Accept-Encoding: *
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 Content-Encoding: x-custom

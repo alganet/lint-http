@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_origin_isolated_header_validity
+# Message Origin Isolated Header Validity
 
 ## Description
 
@@ -16,8 +16,6 @@ Checks the `Origin-Isolation` response header and ensures it uses the structured
 - Structured Headers boolean values: https://www.rfc-editor.org/rfc/rfc8941.html (RFC 8941 §3–§4)
 
 ## Configuration
-
-TOML snippet to enable the rule (disabled by default):
 
 ```toml
 [rules.message_origin_isolated_header_validity]

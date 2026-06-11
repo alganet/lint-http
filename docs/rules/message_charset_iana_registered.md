@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_charset_iana_registered
+# Message Charset Iana Registered
 
 ## Description
 
@@ -23,8 +23,6 @@ enabled = true
 severity = "warn"
 allowed = ["utf-8", "iso-8859-1", "us-ascii"]
 ```
-
-`allowed` must be an array of string names (case-insensitive) that are considered acceptable; use lower-case in examples for clarity.
 
 ## Examples
 

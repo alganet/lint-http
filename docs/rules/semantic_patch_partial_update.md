@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# semantic_patch_partial_update
+# Semantic Patch Partial Update
 
 ## Description
 
@@ -26,15 +26,14 @@ raise a violation; such problems are covered by the general
 
 ## Specifications
 
-- [RFC 5789 §2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2) — Patch
-  method semantics and patch document media types.
+- [RFC 5789 §2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2) — Patch method semantics and patch document media types.
 
 ## Configuration
 
 ```toml
 [rules.semantic_patch_partial_update]
 enabled = true
-severity = "error"
+severity = "warn"
 ```
 
 ## Examples
@@ -49,8 +48,6 @@ Content-Length: 48
 
 [ { "op": "replace", "path": "/qty", "value": 20 } ]
 ```
-
-### ✅ Also good (bodyless PATCH is ignored by this rule)
 
 ```http
 PATCH /widgets/123 HTTP/1.1

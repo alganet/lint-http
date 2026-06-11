@@ -17,8 +17,6 @@ Ensure responses to `HEAD` mirror the header fields that would have been sent fo
 
 ## Configuration
 
-This rule **requires** a `headers` array listing the header field-names (case-insensitive) that must be consistent between a previously observed `GET` and a subsequent `HEAD`. There is **no default** — the array must be provided in your config.
-
 ```toml
 [rules.semantic_head_response_headers_match_get]
 enabled = true
