@@ -134,12 +134,19 @@ impl Rule for SemanticTraceMethodEcho {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Semantic TRACE Method Echo")
+    }
+
     fn description(&self) -> &'static str {
         "Validate TRACE method semantics with two pragmatic checks:\n1. A TRACE request must not carry content.\n2. If a TRACE response carries content, it should use `Content-Type: message/http`.\n\nThese checks help catch incorrect TRACE handling and improve interoperability for diagnostics tooling."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §9.3.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8): TRACE semantics; clients `MUST NOT` send content in TRACE requests, and successful TRACE responses `SHOULD` use `message/http`.")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §9.3.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8): TRACE semantics; clients `MUST NOT` send content in TRACE requests, and successful TRACE responses `SHOULD` use `message/http`.",
+            "[RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): `Content-Type` field semantics.",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -147,14 +154,17 @@ impl Rule for SemanticTraceMethodEcho {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: message/http\nContent-Length: 29\n\nTRACE /diagnostics HTTP/1.1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\nContent-Length: 4\n\nping",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 29\n\nTRACE /diagnostics HTTP/1.1",
             },
         ]

@@ -60,12 +60,35 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("HTTP/3 MAX_PUSH_ID Monotonicity")
+    }
+
     fn description(&self) -> &'static str {
         "Validates HTTP/3 `MAX_PUSH_ID` frame semantics across the lifetime of a connection.  This rule inspects protocol-level events emitted by the HTTP/3 control-stream parser and checks:\n\n* **MAX_PUSH_ID must not decrease** — when multiple `MAX_PUSH_ID` frames are received on the same connection, each successive value MUST be greater than or equal to the previous one.  Receipt of a smaller value is a connection error of type `H3_ID_ERROR` (RFC 9114 §7.2.7).\n\nThe first `MAX_PUSH_ID` on a connection establishes the initial limit and is always accepted, regardless of value (zero is valid and means the server is not allowed to push)."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9114 §7.2.7](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.7) — `MAX_PUSH_ID` frame.")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9114 §7.2.7](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.7) — `MAX_PUSH_ID` frame.",
+            "[RFC 9114 §8.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-8.1) — HTTP/3 error codes (`H3_ID_ERROR`).",
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "# Client sends MAX_PUSH_ID { push_id: 0 }   (no pushes yet)\n# Client sends MAX_PUSH_ID { push_id: 10 }  (raise limit)\n# Client sends MAX_PUSH_ID { push_id: 10 }  (idempotent re-send: allowed)\n# Client sends MAX_PUSH_ID { push_id: 25 }  (raise further: allowed)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(decreasing MAX_PUSH_ID)"),
+                snippet: "# Client sends MAX_PUSH_ID { push_id: 10 }\n# Client sends MAX_PUSH_ID { push_id: 4 }\n# Violation: MAX_PUSH_ID 4 decreased from previous 10 (RFC 9114 §7.2.7, H3_ID_ERROR)",
+            },
+        ]
     }
 }
 

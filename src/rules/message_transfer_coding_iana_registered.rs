@@ -142,8 +142,12 @@ impl Rule for MessageTransferCodingIanaRegistered {
         "Validate `Transfer-Encoding` and `TE` header values to ensure transfer-coding tokens are syntactically valid and are recognised (SHOULD be IANA-registered or explicitly allowed via configuration). The `TE` header's special value `trailers` is accepted."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9112 §6.1 — Transfer Coding](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9112 §6.1 — Transfer Coding](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1)",
+            "[RFC 9110 §10.1.4 — TE header](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4)",
+            "[IANA Transfer Coding registry](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#transfer-coding)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -151,14 +155,17 @@ impl Rule for MessageTransferCodingIanaRegistered {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: chunked\n\n0\n",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(TE request)"),
                 snippet: "GET / HTTP/1.1\nHost: example.com\nTE: trailers\n",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: x-custom\n",
             },
         ]

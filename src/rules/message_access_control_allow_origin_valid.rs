@@ -95,12 +95,20 @@ impl Rule for MessageAccessControlAllowOriginValid {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Access-Control-Allow-Origin Syntax")
+    }
+
     fn description(&self) -> &'static str {
         "This rule checks that the `Access-Control-Allow-Origin` response header is syntactically valid: it must be a single value and that value must be either `*`, `null`, or a valid serialized-origin (scheme://host[:port]). Multiple header fields or comma-separated lists are not allowed per the CORS semantics and will be flagged as violations."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("MDN: Access-Control-Allow-Origin — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "MDN: Access-Control-Allow-Origin — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin",
+            "CORS spec (W3C): Cross-Origin Resource Sharing (CORS) — https://www.w3.org/TR/cors/",
+            "Fetch Standard (CORS semantics) — https://fetch.spec.whatwg.org/",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -108,26 +116,32 @@ impl Rule for MessageAccessControlAllowOriginValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: null",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.com",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://a, https://b",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://a\nAccess-Control-Allow-Origin: https://b",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: example.com",
             },
         ]

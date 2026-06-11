@@ -169,12 +169,19 @@ impl Rule for StatefulWebsocketHandshakeValidity {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("WebSocket handshake validity")
+    }
+
     fn description(&self) -> &'static str {
         "When a client requests an HTTP upgrade to the WebSocket protocol, the server must reply with a precise handshake response.  This rule inspects the request/response pair and ensures the response follows the opening-handshake rules in [RFC 6455 §4](https://www.rfc-editor.org/rfc/rfc6455.html#section-4):\n\n* the status code is `101 Switching Protocols`;\n* `Connection: Upgrade` and `Upgrade: websocket` headers are present;\n* the `Sec-WebSocket-Accept` header value is the SHA‑1 + base64 digest of the client's `Sec-WebSocket-Key` concatenated with the magic GUID.\n\nFailure to mirror the client's key, omit required tokens, or use the wrong status code indicates a malformed handshake and may prevent the WebSocket connection from being established."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 6455 §4.2.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.2) — “Opening Handshake”, calculate `Sec-WebSocket-Accept`.")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 6455 §4.2.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.2) — “Opening Handshake”, calculate `Sec-WebSocket-Accept`.",
+            "[RFC 9110 §9.3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5) — rules for `Connection` and `Upgrade` header interaction during protocol upgrades.",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -182,10 +189,12 @@ impl Rule for StatefulWebsocketHandshakeValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\nSec-WebSocket-Version: 13\n\nHTTP/1.1 101 Switching Protocols\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(mismatched accept)"),
                 snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\nSec-WebSocket-Version: 13\n\nHTTP/1.1 101 Switching Protocols\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Accept: WRONG==",
             },
         ]

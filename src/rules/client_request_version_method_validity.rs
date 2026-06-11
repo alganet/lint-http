@@ -79,8 +79,14 @@ impl Rule for ClientRequestVersionMethodValidity {
         "Clients SHOULD use request methods whose semantics align with the message\ncontent they are sending.  Some methods either forbid or have no defined\nsemantics for a request body; sending content with those methods can lead to\ninteroperability problems or security risks (e.g. request smuggling).  This\nrule flags any request that claims a non-zero body when the method's\nsemantics do not allow it.\n\nThe most obvious examples are GET and HEAD (which have no defined request\npayload semantics) but the same guidance applies to DELETE, TRACE, and\nCONNECT.  By enforcing this rule, users are encouraged to choose methods like\nPOST, PUT, PATCH, or OPTIONS when content is required."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("RFC 9110 §9.3.1 (GET) – ‘‘A client **SHOULD NOT** generate content in a GET request ...’’")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "RFC 9110 §9.3.1 (GET) – ‘‘A client **SHOULD NOT** generate content in a GET request ...’’",
+            "RFC 9110 §9.3.2 (HEAD) – ‘‘A client **SHOULD NOT** generate content in a HEAD request ...’’",
+            "RFC 9110 §9.3.5 (DELETE) – ‘‘content received in a DELETE request has no generally defined semantics ... A client **SHOULD NOT** generate content in a DELETE request ...’’",
+            "RFC 9110 §9.3.6 (CONNECT) – ‘‘A CONNECT request message **does not have content**.’'",
+            "RFC 9110 §9.3.8 (TRACE) – ‘‘A client **MUST NOT** send content in a TRACE request.’'",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -88,19 +94,23 @@ impl Rule for ClientRequestVersionMethodValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet:
                     "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 123\n\n<binary data>",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(DELETE with no body)"),
                 snippet: "DELETE /resource/42 HTTP/1.1\nHost: example.com",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(GET with a body)"),
                 snippet: "GET /search HTTP/1.1\nHost: example.com\nContent-Length: 5\n\nhello",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(TRACE with content)"),
                 snippet: "TRACE / HTTP/1.1\nHost: example.com\nContent-Length: 1\n\nx",
             },
         ]

@@ -154,12 +154,19 @@ impl Rule for StatefulCookieSameSiteEnforcement {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Stateful Cookie SameSite Enforcement")
+    }
+
     fn description(&self) -> &'static str {
         "Cookies marked with the `SameSite` attribute impose restrictions on when they may be included in requests.  `Strict` cookies are only sent in a same-site context, while `Lax` cookies may also be included on top-level navigations using safe methods such as `GET`.  `None` cookies have no such restrictions but must be paired with `Secure` (checked by a different rule).\n\nThis rule rebuilds a simple cookie store from prior `Set-Cookie` responses for a given origin and compares it against the `Cookie` header on outgoing requests.  If a request includes a cookie whose stored metadata indicates a `Strict`/`Lax` policy that is violated by the current site relationship and navigation context, a violation is reported.  Cookies without an explicit `SameSite` value are treated as `Lax` to reflect modern browser defaults.\n\nThe check uses `Sec-Fetch-Site` (and, for Lax decisions, `Sec-Fetch-Mode`) headers to approximate whether the request is cross-site and whether it represents a top‑level navigation.\n\nIf the relationship cannot be determined (e.g. missing `Sec-Fetch-Site`), the rule conservatively abstains rather than raising false positives."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 6265bis §5.3.4 — SameSite cookie semantics](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.3.4)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 6265bis §5.3.4 — SameSite cookie semantics](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.3.4)",
+            "[Fetch spec Sec-Fetch-Site](https://fetch.spec.whatwg.org/#sec-fetch-site)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -167,18 +174,22 @@ impl Rule for StatefulCookieSameSiteEnforcement {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("— same-site request"),
                 snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n> Sec-Fetch-Site: same-site\n> Cookie: id=1\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=1; SameSite=Strict; Path=/",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("— Lax cookie sent on top-level navigation"),
                 snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n> Sec-Fetch-Site: cross-site\n> Sec-Fetch-Mode: navigate\n> Cookie: sid=abc\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=abc; SameSite=Lax; Path=/",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— Strict cookie sent cross-site"),
                 snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n> Sec-Fetch-Site: cross-site\n> Cookie: session=xyz\n\n< HTTP/1.1 200 OK\n< Set-Cookie: session=xyz; SameSite=Strict; Path=/",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— Lax cookie sent in cross-site subresource request"),
                 snippet: "> GET /image.png HTTP/1.1\n> Host: example.com\n> Sec-Fetch-Site: cross-site\n> Sec-Fetch-Mode: cors\n> Cookie: auth=1\n\n< HTTP/1.1 200 OK\n< Set-Cookie: auth=1; SameSite=Lax; Path=/",
             },
         ]

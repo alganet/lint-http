@@ -78,14 +78,19 @@ impl Rule for MessageEtagSyntax {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message ETag Syntax")
+    }
+
     fn description(&self) -> &'static str {
         "Validate that the `ETag` response header contains a single, syntactically valid entity-tag (strong or weak) as defined by RFC 9110. This rule flags non-UTF-8 header values, the use of the special `*` value (which is only meaningful in conditional request headers), and the presence of multiple `ETag` header fields."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some(
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
             "[RFC 9110 §7.6 — Entity Tag](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6)",
-        )
+            "[RFC 9110 §8.8.3 — ETag header field](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -93,22 +98,27 @@ impl Rule for MessageEtagSyntax {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(strong ETag)"),
                 snippet: "HTTP/1.1 200 OK\nETag: \"33a64df551425fcc55e4d42a148795d9f25f89d4\"",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(weak ETag)"),
                 snippet: "HTTP/1.1 200 OK\nETag: W/\"67ab43\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(`*` used in response)"),
                 snippet: "HTTP/1.1 200 OK\nETag: *",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(missing quotes)"),
                 snippet: "HTTP/1.1 200 OK\nETag: abc",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(multiple header fields)"),
                 snippet: "HTTP/1.1 200 OK\nETag: \"a\"\nETag: \"b\"",
             },
         ]

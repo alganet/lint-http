@@ -62,8 +62,11 @@ impl Rule for MessageBasicAuthBase64Validity {
         "Validate that `Authorization: Basic ...` credentials are syntactically valid Base64-encoded `user-id:password` octet sequences as defined by RFC 7617. The rule ensures the credentials decode successfully, include the required `:` separator, and that neither the user-id nor the password contains control characters."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 7617 §2 — The Basic authentication scheme and the `user-pass` encoding (Base64)](https://www.rfc-editor.org/rfc/rfc7617.html#section-2)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 7617 §2 — The Basic authentication scheme and the `user-pass` encoding (Base64)](https://www.rfc-editor.org/rfc/rfc7617.html#section-2)",
+            "[RFC 4648 §4 — Base64 encoding used for `token68`](https://www.rfc-editor.org/rfc/rfc4648.html#section-4)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -71,14 +74,17 @@ impl Rule for MessageBasicAuthBase64Validity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic not-base64",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic YWJj",
             },
         ]

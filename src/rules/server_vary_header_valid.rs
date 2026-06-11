@@ -103,8 +103,10 @@ impl Rule for ServerVaryHeaderValid {
         "Validate the `Vary` response header. This rule enforces that:\n\n- When present, `Vary` MUST be either `*` or a comma-separated list of header field-names.\n- Each field-name must conform to the `token` grammar (RFC `tchar`).\n- `*` MUST NOT be combined with other field-names (across the header value or multiple header fields)."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §7.3.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.6) — Vary header")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §7.3.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.6) — Vary header",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -112,18 +114,22 @@ impl Rule for ServerVaryHeaderValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Vary: Accept-Encoding\nVary: User-Agent",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Vary: Accept-Encoding, User-Agent",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Vary: *",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Vary: *, Accept-Encoding   # '*' must not be combined with other field-names\nVary: x@bad                # invalid token characters in field-name\nVary:                      # empty header value is invalid",
             },
         ]

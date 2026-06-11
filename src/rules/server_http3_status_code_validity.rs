@@ -94,12 +94,21 @@ impl Rule for ServerHttp3StatusCodeValidity {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("HTTP/3 Status Code Validity")
+    }
+
     fn description(&self) -> &'static str {
         "HTTP/3 does not support the `101 (Switching Protocols)` informational status code. The protocol upgrade mechanism used in HTTP/1.1 has no equivalent in HTTP/3; applications that require protocol switching should use extended CONNECT (RFC 9220) instead.\n\nAdditionally, informational (1xx) responses in HTTP/3 consist of only a HEADERS frame and must not include a message body, `Content-Length` header, or trailer fields.\n\nThis rule applies when the request version is `HTTP/3`. Response properties are checked only when the response's own version is also `HTTP/3`; in a reverse-proxy setup the upstream response may arrive via HTTP/1.1 where `101` is legitimate."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9114 §4.5](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5) — HTTP Upgrade")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9114 §4.5](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5) — HTTP Upgrade",
+            "[RFC 9114 §4.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1) — HTTP Message Exchanges",
+            "[RFC 9110 §15.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2) — Informational 1xx",
+            "[RFC 9220](https://www.rfc-editor.org/rfc/rfc9220.html) — Bootstrapping WebSockets with HTTP/3",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -107,26 +116,32 @@ impl Rule for ServerHttp3StatusCodeValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/3 100 Continue",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/3 103 Early Hints\nLink: </style.css>; rel=preload; as=style",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/3 200 OK\nContent-Type: text/html",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/3 101 Switching Protocols\nUpgrade: websocket",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/3 100 Continue\nContent-Length: 0",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/3 103 Early Hints\nLink: </style.css>; rel=preload; as=style\n\n<body data follows>",
             },
         ]

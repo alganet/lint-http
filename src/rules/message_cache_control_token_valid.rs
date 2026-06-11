@@ -83,8 +83,10 @@ impl Rule for MessageCacheControlTokenValid {
         "Validate `Cache-Control` directive names and unquoted values follow the `token` grammar. Values that are quoted-strings are validated as quoted strings. Empty header values and empty directive members are flagged as violations."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2) — Cache-Control directives and general directive syntax")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2) — Cache-Control directives and general directive syntax",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -92,10 +94,12 @@ impl Rule for MessageCacheControlTokenValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Cache-Control: max-age=3600\nCache-Control: no-cache\nCache-Control: private=\"Set-Cookie, X-Foo\"\nCache-Control: public, max-age=60",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Cache-Control: =abc\nCache-Control: ma x-age=1\nCache-Control: private=Set Cookie\nCache-Control: private=bad@val",
             },
         ]

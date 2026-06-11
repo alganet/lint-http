@@ -125,8 +125,11 @@ impl Rule for StatefulCookieDomainMatching {
         "A client should only send a cookie back to a server when the request URI satisfies the cookie's domain and path constraints.  Browsers follow the matching algorithm in [RFC 6265 §5.1.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3) and §5.1.4 when deciding which cookies to include with a request; this rule flags instances where the observed `Cookie` header contains a name/value pair that corresponds to a previously set cookie whose attributes would *not* allow it to be sent for the current host/path.\n\nTo avoid spurious warnings the check only considers cookies that have been seen in the capture history and matches on the exact value.  Unknown cookies are assumed to pre‑date the capture and are ignored.  The related `stateful_cookie_lifecycle` rule already handles path‑mismatch diagnostics and secure‑cookie checks; this rule is primarily intended to catch domain mismatches that the other rule overlooks."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 6265 §5.1.3 — Domain matching](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 6265 §5.1.3 — Domain matching](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3)",
+            "[RFC 6265 §5.1.4 — Path matching](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -134,11 +137,18 @@ impl Rule for StatefulCookieDomainMatching {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: session=abc; Path=/\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> Cookie: session=abc",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— domain mismatch"),
                 snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=123; Domain=example.com\n\n> GET / HTTP/1.1\n> Host: other.com\n> Cookie: sid=123               # invalid; domain does not match",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— path mismatch (also flagged by stateful_cookie_lifecycle)"),
+                snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=1; Path=/private\n\n> GET /public HTTP/1.1\n> Host: example.com\n> Cookie: id=1                 # path does not match",
             },
         ]
     }

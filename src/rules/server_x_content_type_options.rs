@@ -107,12 +107,18 @@ impl Rule for ServerXContentTypeOptions {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server X-Content-Type-Options")
+    }
+
     fn description(&self) -> &'static str {
         "This rule checks if responses include the `X-Content-Type-Options: nosniff` header.\n\nThis security header prevents browsers from \"MIME-sniffing\" a response away from the declared `Content-Type`. This reduces exposure to drive-by download attacks and cross-site scripting (XSS) vulnerabilities where a browser might execute a file as HTML/JavaScript even if the server served it as an image or text."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[MDN Web Docs: X-Content-Type-Options](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[MDN Web Docs: X-Content-Type-Options](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -120,10 +126,12 @@ impl Rule for ServerXContentTypeOptions {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("Response"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/javascript\nX-Content-Type-Options: nosniff",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("Response"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/javascript\n# Missing X-Content-Type-Options header",
             },
         ]

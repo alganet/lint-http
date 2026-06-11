@@ -50,12 +50,18 @@ impl Rule for MessageContentLengthVsTransferEncoding {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Content-Length vs Transfer-Encoding")
+    }
+
     fn description(&self) -> &'static str {
         "This rule flags messages (requests or responses) that include both `Content-Length` and `Transfer-Encoding` headers, which can lead to ambiguous or unsafe interpretations of message length."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): Content-Length MUST NOT be sent when Transfer-Encoding is present")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): Content-Length MUST NOT be sent when Transfer-Encoding is present",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -63,10 +69,12 @@ impl Rule for MessageContentLengthVsTransferEncoding {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("Message"),
                 snippet: "POST /submit HTTP/1.1\nHost: example.com\nContent-Length: 15\n\npayload",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("Message"),
                 snippet: "POST /submit HTTP/1.1\nHost: example.com\nContent-Length: 15\nTransfer-Encoding: chunked",
             },
         ]

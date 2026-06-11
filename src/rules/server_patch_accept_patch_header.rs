@@ -95,12 +95,18 @@ impl Rule for ServerPatchAcceptPatchHeader {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Accept-Patch Header")
+    }
+
     fn description(&self) -> &'static str {
         "Servers SHOULD include `Accept-Patch` in responses to `PATCH` requests to advertise supported patch media types. This rule checks responses to `PATCH` requests and flags missing or malformed `Accept-Patch` header values."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 5789 §2.2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2) — PATCH and Accept-Patch header")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 5789 §2.2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2) — PATCH and Accept-Patch header",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -108,10 +114,12 @@ impl Rule for ServerPatchAcceptPatchHeader {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Accept-Patch: application/example-patch+json\nAccept-Patch: application/example-patch+json, application/merge-patch+json",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Accept-Patch: badmedia\n(no Accept-Patch header in response to PATCH)",
             },
         ]

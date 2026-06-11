@@ -148,12 +148,19 @@ impl Rule for MessageMediaTypeSuffixValidity {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Media Type Suffix Validity")
+    }
+
     fn description(&self) -> &'static str {
         "This rule flags media types (in `Content-Type` or `Accept`) whose subtype ends with a `+suffix` that is not a recognized structured-syntax suffix. Unknown or misspelled suffixes may lead to incorrect parsing or interoperability issues."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 6838 §4.2.8 — Structured Syntax Name Suffixes](https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 6838 §4.2.8 — Structured Syntax Name Suffixes](https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8)",
+            "IANA Structured Syntax Suffix registry: https://www.iana.org/assignments/media-type-structured-suffix/media-type-structured-suffix.xhtml",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -161,10 +168,12 @@ impl Rule for MessageMediaTypeSuffixValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Content-Type: application/ld+json\nContent-Type: application/xml\nAccept: application/vnd.example+json; q=0.8",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— unknown suffix"),
                 snippet: "Content-Type: application/vnd.example+unknown\nAccept: application/bar+nope",
             },
         ]

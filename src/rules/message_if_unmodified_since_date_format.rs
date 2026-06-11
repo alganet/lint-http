@@ -60,12 +60,18 @@ impl Rule for MessageIfUnmodifiedSinceDateFormat {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message If-Unmodified-Since Date Format")
+    }
+
     fn description(&self) -> &'static str {
         "The `If-Unmodified-Since` request header, when present, MUST be a valid HTTP-date (IMF-fixdate). This rule flags `If-Unmodified-Since` header values that are not valid HTTP-date strings or contain non-UTF8 bytes."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §7.8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.2): If-Unmodified-Since header")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §7.8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.2): If-Unmodified-Since header",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -73,15 +79,18 @@ impl Rule for MessageIfUnmodifiedSinceDateFormat {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet:
                     "GET /resource HTTP/1.1\nIf-Unmodified-Since: Wed, 21 Oct 2015 07:28:00 GMT",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nIf-Unmodified-Since: not-a-date",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nIf-Unmodified-Since: \\xff",
             },
         ]

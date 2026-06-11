@@ -86,8 +86,11 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
         "Responses that use representation compression (e.g., `Content-Encoding: gzip`) should not duplicate the same compression coding in `Transfer-Encoding`. `Content-Encoding` signals end-to-end transformations applied to the representation by the origin, while `Transfer-Encoding` describes hop-by-hop transport codings. The rule flags cases where the same compression coding appears in both headers which is likely unintended and confusing."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §5.3 — Content Coding](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §5.3 — Content Coding](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3)",
+            "[RFC 9112 §6.1 — Transfer Codings and `Transfer-Encoding`](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -95,14 +98,17 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip\nTransfer-Encoding: chunked\n\n<compressed-body-chunked>",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(transfer-level gzip without Content-Encoding)"),
                 snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: gzip, chunked\n\n<gzip-then-chunked-bytes>",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(duplicate compression codings)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip\nTransfer-Encoding: gzip, chunked\n\n<body>",
             },
         ]

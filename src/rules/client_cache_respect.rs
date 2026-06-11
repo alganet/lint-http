@@ -67,8 +67,11 @@ impl Rule for ClientCacheRespect {
         "This rule checks if the client correctly uses conditional headers (`If-None-Match` or `If-Modified-Since`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §13.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2): If-None-Match")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §13.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2): If-None-Match",
+            "[RFC 9110 §13.1.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3): If-Modified-Since",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -76,27 +79,33 @@ impl Rule for ClientCacheRespect {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("Request"),
                 snippet: "GET /image.png HTTP/1.1\nHost: example.com",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("Request"),
                 snippet: "HTTP/1.1 200 OK\nETag: \"abcdef12345\"\nContent-Length: 1024",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("Request"),
                 snippet:
                     "GET /image.png HTTP/1.1\nHost: example.com\nIf-None-Match: \"abcdef12345\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("Request"),
                 snippet: "GET /image.png HTTP/1.1\nHost: example.com",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("Request"),
                 snippet: "HTTP/1.1 200 OK\nETag: \"abcdef12345\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("Request"),
                 snippet:
                     "GET /image.png HTTP/1.1\nHost: example.com\n# Missing If-None-Match header!",
             },

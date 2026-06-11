@@ -97,12 +97,20 @@ impl Rule for MessageTrailerFieldsValidity {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Trailer Fields Validity")
+    }
+
     fn description(&self) -> &'static str {
         "Validates that actual trailer fields sent after the message body do not contain prohibited headers and are consistent with any `Trailer` header declaration.\n\nRFC 9110 §6.5.1 forbids trailer fields used for message framing (`Transfer-Encoding`, `Content-Length`), routing (`Host`), request modifiers (controls and conditionals such as `Cache-Control`, `If-Match`, `Range`), authentication (`Authorization`, `WWW-Authenticate`), response control data (`Date`, `Location`, `Vary`), or payload processing (`Content-Type`, `Content-Encoding`, `Content-Range`, `Trailer` itself). Hop-by-hop headers (`Connection`, `Keep-Alive`, `Upgrade`) are also prohibited.\n\nWhen a `Trailer` header is present in the message headers, this rule additionally checks that all actual trailer fields were declared, since senders SHOULD list expected trailer fields before the message body.\n\nThis rule complements `message_trailer_headers_valid`, which validates the `Trailer` header declaration itself (field-name syntax and hop-by-hop restrictions). This rule instead validates the **actual trailer fields** that appear after the body."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §6.5 — Trailer Fields](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §6.5 — Trailer Fields](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5)",
+            "[RFC 9110 §6.5.1 — Limitations on Use of Trailers](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1)",
+            "[RFC 9112 §7.1.2 — Chunked Transfer Coding (Trailer Section)](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1.2)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -110,14 +118,17 @@ impl Rule for MessageTrailerFieldsValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nTrailer: X-Checksum\nTransfer-Encoding: chunked\n\n<chunked body>\nX-Checksum: abc123",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: chunked\n\n<chunked body>\nContent-Length: 42",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nTrailer: X-Checksum\nTransfer-Encoding: chunked\n\n<chunked body>\nX-Signature: sig-value",
             },
         ]

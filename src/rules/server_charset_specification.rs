@@ -57,8 +57,11 @@ impl Rule for ServerCharsetSpecification {
         "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter.\n\nSpecifying the character encoding is crucial for security and correct rendering. If the charset is not explicitly defined, browsers may attempt to guess the encoding (MIME sniffing), which can lead to Cross-Site Scripting (XSS) vulnerabilities or incorrect display of characters."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type header")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type header",
+            "[MDN: Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -66,10 +69,12 @@ impl Rule for ServerCharsetSpecification {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("Response"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("Response"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/html\n# Missing charset parameter",
             },
         ]

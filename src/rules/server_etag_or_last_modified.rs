@@ -41,12 +41,19 @@ impl Rule for ServerEtagOrLastModified {
         }
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server ETag or Last-Modified Present")
+    }
+
     fn description(&self) -> &'static str {
         "This rule checks if `200 OK` responses include either an `ETag` or a `Last-Modified` header.\n\nThese headers act as validators, allowing clients to perform conditional requests (`If-None-Match` or `If-Modified-Since`). This enables efficient caching and revalidation, significantly reducing bandwidth when resources haven't changed."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §8.8.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.1): Last-Modified header")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §8.8.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.1): Last-Modified header",
+            "[RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): ETag header",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -54,14 +61,17 @@ impl Rule for ServerEtagOrLastModified {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("Response (ETag)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: image/png\nETag: \"33a64df551425fcc55e4d42a148795d9f25f89d4\"",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("Response (Last-Modified)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/html\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("Response"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: image/png\n# Missing both ETag and Last-Modified",
             },
         ]

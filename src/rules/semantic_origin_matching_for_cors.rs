@@ -135,12 +135,20 @@ impl Rule for SemanticOriginMatchingForCors {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Origin Matching for CORS Responses")
+    }
+
     fn description(&self) -> &'static str {
         "When a server responds to a cross-origin request the `Access-Control-Allow-Origin`\nheader must either repeat the request's `Origin` value or use the wildcard `*`.\nFurthermore, the wildcard may **not** be used in conjunction with credentials\n(`Access-Control-Allow-Credentials: true`).\n\nThis rule looks at transactions where the client supplied an `Origin` header\nand the server returned an `Access-Control-Allow-Origin` header.  It\nvalidates that the header set is semantically consistent with the request\norigin and enforces the credential restriction on `*`.  If the request's\n`Origin` value is syntactically invalid the rule also raises a violation.\n\nThis check applies to server responses (RuleScope::Server)."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("RFC 6454 — The Web Origin Concept — https://datatracker.ietf.org/doc/html/rfc6454")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "RFC 6454 — The Web Origin Concept — https://datatracker.ietf.org/doc/html/rfc6454",
+            "Fetch CORS / Origin matching rules — https://fetch.spec.whatwg.org/#access-control-allow-origin-response-header",
+            "MDN: Access-Control-Allow-Origin — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -148,26 +156,32 @@ impl Rule for SemanticOriginMatchingForCors {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(exact echo)"),
                 snippet: "GET /foo HTTP/1.1\nHost: example.com\nOrigin: https://example.org\n\nHTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.org",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(wildcard, no credentials)"),
                 snippet: "GET /foo HTTP/1.1\nHost: example.com\nOrigin: https://example.org\n\nHTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(`*` with credentials)"),
                 snippet: "GET /foo HTTP/1.1\nHost: example.com\nOrigin: https://example.org\n\nHTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *\nAccess-Control-Allow-Credentials: true",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(mismatched origin)"),
                 snippet: "GET /foo HTTP/1.1\nHost: example.com\nOrigin: https://foo.example\n\nHTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://bar.example",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(multiple header fields or list)"),
                 snippet: "GET /foo HTTP/1.1\nHost: example.com\nOrigin: https://example.org\n\nHTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://a, https://b",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(multiple header fields or list)"),
                 snippet: "GET /foo HTTP/1.1\nHost: example.com\nOrigin: https://example.org\n\nHTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://a\nAccess-Control-Allow-Origin: https://b",
             },
         ]

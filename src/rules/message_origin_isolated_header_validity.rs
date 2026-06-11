@@ -79,8 +79,11 @@ impl Rule for MessageOriginIsolatedHeaderValidity {
         "Checks the `Origin-Isolation` response header and ensures it uses the structured-header boolean value `?1` to request document origin isolation. The header must be a single value and must not contain comma-separated lists or multiple header fields. `?1` signals that the origin requests origin isolation for documents served from it; other values are rejected by this rule."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("Origin Isolation explainer: https://github.com/davidben/origin-isolation/blob/master/README.md (See \"Example\" and \"How it works\")")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "Origin Isolation explainer: https://github.com/davidben/origin-isolation/blob/master/README.md (See \"Example\" and \"How it works\")",
+            "Structured Headers boolean values: https://www.rfc-editor.org/rfc/rfc8941.html (RFC 8941 §3–§4)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -88,18 +91,22 @@ impl Rule for MessageOriginIsolatedHeaderValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nOrigin-Isolation: ?1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nOrigin-Isolation: ?0",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nOrigin-Isolation: ?1, ?1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nOrigin-Isolation: unsafe-none",
             },
         ]

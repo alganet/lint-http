@@ -69,12 +69,18 @@ impl Rule for MessageContentLength {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Content-Length")
+    }
+
     fn description(&self) -> &'static str {
         "This rule validates `Content-Length` header values for syntax and consistency:\n\n- Each `Content-Length` header value must be a non-negative decimal integer (no signs, no decimals).\n- A `Content-Length` header with an empty value or containing non-digit characters is invalid.\n- When multiple `Content-Length` header fields are present, their trimmed numeric values MUST be identical.\n\nImproper `Content-Length` values can lead to message framing errors or truncated bodies; the rule flags invalid or inconsistent values."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): Content-Length")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): Content-Length",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -82,10 +88,12 @@ impl Rule for MessageContentLength {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Content-Length: 0\nContent-Length: 10\nContent-Length:  20  \n\nContent-Length: 10\nContent-Length:  10 ",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Content-Length: -1\nContent-Length: +1\nContent-Length: 1.5\nContent-Length: abc\nContent-Length:\n\nContent-Length: 10\nContent-Length: 20",
             },
         ]

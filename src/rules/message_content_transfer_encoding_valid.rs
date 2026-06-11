@@ -102,8 +102,10 @@ impl Rule for MessageContentTransferEncodingValid {
         "Validate the `Content-Transfer-Encoding` header value follows the canonical encodings defined by MIME: it must be a single `token` and one of `7bit`, `8bit`, `binary`, `quoted-printable`, or `base64` (case-insensitive). This header is defined by RFC 2045 and is not a list-valued header in MIME; comma-separated values are likely malformed."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 2045 §6](https://www.rfc-editor.org/rfc/rfc2045#section-6) — Content-Transfer-Encoding")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 2045 §6](https://www.rfc-editor.org/rfc/rfc2045#section-6) — Content-Transfer-Encoding",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -111,14 +113,17 @@ impl Rule for MessageContentTransferEncodingValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Transfer-Encoding: base64\n\n<response body>",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Transfer-Encoding: x-custom\n\n<response body>",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet:
                     "HTTP/1.1 200 OK\nContent-Transfer-Encoding: base64, gzip\n\n<response body>",
             },

@@ -233,8 +233,11 @@ impl Rule for MessageWarningHeaderSyntax {
         "Validate `Warning` header members follow the syntax described in RFC 7234 §5.5. Each member (a comma-separated `warn-value`) consists of:\n\n- A three-digit `warn-code` (e.g., `110`, `214`)\n- Whitespace and a `warn-agent` (host[:port] or pseudonym)\n- Whitespace and a `warn-text` which MUST be a `quoted-string`\n- Optionally, whitespace and a `warn-date` which MUST be a `quoted-string` containing an IMF-fixdate (an HTTP-date)\n\nThis rule flags empty members, invalid 3-digit codes, missing or unquoted `warn-text`, malformed `warn-date` (including invalid HTTP dates), and non-UTF8 header values."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 7234 §5.5](https://www.rfc-editor.org/rfc/rfc7234.html#section-5.5): Warning header field")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 7234 §5.5](https://www.rfc-editor.org/rfc/rfc7234.html#section-5.5): Warning header field",
+            "[RFC 9110 §7.1.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1.1): HTTP-date (IMF-fixdate)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -242,30 +245,37 @@ impl Rule for MessageWarningHeaderSyntax {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nWarning: 110 - \"Response is stale\"",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nWarning: 214 example.com:80 \"Transformation applied\"",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nWarning: 214 example.com \"Text\" \"Wed, 21 Oct 2015 07:28:00 GMT\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nWarning: ,",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nWarning: 21a host \"text\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nWarning: 214 host text",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nWarning: 214 host \"x\" \"not-a-date\"",
             },
         ]

@@ -104,12 +104,20 @@ impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("WebSocket Frame Opcode Sequence")
+    }
+
     fn description(&self) -> &'static str {
         "Validates message-level opcode sequencing rules for WebSocket frames observed during relay.  This rule inspects each frame event and checks:\n\n* **Reserved opcodes** (3-7, 11-15) must not appear without a negotiated extension (RFC 6455 §5.2).\n* **Control frame payload limit** — Close (8), Ping (9), and Pong (10) frames must not exceed 125 bytes of payload data (RFC 6455 §5.5).\n* **Data after Close** — once a Close frame has been sent in a given direction, no further data frames (Text=1, Binary=2) should follow in that same direction (RFC 6455 §5.5.1)."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 6455 §5.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2) — Base Framing Protocol, opcode definitions.")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 6455 §5.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2) — Base Framing Protocol, opcode definitions.",
+            "[RFC 6455 §5.5](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5) — Control Frames, payload length constraint.",
+            "[RFC 6455 §5.5.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5.1) — Close frame semantics and half-close behaviour.",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -117,18 +125,22 @@ impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\nSec-WebSocket-Version: 13\n\nHTTP/1.1 101 Switching Protocols\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\n\n# After upgrade, valid frame sequence:\n# Client -> Server: opcode=1 (Text), 42 bytes\n# Server -> Client: opcode=1 (Text), 100 bytes\n# Client -> Server: opcode=8 (Close), 2 bytes\n# Server -> Client: opcode=8 (Close), 2 bytes",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(reserved opcode)"),
                 snippet: "# After WebSocket upgrade, client sends reserved opcode:\n# Client -> Server: opcode=5, 10 bytes\n# Opcode 5 is reserved (RFC 6455 §5.2)",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(control frame too large)"),
                 snippet: "# After WebSocket upgrade, client sends oversized Ping:\n# Client -> Server: opcode=9 (Ping), 200 bytes\n# Control frames must not exceed 125 bytes (RFC 6455 §5.5)",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(data after close)"),
                 snippet: "# After WebSocket upgrade, client sends data after Close:\n# Client -> Server: opcode=8 (Close), 2 bytes\n# Client -> Server: opcode=1 (Text), 50 bytes\n# No data frames after Close in same direction (RFC 6455 §5.5.1)",
             },
         ]

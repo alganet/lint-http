@@ -34,12 +34,18 @@ impl Rule for ClientAcceptEncodingPresent {
         }
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Client Accept-Encoding Present")
+    }
+
     fn description(&self) -> &'static str {
         "This rule checks if the client sends an `Accept-Encoding` header in the request.\n\nModern HTTP clients should support compression (gzip, brotli, etc.) to reduce bandwidth usage and improve performance. Omitting this header usually implies the client does not support compression, or it was manually disabled."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §12.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3): Accept-Encoding header")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §12.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3): Accept-Encoding header",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -47,11 +53,13 @@ impl Rule for ClientAcceptEncodingPresent {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("Request"),
                 snippet:
                     "GET /resource HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip, deflate, br",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("Request"),
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nUser-Agent: my-script/1.0",
             },
         ]

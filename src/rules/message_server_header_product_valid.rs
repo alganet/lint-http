@@ -121,8 +121,10 @@ impl Rule for MessageServerHeaderProductValid {
         "Validate the `Server` response header's product tokens and optional product versions. Each product must be a `token` and the optional version (after `/`) must also be a `token`. Parenthesized comments are accepted per the header's grammar and are ignored for token validation."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1) — `Server` header field and `product` grammar: product = token [\"/\" product-version] *( RWS ( product / comment ) )")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1) — `Server` header field and `product` grammar: product = token [\"/\" product-version] *( RWS ( product / comment ) )",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -130,10 +132,12 @@ impl Rule for MessageServerHeaderProductValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nServer: nginx/1.18.0\n\nHTTP/1.1 200 OK\nServer: Apache/2.4.41 (Ubuntu)",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nServer: /1.0  # empty product token\n\nHTTP/1.1 200 OK\nServer: Bad@Srv/1.0  # illegal character in product\n\nHTTP/1.1 200 OK\nServer: Srv/1@0  # illegal character in version\n\nHTTP/1.1 200 OK\nServer: Bad (unbalanced comment  # unterminated comment",
             },
         ]

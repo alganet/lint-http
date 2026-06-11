@@ -74,12 +74,19 @@ impl Rule for MessageRefererUriValid {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Referer Header URI Valid")
+    }
+
     fn description(&self) -> &'static str {
         "This rule checks that the `Referer` request header, when present, is a syntactically valid URI-reference per the HTTP specification. Malformed `Referer` values can break referrer-based logic and leak incorrect information to servers."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §7.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#name-referer)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §7.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#name-referer)",
+            "[RFC 3986 §4](https://www.rfc-editor.org/rfc/rfc3986.html#section-4) — URI-reference syntax and percent-encoding",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -87,18 +94,22 @@ impl Rule for MessageRefererUriValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(absolute URI)"),
                 snippet: "GET / HTTP/1.1\nReferer: https://example.com/path",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(relative URI-reference)"),
                 snippet: "GET / HTTP/1.1\nReferer: /relative/path",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(invalid percent-encoding)"),
                 snippet: "GET / HTTP/1.1\nReferer: /bad%2Gencoding",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(contains whitespace)"),
                 snippet: "GET / HTTP/1.1\nReferer: https://example.com/ bad",
             },
         ]

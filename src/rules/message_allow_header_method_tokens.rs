@@ -75,12 +75,19 @@ impl Rule for MessageAllowHeaderMethodTokens {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Allow Header Method Tokens")
+    }
+
     fn description(&self) -> &'static str {
         "Validate the `Allow` header. This rule enforces that:\n\n- When present, `Allow` MUST be a comma-separated list of valid method tokens.\n- Each method token must conform to the `token` grammar (RFC `tchar`).\n- Empty tokens are not allowed (e.g., from trailing commas or double commas)."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1) — Allow header field")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1) — Allow header field",
+            "[RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2) — Token syntax (tchar)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -88,18 +95,22 @@ impl Rule for MessageAllowHeaderMethodTokens {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Allow: GET, POST, PUT, DELETE",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Allow: GET, HEAD, OPTIONS",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Allow: CUSTOM-METHOD",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Allow: GET, @POST        # invalid character '@' in method token\nAllow: GET, , POST       # empty token from double comma\nAllow: GET POST          # not comma-separated\nAllow:                   # empty header value",
             },
         ]

@@ -203,8 +203,13 @@ impl Rule for MessageStrictTransportSecurityValidity {
         "The `Strict-Transport-Security` response header signals HSTS policies. This rule ensures responses include the required `max-age` directive (a non-negative integer) and that optional directives `includeSubDomains` and `preload` are present without values. Unknown directives are accepted but any value must be a `token` or `quoted-string`. Non-UTF8 header values and syntactic violations are reported as rule violations."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 6797 §6.1 — Strict-Transport-Security header](https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 6797 §6.1 — Strict-Transport-Security header](https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1)",
+            "[RFC 6797 §6.1.1 — The max-age Directive](https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.1)",
+            "[RFC 6797 §6.1.2 — The includeSubDomains Directive](https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.2)",
+            "Token / quoted-string syntax: [RFC 9110 §5.6.2 — Tokens](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2) and [RFC 9110 §5.6.4 — Quoted Strings](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -212,22 +217,27 @@ impl Rule for MessageStrictTransportSecurityValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Strict-Transport-Security: max-age=63072000; includeSubDomains; preload",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Strict-Transport-Security: max-age=0",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— missing `max-age`"),
                 snippet: "Strict-Transport-Security: includeSubDomains",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— `max-age` not numeric"),
                 snippet: "Strict-Transport-Security: max-age=abc",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— `includeSubDomains` must not have a value"),
                 snippet: "Strict-Transport-Security: max-age=63072000; includeSubDomains=1",
             },
         ]

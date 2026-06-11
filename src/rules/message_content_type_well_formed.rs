@@ -46,12 +46,18 @@ impl Rule for MessageContentTypeWellFormed {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Content-Type Well-Formed")
+    }
+
     fn description(&self) -> &'static str {
         "This rule checks that `Content-Type` headers (both requests and responses) parse as a valid `media-type` with a non-empty type and subtype and well-formed parameters when present. This helps ensure downstream components and user agents can interpret the media type and parameters reliably."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type header and media type syntax")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type header and media type syntax",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -59,10 +65,12 @@ impl Rule for MessageContentTypeWellFormed {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Content-Type: text/plain\nContent-Type: application/json; charset=utf-8\nContent-Type: image/vnd.example+json; foo=\"bar\"; charset=utf-8",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Content-Type: text\nContent-Type: text/\nContent-Type: */plain\nContent-Type: text/plain; badparam\nContent-Type: text/plain; charset=\"unclosed",
             },
         ]

@@ -167,12 +167,18 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Preference-Applied header validity")
+    }
+
     fn description(&self) -> &'static str {
         "Validate that the `Preference-Applied` response header follows the ABNF in RFC 7240 §3 and that each applied preference corresponds to a preference present in the request's `Prefer` header. Parameters (semicolon-separated) are not allowed in `Preference-Applied` members."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 7240 §3](https://www.rfc-editor.org/rfc/rfc7240.html#section-3) — `Preference-Applied` header field and syntax")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 7240 §3](https://www.rfc-editor.org/rfc/rfc7240.html#section-3) — `Preference-Applied` header field and syntax",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -180,18 +186,22 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET / HTTP/1.1\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: return=representation",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(server indicates token applied without value)"),
                 snippet: "GET / HTTP/1.1\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: return",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(applied token not present in request)"),
                 snippet: "HTTP/1.1 200 OK\nPreference-Applied: respond-async",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(parameters are not allowed in Preference-Applied)"),
                 snippet: "HTTP/1.1 200 OK\nPreference-Applied: return; foo=bar",
             },
         ]

@@ -48,8 +48,11 @@ impl Rule for ServerRedirectStatusAndLocationValidity {
         "Responses that indicate a resource has moved or been created (3xx redirections and 201 Created) commonly use the `Location` header to point to the target resource. A `Location` header appearing on responses that are not redirects or creations may indicate a misconfiguration or misuse; this rule flags `Location` header presence on non-redirect responses."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2) — `Location = URI-reference` and semantics for redirection responses (3xx).")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2) — `Location = URI-reference` and semantics for redirection responses (3xx).",
+            "[RFC 9110 §15.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4) — `201 Created` responses SHOULD include a `Location` header when a new resource is created.",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -57,14 +60,17 @@ impl Rule for ServerRedirectStatusAndLocationValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/plain\n\nHello",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(redirect)"),
                 snippet: "HTTP/1.1 302 Found\nLocation: /new",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nLocation: /unexpected",
             },
         ]
