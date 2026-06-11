@@ -3,37 +3,110 @@
 // SPDX-License-Identifier: ISC
 
 //! Serde helpers for HeaderMap (de)serialization.
+//!
+//! Headers serialize as an **ordered array of `[name, value]` pairs** rather
+//! than a map, so that multi-value headers (`Set-Cookie`, `Vary`, `Link`, …)
+//! and the exact on-wire ordering survive a capture round-trip. Each value is
+//! a plain JSON string when the bytes are valid UTF-8, or a `{"b64": "…"}`
+//! object carrying the base64 of the raw bytes when they are not — so no
+//! header value is ever silently dropped.
 
-use hyper::header::HeaderValue;
+use base64::Engine;
+use hyper::header::{HeaderName, HeaderValue};
 use hyper::HeaderMap;
+use serde::de::{self, MapAccess, Visitor};
+use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::HashMap;
+
+const B64: base64::engine::general_purpose::GeneralPurpose =
+    base64::engine::general_purpose::STANDARD;
+
+/// Serializes a single `HeaderValue` as a UTF-8 string or a `{"b64": …}` map.
+struct ValueWrap<'a>(&'a HeaderValue);
+
+impl Serialize for ValueWrap<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self.0.to_str() {
+            Ok(text) => serializer.serialize_str(text),
+            Err(_) => {
+                let mut map = serializer.serialize_map(Some(1))?;
+                map.serialize_entry("b64", &B64.encode(self.0.as_bytes()))?;
+                map.end()
+            }
+        }
+    }
+}
+
+/// Serializes one `(name, value)` pair as a 2-element JSON array.
+struct Pair<'a>(&'a HeaderName, &'a HeaderValue);
+
+impl Serialize for Pair<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut seq = serializer.serialize_seq(Some(2))?;
+        seq.serialize_element(self.0.as_str())?;
+        seq.serialize_element(&ValueWrap(self.1))?;
+        seq.end()
+    }
+}
 
 pub fn serialize_headers<S>(hm: &HeaderMap, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    let mut map: HashMap<String, String> = HashMap::with_capacity(hm.len());
+    let mut seq = serializer.serialize_seq(Some(hm.len()))?;
     for (k, v) in hm.iter() {
-        if let Ok(s) = v.to_str() {
-            map.insert(k.as_str().to_string(), s.to_string());
-        }
+        seq.serialize_element(&Pair(k, v))?;
     }
-    map.serialize(serializer)
+    seq.end()
+}
+
+/// Raw header value bytes deserialized from a string or a `{"b64": …}` object.
+struct ValueBytes(Vec<u8>);
+
+impl<'de> Deserialize<'de> for ValueBytes {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct ValueVisitor;
+
+        impl<'de> Visitor<'de> for ValueVisitor {
+            type Value = Vec<u8>;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a header value string or a {\"b64\": \"…\"} object")
+            }
+
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<Vec<u8>, E> {
+                Ok(v.as_bytes().to_vec())
+            }
+
+            fn visit_map<M: MapAccess<'de>>(self, mut map: M) -> Result<Vec<u8>, M::Error> {
+                let mut bytes: Option<Vec<u8>> = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    if key == "b64" {
+                        let encoded: String = map.next_value()?;
+                        bytes = Some(B64.decode(encoded.as_bytes()).map_err(de::Error::custom)?);
+                    } else {
+                        let _: de::IgnoredAny = map.next_value()?;
+                    }
+                }
+                bytes.ok_or_else(|| de::Error::custom("missing \"b64\" key in header value object"))
+            }
+        }
+
+        deserializer.deserialize_any(ValueVisitor).map(ValueBytes)
+    }
 }
 
 pub fn deserialize_headers<'de, D>(deserializer: D) -> Result<HeaderMap, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let map = HashMap::<String, String>::deserialize(deserializer)?;
-    let mut hm = HeaderMap::new();
-    for (k, v) in map {
-        let name = k
-            .parse::<hyper::header::HeaderName>()
-            .map_err(serde::de::Error::custom)?;
-        let val = v.parse::<HeaderValue>().map_err(serde::de::Error::custom)?;
-        hm.insert(name, val);
+    let pairs: Vec<(String, ValueBytes)> = Vec::deserialize(deserializer)?;
+    let mut hm = HeaderMap::with_capacity(pairs.len());
+    for (k, ValueBytes(bytes)) in pairs {
+        let name = k.parse::<HeaderName>().map_err(de::Error::custom)?;
+        let val = HeaderValue::from_bytes(&bytes).map_err(de::Error::custom)?;
+        // append (not insert) so repeated header names accumulate.
+        hm.append(name, val);
     }
     Ok(hm)
 }
@@ -55,17 +128,15 @@ pub fn deserialize_optional_headers<'de, D>(deserializer: D) -> Result<Option<He
 where
     D: Deserializer<'de>,
 {
-    let maybe: Option<HashMap<String, String>> = Option::deserialize(deserializer)?;
+    let maybe: Option<Vec<(String, ValueBytes)>> = Option::deserialize(deserializer)?;
     match maybe {
         None => Ok(None),
-        Some(map) => {
-            let mut hm = HeaderMap::new();
-            for (k, v) in map {
-                let name = k
-                    .parse::<hyper::header::HeaderName>()
-                    .map_err(serde::de::Error::custom)?;
-                let val = v.parse::<HeaderValue>().map_err(serde::de::Error::custom)?;
-                hm.insert(name, val);
+        Some(pairs) => {
+            let mut hm = HeaderMap::with_capacity(pairs.len());
+            for (k, ValueBytes(bytes)) in pairs {
+                let name = k.parse::<HeaderName>().map_err(de::Error::custom)?;
+                let val = HeaderValue::from_bytes(&bytes).map_err(de::Error::custom)?;
+                hm.append(name, val);
             }
             Ok(Some(hm))
         }
@@ -121,5 +192,54 @@ mod tests {
         let h = parsed.headers.unwrap();
         assert_eq!(h.get("content-type").unwrap(), "text/plain");
         assert_eq!(h.get("x-custom").unwrap(), "value");
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct WithHeaders {
+        #[serde(
+            serialize_with = "serialize_headers",
+            deserialize_with = "deserialize_headers"
+        )]
+        headers: HeaderMap,
+    }
+
+    #[test]
+    fn headers_serialize_as_array_of_pairs() {
+        let mut hm = HeaderMap::new();
+        hm.insert("x-foo", HeaderValue::from_static("bar"));
+        let json = serde_json::to_value(WithHeaders { headers: hm }).unwrap();
+        assert_eq!(json["headers"], serde_json::json!([["x-foo", "bar"]]));
+    }
+
+    #[test]
+    fn multi_value_headers_roundtrip_losslessly() {
+        let mut hm = HeaderMap::new();
+        hm.append("set-cookie", HeaderValue::from_static("a=1"));
+        hm.append("set-cookie", HeaderValue::from_static("b=2"));
+        let json = serde_json::to_string(&WithHeaders { headers: hm }).unwrap();
+        let parsed: WithHeaders = serde_json::from_str(&json).unwrap();
+        let cookies: Vec<&str> = parsed
+            .headers
+            .get_all("set-cookie")
+            .iter()
+            .map(|v| v.to_str().unwrap())
+            .collect();
+        assert_eq!(cookies, vec!["a=1", "b=2"]);
+    }
+
+    #[test]
+    fn non_utf8_header_value_roundtrips_via_base64() {
+        let mut hm = HeaderMap::new();
+        hm.insert("x-bad", HeaderValue::from_bytes(&[0xff, 0xfe]).unwrap());
+        let json = serde_json::to_value(WithHeaders { headers: hm }).unwrap();
+        // Non-UTF-8 value is encoded as a {"b64": ...} object, not dropped.
+        assert_eq!(json["headers"][0][0], "x-bad");
+        assert!(json["headers"][0][1].get("b64").is_some());
+
+        let parsed: WithHeaders = serde_json::from_value(json).unwrap();
+        assert_eq!(
+            parsed.headers.get("x-bad").unwrap().as_bytes(),
+            &[0xff, 0xfe]
+        );
     }
 }

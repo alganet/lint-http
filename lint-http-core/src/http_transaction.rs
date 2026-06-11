@@ -172,7 +172,7 @@ mod tests {
     }
 
     #[test]
-    fn serde_roundtrip_drops_non_utf8_header_values() -> anyhow::Result<()> {
+    fn serde_roundtrip_preserves_non_utf8_header_values() -> anyhow::Result<()> {
         let mut tx = make_test_transaction();
 
         let mut req_headers = HeaderMap::new();
@@ -193,8 +193,32 @@ mod tests {
                 .and_then(|v| v.to_str().ok()),
             Some("ok")
         );
-        // Non-UTF8 header is dropped during serialization
-        assert!(tx2.request.headers.get("x-bad").is_none());
+        // Non-UTF8 header round-trips byte-for-byte (base64-encoded on the wire).
+        assert_eq!(
+            tx2.request.headers.get("x-bad").map(|v| v.as_bytes()),
+            Some(&[0xff][..])
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn serde_roundtrip_preserves_multi_value_headers() -> anyhow::Result<()> {
+        let mut tx = make_test_transaction();
+        tx.request.headers.append("set-cookie", "a=1".parse()?);
+        tx.request.headers.append("set-cookie", "b=2".parse()?);
+
+        let s = serde_json::to_string(&tx)?;
+        let tx2: HttpTransaction = serde_json::from_str(&s)?;
+
+        let cookies: Vec<&str> = tx2
+            .request
+            .headers
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .collect();
+        assert_eq!(cookies, vec!["a=1", "b=2"]);
 
         Ok(())
     }

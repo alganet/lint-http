@@ -188,6 +188,14 @@ mod tests {
     use tokio::fs;
     use uuid::Uuid;
 
+    /// Headers serialize as an array of `[name, value]` pairs; check membership.
+    fn header_present(headers: &Value, name: &str) -> bool {
+        headers
+            .as_array()
+            .map(|pairs| pairs.iter().any(|p| p[0] == name))
+            .unwrap_or(false)
+    }
+
     #[tokio::test]
     async fn write_transaction_writes_jsonl() -> anyhow::Result<()> {
         let tmp = std::env::temp_dir().join(format!("lint_capture_test_{}.jsonl", Uuid::new_v4()));
@@ -221,7 +229,7 @@ mod tests {
         let v: Value = serde_json::from_str(s.trim())?;
         assert_eq!(v["request"]["method"].as_str(), Some("GET"));
         assert_eq!(v["request"]["uri"].as_str(), Some("http://example/"));
-        assert!(v["request"]["headers"].get("x-test").is_some());
+        assert!(header_present(&v["request"]["headers"], "x-test"));
         // Ensure severity serialized as lowercase string
         assert_eq!(v["violations"][0]["severity"].as_str(), Some("warn"));
 
