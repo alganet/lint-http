@@ -155,7 +155,7 @@ async fn websocket_upgrade_through_proxy_captures_session() -> anyhow::Result<()
 
     for line in &lines {
         let v: serde_json::Value = serde_json::from_str(line)?;
-        if (v.get("type").is_none() || v["type"].as_str() == Some("http_transaction"))
+        if v["type"].as_str() == Some("http_transaction")
             && v["response"]["status"].as_u64() == Some(101)
         {
             found_101 = true;

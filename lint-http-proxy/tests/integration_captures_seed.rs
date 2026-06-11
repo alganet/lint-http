@@ -41,7 +41,10 @@ async fn test_captures_seed_behavior(#[case] seed_enabled: bool) -> anyhow::Resu
         trailers: None,
     });
 
-    fs::write(&captures_file, serde_json::to_string(&tx)?).await?;
+    let envelope = lint_http::capture::CaptureEnvelope::new(
+        lint_http::capture::CaptureRecord::HttpTransaction(Box::new(tx)),
+    );
+    fs::write(&captures_file, serde_json::to_string(&envelope)?).await?;
 
     let config_toml = format!(
         r#"[general]
