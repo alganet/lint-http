@@ -56,9 +56,6 @@ pub struct WebSocketSession {
     /// Protocol-level violations detected during the session.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub violations: Vec<crate::lint::Violation>,
-    /// Discriminator for JSONL record types.
-    #[serde(rename = "type")]
-    pub record_type: String,
 }
 
 impl WebSocketSession {
@@ -71,7 +68,6 @@ impl WebSocketSession {
             messages: Vec::new(),
             close_code: None,
             violations: Vec::new(),
-            record_type: "websocket_session".to_string(),
         }
     }
 }
@@ -117,15 +113,6 @@ mod tests {
         assert_eq!(deserialized.messages[0].direction, MessageDirection::Client);
         assert_eq!(deserialized.messages[0].opcode, 1);
         assert_eq!(deserialized.close_code, Some(1000));
-        assert_eq!(deserialized.record_type, "websocket_session");
-    }
-
-    #[test]
-    fn record_type_serializes_as_type() {
-        let session = WebSocketSession::new(Uuid::new_v4());
-        let v: serde_json::Value = serde_json::to_value(&session).unwrap();
-        assert_eq!(v["type"].as_str(), Some("websocket_session"));
-        assert!(v.get("record_type").is_none());
     }
 
     #[test]

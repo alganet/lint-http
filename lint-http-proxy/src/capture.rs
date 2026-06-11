@@ -5,10 +5,47 @@
 //! Request/response capture writing to JSONL format.
 
 use base64::Engine;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
+
+/// Version of the on-disk JSONL capture schema. Bump on any incompatible
+/// change to a record's shape so readers can migrate or reject older files.
+pub const CAPTURE_SCHEMA_VERSION: u32 = 1;
+
+/// A single top-level capture record, tagged by `type` in the JSONL output.
+///
+/// The `HttpTransaction` payload is boxed (it is much larger than a session
+/// record); `Box<T>` is transparent to serde, so the JSON shape is unchanged.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum CaptureRecord {
+    HttpTransaction(Box<crate::http_transaction::HttpTransaction>),
+    WebsocketSession(Box<crate::websocket_session::WebSocketSession>),
+}
+
+/// Versioned envelope wrapping each capture record. Serializes flat: the
+/// `schema_version` and the record's `type` discriminator sit alongside the
+/// record's own fields, keeping every entry a single line-readable JSON object.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CaptureEnvelope {
+    #[serde(default)]
+    pub schema_version: u32,
+    #[serde(flatten)]
+    pub record: CaptureRecord,
+}
+
+impl CaptureEnvelope {
+    /// Wrap a record with the current schema version.
+    pub fn new(record: CaptureRecord) -> Self {
+        Self {
+            schema_version: CAPTURE_SCHEMA_VERSION,
+            record,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct CaptureWriter {
@@ -56,9 +93,11 @@ impl CaptureWriter {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
     ) -> anyhow::Result<()> {
-        // Convert transaction to a mutable JSON value to optionally insert the
-        // captured bodies (base64 encoded) when `include_body` is enabled.
-        let mut v = serde_json::to_value(tx)?;
+        // Wrap in the versioned, tagged envelope. Internal tagging + flatten
+        // keep `request`/`response` at the top level, so the body-injection
+        // below still targets them directly.
+        let envelope = CaptureEnvelope::new(CaptureRecord::HttpTransaction(Box::new(tx.clone())));
+        let mut v = serde_json::to_value(&envelope)?;
 
         if self.include_body {
             if let Some(obj) = v.as_object_mut() {
@@ -118,7 +157,9 @@ impl CaptureWriter {
         &self,
         session: &crate::websocket_session::WebSocketSession,
     ) -> anyhow::Result<()> {
-        let line = serde_json::to_string(session)?;
+        let envelope =
+            CaptureEnvelope::new(CaptureRecord::WebsocketSession(Box::new(session.clone())));
+        let line = serde_json::to_string(&envelope)?;
         self.file.write_line(&line).await?;
         Ok(())
     }
@@ -150,30 +191,18 @@ pub async fn load_captures<P: AsRef<std::path::Path>>(
             continue;
         }
 
-        // Check the record type before attempting full deserialization.
-        // Non-transaction records (e.g. websocket_session) are silently skipped.
-        if let Ok(obj) = serde_json::from_str::<serde_json::Value>(trimmed) {
-            if let Some(ty) = obj.get("type").and_then(|v| v.as_str()) {
-                if ty != "http_transaction" {
-                    tracing::debug!(
-                        line = line_num,
-                        record_type = ty,
-                        "skipping non-transaction capture record"
-                    );
-                    continue;
+        // Parse the tagged, versioned envelope. Non-transaction records
+        // (e.g. websocket_session) and unknown types are skipped.
+        match serde_json::from_str::<CaptureEnvelope>(trimmed) {
+            Ok(envelope) => match envelope.record {
+                CaptureRecord::HttpTransaction(tx) => records.push(*tx),
+                CaptureRecord::WebsocketSession(_) => {
+                    tracing::debug!(line = line_num, "skipping non-transaction capture record");
                 }
+            },
+            Err(e) => {
+                tracing::warn!(line = line_num, error = %e, "failed to parse capture record, skipping");
             }
-            match serde_json::from_value::<crate::http_transaction::HttpTransaction>(obj) {
-                Ok(record) => records.push(record),
-                Err(e) => {
-                    tracing::warn!(line = line_num, error = %e, "failed to parse capture record, skipping");
-                }
-            }
-        } else {
-            tracing::warn!(
-                line = line_num,
-                "failed to parse capture line as JSON, skipping"
-            );
         }
     }
 
@@ -194,6 +223,22 @@ mod tests {
             .as_array()
             .map(|pairs| pairs.iter().any(|p| p[0] == name))
             .unwrap_or(false)
+    }
+
+    /// Serialize a transaction as an enveloped JSONL line (as the writer does).
+    fn tx_line(tx: &crate::http_transaction::HttpTransaction) -> String {
+        serde_json::to_string(&CaptureEnvelope::new(CaptureRecord::HttpTransaction(
+            Box::new(tx.clone()),
+        )))
+        .unwrap()
+    }
+
+    /// Serialize a WebSocket session as an enveloped JSONL line.
+    fn session_line(session: &crate::websocket_session::WebSocketSession) -> String {
+        serde_json::to_string(&CaptureEnvelope::new(CaptureRecord::WebsocketSession(
+            Box::new(session.clone()),
+        )))
+        .unwrap()
     }
 
     #[tokio::test]
@@ -342,11 +387,7 @@ mod tests {
         tx2.request.method = "POST".to_string();
         tx2.request.uri = "http://example/post".to_string();
 
-        let content = format!(
-            "{}\ninvalid json line\n{}\n",
-            serde_json::to_string(&tx1)?,
-            serde_json::to_string(&tx2)?
-        );
+        let content = format!("{}\ninvalid json line\n{}\n", tx_line(&tx1), tx_line(&tx2));
         fs::write(&tmp, content).await?;
 
         // Should load only the valid records
@@ -368,11 +409,7 @@ mod tests {
         use crate::test_helpers::{make_test_transaction, make_test_transaction_with_response};
         let tx1 = make_test_transaction();
         let tx2 = make_test_transaction_with_response(202, &[("x", "y")]);
-        let content = format!(
-            "{}\n\n{}\n",
-            serde_json::to_string(&tx1)?,
-            serde_json::to_string(&tx2)?
-        );
+        let content = format!("{}\n\n{}\n", tx_line(&tx1), tx_line(&tx2));
         fs::write(&tmp, content).await?;
 
         let records = load_captures(&tmp).await?;
@@ -391,11 +428,7 @@ mod tests {
         use crate::test_helpers::{make_test_transaction, make_test_transaction_with_response};
         let tx1 = make_test_transaction();
         let tx2 = make_test_transaction_with_response(202, &[("x", "y")]);
-        let content = format!(
-            "{}\n   \n{}\n",
-            serde_json::to_string(&tx1)?,
-            serde_json::to_string(&tx2)?
-        );
+        let content = format!("{}\n   \n{}\n", tx_line(&tx1), tx_line(&tx2));
         fs::write(&tmp, content).await?;
 
         let records = load_captures(&tmp).await?;
@@ -504,9 +537,9 @@ mod tests {
         // Write a transaction, then a websocket_session, then another transaction
         let content = format!(
             "{}\n{}\n{}\n",
-            serde_json::to_string(&tx)?,
-            serde_json::to_string(&session)?,
-            serde_json::to_string(&tx)?,
+            tx_line(&tx),
+            session_line(&session),
+            tx_line(&tx),
         );
         fs::write(&tmp, content).await?;
 
@@ -516,6 +549,49 @@ mod tests {
 
         fs::remove_file(&tmp).await?;
         Ok(())
+    }
+
+    #[test]
+    fn capture_envelope_roundtrips_both_variants() {
+        use crate::test_helpers::make_test_transaction;
+        use crate::websocket_session::WebSocketSession;
+
+        // Transaction variant: tagged and versioned, fields flattened.
+        let tx = make_test_transaction();
+        let line = tx_line(&tx);
+        let v: Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["type"].as_str(), Some("http_transaction"));
+        assert_eq!(
+            v["schema_version"].as_u64(),
+            Some(CAPTURE_SCHEMA_VERSION as u64)
+        );
+        assert!(v.get("request").is_some(), "fields flatten to top level");
+        match serde_json::from_str::<CaptureEnvelope>(&line)
+            .unwrap()
+            .record
+        {
+            CaptureRecord::HttpTransaction(parsed) => assert_eq!(parsed.id, tx.id),
+            other => panic!("expected http_transaction, got {other:?}"),
+        }
+
+        // WebSocket session variant.
+        let session = WebSocketSession::new(Uuid::new_v4());
+        let line = session_line(&session);
+        let v: Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["type"].as_str(), Some("websocket_session"));
+        assert_eq!(
+            v["schema_version"].as_u64(),
+            Some(CAPTURE_SCHEMA_VERSION as u64)
+        );
+        match serde_json::from_str::<CaptureEnvelope>(&line)
+            .unwrap()
+            .record
+        {
+            CaptureRecord::WebsocketSession(parsed) => {
+                assert_eq!(parsed.id, session.id);
+            }
+            other => panic!("expected websocket_session, got {other:?}"),
+        }
     }
 
     #[tokio::test]
