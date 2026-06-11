@@ -888,7 +888,12 @@ mod tests {
         let entries = read_capture(&tmp).await?;
         let v = &entries[0];
         // The capture still records the original request headers (suppression only affects upstream)
-        assert!(v["request"]["headers"].get("user-agent").is_some());
+        // Headers serialize as an array of [name, value] pairs.
+        let header_present = v["request"]["headers"]
+            .as_array()
+            .map(|pairs| pairs.iter().any(|p| p[0] == "user-agent"))
+            .unwrap_or(false);
+        assert!(header_present);
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())
