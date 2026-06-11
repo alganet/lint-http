@@ -41,7 +41,7 @@ impl TransactionPipeline {
     /// cannot be re-committed or mutated after capture; returns the
     /// violations for callers that need them.
     pub(super) async fn commit(&self, mut tx: HttpTransaction) -> Vec<Violation> {
-        tx.violations = crate::lint::lint_transaction(&tx, &self.cfg, &self.state);
+        tx.violations = crate::engine::lint_transaction(&tx, &self.cfg, &self.state);
         self.state.record_transaction(&tx);
         if let Err(e) = self.captures.write_transaction(&tx).await {
             warn!(error = %e, "failed to write transaction capture");

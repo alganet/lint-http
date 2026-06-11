@@ -27,6 +27,7 @@ pub mod ca;
 pub mod capture;
 pub mod config;
 pub mod connection;
+pub mod engine;
 pub mod gendocs;
 pub mod h3_instrument;
 pub mod helpers;
