@@ -46,7 +46,7 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       
       - name: Run tests
-        run: cargo test --all-features --verbose
+        run: cargo test --workspace --all-features --verbose
 
   clippy:
     name: Clippy
@@ -167,4 +167,4 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       
       - name: Build
-        run: cargo build --release --verbose
+        run: cargo build --workspace --release --verbose

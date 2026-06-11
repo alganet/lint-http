@@ -15,7 +15,17 @@
 //! checked-in docs.
 
 use crate::rules::{Compliance, Example, ProtocolRule, Rule};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// The workspace root, derived from this crate's manifest dir. `config_example.toml`
+/// and the `docs/` tree live there, so reads are anchored here rather than to the
+/// process CWD (which varies between `cargo run` at the root and `cargo test -p`).
+fn repo_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crate manifest dir has a parent (the workspace root)")
+        .to_path_buf()
+}
 
 /// Fixed license header prepended to every generated markdown file. Held
 /// constant (rather than stamped with the current date) so regenerated output
@@ -220,7 +230,7 @@ pub fn write_all(out_dir: &Path) -> anyhow::Result<()> {
     let rules_dir = out_dir.join("rules");
     std::fs::create_dir_all(&rules_dir)?;
 
-    let config_toml = std::fs::read_to_string("config_example.toml")?;
+    let config_toml = std::fs::read_to_string(repo_root().join("config_example.toml"))?;
 
     for rule in crate::rules::RULES.iter() {
         let doc = render_doc(
@@ -317,8 +327,8 @@ mod tests {
     #[test]
     fn render_doc_for_whole_catalogue_is_nonempty_and_well_formed() {
         // Render every rule in-memory; must not touch the real docs/ tree.
-        let config_toml =
-            std::fs::read_to_string("config_example.toml").expect("config_example.toml");
+        let config_toml = std::fs::read_to_string(repo_root().join("config_example.toml"))
+            .expect("config_example.toml");
         let render = |id: &str, title, desc, refs: &[&str], ex: &[Example]| {
             render_doc(
                 id,
@@ -420,12 +430,13 @@ mod tests {
     /// regenerating fails CI. Run `cargo run --bin gendocs` to fix drift.
     #[test]
     fn docs_match_generated() {
+        let root = repo_root();
         let config_toml =
-            std::fs::read_to_string("config_example.toml").expect("config_example.toml");
+            std::fs::read_to_string(root.join("config_example.toml")).expect("config_example.toml");
         let check = |id: &str, expected: String| {
-            let path = format!("docs/rules/{}.md", id);
+            let path = root.join(format!("docs/rules/{}.md", id));
             let on_disk = std::fs::read_to_string(&path)
-                .unwrap_or_else(|e| panic!("cannot read {}: {}", path, e));
+                .unwrap_or_else(|e| panic!("cannot read {}: {}", path.display(), e));
             assert!(
                 on_disk == expected,
                 "docs/rules/{}.md is out of date — run `cargo run --bin gendocs`",
@@ -459,7 +470,7 @@ mod tests {
             );
         }
         let index = render_index(&crate::rules::RULES, &crate::rules::PROTOCOL_RULES);
-        let on_disk = std::fs::read_to_string("docs/rules.md").expect("docs/rules.md");
+        let on_disk = std::fs::read_to_string(root.join("docs/rules.md")).expect("docs/rules.md");
         assert!(
             on_disk == index,
             "docs/rules.md is out of date — run `cargo run --bin gendocs`"

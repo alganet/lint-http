@@ -130,8 +130,7 @@ impl ProtocolEventStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol_event::{ProtocolEvent, ProtocolEventKind};
-    use crate::websocket_session::MessageDirection;
+    use crate::protocol_event::{MessageDirection, ProtocolEvent, ProtocolEventKind};
 
     fn make_ws_event(conn: Uuid, session: Uuid) -> ProtocolEvent {
         ProtocolEvent {

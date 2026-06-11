@@ -8,6 +8,7 @@
 # attributes `include!`d `#[path]` rule modules correctly and does not count
 # link-time `static` registrations (no executable region) — unlike the default
 # ptrace engine, which counted those as never-covered on Linux.
-coverage = "tarpaulin --engine llvm --out Xml --skip-clean --fail-under 95"
-# Run clippy with all features and targets, treating warnings as errors
-lint = "clippy --all-features --all-targets -- -D warnings"
+coverage = "tarpaulin --workspace --engine llvm --out Xml --skip-clean --fail-under 95"
+# Run clippy with all features and targets across every workspace crate,
+# treating warnings as errors
+lint = "clippy --workspace --all-features --all-targets -- -D warnings"

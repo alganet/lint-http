@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+
+[package]
+name = "lint-http-core"
+description = "Core data types, state, and config for lint-http — usable without the proxy"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# Exposes `test_helpers` as public (non-#[cfg(test)]) code so downstream
+# crates (lint-http-rules, lint-http-proxy) can build their own test fixtures
+# on top of these. Enabled via dev-dependencies, so release builds exclude it.
+test-utils = []
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+toml = { workspace = true }
+hyper = { workspace = true }
+bytes = { workspace = true }
+httpdate = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+rstest = { workspace = true }

@@ -1044,7 +1044,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "lint-http"
+name = "lint-http-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "chrono",
+ "httpdate",
+ "hyper",
+ "rstest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "toml",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "lint-http-proxy"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1061,7 +1079,8 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "hyper-util",
- "linkme",
+ "lint-http-core",
+ "lint-http-rules",
  "pem",
  "quinn",
  "rcgen",
@@ -1080,6 +1099,28 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "wiremock",
+]
+
+[[package]]
+name = "lint-http-rules"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "bytes",
+ "chrono",
+ "clap",
+ "httpdate",
+ "hyper",
+ "linkme",
+ "lint-http-core",
+ "rstest",
+ "serde",
+ "serde_json",
+ "sha1 0.11.0",
+ "tokio",
+ "toml",
+ "uuid",
 ]
 
 [[package]]

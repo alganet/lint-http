@@ -387,7 +387,7 @@ mod tests {
             conn,
             ProtocolEventKind::WebSocketFrame {
                 session_id: Uuid::new_v4(),
-                direction: crate::websocket_session::MessageDirection::Client,
+                direction: crate::protocol_event::MessageDirection::Client,
                 fin: true,
                 opcode: 1,
                 rsv: 0,

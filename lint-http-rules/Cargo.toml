@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+
+[package]
+name = "lint-http-rules"
+description = "The lint-http rule catalogue and lint dispatch engine, depending only on lint-http-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "gendocs"
+path = "src/bin/gendocs.rs"
+
+[dependencies]
+lint-http-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+toml = { workspace = true }
+hyper = { workspace = true }
+bytes = { workspace = true }
+httpdate = { workspace = true }
+base64 = { workspace = true }
+sha1 = { workspace = true }
+linkme = { workspace = true }
+clap = { workspace = true }
+
+[dev-dependencies]
+lint-http-core = { workspace = true, features = ["test-utils"] }
+tokio = { workspace = true }
+rstest = { workspace = true }
