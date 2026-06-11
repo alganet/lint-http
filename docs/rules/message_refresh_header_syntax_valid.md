@@ -17,8 +17,6 @@ Validate syntax of the non-standard `Refresh` response header. The header is com
 
 ## Configuration
 
-TOML example (enable the rule and set severity):
-
 ```toml
 [rules.message_refresh_header_syntax_valid]
 enabled = true

@@ -43,5 +43,3 @@ Date: Wed, 21 Oct 2025 07:28:00 GMT
 Deprecation: @4102444800   # year 2100
 Sunset: Tue, 01 Jan 2030 00:00:00 GMT
 ```
-
-In the ❌ example above `Deprecation` indicates a time after `Sunset`, which is inconsistent and reported by this rule.

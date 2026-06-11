@@ -3,9 +3,8 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
-# message_strict_transport_security_validity
 
-Validate `Strict-Transport-Security` header directives follow RFC 6797.
+# Message Strict Transport Security Validity
 
 ## Description
 
@@ -22,7 +21,7 @@ The `Strict-Transport-Security` response header signals HSTS policies. This rule
 
 ```toml
 [rules.message_strict_transport_security_validity]
-enabled = false
+enabled = true
 severity = "warn"
 ```
 
@@ -33,8 +32,6 @@ severity = "warn"
 ```http
 Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
 ```
-
-### ✅ Good
 
 ```http
 Strict-Transport-Security: max-age=0

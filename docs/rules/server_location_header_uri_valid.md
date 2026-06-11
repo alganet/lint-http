@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
@@ -8,8 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-This rule checks that the `Location` response header, when present, is a syntactically valid URI-reference.
-`Location` is commonly used in redirects and SHOULD be a URI-reference per the HTTP spec; malformed values can break clients.
+This rule checks that the `Location` response header, when present, is a syntactically valid URI-reference. `Location` is commonly used in redirects and SHOULD be a URI-reference per the HTTP spec; malformed values can break clients.
 
 ## Specifications
 

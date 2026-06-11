@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# client_sec_websocket_headers_consistency
+# Client Sec Websocket Headers Consistency
 
 ## Description
 
@@ -19,12 +19,9 @@ This rule helps detect malformed WebSocket upgrade requests that will be rejecte
 ## Specifications
 
 - [RFC 6455 §4.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1) — Client Handshake: request must be GET and include `Upgrade: websocket` and `Connection: Upgrade`.
-
 - [RFC 6455 §4.2.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.1) — `Sec-WebSocket-Key` must be a base64-encoded 16-byte nonce; `Sec-WebSocket-Version` expected value is `13`.
 
 ## Configuration
-
-Enable or disable the rule and set severity in `config.toml`.
 
 ```toml
 [rules.client_sec_websocket_headers_consistency]

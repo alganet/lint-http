@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_structured_headers_validity
+# Message Structured Headers Validity
 
 ## Description
 
@@ -17,16 +17,12 @@ Validate that specified header fields are valid RFC 8941 Structured Field values
 
 ## Configuration
 
-Minimal example (enable the rule and list header names to validate):
-
 ```toml
 [rules.message_structured_headers_validity]
 enabled = true
 severity = "warn"
-headers = ["Priority", "Permissions-Policy", "Accept-Patch"]
+headers = ["Priority", "Permissions-Policy"]
 ```
-
-The `headers` array must list the header field-names (case-insensitive). The rule will check both requests and responses when configured.
 
 ## Examples
 

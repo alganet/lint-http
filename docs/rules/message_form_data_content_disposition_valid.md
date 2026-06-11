@@ -20,8 +20,6 @@ This rule flags `Content-Disposition` header fields whose disposition-type is `f
 
 ## Configuration
 
-Enable the rule in TOML:
-
 ```toml
 [rules.message_form_data_content_disposition_valid]
 enabled = true

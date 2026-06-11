@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_basic_auth_base64_validity
+# Message Basic Auth Base64 Validity
 
 ## Description
 
@@ -16,8 +16,6 @@ Validate that `Authorization: Basic ...` credentials are syntactically valid Bas
 - [RFC 4648 §4 — Base64 encoding used for `token68`](https://www.rfc-editor.org/rfc/rfc4648.html#section-4)
 
 ## Configuration
-
-Minimal example to enable the rule:
 
 ```toml
 [rules.message_basic_auth_base64_validity]
@@ -48,5 +46,3 @@ GET /protected HTTP/1.1
 Host: example.com
 Authorization: Basic YWJj
 ```
-
-(Decoded credentials missing `:` separator)

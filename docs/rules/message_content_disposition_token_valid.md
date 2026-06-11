@@ -16,8 +16,6 @@ Validate that the `Content-Disposition` header's `disposition-type` is a valid `
 
 ## Configuration
 
-Enable this rule in your `config.toml`:
-
 ```toml
 [rules.message_content_disposition_token_valid]
 enabled = true

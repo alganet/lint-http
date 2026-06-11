@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_cache_control_and_pragma_consistency
+# Message Cache Control And Pragma Consistency
 
 ## Description
 
@@ -58,10 +58,4 @@ HTTP/1.1 200 OK
 Pragma: foo
 
 # Any Pragma in responses is discouraged; prefer Cache-Control
-```
-
-```toml
-[rules.message_cache_control_and_pragma_consistency]
-enabled = true
-severity = "warn"
 ```

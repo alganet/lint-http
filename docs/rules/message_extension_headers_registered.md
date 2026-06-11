@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_extension_headers_registered
+# Message Extension Headers Registered
 
 ## Description
 
@@ -17,16 +17,12 @@ Non-standard or extension header field-names (i.e., those not registered in the 
 
 ## Configuration
 
-This rule **requires** an `allowed` array listing permitted header field-names (case-insensitive). Example:
-
 ```toml
 [rules.message_extension_headers_registered]
 enabled = true
 severity = "warn"
 allowed = ["host", "content-type", "user-agent", "x-custom"]
 ```
-
-The `allowed` list should include standard header names you accept as registered as well as any intentional extension headers (e.g., vendor or app-specific headers).
 
 ## Examples
 

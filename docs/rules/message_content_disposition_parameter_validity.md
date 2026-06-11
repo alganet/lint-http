@@ -1,12 +1,10 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
 
 # Message Content-Disposition Parameter Validity
-
-Validate that `Content-Disposition` header parameters are syntactically valid and sane. This rule checks common parameters such as `filename`, `filename*` (RFC 5987 ext-value), and `size`. It ensures parameter names are tokens, parameter values are either tokens or valid `quoted-string`s, `filename*` values follow RFC 5987 ext-value syntax, and that parameters are not duplicated within a single header field value.
 
 ## Description
 
@@ -25,8 +23,6 @@ When a parameter value is syntactically invalid, the rule raises a `warn`-level 
 - [RFC 2616 §2.2 / §3.6](https://www.rfc-editor.org/rfc/rfc2616.html) — `token` and `quoted-string` definitions.
 
 ## Configuration
-
-Enable the rule in TOML:
 
 ```toml
 [rules.message_content_disposition_parameter_validity]

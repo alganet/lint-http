@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
@@ -27,16 +27,17 @@ severity = "error"
 ## Examples
 
 ### ✅ Good Response
+
 ```http
 HTTP/1.1 200 OK
 ```
 
 ### ❌ Bad Response (Out of range)
+
 ```http
 HTTP/1.1 600 Invalid Status
 ```
 
-### ❌ Bad Response (Out of range)
 ```http
 HTTP/1.1 99 Something
 ```

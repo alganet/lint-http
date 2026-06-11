@@ -61,24 +61,16 @@ GET /resource HTTP/3
 Accept: text/html
 ```
 
-Missing both `:authority` pseudo-header and `Host` header.
-
 ```http
  HTTP/3
 Host: example.com
 ```
-
-Empty `:method` pseudo-header.
 
 ```http
 GET * HTTP/3
 Host: example.com
 ```
 
-Asterisk-form (`*`) request-target is only permitted with `OPTIONS`.
-
 ```http
 HTTP/3 0
 ```
-
-Invalid `:status` pseudo-header (must be 100-599).

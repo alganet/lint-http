@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
@@ -31,6 +31,7 @@ severity = "error"
 ## Examples
 
 ### ✅ Good Request
+
 ```http
 CONNECT example.com:443
 OPTIONS *
@@ -39,6 +40,7 @@ GET http://example.com/resource
 ```
 
 ### ❌ Bad Request
+
 ```http
 CONNECT /not-authority
 GET example.com:443

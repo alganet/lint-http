@@ -47,7 +47,6 @@ HTTP/1.1 200 OK
 Cross-Origin-Embedder-Policy: unsafe-none
 ```
 
-> Note: `unsafe-none` is a valid COEP value defined by the spec, but it does not enable cross-origin isolation; this rule flags it for security reasons.
 ### ❌ Bad (comma-separated list)
 
 ```http

@@ -18,18 +18,11 @@ This rule checks that `Content-Type` media types (both requests and responses) a
 
 ## Configuration
 
-The rule requires an `allowed` array listing acceptable media types or patterns. Items are matched case-insensitively. Supported forms:
-
-- `type/subtype` (e.g., `text/plain`)
-- `type/*` (e.g., `image/*`) — allow any subtype for a given type
-- `+suffix` (e.g., `+json`) — allow any subtype that ends with the suffix (useful for `+json`, `+xml`)
-- `*/*` — allow any media type
-
 ```toml
 [rules.message_content_type_iana_registered]
 enabled = true
 severity = "warn"
-allowed = ["text/plain", "application/json", "image/*", "+json"]
+allowed = ["text/plain", "text/html", "application/json", "image/*", "+json"]
 ```
 
 ## Examples

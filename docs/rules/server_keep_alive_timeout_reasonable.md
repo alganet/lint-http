@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# server_keep_alive_timeout_reasonable
+# Server Keep Alive Timeout Reasonable
 
 ## Description
 
@@ -15,8 +15,6 @@ When a `Keep-Alive` header includes a `timeout` directive, this rule checks that
 - [RFC 7230 §6.7 - Connection management and the `Keep-Alive` discussion](https://www.rfc-editor.org/rfc/rfc7230.html#section-6.7) — `Keep-Alive` is a legacy header and must be treated conservatively; this rule validates `timeout` semantics only.
 
 ## Configuration
-
-This rule requires a `max_timeout_seconds` integer in your rule table (no defaults).
 
 ```toml
 [rules.server_keep_alive_timeout_reasonable]

@@ -28,7 +28,7 @@ severity = "warn"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 Accept-Ranges: bytes
@@ -36,7 +36,7 @@ Accept-Ranges: none
 Accept-Ranges: bytes, bytes
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 Accept-Ranges: none, bytes

@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_compression_and_transfer_encoding_consistency
+# Message Compression And Transfer Encoding Consistency
 
 ## Description
 
@@ -16,8 +16,6 @@ Responses that use representation compression (e.g., `Content-Encoding: gzip`) s
 - [RFC 9112 §6.1 — Transfer Codings and `Transfer-Encoding`](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1)
 
 ## Configuration
-
-TOML snippet to enable the rule (disabled by default):
 
 ```toml
 [rules.message_compression_and_transfer_encoding_consistency]

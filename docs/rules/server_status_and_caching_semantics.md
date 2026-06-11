@@ -34,8 +34,6 @@ Cache-Control: max-age=60
 Location: https://example.org/
 ```
 
-### ✅ Good
-
 ```http
 HTTP/1.1 503 Service Unavailable
 Expires: Wed, 21 Oct 2015 07:28:00 GMT
@@ -47,5 +45,3 @@ Expires: Wed, 21 Oct 2015 07:28:00 GMT
 HTTP/1.1 302 Found
 Location: https://example.org/
 ```
-
-> Note: `302` is not cacheable by default and the response lacks `Cache-Control` freshness directives or an `Expires` header.

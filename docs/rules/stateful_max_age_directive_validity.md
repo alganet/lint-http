@@ -8,33 +8,16 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Responses tagged with a `Cache-Control` `max-age=<seconds>` directive
-promise that the representation may safely be reused without revalidation for
-`<seconds>` seconds after it was stored.  Caches and clients that ignore this
-lifespan risk serving stale content or incurring unnecessary round‑trips.
+Responses tagged with a `Cache-Control` `max-age=<seconds>` directive promise that the representation may safely be reused without revalidation for `<seconds>` seconds after it was stored.  Caches and clients that ignore this lifespan risk serving stale content or incurring unnecessary round‑trips.
 
-This rule reconstructs a very small piece of cache state for a given
-client+resource by examining the most recent prior response that included a
-parseable `max-age` directive.  It then computes an approximate "age" for that
-stored response using any `Age` header it carried plus the time elapsed since
-it was observed.
+This rule reconstructs a very small piece of cache state for a given client+resource by examining the most recent prior response that included a parseable `max-age` directive.  It then computes an approximate "age" for that stored response using any `Age` header it carried plus the time elapsed since it was observed.
 
 Two types of violations are reported:
 
-* Sending a **conditional request** (`If-None-Match` or `If-Modified-Since`)
-  while the cached copy is still fresh (age < max‑age).  Revalidation at this
-  point is redundant and indicates the freshness lifetime is not being
-  respected.
-* Issuing an **unconditional request** after the cached entry has become stale
-  (age > max‑age) *when the prior response provided a validator (ETag or
-  Last-Modified)*.  In that case the cache should have revalidated first.
-  (Clients that lack a validator are simply forced to fetch anew, which is not
-  flagged.)
+* Sending a **conditional request** (`If-None-Match` or `If-Modified-Since`) while the cached copy is still fresh (age < max‑age).  Revalidation at this point is redundant and indicates the freshness lifetime is not being respected.
+* Issuing an **unconditional request** after the cached entry has become stale (age > max‑age) *when the prior response provided a validator (ETag or Last-Modified)*.  In that case the cache should have revalidated first. (Clients that lack a validator are simply forced to fetch anew, which is not flagged.)
 
-The stateful check augments the stateless
-[`client_cache_respect`](client_cache_respect.md) rule, which merely
-ensures conditional headers are included when validators exist regardless of
-age.
+The stateful check augments the stateless [`client_cache_respect`](client_cache_respect.md) rule, which merely ensures conditional headers are included when validators exist regardless of age.
 
 ## Specifications
 

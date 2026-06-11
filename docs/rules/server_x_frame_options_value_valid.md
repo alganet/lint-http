@@ -1,10 +1,10 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
 
-# server_x_frame_options_value_valid
+# Server X Frame Options Value Valid
 
 ## Description
 
@@ -17,8 +17,6 @@ The `X-Frame-Options` response header protects content from being embedded in fr
 
 ## Configuration
 
-Minimal example to enable this rule in your TOML config:
-
 ```toml
 [rules.server_x_frame_options_value_valid]
 enabled = true
@@ -27,7 +25,7 @@ severity = "warn"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 HTTP/1.1 200 OK
@@ -43,7 +41,7 @@ X-Frame-Options: ALLOW-FROM https://example.com/
 ...response body...
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 HTTP/1.1 200 OK

@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_http2_pseudo_headers_validity
+# Message Http2 Pseudo Headers Validity
 
 ## Description
 
@@ -28,8 +28,6 @@ severity = "error"
 
 ### ✅ Good
 
-Request with required pseudo-headers:
-
 ```http
 :method: GET
 :scheme: https
@@ -37,14 +35,10 @@ Request with required pseudo-headers:
 :path: /
 ```
 
-OPTIONS using asterisk-form (allowed):
-
 ```http
 :method: OPTIONS
 :path: *
 ```
-
-Response with valid :status:
 
 ```http
 :status: 200
@@ -52,24 +46,16 @@ Response with valid :status:
 
 ### ❌ Bad
 
-Missing :path in non-CONNECT request:
-
 ```http
 :method: GET
 ```
 
-Response with non-numeric :status:
-
 ```http
 :status: OK
 ```
-
-CONNECT with a path (not allowed):
 
 ```http
 :method: CONNECT
 :authority: example.com:443
 :path: /
 ```
-
----

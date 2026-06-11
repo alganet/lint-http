@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_sec_fetch_mode_value_valid
+# Message Sec Fetch Mode Value Valid
 
 ## Description
 

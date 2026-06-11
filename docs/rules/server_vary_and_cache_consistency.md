@@ -8,13 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-When a response includes `Vary: *`, caches cannot select that stored
-response for subsequent requests (a `Vary: *` always fails to match).
-If the same response advertises explicit cacheability directives
-(such as `Cache-Control: max-age`/`s-maxage` or `public`), those
-directives are likely ineffective for reuse by caches. This rule
-flags cases where `Vary: *` and explicit cacheability directives are
-both present.
+When a response includes `Vary: *`, caches cannot select that stored response for subsequent requests (a `Vary: *` always fails to match). If the same response advertises explicit cacheability directives (such as `Cache-Control: max-age`/`s-maxage` or `public`), those directives are likely ineffective for reuse by caches. This rule flags cases where `Vary: *` and explicit cacheability directives are both present.
 
 ## Specifications
 
@@ -22,9 +16,6 @@ both present.
 - [RFC 7234 §3](https://www.rfc-editor.org/rfc/rfc7234.html#section-3) — Storing Responses in Caches (cacheability requirements)
 
 ## Configuration
-
-Enable the rule by adding an entry into the `[rules]` table with
-`enabled` and `severity`:
 
 ```toml
 [rules.server_vary_and_cache_consistency]
@@ -53,7 +44,3 @@ Cache-Control: max-age=3600
 
 <response body>
 ```
-
-In the bad example, `Vary: *` means caches cannot select the stored
-response for subsequent requests; advertising `max-age` is therefore
-likely ineffective (see [RFC 7234 §4.1](https://www.rfc-editor.org/rfc/rfc7234.html#section-4.1)).

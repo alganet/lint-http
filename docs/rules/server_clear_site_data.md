@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
@@ -21,7 +21,9 @@ Checks that configured logout paths include a `Clear-Site-Data` header so client
 [rules.server_clear_site_data]
 enabled = true
 severity = "warn"
-paths = ["/logout", "/signout", "/auth/logout", "/api/logout"]
+paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
+
+# Correctness rules examples
 ```
 
 ## Examples

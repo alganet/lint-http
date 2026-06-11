@@ -3,7 +3,8 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
-# message_content_md5_vs_digest_preference
+
+# Message Content Md5 Vs Digest Preference
 
 ## Description
 
@@ -23,8 +24,6 @@ This rule flags messages (requests or responses) that include both `Content-Dige
 enabled = true
 severity = "warn"
 ```
-
-Only `enabled` and `severity` are required for this rule.
 
 ## Examples
 

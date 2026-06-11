@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# client_accept_ranges_on_partial_content
+# Client Accept Ranges On Partial Content
 
 ## Description
 

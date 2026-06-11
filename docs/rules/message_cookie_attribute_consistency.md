@@ -3,7 +3,8 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
-# message_cookie_attribute_consistency
+
+# Message Cookie Attribute Consistency
 
 ## Description
 
@@ -25,8 +26,6 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 
 ## Configuration
 
-TOML example to enable the rule:
-
 ```toml
 [rules.message_cookie_attribute_consistency]
 enabled = true
@@ -40,8 +39,6 @@ severity = "warn"
 ```http
 Set-Cookie: SID=31d4d96e407aad42; Secure; HttpOnly; Path=/; SameSite=None
 ```
-
-### ✅ Good
 
 ```http
 Set-Cookie: sid=abcd; Path=/login; HttpOnly

@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# server_200_vs_204_body_consistency
+# Server 200 Vs 204 Body Consistency
 
 ## Description
 
@@ -44,7 +44,6 @@ Host: example.com
 
 HTTP/1.1 200 OK
 Date: Mon, 01 Jan 2024 00:00:00 GMT
-
 ```
 
 ### ❌ Bad
@@ -52,7 +51,4 @@ Date: Mon, 01 Jan 2024 00:00:00 GMT
 ```http
 HTTP/1.1 200 OK
 Content-Length: 0
-
 ```
-
-This rule is conservative: it reports when there's clear evidence of "no content" (for example, a numeric `Content-Length` of `0` or a captured decoded body length of zero) and does not attempt to speculate when content presence is unknown (no `Content-Length`, no `Transfer-Encoding`, and no captured body length).

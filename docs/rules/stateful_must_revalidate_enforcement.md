@@ -8,31 +8,11 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-The `must-revalidate` cache-control directive (RFC 9111 §5.2.2.2) tells
-caches that once a stored response becomes stale it **must not** be used to
-satisfy subsequent requests unless the entry has been successfully
-revalidated with the origin server.  Serving a stale value without revalidation
-can expose clients to outdated or incorrect data.
+The `must-revalidate` cache-control directive (RFC 9111 §5.2.2.2) tells caches that once a stored response becomes stale it **must not** be used to satisfy subsequent requests unless the entry has been successfully revalidated with the origin server.  Serving a stale value without revalidation can expose clients to outdated or incorrect data.
 
-This rule reconstructs a small piece of cache state for a given client+resource
-by locating the most recent prior response that included
-`Cache-Control: must-revalidate`.  It estimates the age of that entry using the
-`Age` header (if any) plus the time elapsed since the response was observed.
-The advertised freshness lifetime is taken from a `max-age` directive, if
-present, or else from an `Expires` header; replies that provide neither are
-considered immediately stale.  If the computed age exceeds or **equals** the freshness
-lifetime (a zero lifetime is therefore immediately stale) *and* the current
-request is unconditional (no `If-None-Match` or `If-Modified-Since`) and the
-original response carried a validator, the rule raises a warning.  Directive
-names in `Cache-Control` are parsed case-insensitively, so `Max-Age` or
-`MAX-AGE` are treated the same as the canonical lowercase form.  Clients that lack validators are not flagged because they
-have no way to revalidate.
+This rule reconstructs a small piece of cache state for a given client+resource by locating the most recent prior response that included `Cache-Control: must-revalidate`.  It estimates the age of that entry using the `Age` header (if any) plus the time elapsed since the response was observed. The advertised freshness lifetime is taken from a `max-age` directive, if present, or else from an `Expires` header; replies that provide neither are considered immediately stale.  If the computed age exceeds or **equals** the freshness lifetime (a zero lifetime is therefore immediately stale) *and* the current request is unconditional (no `If-None-Match` or `If-Modified-Since`) and the original response carried a validator, the rule raises a warning.  Directive names in `Cache-Control` are parsed case-insensitively, so `Max-Age` or `MAX-AGE` are treated the same as the canonical lowercase form.  Clients that lack validators are not flagged because they have no way to revalidate.
 
-This stateful check complements the existing
-`stateful_max_age_directive_validity` rule by covering situations where
-`must-revalidate` is present but no explicit `max-age` is provided (stale
-data is prohibited immediately), and by emphasising the intent of the
-`must-revalidate` directive when both rules are enabled.
+This stateful check complements the existing `stateful_max_age_directive_validity` rule by covering situations where `must-revalidate` is present but no explicit `max-age` is provided (stale data is prohibited immediately), and by emphasising the intent of the `must-revalidate` directive when both rules are enabled.
 
 ## Specifications
 

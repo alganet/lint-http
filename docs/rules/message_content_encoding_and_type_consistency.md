@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_content_encoding_and_type_consistency
+# Message Content Encoding And Type Consistency
 
 ## Description
 
@@ -16,8 +16,6 @@ Validate `Content-Encoding` header members for common correctness issues: member
 - [RFC 9110 §6.3 — Message Body and status codes (1xx, 204, 304)](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.3)
 
 ## Configuration
-
-TOML snippet to enable the rule (disabled by default):
 
 ```toml
 [rules.message_content_encoding_and_type_consistency]

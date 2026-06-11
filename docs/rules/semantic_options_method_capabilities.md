@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# semantic_options_method_capabilities
+# Semantic Options Method Capabilities
 
 ## Description
 
@@ -18,13 +18,8 @@ This rule flags successful `OPTIONS` responses that omit the `Allow` header.
 
 ## Specifications
 
-- [RFC 9110 §9.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7):
-  OPTIONS method semantics ("A server generating a successful response to
-  OPTIONS SHOULD send any header that might indicate optional features
-  implemented by the server and applicable to the target resource (e.g.,
-  Allow)").
-- [RFC 9110 §10.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1):
-  `Allow` header field definition.
+- [RFC 9110 §9.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7): OPTIONS method semantics ("A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow)").
+- [RFC 9110 §10.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1): `Allow` header field definition.
 
 ## Configuration
 

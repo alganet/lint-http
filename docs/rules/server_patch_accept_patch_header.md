@@ -24,14 +24,14 @@ severity = "warn"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 Accept-Patch: application/example-patch+json
 Accept-Patch: application/example-patch+json, application/merge-patch+json
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 Accept-Patch: badmedia

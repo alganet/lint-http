@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# server_response_location_on_redirect
+# Server Response Location On Redirect
 
 ## Description
 
@@ -17,8 +17,6 @@ Checks that responses where the semantics call for a `Location` header include o
 
 ## Configuration
 
-Minimal example to enable the rule in `config.toml`:
-
 ```toml
 [rules.server_response_location_on_redirect]
 enabled = true
@@ -27,26 +25,26 @@ severity = "warn"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
-```
+```http
 HTTP/1.1 301 Moved Permanently
 Location: https://example.org/new
 ```
 
-```
+```http
 HTTP/1.1 201 Created
 Location: /resource/123
 ```
 
-❌ Bad
+### ❌ Bad
 
-```
+```http
 HTTP/1.1 301 Moved Permanently
 # missing Location header
 ```
 
-```
+```http
 HTTP/1.1 201 Created
 # missing Location header
 ```

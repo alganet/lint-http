@@ -22,8 +22,6 @@ invalid origin serializations.
 
 ## Configuration
 
-Enable the rule in `config.toml`:
-
 ```toml
 [rules.message_timing_allow_origin_validity]
 enabled = true

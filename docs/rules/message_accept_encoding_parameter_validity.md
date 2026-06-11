@@ -4,9 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_accept_encoding_parameter_validity
-
-Validate `Accept-Encoding` header parameters (quality values and parameter forms) follow RFC rules. In particular, this rule ensures `q` parameters are valid qvalues (0..1 with up to three decimals) and that parameter names and values follow `token` / `quoted-string` syntax.
+# Message Accept Encoding Parameter Validity
 
 ## Description
 
@@ -25,8 +23,6 @@ Invalid parameter forms or `q` values are flagged.
 - [RFC 9110 §5.6.6 — Parameters (token / quoted-string)](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6)
 
 ## Configuration
-
-Minimal example enabling the rule:
 
 ```toml
 [rules.message_accept_encoding_parameter_validity]

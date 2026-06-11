@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_language_tag_format_valid
+# Message Language Tag Format Valid
 
 ## Description
 
@@ -18,8 +18,6 @@ Validate that any language tag appearing in HTTP headers such as `Content-Langua
 
 ## Configuration
 
-TOML example to enable the rule:
-
 ```toml
 [rules.message_language_tag_format_valid]
 enabled = true
@@ -28,14 +26,14 @@ severity = "warn"
 
 ## Examples
 
-✅ Good
+### ✅ Good
 
 ```http
 Accept-Language: en, fr-CA;q=0.8
 Content-Language: en-US
 ```
 
-❌ Bad
+### ❌ Bad
 
 ```http
 Accept-Language: en_US

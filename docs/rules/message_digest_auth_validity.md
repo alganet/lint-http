@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_digest_auth_validity
+# Message Digest Auth Validity
 
 ## Description
 
@@ -18,8 +18,6 @@ Servers and clients relying on Digest authentication may behave incorrectly when
 
 ## Configuration
 
-Minimal example to enable the rule:
-
 ```toml
 [rules.message_digest_auth_validity]
 enabled = true
@@ -29,18 +27,21 @@ severity = "warn"
 ## Examples
 
 ### ✅ Good
+
 ```http
 GET /protected HTTP/1.1
 Authorization: Digest username="Mufasa", realm="test", nonce="abc", uri="/protected", response="d41d8cd98f00b204e9800998ecf8427e"
 ```
 
 ### ❌ Bad (missing response)
+
 ```http
 GET /protected HTTP/1.1
 Authorization: Digest username="Mufasa", realm="test", nonce="abc", uri="/protected"
 ```
 
 ### ❌ Bad (invalid token characters)
+
 ```http
 GET /protected HTTP/1.1
 Authorization: Digest username=Mu!fasa, realm="test", nonce="abc", uri="/protected", response="d41d8c"

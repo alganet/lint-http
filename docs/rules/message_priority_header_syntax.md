@@ -22,8 +22,6 @@ Receivers MUST ignore unknown members and parameters; this rule flags clear pars
 
 ## Configuration
 
-Minimal example to enable the rule in `config.toml`:
-
 ```toml
 [rules.message_priority_header_syntax]
 enabled = true

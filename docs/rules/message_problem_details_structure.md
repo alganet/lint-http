@@ -14,13 +14,7 @@ When a server expresses an error using the Problem Details media type (`applicat
 
 - [RFC 7807 §3.1 — Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc7807.html#section-3.1)
 
-## Rationale
-
-Problem Details responses are intended to carry machine-readable information about an error. An empty response with `application/problem+json` is almost certainly a mistake (servers should include at least `type`/`title`/`detail` or an informative body). Because transaction captures may not include the full body content, this rule conservatively only flags responses where the captured body length or explicit `Content-Length` indicates zero bytes.
-
 ## Configuration
-
-Minimal example to enable the rule in your config (add to `config_example.toml`):
 
 ```toml
 [rules.message_problem_details_structure]
@@ -46,5 +40,4 @@ Content-Length: 123
 HTTP/1.1 500 Internal Server Error
 Content-Type: application/problem+json
 Content-Length: 0
-
 ```

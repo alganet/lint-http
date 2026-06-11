@@ -57,4 +57,3 @@ severity = "warn"
 < 302 Found  HTTP/1.1
 < Location: /x
 ```
-

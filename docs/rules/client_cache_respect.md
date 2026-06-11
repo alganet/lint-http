@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 
 SPDX-License-Identifier: ISC
 -->
@@ -29,19 +29,17 @@ severity = "warn"
 
 ### ✅ Good Request
 
-**First Request:**
 ```http
 GET /image.png HTTP/1.1
 Host: example.com
 ```
-**Response:**
+
 ```http
 HTTP/1.1 200 OK
 ETag: "abcdef12345"
 Content-Length: 1024
 ```
 
-**Second Request (Correct):**
 ```http
 GET /image.png HTTP/1.1
 Host: example.com
@@ -50,18 +48,16 @@ If-None-Match: "abcdef12345"
 
 ### ❌ Bad Request
 
-**First Request:**
 ```http
 GET /image.png HTTP/1.1
 Host: example.com
 ```
-**Response:**
+
 ```http
 HTTP/1.1 200 OK
 ETag: "abcdef12345"
 ```
 
-**Second Request (Incorrect):**
 ```http
 GET /image.png HTTP/1.1
 Host: example.com

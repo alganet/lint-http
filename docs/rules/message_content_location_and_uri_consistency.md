@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# message_content_location_and_uri_consistency
+# Message Content Location And Uri Consistency
 
 ## Description
 
@@ -15,10 +15,6 @@ Validate `Content-Location` header values to ensure they are well-formed URI ref
 - [RFC 9110 §8.7 — Content-Location](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7)
 
 ## Configuration
-
-This rule uses the standard `enabled` + `severity` configuration (no extra keys required).
-
-Example:
 
 ```toml
 [rules.message_content_location_and_uri_consistency]
