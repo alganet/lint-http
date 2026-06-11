@@ -8,51 +8,31 @@
 //! It acts as a man-in-the-middle proxy, capable of decrypting HTTPS traffic (via dynamic
 //! certificate generation) to inspect headers and payloads for best practice violations.
 //!
-//! # Core Modules
-//!
-//! - [`proxy`]: The main HTTP/HTTPS proxy logic.
-//! - [`lint`]: The linting engine that evaluates rules against requests and responses.
-//! - [`rules`]: Definitions of individual lint rules.
-//! - [`ca`]: Certificate Authority for generating dynamic TLS certificates.
-//! - [`capture`]: Structured logging of traffic to JSONL files.
-//! - [`config`]: Configuration loading and management.
-//! - [`state`]: Stateful analysis for tracking behavior across multiple requests.
-//!
-//! # Usage
-//!
-//! This library is primarily used by the `lint-http` binary. However, the modules can be
-//! used independently for custom proxy or linting applications.
+//! This crate owns the transport, capture, and CA layers and the `lint-http`
+//! binary. The data types live in [`lint_http_core`] and the rule catalogue +
+//! dispatch engine in [`lint_http_rules`]; both are re-exported here under
+//! their original module names so the public `lint_http::…` surface (and
+//! intra-crate `crate::…` paths) are unchanged from before the workspace split.
 
+// Core data types.
+pub use lint_http_core::{
+    config, http_date, http_transaction, lint, protocol_event, protocol_event_store, serde_helpers,
+    state, transaction_history,
+};
+
+// Rule catalogue, helpers, query layer, and lint dispatch.
+pub use lint_http_rules::{engine, gendocs, helpers, lint_protocol, queries, rules};
+
+// Transport / capture / CA layers owned by this crate.
 pub mod ca;
 pub mod capture;
-pub mod config;
 pub mod connection;
-pub mod engine;
-pub mod gendocs;
 pub mod h3_instrument;
-pub mod helpers;
-pub mod http_date;
-pub mod http_transaction;
-pub mod lint;
-pub mod lint_protocol;
-pub mod protocol_event;
-pub mod protocol_event_store;
 pub mod proxy;
-pub mod queries;
-pub mod rules;
-pub mod serde_helpers;
-pub mod state;
-pub mod transaction_history;
 pub mod websocket_session;
 
 #[cfg(test)]
 mod test_helpers;
-#[cfg(test)]
-pub use test_helpers::{
-    disable_rule, enable_rule, enable_rule_with_paths, make_headers_from_pairs, make_test_client,
-    make_test_config_with_enabled_rules, make_test_rule_config, make_test_transaction,
-    make_test_transaction_with_response,
-};
 
 pub fn make_temp_captures_path(prefix: &str) -> std::path::PathBuf {
     std::env::temp_dir().join(format!("{}_{}.jsonl", prefix, uuid::Uuid::new_v4()))

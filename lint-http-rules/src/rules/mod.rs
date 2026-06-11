@@ -732,7 +732,8 @@ severity = "warn"
         // from (or unaccounted for in) the catalogue. This restores that
         // safety net: every `src/rules/*.rs` file must self-register exactly
         // one rule, so the file count equals the collected catalogue size.
-        let file_count = std::fs::read_dir("src/rules")
+        let rules_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+        let file_count = std::fs::read_dir(&rules_dir)
             .expect("cannot read src/rules")
             .filter_map(|e| e.ok())
             .filter(|e| {
@@ -877,7 +878,9 @@ severity = "warn"
 
     #[test]
     fn config_example_includes_all_rules() -> anyhow::Result<()> {
-        let s = std::fs::read_to_string("config_example.toml")?;
+        let s = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
+        )?;
 
         for rule in RULES.iter() {
             let id = rule.id();

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 //! `gendocs` regenerates the per-rule documentation under `docs/rules/` and the
-//! `docs/rules.md` index from rule metadata. See [`lint_http::gendocs`].
+//! `docs/rules.md` index from rule metadata. See [`lint_http_rules::gendocs`].
 
 use clap::Parser;
 use std::path::PathBuf;
@@ -21,7 +21,7 @@ struct Args {
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-    lint_http::gendocs::write_all(&args.out)?;
+    lint_http_rules::gendocs::write_all(&args.out)?;
     eprintln!("Wrote rule docs to {}", args.out.display());
     Ok(())
 }

@@ -4,9 +4,11 @@
 
 //! Test utilities.
 //!
-//! Provides helper functions for constructing test fixtures like HTTP transactions,
-//! configurations, and rule engines. These helpers are used across unit tests
-//! to reduce boilerplate and ensure consistency.
+//! Helper functions for constructing test fixtures (HTTP transactions,
+//! configurations) that depend only on core types. Used across this crate's
+//! tests and — via the `test-utils` feature — by downstream crates. Fixtures
+//! that need rule-layer types (e.g. `make_test_rule_config`) live in the rules
+//! crate's own `test_helpers`.
 
 use crate::state::ClientIdentifier;
 use hyper::header::{HeaderName, HeaderValue};
@@ -14,7 +16,6 @@ use hyper::HeaderMap;
 use std::net::{IpAddr, Ipv4Addr};
 
 /// Create a test client identifier with a standard localhost IP and test user agent.
-#[cfg(test)]
 pub fn make_test_client() -> ClientIdentifier {
     ClientIdentifier::new(
         IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
@@ -24,7 +25,6 @@ pub fn make_test_client() -> ClientIdentifier {
 
 /// Construct a `HeaderMap` from an array of key-value pairs.
 /// Panics if any header name or value is invalid.
-#[cfg(test)]
 pub fn make_headers_from_pairs(pairs: &[(&str, &str)]) -> HeaderMap {
     let mut hm = HeaderMap::new();
     for (k, v) in pairs {
@@ -35,7 +35,6 @@ pub fn make_headers_from_pairs(pairs: &[(&str, &str)]) -> HeaderMap {
     hm
 }
 
-#[cfg(test)]
 fn insert_rule_config(
     cfg: &mut crate::config::Config,
     rule: &str,
@@ -60,25 +59,21 @@ fn insert_rule_config(
 }
 
 /// Enable a rule in the given configuration with default "warn" severity.
-#[cfg(test)]
 pub fn enable_rule(cfg: &mut crate::config::Config, rule: &str) {
     insert_rule_config(cfg, rule, true, None);
 }
 
 /// Enable a rule with a list of URI paths to restrict its scope.
-#[cfg(test)]
 pub fn enable_rule_with_paths(cfg: &mut crate::config::Config, rule: &str, paths: &[&str]) {
     insert_rule_config(cfg, rule, true, Some(paths));
 }
 
 /// Disable a rule in the given configuration.
-#[cfg(test)]
 pub fn disable_rule(cfg: &mut crate::config::Config, rule: &str) {
     insert_rule_config(cfg, rule, false, None);
 }
 
 /// Create a configuration with the specified rules enabled.
-#[cfg(test)]
 pub fn make_test_config_with_enabled_rules(rules: &[&str]) -> crate::config::Config {
     let mut cfg = crate::config::Config::default();
     for r in rules {
@@ -89,7 +84,6 @@ pub fn make_test_config_with_enabled_rules(rules: &[&str]) -> crate::config::Con
 
 /// Create a configuration with a single rule enabled at the given severity.
 /// `severity` must be one of `"info"`, `"warn"`, `"error"`.
-#[cfg(test)]
 pub fn make_test_config_with_severity(rule_id: &str, severity: &str) -> crate::config::Config {
     let mut cfg = crate::config::Config::default();
     let mut table = toml::map::Map::new();
@@ -105,7 +99,6 @@ pub fn make_test_config_with_severity(rule_id: &str, severity: &str) -> crate::c
 
 /// Create a minimal HTTP transaction for testing.
 /// Contains a GET request to `http://example/` with a standard test user agent.
-#[cfg(test)]
 pub fn make_test_transaction() -> crate::http_transaction::HttpTransaction {
     use crate::http_transaction::{HttpTransaction, TimingInfo};
 
@@ -122,7 +115,6 @@ pub fn make_test_transaction() -> crate::http_transaction::HttpTransaction {
 }
 
 /// Create a test transaction with the specified request headers.
-#[cfg(test)]
 pub fn make_test_transaction_with_headers(
     headers: &[(&str, &str)],
 ) -> crate::http_transaction::HttpTransaction {
@@ -133,7 +125,6 @@ pub fn make_test_transaction_with_headers(
 
 /// Create a test transaction with a response.
 /// Accepts a status code and an array of response header pairs.
-#[cfg(test)]
 pub fn make_test_transaction_with_response(
     status: u16,
     resp_headers: &[(&str, &str)],
@@ -150,15 +141,6 @@ pub fn make_test_transaction_with_response(
         trailers: None,
     });
     tx
-}
-
-/// Create a test rule configuration with `enabled: true` and `severity: Warn`.
-#[cfg(test)]
-pub fn make_test_rule_config() -> crate::rules::RuleConfig {
-    crate::rules::RuleConfig {
-        enabled: true,
-        severity: crate::lint::Severity::Warn,
-    }
 }
 
 #[cfg(test)]

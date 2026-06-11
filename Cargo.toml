@@ -2,19 +2,23 @@
 #
 # SPDX-License-Identifier: ISC
 
-[package]
-name = "lint-http"
+[workspace]
+resolver = "2"
+members = ["lint-http-core", "lint-http-rules", "lint-http-proxy"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
 authors = ["Alexandre Gomes Gaigalas <alganet@gmail.com>"]
-description = "HTTP forward proxy that captures request/response metadata and runs lint rules"
 license = "ISC"
 repository = "https://github.com/alganet/lint-http"
-readme = "README.md"
-keywords = ["proxy", "http", "lint", "testing", "debugging"]
-categories = ["network-programming", "development-tools"]
 
-[dependencies]
+[workspace.dependencies]
+# Internal crates
+lint-http-core = { path = "lint-http-core" }
+lint-http-rules = { path = "lint-http-rules" }
+
+# Shared third-party dependencies (versions kept in lockstep across crates)
 tokio = { version = "1.52", features = ["full"] }
 hyper = { version = "1.10.1", features = ["full"] }
 clap = { version = "4.6", features = ["derive"] }
@@ -24,9 +28,13 @@ uuid = { version = "1.23", features = ["v4", "serde"] }
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 httpdate = "1.0"
-tracing-subscriber = "0.3"
 tracing = "0.1"
+tracing-subscriber = "0.3"
 toml = "1.1"
+bytes = "1"
+base64 = "0.22"
+sha1 = "0.11"
+linkme = "0.3"
 
 # TLS Support
 tokio-rustls = "0.26.4"
@@ -40,21 +48,15 @@ quinn = { version = "0.11.9", default-features = false, features = ["rustls-aws-
 h3 = "0.0.8"
 h3-quinn = "0.0.10"
 
-# Certificate Generation
+# Certificate generation / misc
 rcgen = "0.14"
 pem = "3.0"
-base64 = "0.22"
-bytes = "1"
 http-body-util = "0.1"
-sha1 = "0.11"
 tokio-tungstenite = "0.29"
 futures-util = "0.3"
 rustls-native-certs = "0.8"
-linkme = "0.3"
 
-
-[dev-dependencies]
+# Dev
 wiremock = "0.6"
 rstest = "0.26.1"
 http = "1"
-

@@ -155,7 +155,7 @@ static REGISTRATION: &dyn crate::rules::ProtocolRule = &StatefulWebsocketFrameOp
 mod tests {
     use super::*;
     use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
-    use crate::websocket_session::MessageDirection;
+    use crate::protocol_event::MessageDirection;
     use chrono::Utc;
     use uuid::Uuid;
 
