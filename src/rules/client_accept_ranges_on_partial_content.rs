@@ -102,8 +102,11 @@ impl Rule for ClientAcceptRangesOnPartialContent {
         "Clients should track server advertising of range support via the `Accept-Ranges` response header and avoid sending `Range` requests when the server has explicitly advertised `Accept-Ranges: none`. If a previous response for the same resource was `206 Partial Content` but did not advertise `Accept-Ranges`, clients should be conservative and avoid sending subsequent `Range` requests unless the server signals support."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §7.3.4 — `Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`.](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §7.3.4 — `Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`.](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4)",
+            "[RFC 7233 §4.1 — `206 Partial Content` and `Content-Range`.](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -111,14 +114,17 @@ impl Rule for ClientAcceptRangesOnPartialContent {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("— server advertises support for bytes and client uses bytes"),
                 snippet: "HTTP/1.1 200 OK\nAccept-Ranges: bytes\n\nGET /resource HTTP/1.1\nRange: bytes=0-499",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— server explicitly rejects ranges, client should not send Range"),
                 snippet: "HTTP/1.1 200 OK\nAccept-Ranges: none\n\nGET /resource HTTP/1.1\nRange: bytes=0-499",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— previous response was 206 but did not advertise Accept-Ranges (client should not assume support)"),
                 snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\n\nGET /resource HTTP/1.1\nRange: bytes=500-999",
             },
         ]

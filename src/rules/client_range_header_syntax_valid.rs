@@ -55,8 +55,10 @@ impl Rule for ClientRangeHeaderSyntaxValid {
         "Checks that the `Range` request header, when present, follows the `byte-range-set` syntax defined by RFC 9110. This rule validates the unit (e.g., `bytes=`) and that each range specifier is syntactically well-formed (numeric byte positions, suffix forms like `-500`, open-ended forms like `9500-`, and correct ordering `first <= last`)."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §14.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1.2): Range header syntax")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §14.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1.2): Range header syntax",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -64,10 +66,12 @@ impl Rule for ClientRangeHeaderSyntaxValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=0-499\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=500-999,1000-1499\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=-500",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /big-file HTTP/1.1\nHost: example.com\nRange: items=0-1\n# unsupported unit\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=abc\n# non-numeric\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=5-3\n# first > last",
             },
         ]

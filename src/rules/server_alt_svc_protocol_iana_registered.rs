@@ -143,12 +143,18 @@ impl Rule for ServerAltSvcProtocolIanaRegistered {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Alt-Svc Protocol IANA-Registered")
+    }
+
     fn description(&self) -> &'static str {
         "Validate `Alt-Svc` response header protocol identifiers. Each `protocol` token (the left-hand side of `protocol=authority`) should be a valid `token` and should be IANA-registered or explicitly allowed via configuration (e.g., `h2`, `h3`). This prevents advertising unsupported or mistyped protocol identifiers to clients."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 7838](https://www.rfc-editor.org/rfc/rfc7838.html) — Alternative Services (syntax and semantics)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 7838](https://www.rfc-editor.org/rfc/rfc7838.html) — Alternative Services (syntax and semantics)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -156,10 +162,12 @@ impl Rule for ServerAltSvcProtocolIanaRegistered {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Alt-Svc: h2=\":443\"; ma=2592000\nAlt-Svc: h3=example.com:8443\nAlt-Svc: H2=example.com:443  # protocol tokens are case-insensitive",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Alt-Svc: xproto=example.com:443   # protocol not in allowlist\nAlt-Svc: h@=example.com:443      # invalid protocol token character",
             },
         ]

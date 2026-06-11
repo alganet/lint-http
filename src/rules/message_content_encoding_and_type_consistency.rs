@@ -126,8 +126,11 @@ impl Rule for MessageContentEncodingAndTypeConsistency {
         "Validate `Content-Encoding` header members for common correctness issues: members must be valid `token`s, duplicate codings are likely a mistake and are flagged, and responses that must not carry a message body (1xx, 204, 304) MUST NOT include a `Content-Encoding` header."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §5.3 — Content Coding](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §5.3 — Content Coding](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3)",
+            "[RFC 9110 §6.3 — Message Body and status codes (1xx, 204, 304)](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.3)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -135,14 +138,17 @@ impl Rule for MessageContentEncodingAndTypeConsistency {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip, br\nContent-Type: application/json; charset=utf-8\n\n...compressed JSON body...",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(duplicate coding)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip, gzip\nContent-Type: application/json\n\n...compressed JSON body...",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(Content-Encoding on no-body response)"),
                 snippet: "HTTP/1.1 204 No Content\nContent-Encoding: gzip",
             },
         ]

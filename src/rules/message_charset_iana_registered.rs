@@ -199,8 +199,11 @@ impl Rule for MessageCharsetIanaRegistered {
         "If a `Content-Type` header includes a `charset` parameter, the value SHOULD be an IANA-registered character set name (case-insensitive) or match one from an explicit allowlist. This rule detects empty or syntactically invalid `charset` values and reports unrecognized charsets according to configured policy."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §6.4 — Media Type `charset` parameter semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §6.4 — Media Type `charset` parameter semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4)",
+            "[IANA Character Sets registry](https://www.iana.org/assignments/character-sets/character-sets.xhtml)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -208,18 +211,22 @@ impl Rule for MessageCharsetIanaRegistered {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET / HTTP/1.1\nHost: example.com\nContent-Type: text/plain; charset=utf-8",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/html; charset=\"UTF-8\"\n\n<html>...</html>",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/plain; charset=unknown-charset",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/plain; charset=\"unfinished",
             },
         ]

@@ -86,8 +86,12 @@ impl Rule for Server200Vs204BodyConsistency {
         "Warn when a server returns a 200 (OK) response that contains no message body and the request method is not `HEAD`. When a response intentionally has no content, the `204 No Content` status code is a more appropriate and explicit choice. This rule helps catch server misconfigurations that return `200` with an empty payload where `204` would better express the intent."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §15.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.1): 200 (OK) response semantics — expected to contain message content unless the message framing explicitly indicates zero length; consider using 204 when no content is preferred.")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §15.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.1): 200 (OK) response semantics — expected to contain message content unless the message framing explicitly indicates zero length; consider using 204 when no content is preferred.",
+            "[RFC 9110 §15.3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.5): 204 (No Content) — indicates the server intentionally sends no content.",
+            "[RFC 9110 §6.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.2): Identifying content — rules for when responses are considered to have no content (e.g., HEAD requests or 204 responses).",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -95,14 +99,17 @@ impl Rule for Server200Vs204BodyConsistency {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Type: application/json\nContent-Length: 27\n\n{\"status\":\"ok\",\"data\":1}",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(HEAD request)"),
                 snippet: "HEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nDate: Mon, 01 Jan 2024 00:00:00 GMT\n",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Length: 0\n",
             },
         ]

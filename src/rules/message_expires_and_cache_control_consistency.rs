@@ -160,8 +160,11 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
         "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9111 §5.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3) — Cache-Control directives override Expires; recipients MUST ignore the Expires header field when max-age/s-maxage is present.")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9111 §5.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3) — Cache-Control directives override Expires; recipients MUST ignore the Expires header field when max-age/s-maxage is present.",
+            "[RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2) — Freshness and age calculations using `max-age`, `s-maxage`, and `Expires`.",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -169,14 +172,17 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nCache-Control: max-age=3600\nExpires: Wed, 21 Oct 2015 08:28:00 GMT\n\n<...>",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nCache-Control: max-age=0\nExpires: Wed, 21 Oct 2015 08:28:00 GMT\n\n<...>",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nCache-Control: no-cache\nExpires: Wed, 21 Oct 2015 08:28:00 GMT\n\n<...>",
             },
         ]

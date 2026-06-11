@@ -72,12 +72,19 @@ impl Rule for ServerLocationHeaderUriValid {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Location Header URI Valid")
+    }
+
     fn description(&self) -> &'static str {
         "This rule checks that the `Location` response header, when present, is a syntactically valid URI-reference. `Location` is commonly used in redirects and SHOULD be a URI-reference per the HTTP spec; malformed values can break clients."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §7.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#name-location)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §7.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#name-location)",
+            "[RFC 3986 §4](https://www.rfc-editor.org/rfc/rfc3986.html#section-4) — URI-reference syntax and percent-encoding",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -85,18 +92,22 @@ impl Rule for ServerLocationHeaderUriValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(absolute URI)"),
                 snippet: "HTTP/1.1 302 Found\nLocation: https://example.com/new-location",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(relative URI-reference)"),
                 snippet: "HTTP/1.1 302 Found\nLocation: /new-location?ref=1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(invalid percent-encoding)"),
                 snippet: "HTTP/1.1 302 Found\nLocation: /bad%2Gencoding",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(contains whitespace)"),
                 snippet: "HTTP/1.1 302 Found\nLocation: https://example.com/ bad",
             },
         ]

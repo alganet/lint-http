@@ -57,8 +57,10 @@ impl Rule for MessageMaxForwardsNumeric {
         "Validate that the `Max-Forwards` request header value is a decimal integer consisting of one or more digits (ABNF: `Max-Forwards = 1*DIGIT`). This header is used by `TRACE` and `OPTIONS` to limit forwarding by intermediaries; invalid values can break proxy forwarding semantics."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §7.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2) — Max-Forwards header.")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §7.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2) — Max-Forwards header.",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -66,18 +68,22 @@ impl Rule for MessageMaxForwardsNumeric {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "TRACE / HTTP/1.1\nHost: example.com\nMax-Forwards: 0",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "TRACE / HTTP/1.1\nHost: example.com\nMax-Forwards: -1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "OPTIONS * HTTP/1.1\nHost: example.com\nMax-Forwards: 1.0",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "TRACE / HTTP/1.1\nHost: example.com\nMax-Forwards: 120, 240",
             },
         ]

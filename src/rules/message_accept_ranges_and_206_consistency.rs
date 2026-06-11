@@ -100,8 +100,11 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
         "When a server returns a 206 (Partial Content) response it indicates that the request was satisfied by returning a range of the representation. Servers SHOULD advertise support for range requests using the `Accept-Ranges` header; an `Accept-Ranges: none` value contradicts a 206 response and is invalid in that context. This rule warns when a 206 response does not advertise supported range units, or when the advertised units contradict the `Content-Range` header."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 7233 §4.1 — 206 Partial Content: single-part 206 responses MUST include a `Content-Range` header describing the enclosed range.](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 7233 §4.1 — 206 Partial Content: single-part 206 responses MUST include a `Content-Range` header describing the enclosed range.](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1)",
+            "[RFC 9110 §7.3.4 — `Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`.](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -109,26 +112,32 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: bytes",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(Accept-Ranges may include multiple supported units)"),
                 snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: bytes, other-unit",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("— multiple header fields combined"),
                 snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: pages\nAccept-Ranges: bytes",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— Accept-Ranges explicitly says none"),
                 snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: none",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— Accept-Ranges missing (should advertise support)"),
                 snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— Content-Range unit not advertised"),
                 snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: pages",
             },
         ]

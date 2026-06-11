@@ -89,8 +89,10 @@ impl Rule for MessageSecFetchSiteValueValid {
         "Requests that include the `Sec-Fetch-Site` request header must use one of the canonical values defined by the Fetch Metadata specification: `cross-site`, `same-origin`, `same-site`, or `none`. This rule validates the header token syntax and that the value is one of the accepted identifiers (comparison is case-insensitive). Multiple header fields (repeated `Sec-Fetch-Site`) are treated as a violation (possible header injection) and will be flagged."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("Fetch Metadata (W3C) — `Sec-Fetch-Site` header values: https://www.w3.org/TR/fetch-metadata/#sec-fetch-site")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "Fetch Metadata (W3C) — `Sec-Fetch-Site` header values: https://www.w3.org/TR/fetch-metadata/#sec-fetch-site",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -98,18 +100,22 @@ impl Rule for MessageSecFetchSiteValueValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Sec-Fetch-Site: same-origin",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Sec-Fetch-Site: cross-site",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Sec-Fetch-Site: invalid",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Sec-Fetch-Site:",
             },
         ]

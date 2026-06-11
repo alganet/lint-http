@@ -71,12 +71,18 @@ impl Rule for MessageTransferEncodingChunkedFinal {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Transfer-Encoding Chunked Final")
+    }
+
     fn description(&self) -> &'static str {
         "Ensures that when `Transfer-Encoding` includes the `chunked` transfer coding, it appears as the final transfer coding.\n\nPer RFC 9112 §7.1, the `chunked` transfer-coding must always be the final transfer-coding applied to a message. Intermediate codecs cannot follow `chunked`, because chunked encoding is the format used to delimit the message body.\n\nIf a message includes `Transfer-Encoding: ...` values and any of them is `chunked`, then `chunked` must be the final coding in the sequence. The rule checks all `Transfer-Encoding` header fields and the order of comma-separated codings."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9112 §7.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1): Transfer-Encoding")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9112 §7.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1): Transfer-Encoding",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -84,10 +90,12 @@ impl Rule for MessageTransferEncodingChunkedFinal {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Transfer-Encoding: gzip, chunked\n\nTransfer-Encoding: chunked",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Transfer-Encoding: chunked, gzip\n# chunked must be final\n\n# Multiple header fields where an earlier field contains chunked\n# and later fields contain other codings",
             },
         ]

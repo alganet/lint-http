@@ -77,8 +77,12 @@ impl Rule for SemanticStatusCodeSemantics {
         "Detects clear mismatches between HTTP response status codes and the headers/payloads that express authentication or proxy-authentication intent. Examples: a 401 response must include a `WWW-Authenticate` header; a `WWW-Authenticate` header must not appear on non-401 responses. Likewise, `Proxy-Authenticate` is specific to 407 responses. These checks help identify servers that misuse status codes or include misleading headers."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §15.5.1 — 401 (Unauthorized) responses and WWW-Authenticate requirement](https://www.rfc-editor.org/rfc/rfc9110.html#name-401-unauthorized)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §15.5.1 — 401 (Unauthorized) responses and WWW-Authenticate requirement](https://www.rfc-editor.org/rfc/rfc9110.html#name-401-unauthorized)",
+            "[RFC 9110 §15.6.1 — 407 (Proxy Authentication Required) responses and Proxy-Authenticate](https://www.rfc-editor.org/rfc/rfc9110.html#name-407-proxy-authentication)",
+            "[RFC 9110 §6 — Status code semantics (general)](https://www.rfc-editor.org/rfc/rfc9110.html#name-status-codes)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -86,18 +90,22 @@ impl Rule for SemanticStatusCodeSemantics {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=\"example\"\n\n{\"error\":\"unauthorized\"}",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 407 Proxy Authentication Required\nProxy-Authenticate: Basic realm=\"proxy\"\n",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nWWW-Authenticate: Basic realm=\"example\"\n\n{\"ok\":true}",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 401 Unauthorized\nContent-Type: application/json\n\n{\"error\":\"unauthorized\"}",
             },
         ]

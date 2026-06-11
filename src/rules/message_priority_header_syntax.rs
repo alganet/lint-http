@@ -72,8 +72,11 @@ impl Rule for MessagePriorityHeaderSyntax {
         "The `Priority` header (RFC 9218) conveys priority parameters as a Structured Fields Dictionary. This rule validates basic syntax for the header and enforces the defined semantics for the standard parameters:\n\n- `u` (urgency) MUST be an integer in the range 0..=7 (inclusive).\n- `i` (incremental) is a boolean: it may be present without a value (indicating `true`) or use `?1`/`?0` notation. Unknown parameters are allowed and ignored.\n\nReceivers MUST ignore unknown members and parameters; this rule flags clear parsing errors and out-of-range `u` values."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9218 §4–§5 (Priority header and parameters)](https://www.rfc-editor.org/rfc/rfc9218.html)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9218 §4–§5 (Priority header and parameters)](https://www.rfc-editor.org/rfc/rfc9218.html)",
+            "[RFC 8941 (Structured Field Values for HTTP)](https://www.rfc-editor.org/rfc/rfc8941.html)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -81,18 +84,22 @@ impl Rule for MessagePriorityHeaderSyntax {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /image.jpg HTTP/1.1\nPriority: u=5, i",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nPriority: u=1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /script.js HTTP/1.1\nPriority: u=8",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Priority: u",
             },
         ]

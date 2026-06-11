@@ -90,8 +90,11 @@ impl Rule for MessageCookieDomainValidity {
         "Validate the `Domain` attribute of `Set-Cookie` header values. This rule checks that\n`Domain` values are syntactically valid domain names (no spaces, valid label characters,\nlabel length and overall length limits) and flags uses that are likely incorrect, such as\nIP addresses or empty values. A leading `.` is tolerated for historical reasons but is\nreported as deprecated."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 6265 §5.2.3 — `Domain` attribute semantics and format](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.3)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 6265 §5.2.3 — `Domain` attribute semantics and format](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.3)",
+            "[RFC 1035 — Domain name label rules (length, allowed characters)](https://www.rfc-editor.org/rfc/rfc1035.html)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -99,26 +102,32 @@ impl Rule for MessageCookieDomainValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Set-Cookie: SID=1; Domain=example.com",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(attribute order tolerated)"),
                 snippet: "Set-Cookie: SID=1; Secure; Domain=example.com",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— IP address used as Domain"),
                 snippet: "Set-Cookie: SID=1; Domain=192.168.0.1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— invalid characters in domain"),
                 snippet: "Set-Cookie: SID=1; Domain=exa_mple.com",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— empty domain value"),
                 snippet: "Set-Cookie: SID=1; Domain=",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("— leading dot is deprecated (this rule reports it)"),
                 snippet: "Set-Cookie: SID=1; Domain=.example.com",
             },
         ]

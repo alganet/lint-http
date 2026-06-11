@@ -89,8 +89,10 @@ impl Rule for MessageSecFetchModeValueValid {
         "Requests that include the `Sec-Fetch-Mode` request header must use one of the canonical values defined by the Fetch Metadata specification: `cors`, `no-cors`, `same-origin`, `navigate`, or `websocket`. This rule validates the header token syntax and that the value is one of the accepted identifiers (comparison is case-insensitive). Multiple header fields (repeated `Sec-Fetch-Mode`) are treated as a violation (possible header injection) and will be flagged."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("Fetch Metadata (W3C) — `Sec-Fetch-Mode` header values: https://www.w3.org/TR/fetch-metadata/#sec-fetch-mode")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "Fetch Metadata (W3C) — `Sec-Fetch-Mode` header values: https://www.w3.org/TR/fetch-metadata/#sec-fetch-mode",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -98,18 +100,22 @@ impl Rule for MessageSecFetchModeValueValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Sec-Fetch-Mode: cors",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Sec-Fetch-Mode: navigate",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Sec-Fetch-Mode: invalid",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Sec-Fetch-Mode:",
             },
         ]

@@ -62,12 +62,19 @@ impl Rule for SemanticPostCreatesResource {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("POST responses should use 201/Location for creations")
+    }
+
     fn description(&self) -> &'static str {
         "When a `POST` request results in the origin server creating one or more new\nresources, the server **should** respond with `201 Created` and include a\n`Location` header field identifying the primary resource that was created.\nSending a `Location` header on any other 2xx response implies a resource was\ncreated, yet the proper status code was not used. Likewise, a `201` response\nwithout a `Location` header fails to provide the identifier of the newly\ncreated resource.\n\nThis rule flags both situations so that implementers are encouraged to align\ntheir responses with the semantics defined in RFC 9110 §9.3.3 and §10.2.2."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §9.3.3 — POST](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3)\n  describes the semantics for `POST` responses and notes that\n  \"If one or more resources has been created on the origin server as a result\n  of successfully processing a POST request, the origin server **SHOULD** send a\n  201 (Created) response containing a Location header field that provides an\n  identifier for the primary resource created.\"")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §9.3.3 — POST](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3) describes the semantics for `POST` responses and notes that \"If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server **SHOULD** send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created.\"",
+            "[RFC 9110 §10.2.2 — Location](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2) specifies that for `201 (Created)` responses the `Location` value refers to the primary resource created by the request.",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -75,18 +82,22 @@ impl Rule for SemanticPostCreatesResource {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 20\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 201 Created\nLocation: /widgets/123\nContent-Type: application/json\n\n{\"id\":123}",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 20\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 200 OK\n\n{\"status\":\"ok\"}",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 20\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 201 Created\nContent-Type: application/json\n\n{\"id\":123}",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 20\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 200 OK\nLocation: /widgets/123\nContent-Type: application/json\n\n{\"status\":\"ok\"}",
             },
         ]

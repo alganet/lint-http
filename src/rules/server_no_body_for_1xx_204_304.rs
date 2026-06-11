@@ -68,12 +68,18 @@ impl Rule for ServerNoBodyFor1xx204304 {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server No Body For 1xx, 204, 304")
+    }
+
     fn description(&self) -> &'static str {
         "Responses with status codes in the 1xx range (Informational), `204 No Content`, and `304 Not Modified` MUST NOT include a message body. This rule flags responses that contain headers which indicate a body (for example, `Transfer-Encoding: chunked` or a `Content-Length` header whose value is greater than zero).\n\nWhen these statuses include a message body, intermediaries and clients can misinterpret the message framing, leading to incorrect behavior."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §6.4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.1): Message body for status codes 1xx, 204, 304")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §6.4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.1): Message body for status codes 1xx, 204, 304",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -81,14 +87,17 @@ impl Rule for ServerNoBodyFor1xx204304 {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("Response"),
                 snippet: "HTTP/1.1 204 No Content\nContent-Type: text/plain\n# No Content-Length or Transfer-Encoding header",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("Response (Content-Length > 0)"),
                 snippet: "HTTP/1.1 204 No Content\nContent-Type: text/plain\nContent-Length: 10",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("Response (Transfer-Encoding present)"),
                 snippet: "HTTP/1.1 100 Continue\nTransfer-Encoding: chunked",
             },
         ]

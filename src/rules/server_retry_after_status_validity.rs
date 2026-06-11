@@ -44,12 +44,19 @@ impl Rule for ServerRetryAfterStatusValidity {
         })
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Retry-After Status Validity")
+    }
+
     fn description(&self) -> &'static str {
         "`Retry-After` is primarily defined for temporary unavailability and redirects. This rule flags responses that include `Retry-After` on statuses where its semantics are unusual.\n\nThe rule allows `Retry-After` on:\n- `503 Service Unavailable` (RFC 9110)\n- any `3xx` redirection (RFC 9110)\n- `429 Too Many Requests` (RFC 6585)"
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3): Retry-After with 503 and 3xx responses")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3): Retry-After with 503 and 3xx responses",
+            "[RFC 6585 §4](https://www.rfc-editor.org/rfc/rfc6585.html#section-4): 429 Too Many Requests may include Retry-After",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -57,10 +64,12 @@ impl Rule for ServerRetryAfterStatusValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 503 Service Unavailable\nRetry-After: 120\n\nHTTP/1.1 301 Moved Permanently\nLocation: /new-path\nRetry-After: 30\n\nHTTP/1.1 429 Too Many Requests\nRetry-After: 60",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nRetry-After: 10\n\nHTTP/1.1 500 Internal Server Error\nRetry-After: 120",
             },
         ]

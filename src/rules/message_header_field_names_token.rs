@@ -47,10 +47,8 @@ impl Rule for MessageHeaderFieldNamesToken {
         "This rule validates that **header field-names** conform to the `token` grammar. Field-names containing control characters, spaces, or other separator characters are invalid and can indicate protocol violations or injection attempts.\n\nThe rule flags header names that contain characters outside the allowed `tchar` set (letters, digits, and the following characters: ``! # $ % & ' * + - . ^ _ ` | ~``)."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some(
-            "[RFC 9110 §5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1): Field Names",
-        )
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &["[RFC 9110 §5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1): Field Names"]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -58,10 +56,12 @@ impl Rule for MessageHeaderFieldNamesToken {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Host: example.com\nContent-Type: text/plain\nX-Custom-Header: v",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Bad Header: v\nX@Bad: v\nheader:with:colon: v",
             },
         ]

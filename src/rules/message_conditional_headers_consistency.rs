@@ -105,8 +105,12 @@ impl Rule for MessageConditionalHeadersConsistency {
         "Validate consistency and mutual exclusivity of conditional request headers. This rule enforces the evaluation precedence of conditional headers (ETag-based conditionals take precedence over date-based ones), ensures `If-Range` is only used with `Range` requests, and disallows weak ETags in `If-Range` when an entity-tag is used."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §13.1 — Preconditions](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §13.1 — Preconditions](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1)",
+            "[RFC 9110 §13.2 — Evaluation of Preconditions (precedence rules)](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2)",
+            "[RFC 9110 §14.2 — Range (If-Range interplay)](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -114,26 +118,32 @@ impl Rule for MessageConditionalHeadersConsistency {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-99\nIf-Range: \"abc\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "POST /resource HTTP/1.1\nHost: example.com\nIf-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT   # If-Modified-Since is not meaningful for POST",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"\nIf-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT   # If-Modified-Since MUST be ignored when If-None-Match present",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-99\nIf-Range: W/\"weaktag\"   # If-Range must not contain a weak entity-tag",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-Range: \"strongtag\"   # missing Range header -> invalid use of If-Range",
             },
         ]

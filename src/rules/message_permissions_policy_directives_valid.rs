@@ -67,8 +67,11 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
         "Validate `Permissions-Policy` HTTP response header directives for correct feature identifiers and member value forms. The header must be a structured-field dictionary (RFC 8941) and each directive must map a feature identifier (alphanumerics and hyphens) to an allowlist value (token `*`, token `self`, a `\"string\"`, or an inner-list `( ... )`). The optional `report-to` parameter (on the member value) must be a quoted-string when present."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[W3C Permissions Policy — Permissions-Policy HTTP header (directive syntax and serialization) §5.2](https://w3c.github.io/webappsec-permissions-policy/#permissions-policy-http-header-field)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[W3C Permissions Policy — Permissions-Policy HTTP header (directive syntax and serialization) §5.2](https://w3c.github.io/webappsec-permissions-policy/#permissions-policy-http-header-field)",
+            "[RFC 8941 — Structured Field Values for HTTP §3–§5 (Items, Lists, Dictionaries)](https://www.rfc-editor.org/rfc/rfc8941.html#section-3)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -76,18 +79,22 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self \"https://example.com\"), fullscreen=(), payment=(\"https://pay.example\") ; report-to=\"endpoint\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation ;  # missing '=value' -> invalid",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nPermissions-Policy: bad_name=(self)  # invalid feature identifier (underscore)",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self);report-to=endpoint  # report-to must be a quoted-string",
             },
         ]

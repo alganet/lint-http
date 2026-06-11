@@ -95,8 +95,10 @@ impl Rule for MessageSecFetchDestValueValid {
         "Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specification: the header value must be a token matching one of the recognized request destinations (e.g., `image`, `document`, `script`, `worker`, `empty`, etc.). Values are compared case-insensitively and token syntax is enforced. Multiple header fields are treated as a violation."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("Fetch Metadata (W3C) — `Sec-Fetch-Dest` header values: https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "Fetch Metadata (W3C) — `Sec-Fetch-Dest` header values: https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -104,18 +106,22 @@ impl Rule for MessageSecFetchDestValueValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /image.png HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: image",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /script.js HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: Script",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /something HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: invalid-dest",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /img HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: image\nSec-Fetch-Dest: script",
             },
         ]

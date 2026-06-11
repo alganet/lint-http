@@ -139,8 +139,11 @@ impl Rule for MessageStructuredHeadersValidity {
         "Validate that specified header fields are valid RFC 8941 Structured Field values (Item, List, or Dictionary). This rule checks for syntactic correctness (tokens, quoted-strings, numbers, booleans, byte-sequences, and simple parameters) and reports malformed header values. It is intentionally conservative and focuses on common syntactic errors."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 8941 — Structured Field Values for HTTP](https://www.rfc-editor.org/rfc/rfc8941.html)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 8941 — Structured Field Values for HTTP](https://www.rfc-editor.org/rfc/rfc8941.html)",
+            "[RFC 8941 §3–§5 — Items, Lists, Dictionaries](https://www.rfc-editor.org/rfc/rfc8941.html#section-3)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -148,10 +151,12 @@ impl Rule for MessageStructuredHeadersValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Priority: u=3, i\nPermissions-Policy: interest-cohort=()\nAccept-Patch: application/json-patch+json\nContent-Digest: sha-256=:BASE64=",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Priority: u=INVALID  # invalid token (structured field tokens cannot start with uppercase)\nPermissions-Policy: bad(token)  # invalid token characters: '(' and ')'\nAccept-Patch: \"unterminated  # unbalanced quoted-string\nContent-Digest: sha-256=:???=  # invalid byte-sequence",
             },
         ]

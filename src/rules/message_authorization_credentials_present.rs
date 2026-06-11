@@ -50,8 +50,12 @@ impl Rule for MessageAuthorizationCredentialsPresent {
         "The `Authorization` request header field MUST include an authentication scheme followed by credentials. This rule flags requests where the header is empty, contains an invalid auth-scheme token, or is missing credentials after the scheme. Ensuring credentials are present helps detect malformed or truncated authorization attempts."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §7.6.2 — Authorization](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §7.6.2 — Authorization](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2)",
+            "[RFC 7617 — Basic Authentication](https://www.rfc-editor.org/rfc/rfc7617.html)",
+            "[RFC 6750 — The OAuth 2.0 Authorization Framework: Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750.html)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -59,18 +63,22 @@ impl Rule for MessageAuthorizationCredentialsPresent {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Bearer abc123",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Digest username=\"Mufasa\", realm=\"test\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Basic",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: B@sic abc",
             },
         ]

@@ -94,12 +94,19 @@ impl Rule for MessageTimingAllowOriginValidity {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Timing-Allow-Origin Header Validity")
+    }
+
     fn description(&self) -> &'static str {
         "Validate the `Timing-Allow-Origin` response header values. The header's value\nmust be `*` (wildcard), `null` (case-insensitive), or one or more serialized\norigins (`scheme://host[:port]`). Multiple header fields are allowed and their\nvalues are combined using HTTP list semantics. This rule detects header values\nthat cannot be decoded as visible US-ASCII, an entirely empty header value, and\ninvalid origin serializations."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[Resource Timing §4.5.1 — `Timing-Allow-Origin` response header](https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[Resource Timing §4.5.1 — `Timing-Allow-Origin` response header](https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin)",
+            "[RFC 6454 — Origin (serialized-origin form)](https://www.rfc-editor.org/rfc/rfc6454.html)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -107,26 +114,32 @@ impl Rule for MessageTimingAllowOriginValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: *",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https://example.com",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https://a, https://b",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https:///foo",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: ",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: \t",
             },
         ]

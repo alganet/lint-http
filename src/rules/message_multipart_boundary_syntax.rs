@@ -50,8 +50,10 @@ impl Rule for MessageMultipartBoundarySyntax {
         "Validate that `Content-Type: multipart/*` includes a required `boundary` parameter and that the boundary value follows the rules in RFC 2046 §5.1.1: the boundary value, after optional quoted-string processing and unescaping, must be between 1 and 70 characters, must not end with whitespace, and must only contain characters from the defined set (letters, digits, and \"'() + _ , - . / : = ?\" and space when quoted)."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 2046 §5.1.1 — Multipart common syntax and boundary parameter](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 2046 §5.1.1 — Multipart common syntax and boundary parameter](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -59,30 +61,37 @@ impl Rule for MessageMultipartBoundarySyntax {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Content-Type: multipart/mixed; boundary=gc0p4Jq0M2Yt08j34c0p",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Content-Type: multipart/mixed; boundary=\"gc0pJq0M:08jU534c0p\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Content-Type: multipart/mixed",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Content-Type: multipart/mixed; boundary=",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Content-Type: multipart/mixed; boundary=\"\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Content-Type: multipart/mixed; boundary=\"abc \"  # must not end in whitespace",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Content-Type: multipart/mixed; boundary=gc0pJq0M:08jU534c0p  # colon must be quoted",
             },
         ]

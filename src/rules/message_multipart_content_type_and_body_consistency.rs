@@ -65,8 +65,10 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
         "When a `Content-Type` header declares `multipart/*` it MUST include a `boundary` parameter and the corresponding message body (when present) MUST use that boundary to delimit parts. This rule verifies that when a `multipart/*` Content-Type provides a boundary and a captured body is available, the body contains at least one boundary marker (`--<boundary>`) and a terminating boundary (`--<boundary>--`). Missing markers indicate a malformed or truncated multipart body and may break message parsing."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 2046 §5.1.1 — Multipart common syntax and the `boundary` parameter](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 2046 §5.1.1 — Multipart common syntax and the `boundary` parameter](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -74,18 +76,22 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Type: multipart/mixed; boundary=abc\n\n--abc\nContent-Type: text/plain\n\nhello\n--abc--",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nContent-Type: multipart/mixed; boundary=\"a b\"\n\n--a b\nContent-Type: text/plain\n\nhello\n--a b--",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(missing boundary)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: multipart/mixed; boundary=abc\n\nno boundaries here",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(missing final boundary)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: multipart/mixed; boundary=abc\n\n--abc\nContent-Type: text/plain\n\nhello\n--abc",
             },
         ]

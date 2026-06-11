@@ -130,12 +130,20 @@ impl Rule for MessageAcceptLanguageWeightValidity {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Accept-Language Weight Validity")
+    }
+
     fn description(&self) -> &'static str {
         "The `Accept-Language` header allows clients to specify languages and optional `q` weights that indicate preference. This rule validates that any parameters in `Accept-Language` members use valid `token` names and that `q` parameters are valid quality values in the range 0..1 with up to three decimal places."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §7.2.5 — Accept-Language](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.5)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §7.2.5 — Accept-Language](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.5)",
+            "[RFC 9110 §12.4.2 — Quality Values (q)](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2)",
+            "[RFC 9110 §5.6.6 — Parameters (token / quoted-string)](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6) The rule follows the same `q`/parameter validation semantics used across other headers in this project (0..1 with up to three decimals for `q`; parameter names must be `token`; parameter values must be `token` or `quoted-string`).",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -143,27 +151,33 @@ impl Rule for MessageAcceptLanguageWeightValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en-US, fr;q=0.8",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: *;q=0.5, en;q=0.7",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;foo=\"a\\\"b\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;q=1.0000",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet:
                     "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;badparam=bad value",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;q=",
             },
         ]

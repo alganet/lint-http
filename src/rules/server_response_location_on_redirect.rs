@@ -50,8 +50,37 @@ impl Rule for ServerResponseLocationOnRedirect {
         "Checks that responses where the semantics call for a `Location` header include one. In particular, a `201 (Created)` response and many redirection responses (300, 301, 302, 303, 307, 308) SHOULD include a `Location` header referring to the created or preferred target resource."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2) — `Location = URI-reference` and semantics for `201` and `3xx` responses.")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2) — `Location = URI-reference` and semantics for `201` and `3xx` responses.",
+            "[RFC 9110 §15.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4) — Redirection status codes and their `Location` semantics.",
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 301 Moved Permanently\nLocation: https://example.org/new",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 201 Created\nLocation: /resource/123",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 301 Moved Permanently\n# missing Location header",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 201 Created\n# missing Location header",
+            },
+        ]
     }
 }
 

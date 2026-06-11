@@ -64,8 +64,11 @@ impl Rule for MessageBearerTokenFormatValidity {
         "Validate `Authorization: Bearer <token>` header values. The Bearer token MUST be present, MUST NOT contain whitespace, and MUST conform to the `token68`-like form used for credential tokens (characters from the set ALPHA / DIGIT / \"-\" / \".\" / \"_\" / \"~\" / \"+\" / \"/\" followed by optional trailing `=` padding). Malformed Bearer tokens can lead to authentication failures or token parsing issues."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 6750 — The OAuth 2.0 Authorization Framework: Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750.html)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 6750 — The OAuth 2.0 Authorization Framework: Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750.html)",
+            "[RFC 7235 §2.1 — token68 syntax used for credentials](https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -73,14 +76,17 @@ impl Rule for MessageBearerTokenFormatValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET / HTTP/1.1\nAuthorization: Bearer abc123",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(whitespace in token)"),
                 snippet: "GET / HTTP/1.1\nAuthorization: Bearer a b",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(invalid character `@`)"),
                 snippet: "GET / HTTP/1.1\nAuthorization: Bearer a@b",
             },
         ]

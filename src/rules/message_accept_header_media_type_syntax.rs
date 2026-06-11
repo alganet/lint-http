@@ -189,8 +189,10 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
         "Validate `Accept` header media-range syntax. Each member must be a valid media-range (`type/subtype`, `type/*`, or `*/*`), and parameters must be well-formed (`name=value`). The `q` parameter must be a valid quality value (0.000–1.000 with up to three decimal places). This rule is conservative and focuses on syntactic correctness rather than semantic content negotiation."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §7.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1) — Accept header field and media-range syntax")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §7.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1) — Accept header field and media-range syntax",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -198,10 +200,12 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Accept: text/html\nAccept: application/json; charset=utf-8\nAccept: text/*;q=0.8, application/json;q=0.9\nAccept: */*;q=0.1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Accept: *\nAccept: text; q=0.8\nAccept: text/html; q=1.0000\nAccept: application/json; charset=bad\\x01",
             },
         ]

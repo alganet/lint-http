@@ -48,8 +48,10 @@ impl Rule for MessageConnectionUpgrade {
         "If the `Connection` header nominates the `upgrade` token (for example, `Connection: upgrade` or `Connection: keep-alive, upgrade`), an `Upgrade` header field MUST be present. This rule flags messages that indicate a protocol upgrade in `Connection` but do not carry an `Upgrade` header.\n\nMissing the `Upgrade` header while advertising `upgrade` in `Connection` can cause endpoints to misinterpret upgrade intentions and lead to protocol errors."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade header")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade header",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -57,10 +59,12 @@ impl Rule for MessageConnectionUpgrade {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Connection: upgrade\nUpgrade: websocket",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Connection: upgrade\n# Missing Upgrade header",
             },
         ]

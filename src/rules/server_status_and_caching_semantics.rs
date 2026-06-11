@@ -84,12 +84,18 @@ impl Rule for ServerStatusAndCachingSemantics {
         })
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Status and Caching Semantics")
+    }
+
     fn description(&self) -> &'static str {
         "Responses with certain status codes are cacheable by default (for example: `200`, `203`, `204`, `206`, `300`, `301`, `404`, `405`, `410`, `414`, `501`). For other status codes to be cacheable, servers MUST include explicit freshness information such as `Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header.\n\nThis rule warns when a response status that is not cacheable by default does not include explicit freshness information."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3) — HTTP Caching (which response status codes are cacheable by default and how freshness is established)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3) — HTTP Caching (which response status codes are cacheable by default and how freshness is established)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -97,15 +103,18 @@ impl Rule for ServerStatusAndCachingSemantics {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet:
                     "HTTP/1.1 302 Found\nCache-Control: max-age=60\nLocation: https://example.org/",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 503 Service Unavailable\nExpires: Wed, 21 Oct 2015 07:28:00 GMT",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 302 Found\nLocation: https://example.org/",
             },
         ]

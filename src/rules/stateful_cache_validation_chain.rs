@@ -178,8 +178,12 @@ impl Rule for StatefulCacheValidationChain {
         "Caches must validate stored responses using up-to-date validators.  When a server supplies an `ETag` or `Last-Modified` header, a well-behaved cache will include that validator in subsequent conditional requests (`If-None-Match` or `If-Modified-Since`).  The value in those request headers should match the most recently observed validator for the resource; if it does not, revalidation may fail and clients can receive stale or unexpected content.\n\nThis rule applies weak comparison semantics for entity-tags, meaning a weak ETag (`W/\"tag\"`) is considered equivalent to its strong counterpart when the opaque tag matches.\n\nThis rule examines the recorded history for the same client+resource and recomputes the current validator, taking into account updates that may arrive in `304 Not Modified` responses.  If the current request contains a conditional header whose value does not match the known validator, a violation is raised.  The rule ignores requests that are not conditional and situations where no validator was ever seen."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9111 §4.3 \"Caching Negotiated Responses\" (validator semantics)](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9111 §4.3 \"Caching Negotiated Responses\" (validator semantics)](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3)",
+            "[RFC 9110 §13.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2) (If-None-Match)",
+            "[RFC 9110 §13.1.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3) (If-Modified-Since)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -187,18 +191,22 @@ impl Rule for StatefulCacheValidationChain {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("Sequence"),
                 snippet: "HTTP/1.1 200 OK\nETag: \"abc\"",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("Sequence"),
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("Request"),
                 snippet: "HTTP/1.1 304 Not Modified\nETag: \"xyz\"  # validator updated by 304\n\nHTTP/1.1 200 OK\nETag: \"abc\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("Request"),
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"",
             },
         ]

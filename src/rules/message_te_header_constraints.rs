@@ -168,10 +168,11 @@ impl Rule for MessageTeHeaderConstraints {
         "Validate the `TE` request header for syntax and usage:\n\n- Each member must be either the literal `trailers` or a transfer-coding token with optional parameters.\n- `q` (quality) parameter, if present, must be a valid qvalue between `0` and `1` with up to three decimals (e.g., `0.8`, `0.123`, `1.0`).\n- Parameter values must be a `token` or a `quoted-string`.\n- If a request includes a `TE` header, the `Connection` header MUST include the `TE` token.\n- `TE` MUST NOT appear in responses."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some(
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
             "[RFC 9110 §10.1.4](https://www.rfc-editor.org/rfc/rfc9110#section-10.1.4) — TE header",
-        )
+            "[RFC 9110 §6.5.1](https://www.rfc-editor.org/rfc/rfc9110#section-6.5.1) — Limitations on trailers",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -179,22 +180,27 @@ impl Rule for MessageTeHeaderConstraints {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nConnection: TE\nTE: trailers",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(chunked listed in TE with quality)"),
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nConnection: keep-alive, TE\nTE: chunked;q=0.8",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(TE without Connection: TE)"),
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nTE: chunked;q=0.8",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(invalid token)"),
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nConnection: TE\nTE: x!bad",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(TE in response)"),
                 snippet: "HTTP/1.1 200 OK\nTE: trailers",
             },
         ]

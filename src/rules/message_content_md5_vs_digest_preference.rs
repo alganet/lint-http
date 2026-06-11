@@ -57,8 +57,11 @@ impl Rule for MessageContentMd5VsDigestPreference {
         "If both legacy `Content-MD5` and modern `Content-Digest` are present in the same message, prefer validating and using `Content-Digest`. `Content-MD5` is deprecated by newer specifications (see RFC 9530) and may not carry the same algorithm flexibility or security guarantees.\n\nThis rule flags messages (requests or responses) that include both `Content-Digest` (RFC 9530 structured digest) and the legacy `Content-MD5` header. When both are present, `Content-Digest` should be preferred for integrity validation and `Content-MD5` should be avoided because it is deprecated."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9530 §2–§4 — Content-Digest and related structured fields](https://www.rfc-editor.org/rfc/rfc9530.html)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9530 §2–§4 — Content-Digest and related structured fields](https://www.rfc-editor.org/rfc/rfc9530.html)",
+            "[RFC 7231 §3.3.2 — Content-MD5 (historical reference)](https://www.rfc-editor.org/rfc/rfc7231.html#section-3.3.2)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -66,10 +69,12 @@ impl Rule for MessageContentMd5VsDigestPreference {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "Content-Digest: sha-256=\":dGVzdA==:\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "Content-Digest: sha-256=\":dGVzdA==:\"\nContent-MD5: dGVzdA==",
             },
         ]

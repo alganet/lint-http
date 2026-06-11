@@ -94,12 +94,20 @@ impl Rule for MessageAccessControlAllowCredentialsWhenOrigin {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Access-Control Allow Credentials When Origin")
+    }
+
     fn description(&self) -> &'static str {
         "This rule checks Cross-Origin Resource Sharing (CORS) response headers to ensure that `Access-Control-Allow-Credentials` is **not** set to `true` when `Access-Control-Allow-Origin` is `*` (wildcard). Allowing credentials with a wildcard origin is insecure and disallowed by the CORS model."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("MDN: Access-Control-Allow-Credentials — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "MDN: Access-Control-Allow-Credentials — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials",
+            "MDN: Access-Control-Allow-Origin — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin",
+            "Fetch Standard: Access-Control-Allow-Credentials — https://fetch.spec.whatwg.org/#http-access-control-allow-credentials",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -107,14 +115,17 @@ impl Rule for MessageAccessControlAllowCredentialsWhenOrigin {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.com\nAccess-Control-Allow-Credentials: true",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: Some("(no credentials)"),
                 snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: Some("(wildcard with credentials)"),
                 snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *\nAccess-Control-Allow-Credentials: true",
             },
         ]

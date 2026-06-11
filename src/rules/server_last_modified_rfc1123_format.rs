@@ -46,12 +46,18 @@ impl Rule for ServerLastModifiedRfc1123Format {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Last-Modified RFC 1123 Format")
+    }
+
     fn description(&self) -> &'static str {
         "Verifies that the `Last-Modified` header (when present) uses the IMF-fixdate format (a.k.a. RFC 1123 date) as required by HTTP date formatting rules."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §5.6.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7): Date/Time Formats")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §5.6.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7): Date/Time Formats",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -59,10 +65,12 @@ impl Rule for ServerLastModifiedRfc1123Format {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\nContent-Type: text/plain\n\nHello",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nLast-Modified: 2015-10-21T07:28:00Z\nContent-Type: text/plain\n\nHello",
             },
         ]

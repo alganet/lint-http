@@ -108,8 +108,11 @@ impl Rule for MessageTrailerHeadersValid {
         "Validate `Trailer` header members are syntactically valid header field-names and do not nominate hop-by-hop headers. Trailer members must be `token`-formatted header field-names and MUST NOT be hop-by-hop headers such as `Connection`, `Keep-Alive`, `Proxy-Authenticate`, `Proxy-Authorization`, `TE`, `Trailer`, `Transfer-Encoding`, or `Upgrade`. When a header is nominated via `Connection`, it is considered hop-by-hop and therefore not appropriate as a trailer member."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 7230 §4.1.2 — Connection header and hop-by-hop semantics](https://www.rfc-editor.org/rfc/rfc7230.html#section-4.1.2)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 7230 §4.1.2 — Connection header and hop-by-hop semantics](https://www.rfc-editor.org/rfc/rfc7230.html#section-4.1.2)",
+            "[RFC 7230 §6.1 — Message framing and trailer fields](https://www.rfc-editor.org/rfc/rfc7230.html#section-6.1)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -117,14 +120,17 @@ impl Rule for MessageTrailerHeadersValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nTrailer: ETag, Expires\n\n<response body>",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nTrailer: Connection\n\n<response body>",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "HTTP/1.1 200 OK\nConnection: Keep-Alive\nTrailer: Keep-Alive\n\n<response body>",
             },
         ]

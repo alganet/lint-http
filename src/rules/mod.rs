@@ -51,6 +51,11 @@ pub enum Compliance {
 #[derive(Copy, Clone, Debug)]
 pub struct Example {
     pub compliance: Compliance,
+    /// Optional heading suffix, rendered after `Good`/`Bad` in the doc
+    /// subheading (e.g. `Some("Response")` → `### ✅ Good Response`,
+    /// `Some("(invalid percent-encoding)")` → `### ❌ Bad (invalid
+    /// percent-encoding)`). `None` renders a bare `### ✅ Good` / `### ❌ Bad`.
+    pub label: Option<&'static str>,
     pub snippet: &'static str,
 }
 
@@ -90,6 +95,14 @@ pub trait Rule: Send + Sync {
         cfg: &crate::config::Config,
     ) -> Option<Violation>;
 
+    /// Doc title override (the `# ` heading of the generated per-rule doc).
+    /// Defaults to `None`, which makes the generator derive the title from the
+    /// rule id. Rules override this only when the desired title differs from
+    /// the derived form (e.g. to preserve header casing like `Accept-Encoding`).
+    fn title(&self) -> Option<&'static str> {
+        None
+    }
+
     /// Human-readable summary of what this rule checks and why it matters.
     /// Renders as the "Description" section of the generated per-rule doc.
     /// Empty by default; rules override it with content sourced from
@@ -98,10 +111,12 @@ pub trait Rule: Send + Sync {
         ""
     }
 
-    /// Canonical specification reference (e.g. "RFC 9110 §5.2"), if any.
-    /// Renders into the "Specifications" section of the generated doc.
-    fn rfc_reference(&self) -> Option<&'static str> {
-        None
+    /// Canonical specification references (e.g. "RFC 9110 §5.2"), one per
+    /// bullet. Each entry is a full markdown bullet body (link + text, no
+    /// leading `- `). Renders into the "Specifications" section of the
+    /// generated doc; empty by default.
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[]
     }
 
     /// Compliant / non-compliant traffic examples for the generated doc's
@@ -272,6 +287,12 @@ pub trait ProtocolRule: Send + Sync {
         cfg: &crate::config::Config,
     ) -> Option<Violation>;
 
+    /// Doc title override (the `# ` heading of the generated per-rule doc).
+    /// See [`Rule::title`] for the contract.
+    fn title(&self) -> Option<&'static str> {
+        None
+    }
+
     /// Human-readable summary of what this rule checks and why it matters.
     /// Renders as the "Description" section of the generated per-rule doc.
     /// Empty by default; rules override it with content sourced from
@@ -280,10 +301,12 @@ pub trait ProtocolRule: Send + Sync {
         ""
     }
 
-    /// Canonical specification reference (e.g. "RFC 9000 §18.2"), if any.
-    /// Renders into the "Specifications" section of the generated doc.
-    fn rfc_reference(&self) -> Option<&'static str> {
-        None
+    /// Canonical specification references (e.g. "RFC 9000 §18.2"), one per
+    /// bullet. Each entry is a full markdown bullet body (link + text, no
+    /// leading `- `). Renders into the "Specifications" section of the
+    /// generated doc; empty by default.
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[]
     }
 
     /// Compliant / non-compliant traffic examples for the generated doc's
@@ -538,11 +561,12 @@ mod tests {
                 r.id()
             );
             assert!(
-                r.rfc_reference().is_some(),
-                "{} missing rfc_reference",
+                !r.rfc_references().is_empty(),
+                "{} missing rfc_references",
                 r.id()
             );
             let _ = r.examples();
+            let _ = r.title();
         }
         for r in PROTOCOL_RULES.iter() {
             assert!(
@@ -551,11 +575,12 @@ mod tests {
                 r.id()
             );
             assert!(
-                r.rfc_reference().is_some(),
-                "{} missing rfc_reference",
+                !r.rfc_references().is_empty(),
+                "{} missing rfc_references",
                 r.id()
             );
             let _ = r.examples();
+            let _ = r.title();
         }
     }
 

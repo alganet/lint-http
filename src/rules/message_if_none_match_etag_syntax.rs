@@ -65,12 +65,19 @@ impl Rule for MessageIfNoneMatchEtagSyntax {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("If-None-Match ETag Syntax")
+    }
+
     fn description(&self) -> &'static str {
         "`If-None-Match` headers must be either `*` or a comma-separated list of entity-tags. Entity-tags follow the grammar in RFC 9110 §7.6 and may be weak (prefix `W/`). This rule validates the basic syntax (quoting, escaping, and prohibition of control characters)."
     }
 
-    fn rfc_reference(&self) -> Option<&'static str> {
-        Some("[RFC 9110 §7.6 — ETag header field](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6)")
+    fn rfc_references(&self) -> &'static [&'static str] {
+        &[
+            "[RFC 9110 §7.6 — ETag header field](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6)",
+            "[RFC 9110 §7.8.4 — If-None-Match](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.4)",
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -78,26 +85,32 @@ impl Rule for MessageIfNoneMatchEtagSyntax {
         &[
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc123\"",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: W/\"weaktag\", \"strong\"",
             },
             Example {
                 compliance: Compliance::Compliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: *",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: abc123   # missing quotes",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: W/abc    # missing quoted-string after W/",
             },
             Example {
                 compliance: Compliance::NonCompliant,
+                label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"unterminated",
             },
         ]
