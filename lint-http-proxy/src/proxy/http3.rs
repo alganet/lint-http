@@ -5,8 +5,7 @@
 //! HTTP/3 (QUIC) accept loop and per-stream request handling.
 
 use bytes::Bytes;
-use http_body_util::Full;
-use hyper::{Request, Response, Uri};
+use hyper::{Response, Uri};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::time::Instant;
@@ -14,10 +13,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, trace, warn};
 
 use crate::ca::CertificateAuthority;
-use crate::capture::CaptureWriter;
 
 use super::connect::AlwaysResolves;
-use super::hop_by_hop::{format_http_version, is_hop_by_hop_header, parse_connection_tokens};
+use super::exchange::{exchange, record_error_transaction, ProxiedRequest};
 use super::Shared;
 
 /// QUIC transport parameter defaults for the HTTP/3 proxy.
@@ -304,17 +302,18 @@ async fn handle_h3_request(
             max_body_bytes
         );
         let duration = started.elapsed().as_millis() as u64;
-        record_h3_error(
+        record_error_transaction(
             &shared.captures,
             &client_id,
             method.as_str(),
             &uri_str,
             &req_headers,
-            None,
+            "HTTP/3",
             413,
             None,
             duration,
-            &conn_metadata,
+            None,
+            conn_metadata.id,
             stream_id as u32,
             true,
             false,
@@ -339,7 +338,8 @@ async fn handle_h3_request(
         }
     };
 
-    // Build the upstream URI
+    // Build the upstream URI from the :authority pseudo-header (falling back to
+    // Host), defaulting to HTTPS since HTTP/3 is always over TLS.
     let uri = {
         let scheme = req
             .uri()
@@ -366,215 +366,30 @@ async fn handle_h3_request(
             .unwrap_or_else(|_| Uri::from_static("https://localhost/"))
     };
 
-    // Build upstream request (forwarded over TCP via the existing hyper client)
-    let mut builder = Request::builder().method(method.clone()).uri(uri.clone());
-    for (name, value) in req_headers.iter() {
-        if !shared
-            .cfg
-            .tls
-            .suppress_headers
-            .iter()
-            .any(|h| h.eq_ignore_ascii_case(name.as_str()))
-        {
-            builder = builder.header(name, value);
-        }
-    }
-
-    let upstream_req = builder.body(Full::new(req_body_bytes.clone()))?;
-
-    /// Record a minimal error transaction on the H3 path (mirrors TCP path's
-    /// `build_and_write_transaction`).
-    #[allow(clippy::too_many_arguments)]
-    async fn record_h3_error(
-        captures: &CaptureWriter,
-        client_id: &crate::state::ClientIdentifier,
-        method: &str,
-        uri_str: &str,
-        req_headers: &hyper::HeaderMap,
-        req_body: Option<&Bytes>,
-        status: u16,
-        resp_headers: Option<&hyper::HeaderMap>,
-        duration_ms: u64,
-        conn_metadata: &crate::connection::ConnectionMetadata,
-        sequence_number: u32,
-        request_body_over_limit: bool,
-        response_body_over_limit: bool,
-    ) {
-        let mut tx = crate::http_transaction::HttpTransaction::new(
-            client_id.clone(),
-            method.to_string(),
-            uri_str.to_string(),
-        );
-        tx.request.headers = req_headers.clone();
-        tx.request.version = "HTTP/3".to_string();
-        if let Some(b) = req_body {
-            tx.request.body_length = Some(b.len() as u64);
-            tx.request_body = Some(b.clone());
-        }
-        tx.request_body_over_limit = request_body_over_limit;
-        tx.response_body_over_limit = response_body_over_limit;
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status,
-            version: "HTTP/3".into(),
-            headers: resp_headers.cloned().unwrap_or_default(),
-            body_length: None,
-            trailers: None,
-        });
-        tx.timing = crate::http_transaction::TimingInfo { duration_ms };
-        tx.connection_id = Some(conn_metadata.id);
-        tx.sequence_number = Some(sequence_number);
-        if let Err(e) = captures.write_transaction(tx).await {
-            warn!(error = %e, "failed to write transaction capture");
-        }
-    }
-
-    let resp = match shared.client.request(upstream_req).await {
-        Ok(r) => r,
-        Err(e) => {
-            error!("HTTP/3 upstream error: {}", e);
-            let duration = started.elapsed().as_millis() as u64;
-            record_h3_error(
-                &shared.captures,
-                &client_id,
-                method.as_str(),
-                &uri_str,
-                &req_headers,
-                Some(&req_body_bytes),
-                502,
-                None,
-                duration,
-                &conn_metadata,
-                stream_id as u32,
-                false,
-                false,
-            )
-            .await;
-            let resp = Response::builder().status(502).body(()).unwrap();
-            stream.send_response(resp).await?;
-            stream
-                .send_data(Bytes::from(format!("upstream error: {}", e)))
-                .await?;
-            stream.finish().await?;
-            return Ok(());
-        }
+    // Run the shared exchange core (forward, collect, lint, capture).
+    let pr = ProxiedRequest {
+        method,
+        uri,
+        uri_str,
+        headers: req_headers,
+        version: "HTTP/3".to_string(),
+        body: req_body_bytes,
+        trailers: req_trailers,
+        client_id,
+        connection_id: conn_metadata.id,
+        sequence_number: stream_id as u32,
     };
+    let proxied = exchange(pr, &shared, started).await;
 
-    let status = resp.status().as_u16();
-    let resp_headers = resp.headers().clone();
-    let resp_ver = format_http_version(resp.version());
-
-    // Collect response body and trailers (matching TCP path), bounded by
-    // max_body_bytes.
-    let (resp_body_bytes, resp_trailers) =
-        match super::body::collect_limited(resp.into_body(), max_body_bytes).await {
-            Ok((bytes, trailers)) => (bytes, trailers),
-            Err(super::body::CollectLimitedError::OverLimit) => {
-                warn!(
-                    "HTTP/3 upstream response body exceeds max_body_bytes ({})",
-                    max_body_bytes
-                );
-                let duration = started.elapsed().as_millis() as u64;
-                // Record the upstream's real status and headers; the
-                // over-limit marker explains the missing body.
-                record_h3_error(
-                    &shared.captures,
-                    &client_id,
-                    method.as_str(),
-                    &uri_str,
-                    &req_headers,
-                    Some(&req_body_bytes),
-                    status,
-                    Some(&resp_headers),
-                    duration,
-                    &conn_metadata,
-                    stream_id as u32,
-                    false,
-                    true,
-                )
-                .await;
-                let resp = Response::builder().status(502).body(()).unwrap();
-                stream.send_response(resp).await?;
-                stream
-                    .send_data(Bytes::from("upstream response exceeds max_body_bytes"))
-                    .await?;
-                stream.finish().await?;
-                return Ok(());
-            }
-            Err(super::body::CollectLimitedError::Other(e)) => {
-                error!("HTTP/3 upstream body collect error: {}", e);
-                let duration = started.elapsed().as_millis() as u64;
-                record_h3_error(
-                    &shared.captures,
-                    &client_id,
-                    method.as_str(),
-                    &uri_str,
-                    &req_headers,
-                    Some(&req_body_bytes),
-                    502,
-                    None,
-                    duration,
-                    &conn_metadata,
-                    stream_id as u32,
-                    false,
-                    false,
-                )
-                .await;
-                let resp = Response::builder().status(502).body(()).unwrap();
-                stream.send_response(resp).await?;
-                stream
-                    .send_data(Bytes::from(format!("upstream body error: {}", e)))
-                    .await?;
-                stream.finish().await?;
-                return Ok(());
-            }
-        };
-
-    let duration = started.elapsed().as_millis() as u64;
-
-    // Build transaction for linting and capture
-    let mut tx = crate::http_transaction::HttpTransaction::new(
-        client_id.clone(),
-        method.as_str().to_string(),
-        uri_str.clone(),
-    );
-    tx.request.headers = req_headers.clone();
-    tx.request.version = "HTTP/3".to_string();
-    tx.request.body_length = Some(req_body_bytes.len() as u64);
-    tx.request.trailers = req_trailers;
-    tx.request_body = Some(req_body_bytes);
-
-    tx.response = Some(crate::http_transaction::ResponseInfo {
-        status,
-        version: resp_ver,
-        headers: resp_headers.clone(),
-        body_length: Some(resp_body_bytes.len() as u64),
-        trailers: resp_trailers,
-    });
-    tx.response_body = Some(resp_body_bytes.clone());
-    tx.timing = crate::http_transaction::TimingInfo {
-        duration_ms: duration,
-    };
-    tx.connection_id = Some(conn_metadata.id);
-    tx.sequence_number = Some(stream_id as u32);
-
-    shared.pipeline().commit(tx).await;
-
-    // Send the response back over HTTP/3.
-    // HTTP/3 has no hop-by-hop headers (RFC 9114 §4.2), but the upstream
-    // response arrives via TCP and may contain them, so we still strip them.
-    let mut resp_builder = Response::builder().status(status);
-    let connection_hop_headers =
-        parse_connection_tokens(resp_headers.get(hyper::header::CONNECTION));
-    for (name, value) in resp_headers.iter() {
-        let name_str = name.as_str().to_ascii_lowercase();
-        if is_hop_by_hop_header(&name_str, &connection_hop_headers) {
-            continue;
-        }
+    // Send the response back over HTTP/3. Headers are already hop-by-hop
+    // filtered by the exchange core.
+    let mut resp_builder = Response::builder().status(proxied.status);
+    for (name, value) in proxied.headers.iter() {
         resp_builder = resp_builder.header(name, value);
     }
     let h3_resp = resp_builder.body(()).unwrap();
     stream.send_response(h3_resp).await?;
-    stream.send_data(resp_body_bytes).await?;
+    stream.send_data(proxied.body).await?;
     stream.finish().await?;
 
     Ok(())
