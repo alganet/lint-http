@@ -408,7 +408,7 @@ async fn relay_websocket(
         Err(arc) => arc.lock().await.clone(),
     };
 
-    if let Err(e) = captures.write_websocket_session(&session).await {
+    if let Err(e) = captures.write_websocket_session(session).await {
         error!("failed to write websocket session: {}", e);
     }
 }
@@ -679,8 +679,7 @@ mod tests {
             .expect("relay panicked");
 
         // Flush captures
-        drop(cw);
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        cw.flush().await?;
 
         // Read the capture file and verify the WebSocket session was written
         let content = tokio::fs::read_to_string(&p).await?;
@@ -917,6 +916,7 @@ mod tests {
 
         // The capture keeps the upstream's real status; the marker explains
         // the missing body.
+        _cw.flush().await?;
         let content = tokio::fs::read_to_string(&tmp).await?;
         let v: serde_json::Value = serde_json::from_str(content.trim())?;
         assert_eq!(v["response"]["status"].as_u64(), Some(400));
@@ -1005,8 +1005,7 @@ mod tests {
             .expect("relay did not finish")
             .expect("relay panicked");
 
-        drop(cw);
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        cw.flush().await?;
 
         let content = tokio::fs::read_to_string(&p).await?;
         let session: serde_json::Value = serde_json::from_str(content.trim())?;
@@ -1055,8 +1054,7 @@ mod tests {
             .expect("relay did not finish")
             .expect("relay panicked");
 
-        drop(cw);
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        cw.flush().await?;
 
         // Should still write a session record (with empty messages)
         let content = tokio::fs::read_to_string(&p).await?;
@@ -1274,8 +1272,7 @@ mod tests {
             .expect("relay did not finish")
             .expect("relay panicked");
 
-        drop(cw);
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        cw.flush().await?;
 
         let content = tokio::fs::read_to_string(&p).await?;
         let session: serde_json::Value = serde_json::from_str(content.trim())?;

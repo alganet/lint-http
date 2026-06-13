@@ -147,7 +147,7 @@ async fn build_and_write_transaction(
         trailers: None,
     });
     tx.timing = crate::http_transaction::TimingInfo { duration_ms };
-    if let Err(e) = captures.write_transaction(&tx).await {
+    if let Err(e) = captures.write_transaction(tx).await {
         warn!(error = %e, "failed to write transaction capture");
     }
 }
@@ -541,6 +541,7 @@ mod tests {
         .await?;
         assert_eq!(resp.status().as_u16(), 200);
 
+        _cw.flush().await?;
         let entries = read_capture(&tmp).await?;
         let v = &entries[0];
         assert_eq!(v["response"]["status"].as_u64(), Some(200));
@@ -574,6 +575,7 @@ mod tests {
         .await?;
         assert_eq!(resp.status().as_u16(), 502);
 
+        _cw.flush().await?;
         let s = fs::read_to_string(&tmp).await?;
         let v: serde_json::Value = serde_json::from_str(s.trim())?;
         assert_eq!(v["response"]["status"].as_u64(), Some(502));
@@ -612,6 +614,7 @@ mod tests {
         .await?;
         assert_eq!(resp.status().as_u16(), 200);
 
+        _cw.flush().await?;
         let s = fs::read_to_string(&tmp).await?;
         let v: serde_json::Value = serde_json::from_str(s.trim())?;
         assert_eq!(v["response"]["status"].as_u64(), Some(200));
@@ -659,6 +662,7 @@ mod tests {
         .await?;
         assert_eq!(resp.status().as_u16(), 200);
 
+        _cw.flush().await?;
         let s = fs::read_to_string(&tmp).await?;
         let v: serde_json::Value = serde_json::from_str(s.trim())?;
         assert_eq!(v["response"]["status"].as_u64(), Some(200));
@@ -926,6 +930,7 @@ mod tests {
         .await?;
         assert_eq!(resp.status().as_u16(), 413);
 
+        _cw.flush().await?;
         let entries = read_capture(&tmp).await?;
         let v = &entries[0];
         assert_eq!(v["response"]["status"].as_u64(), Some(413));
@@ -970,6 +975,7 @@ mod tests {
 
         // The capture records the upstream's real status and headers; only the
         // marker explains the missing body.
+        _cw.flush().await?;
         let entries = read_capture(&tmp).await?;
         let v = &entries[0];
         assert_eq!(v["response"]["status"].as_u64(), Some(200));
@@ -1007,6 +1013,7 @@ mod tests {
         .await?;
         assert_eq!(resp.status().as_u16(), 200);
 
+        _cw.flush().await?;
         let entries = read_capture(&tmp).await?;
         let v = &entries[0];
         assert_eq!(v["response"]["body_length"].as_u64(), Some(8));
@@ -1058,6 +1065,7 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests[0].headers.get("user-agent").is_none());
 
+        _cw.flush().await?;
         let entries = read_capture(&tmp).await?;
         let v = &entries[0];
         // The capture still records the original request headers (suppression only affects upstream)
@@ -1129,6 +1137,7 @@ mod tests {
         }
 
         // Read the capture file and ensure there is at least one violation recorded among the JSONL entries
+        _cw.flush().await?;
         let s = tokio::fs::read_to_string(&tmp).await?;
         let mut found_violation = false;
         for line in s.lines() {
@@ -1298,6 +1307,7 @@ mod tests {
         // Give the relay task time to start and check captures
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
+        _cw.flush().await?;
         let content = tokio::fs::read_to_string(&tmp).await?;
         assert!(!content.is_empty());
         // The 101 transaction should be recorded
@@ -1366,6 +1376,7 @@ mod tests {
         );
         assert!(resp.headers().get("connection").is_some());
 
+        _cw.flush().await?;
         let content = tokio::fs::read_to_string(&tmp).await?;
         let v: serde_json::Value = serde_json::from_str(content.lines().next().unwrap())?;
         assert_eq!(v["was_upgraded"].as_bool(), Some(true));

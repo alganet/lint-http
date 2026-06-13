@@ -403,7 +403,7 @@ async fn handle_h3_request(
         tx.timing = crate::http_transaction::TimingInfo { duration_ms };
         tx.connection_id = Some(conn_metadata.id);
         tx.sequence_number = Some(sequence_number);
-        if let Err(e) = captures.write_transaction(&tx).await {
+        if let Err(e) = captures.write_transaction(tx).await {
             warn!(error = %e, "failed to write transaction capture");
         }
     }
@@ -633,6 +633,7 @@ mod tests {
         .await?;
         assert_eq!(resp.status().as_u16(), 200);
 
+        _cw.flush().await?;
         let entries = read_capture(&tmp).await?;
         assert!(!entries.is_empty());
 
