@@ -7,9 +7,12 @@
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::fs::OpenOptions;
-use tokio::io::AsyncWriteExt;
-use tokio::sync::Mutex;
+use tokio::io::{AsyncWriteExt, BufWriter};
+use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::task::JoinHandle;
+use tracing::warn;
 
 /// Version of the on-disk JSONL capture schema. Bump on any incompatible
 /// change to a record's shape so readers can migrate or reject older files.
@@ -47,122 +50,259 @@ impl CaptureEnvelope {
     }
 }
 
+/// Depth of the bounded channel feeding the background writer task. When the
+/// channel is full, `send().await` applies backpressure to the caller rather
+/// than dropping a record — captures stay a complete record of proxy traffic.
+const CAPTURE_CHANNEL_CAPACITY: usize = 1024;
+
+/// `BufWriter` capacity. Within a drained batch, records accumulate in this
+/// buffer and spill to the OS as it fills, so memory stays bounded even under a
+/// burst larger than the buffer.
+const WRITE_BUFFER_BYTES: usize = 64 * 1024;
+
+/// A message to the background writer task.
+enum CaptureMsg {
+    /// Serialize and append a record.
+    Record(CaptureEnvelope),
+    /// Flush + fsync everything written so far, then acknowledge.
+    Flush(oneshot::Sender<()>),
+    /// Drain the queue, flush + fsync, acknowledge, then stop the task.
+    Shutdown(oneshot::Sender<()>),
+}
+
+/// Appends capture records to a JSONL file from a single background task.
+///
+/// Cloning is cheap: every clone shares the one channel and writer task, so the
+/// global append order is preserved by the single consumer — without a
+/// per-write mutex or an fsync on the request hot path. [`Self::flush`] forces
+/// a durable flush (used by tests and, later, the live-stream seam);
+/// [`Self::shutdown`] drains and joins the task (used by graceful shutdown).
 #[derive(Clone)]
 pub struct CaptureWriter {
-    file: ArcFile,
-    /// Whether to include captured bodies in the serialized output
-    pub include_body: bool,
-}
-
-#[derive(Clone)]
-struct ArcFile {
-    inner: std::sync::Arc<Mutex<tokio::fs::File>>,
-}
-
-impl ArcFile {
-    async fn new(path: &str) -> anyhow::Result<Self> {
-        let f = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-            .await?;
-        Ok(Self {
-            inner: std::sync::Arc::new(Mutex::new(f)),
-        })
-    }
-
-    async fn write_line(&self, line: &str) -> anyhow::Result<()> {
-        let mut file = self.inner.lock().await;
-        file.write_all(line.as_bytes()).await?;
-        file.write_all(b"\n").await?;
-        file.flush().await?;
-        Ok(())
-    }
+    tx: mpsc::Sender<CaptureMsg>,
+    /// Shared so any clone can join the task on shutdown: the first caller
+    /// takes the handle, later callers find `None` and no-op.
+    join: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
 impl CaptureWriter {
     pub async fn new<P: Into<PathBuf>>(path: P, include_body: bool) -> anyhow::Result<Self> {
-        let path: PathBuf = path.into();
-        let p = path.to_string_lossy().to_string();
-        let file = ArcFile::new(&p).await?;
-        Ok(Self { file, include_body })
+        // Open before spawning so path errors (e.g. a directory) surface here
+        // to the caller rather than only inside the background task.
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path.into())
+            .await?;
+        let (tx, rx) = mpsc::channel(CAPTURE_CHANNEL_CAPACITY);
+        let join = tokio::spawn(writer_task(file, rx, include_body));
+        Ok(Self {
+            tx,
+            join: Arc::new(Mutex::new(Some(join))),
+        })
     }
 
-    /// Write a transaction to the JSONL file
+    /// Queue a transaction for the writer task. Returns `Err` only if the task
+    /// is gone (e.g. after [`Self::shutdown`]); serialization and IO errors are
+    /// logged in the task, not returned here.
     pub async fn write_transaction(
         &self,
-        tx: &crate::http_transaction::HttpTransaction,
+        tx: crate::http_transaction::HttpTransaction,
     ) -> anyhow::Result<()> {
-        // Wrap in the versioned, tagged envelope. Internal tagging + flatten
-        // keep `request`/`response` at the top level, so the body-injection
-        // below still targets them directly.
-        let envelope = CaptureEnvelope::new(CaptureRecord::HttpTransaction(Box::new(tx.clone())));
-        let mut v = serde_json::to_value(&envelope)?;
+        let envelope = CaptureEnvelope::new(CaptureRecord::HttpTransaction(Box::new(tx)));
+        self.tx
+            .send(CaptureMsg::Record(envelope))
+            .await
+            .map_err(|_| anyhow::anyhow!("capture writer task is gone"))
+    }
 
-        if self.include_body {
-            if let Some(obj) = v.as_object_mut() {
-                // request body: if present as skipped field it won't be in `v` by default
-                if let Some(req_obj) = obj.get_mut("request").and_then(|r| r.as_object_mut()) {
-                    // If original transaction had a body (it is skipped by default),
-                    // try to fetch it directly from the original `tx` and insert as base64
-                    if let Some(b) = &tx.request_body {
-                        req_obj.insert(
-                            "body".to_string(),
-                            serde_json::Value::String(
-                                base64::engine::general_purpose::STANDARD.encode(b),
-                            ),
-                        );
-                    }
+    /// Queue a WebSocket session record for the writer task. Returns `Err` only
+    /// if the task is gone.
+    pub async fn write_websocket_session(
+        &self,
+        session: crate::websocket_session::WebSocketSession,
+    ) -> anyhow::Result<()> {
+        let envelope = CaptureEnvelope::new(CaptureRecord::WebsocketSession(Box::new(session)));
+        self.tx
+            .send(CaptureMsg::Record(envelope))
+            .await
+            .map_err(|_| anyhow::anyhow!("capture writer task is gone"))
+    }
+
+    /// Block until every record queued so far is flushed and fsynced to disk.
+    /// The deterministic sync point for reading the capture file back.
+    pub async fn flush(&self) -> anyhow::Result<()> {
+        let (ack, done) = oneshot::channel();
+        self.tx
+            .send(CaptureMsg::Flush(ack))
+            .await
+            .map_err(|_| anyhow::anyhow!("capture writer task is gone"))?;
+        done.await
+            .map_err(|_| anyhow::anyhow!("capture writer task dropped flush ack"))
+    }
+
+    /// Drain queued records, flush + fsync, and join the background task.
+    /// Idempotent across clones: only the first caller joins the task.
+    pub async fn shutdown(&self) -> anyhow::Result<()> {
+        let (ack, done) = oneshot::channel();
+        if self.tx.send(CaptureMsg::Shutdown(ack)).await.is_ok() {
+            let _ = done.await;
+        }
+        if let Some(handle) = self.join.lock().await.take() {
+            let _ = handle.await;
+        }
+        Ok(())
+    }
+}
+
+/// The single consumer. Wakes on a message, then greedily drains every record
+/// already queued before a single flush + fsync — so a burst coalesces into one
+/// durability barrier while a lone record is made durable promptly. The request
+/// path has already returned by the time this runs (it awaited only the channel
+/// send), so the fsync never blocks a handler. Owns the file for its lifetime.
+async fn writer_task(
+    file: tokio::fs::File,
+    mut rx: mpsc::Receiver<CaptureMsg>,
+    include_body: bool,
+) {
+    let mut writer = BufWriter::with_capacity(WRITE_BUFFER_BYTES, file);
+
+    while let Some(first) = rx.recv().await {
+        let mut acks: Vec<oneshot::Sender<()>> = Vec::new();
+        let mut shutting_down = false;
+
+        // Process the waking message, then drain whatever else is already
+        // queued so the whole batch shares one flush below.
+        let mut next = Some(first);
+        while let Some(msg) = next {
+            match msg {
+                CaptureMsg::Record(envelope) => {
+                    write_record(&mut writer, &envelope, include_body).await;
                 }
-                if let Some(resp_val) = obj.get_mut("response") {
-                    if resp_val.is_object() {
-                        if let Some(resp_obj) = resp_val.as_object_mut() {
-                            if let Some(_r) = &tx.response {
-                                if let Some(b) = &tx.response_body {
-                                    resp_obj.insert(
-                                        "body".to_string(),
-                                        serde_json::Value::String(
-                                            base64::engine::general_purpose::STANDARD.encode(b),
-                                        ),
-                                    );
-                                }
+                CaptureMsg::Flush(ack) => acks.push(ack),
+                CaptureMsg::Shutdown(ack) => {
+                    acks.push(ack);
+                    shutting_down = true;
+                }
+            }
+            // `Empty` ends this batch; `Disconnected` (all senders dropped)
+            // also stops here and the outer loop then exits.
+            next = rx.try_recv().ok();
+        }
+
+        flush_and_sync(&mut writer).await;
+        for ack in acks {
+            let _ = ack.send(());
+        }
+        if shutting_down {
+            return;
+        }
+    }
+
+    // All senders dropped — final flush in case the last batch raced the close.
+    flush_and_sync(&mut writer).await;
+}
+
+/// Serialize `envelope` and append it as one line to `writer`'s buffer.
+/// Serialization and IO errors are logged, not fatal — one bad record must not
+/// take down the writer task.
+async fn write_record(
+    writer: &mut BufWriter<tokio::fs::File>,
+    envelope: &CaptureEnvelope,
+    include_body: bool,
+) {
+    let line = match serialize_line(envelope, include_body) {
+        Ok(line) => line,
+        Err(e) => {
+            warn!(error = %e, "failed to serialize capture record");
+            return;
+        }
+    };
+    if let Err(e) = writer.write_all(line.as_bytes()).await {
+        warn!(error = %e, "failed to write capture record");
+        return;
+    }
+    if let Err(e) = writer.write_all(b"\n").await {
+        warn!(error = %e, "failed to write capture newline");
+    }
+}
+
+/// Flush the `BufWriter` to the OS and fsync the file. Errors are logged; a
+/// failed flush skips the fsync.
+async fn flush_and_sync(writer: &mut BufWriter<tokio::fs::File>) {
+    if let Err(e) = writer.flush().await {
+        warn!(error = %e, "failed to flush capture buffer");
+        return;
+    }
+    if let Err(e) = writer.get_ref().sync_data().await {
+        warn!(error = %e, "failed to fsync capture file");
+    }
+}
+
+/// Serialize an envelope to a single JSONL line. For transaction records,
+/// request/response bodies are base64-injected when `include_body` is set and
+/// stripped otherwise (defensive — body fields are skipped by serde by
+/// default). WebSocket sessions carry no separately-skipped bodies and
+/// serialize directly.
+fn serialize_line(envelope: &CaptureEnvelope, include_body: bool) -> serde_json::Result<String> {
+    let tx = match &envelope.record {
+        CaptureRecord::HttpTransaction(tx) => tx.as_ref(),
+        CaptureRecord::WebsocketSession(_) => return serde_json::to_string(envelope),
+    };
+
+    // Internal tagging + flatten keep `request`/`response` at the top level, so
+    // the body-injection below targets them directly.
+    let mut v = serde_json::to_value(envelope)?;
+
+    if include_body {
+        if let Some(obj) = v.as_object_mut() {
+            // request body: if present as skipped field it won't be in `v` by default
+            if let Some(req_obj) = obj.get_mut("request").and_then(|r| r.as_object_mut()) {
+                // If original transaction had a body (it is skipped by default),
+                // fetch it directly from `tx` and insert as base64.
+                if let Some(b) = &tx.request_body {
+                    req_obj.insert(
+                        "body".to_string(),
+                        serde_json::Value::String(
+                            base64::engine::general_purpose::STANDARD.encode(b),
+                        ),
+                    );
+                }
+            }
+            if let Some(resp_val) = obj.get_mut("response") {
+                if resp_val.is_object() {
+                    if let Some(resp_obj) = resp_val.as_object_mut() {
+                        if let Some(_r) = &tx.response {
+                            if let Some(b) = &tx.response_body {
+                                resp_obj.insert(
+                                    "body".to_string(),
+                                    serde_json::Value::String(
+                                        base64::engine::general_purpose::STANDARD.encode(b),
+                                    ),
+                                );
                             }
                         }
                     }
                 }
             }
-        } else {
-            // Ensure body fields are not present in serialized output (defensive)
-            if let Some(obj) = v.as_object_mut() {
-                if let Some(req_obj) = obj.get_mut("request").and_then(|r| r.as_object_mut()) {
-                    req_obj.remove("body");
-                }
-                if let Some(resp_val) = obj.get_mut("response") {
-                    if resp_val.is_object() {
-                        if let Some(resp_obj) = resp_val.as_object_mut() {
-                            resp_obj.remove("body");
-                        }
+        }
+    } else {
+        // Ensure body fields are not present in serialized output (defensive)
+        if let Some(obj) = v.as_object_mut() {
+            if let Some(req_obj) = obj.get_mut("request").and_then(|r| r.as_object_mut()) {
+                req_obj.remove("body");
+            }
+            if let Some(resp_val) = obj.get_mut("response") {
+                if resp_val.is_object() {
+                    if let Some(resp_obj) = resp_val.as_object_mut() {
+                        resp_obj.remove("body");
                     }
                 }
             }
         }
-
-        let line = serde_json::to_string(&v)?;
-        self.file.write_line(&line).await?;
-        Ok(())
     }
 
-    /// Write a WebSocket session record to the JSONL file.
-    pub async fn write_websocket_session(
-        &self,
-        session: &crate::websocket_session::WebSocketSession,
-    ) -> anyhow::Result<()> {
-        let envelope =
-            CaptureEnvelope::new(CaptureRecord::WebsocketSession(Box::new(session.clone())));
-        let line = serde_json::to_string(&envelope)?;
-        self.file.write_line(&line).await?;
-        Ok(())
-    }
+    serde_json::to_string(&v)
 }
 
 /// Load capture records from a JSONL file. Skips malformed lines with warnings.
@@ -268,7 +408,8 @@ mod tests {
         tx.timing = TimingInfo { duration_ms: 10 };
         tx.violations = violations;
 
-        cw.write_transaction(&tx).await?;
+        cw.write_transaction(tx).await?;
+        cw.flush().await?;
 
         let s = fs::read_to_string(&tmp).await?;
         let v: Value = serde_json::from_str(s.trim())?;
@@ -313,7 +454,8 @@ mod tests {
         });
         tx.response_body = Some(bytes::Bytes::from_static(b"{\"type\":\"x\"}"));
 
-        cw.write_transaction(&tx).await?;
+        cw.write_transaction(tx).await?;
+        cw.flush().await?;
 
         let s = fs::read_to_string(&tmp).await?;
         let v: Value = serde_json::from_str(s.trim())?;
@@ -360,7 +502,8 @@ mod tests {
         tx.request.uri = "http://example/test".to_string();
         tx.timing.duration_ms = 100;
 
-        cw.write_transaction(&tx).await?;
+        cw.write_transaction(tx).await?;
+        cw.flush().await?;
 
         // Load the captures
         let records = load_captures(&tmp).await?;
@@ -500,7 +643,8 @@ mod tests {
         session.duration_ms = 100;
         session.close_code = Some(1000);
 
-        cw.write_websocket_session(&session).await?;
+        cw.write_websocket_session(session).await?;
+        cw.flush().await?;
 
         let s = fs::read_to_string(&tmp).await?;
         let v: Value = serde_json::from_str(s.trim())?;

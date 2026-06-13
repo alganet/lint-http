@@ -43,10 +43,12 @@ impl TransactionPipeline {
     pub(super) async fn commit(&self, mut tx: HttpTransaction) -> Vec<Violation> {
         tx.violations = crate::engine::lint_transaction(&tx, &self.cfg, &self.state);
         self.state.record_transaction(&tx);
-        if let Err(e) = self.captures.write_transaction(&tx).await {
+        // Extract violations before moving the transaction into the writer.
+        let violations = tx.violations.clone();
+        if let Err(e) = self.captures.write_transaction(tx).await {
             warn!(error = %e, "failed to write transaction capture");
         }
-        tx.violations
+        violations
     }
 }
 
@@ -101,13 +103,14 @@ mod tests {
             "server_cache_control_present",
             "server_etag_or_last_modified",
         ]);
-        let (shared, tmp, _cw) = make_shared_with_cfg(Arc::new(cfg_inner), None).await?;
+        let (shared, tmp, cw) = make_shared_with_cfg(Arc::new(cfg_inner), None).await?;
 
         let tx = make_test_transaction_with_response(200, &[]);
         let violations = shared.pipeline().commit(tx).await;
 
         assert!(!violations.is_empty());
 
+        cw.flush().await?;
         let entries = read_capture(&tmp).await?;
         assert_eq!(entries.len(), 1);
         let captured = entries[0]["violations"]
