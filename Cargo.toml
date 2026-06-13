@@ -20,6 +20,7 @@ lint-http-rules = { path = "lint-http-rules" }
 
 # Shared third-party dependencies (versions kept in lockstep across crates)
 tokio = { version = "1.52", features = ["full"] }
+tokio-util = { version = "0.7", features = ["rt"] }
 hyper = { version = "1.10.1", features = ["full"] }
 clap = { version = "4.6", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }

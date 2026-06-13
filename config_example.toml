@@ -16,6 +16,12 @@ captures_include_body = false
 # abort the exchange with 502. The captured transaction is marked with
 # request_body_over_limit / response_body_over_limit. Default: 64 MiB.
 # max_body_bytes = 67108864
+# Maximum simultaneous live TCP connections; further connections wait for a
+# slot rather than being accepted unboundedly. Default: 1024.
+# max_connections = 1024
+# On shutdown (Ctrl-C), seconds to wait for in-flight handlers to drain before
+# exiting anyway. Default: 30.
+# shutdown_timeout_seconds = 30
 # Maximum protocol events per connection/session key for protocol-level rules
 # (e.g. WebSocket frame sequencing). Larger values let rules detect violations
 # across more frames but use more memory. Default: 200.

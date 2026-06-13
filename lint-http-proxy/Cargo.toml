@@ -29,6 +29,7 @@ lint-http-core = { workspace = true }
 lint-http-rules = { workspace = true }
 
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 hyper = { workspace = true }
 clap = { workspace = true }
 serde = { workspace = true }

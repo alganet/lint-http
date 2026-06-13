@@ -49,6 +49,17 @@ pub struct GeneralConfig {
     #[serde(default = "default_max_body_bytes")]
     pub max_body_bytes: usize,
 
+    /// Maximum number of simultaneous live TCP connections the proxy will
+    /// serve. Further connections wait for a slot rather than being accepted
+    /// unboundedly (default: 1024).
+    #[serde(default = "default_max_connections")]
+    pub max_connections: usize,
+
+    /// On shutdown (Ctrl-C), how many seconds to wait for in-flight handlers
+    /// to drain before exiting anyway (default: 30).
+    #[serde(default = "default_shutdown_timeout_seconds")]
+    pub shutdown_timeout_seconds: u64,
+
     /// Optional HTTP/3 (QUIC) listen address, e.g. "127.0.0.1:3443".
     /// When set, a QUIC/HTTP3 endpoint is started alongside the TCP listener.
     /// Requires TLS to be enabled.
@@ -81,6 +92,14 @@ const fn default_max_body_bytes() -> usize {
     64 * 1024 * 1024
 }
 
+const fn default_max_connections() -> usize {
+    1024
+}
+
+const fn default_shutdown_timeout_seconds() -> u64 {
+    30
+}
+
 fn default_listen() -> String {
     "127.0.0.1:3000".to_string()
 }
@@ -104,6 +123,8 @@ impl Default for GeneralConfig {
             captures_seed: default_captures_seed(),
             captures_include_body: default_captures_include_body(),
             max_body_bytes: default_max_body_bytes(),
+            max_connections: default_max_connections(),
+            shutdown_timeout_seconds: default_shutdown_timeout_seconds(),
             h3_listen: None,
             h3_server_name: None,
         }
