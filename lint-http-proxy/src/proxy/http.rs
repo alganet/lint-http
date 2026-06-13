@@ -14,6 +14,7 @@ use tracing::{error, warn};
 
 use crate::capture::CaptureWriter;
 
+use super::body::{collect_limited, CollectLimitedError};
 use super::connect::handle_connect;
 use super::hop_by_hop::{format_http_version, is_hop_by_hop_header, parse_connection_tokens};
 use super::websocket::{handle_websocket_upgrade, is_websocket_upgrade};
@@ -122,6 +123,8 @@ async fn build_and_write_transaction(
     response_headers: Option<hyper::HeaderMap<hyper::header::HeaderValue>>,
     duration_ms: u64,
     req_body: Option<bytes::Bytes>,
+    request_body_over_limit: bool,
+    response_body_over_limit: bool,
 ) {
     let mut tx = crate::http_transaction::HttpTransaction::new(
         client_id.clone(),
@@ -134,6 +137,8 @@ async fn build_and_write_transaction(
         tx.request.body_length = Some(b.len() as u64);
         tx.request_body = Some(b);
     }
+    tx.request_body_over_limit = request_body_over_limit;
+    tx.response_body_over_limit = response_body_over_limit;
     tx.response = Some(crate::http_transaction::ResponseInfo {
         status,
         version: "HTTP/1.1".into(),
@@ -218,15 +223,37 @@ where
 
     let body = req.into_body();
     let captures = &shared.captures;
+    let max_body_bytes = shared.cfg.general.max_body_bytes;
 
-    let (body_bytes, req_trailers) = match body.collect().await {
-        Ok(collected) => {
-            let trailers = collected.trailers().cloned();
-            (collected.to_bytes(), trailers)
+    let (body_bytes, req_trailers) = match collect_limited(body, max_body_bytes).await {
+        Ok((bytes, trailers)) => (bytes, trailers),
+        Err(CollectLimitedError::OverLimit) => {
+            warn!("request body exceeds max_body_bytes ({})", max_body_bytes);
+            let msg = "request body exceeds max_body_bytes";
+            let resp = Response::builder()
+                .status(413)
+                .body(Full::new(Bytes::from(msg)).boxed())
+                .unwrap_or_else(|_| Response::new(Full::new(Bytes::from(msg)).boxed()));
+            let duration = started.elapsed().as_millis() as u64;
+            build_and_write_transaction(
+                captures,
+                &client_id,
+                method.as_str(),
+                &uri_str,
+                &req_headers,
+                req_version.clone(),
+                413,
+                None,
+                duration,
+                None,
+                true,
+                false,
+            )
+            .await;
+            return Ok(resp);
         }
-        Err(e) => {
-            let boxed: Box<dyn std::error::Error + Send + Sync> = e.into();
-            error!("failed to collect request body: {}", boxed);
+        Err(CollectLimitedError::Other(e)) => {
+            error!("failed to collect request body: {}", e);
             let resp = Response::builder()
                 .status(500)
                 .body(Full::new(Bytes::from("request body collect error")).boxed())
@@ -245,6 +272,8 @@ where
                 None,
                 duration,
                 None,
+                false,
+                false,
             )
             .await;
             return Ok(resp);
@@ -275,6 +304,8 @@ where
                 None,
                 duration,
                 Some(body_bytes.clone()),
+                false,
+                false,
             )
             .await;
             return Ok(resp);
@@ -327,6 +358,8 @@ where
                 None,
                 duration,
                 Some(body_bytes.clone()),
+                false,
+                false,
             )
             .await;
             return Ok(resp);
@@ -337,41 +370,67 @@ where
     let headers = resp.headers().clone();
     // Capture the upstream response version before consuming the body
     let resp_ver = format_http_version(resp.version());
-    let (resp_body_bytes, resp_trailers) = match resp.into_body().collect().await {
-        Ok(collected) => {
-            let trailers = collected.trailers().cloned();
-            (collected.to_bytes(), trailers)
-        }
-        Err(e) => {
-            let boxed: Box<dyn std::error::Error + Send + Sync> = e.into();
-            let body = Full::new(Bytes::from(format!(
-                "upstream body collect error: {}",
-                boxed
-            )))
-            .boxed();
-            let resp = Response::builder()
-                .status(500)
-                .body(body)
-                .unwrap_or_else(|_| {
-                    Response::new(Full::new(Bytes::from("upstream error")).boxed())
-                });
-            let duration = started.elapsed().as_millis() as u64;
-            build_and_write_transaction(
-                captures,
-                &client_id,
-                method.as_str(),
-                &uri_str,
-                &req_headers,
-                req_version.clone(),
-                500,
-                None,
-                duration,
-                Some(body_bytes.clone()),
-            )
-            .await;
-            return Ok(resp);
-        }
-    };
+    let (resp_body_bytes, resp_trailers) =
+        match collect_limited(resp.into_body(), max_body_bytes).await {
+            Ok((bytes, trailers)) => (bytes, trailers),
+            Err(CollectLimitedError::OverLimit) => {
+                warn!(
+                    "upstream response body exceeds max_body_bytes ({})",
+                    max_body_bytes
+                );
+                let msg = "upstream response exceeds max_body_bytes";
+                let resp = Response::builder()
+                    .status(502)
+                    .body(Full::new(Bytes::from(msg)).boxed())
+                    .unwrap_or_else(|_| Response::new(Full::new(Bytes::from(msg)).boxed()));
+                let duration = started.elapsed().as_millis() as u64;
+                // Record the upstream's real status and headers; the body was
+                // discarded, so only the over-limit marker explains its absence.
+                build_and_write_transaction(
+                    captures,
+                    &client_id,
+                    method.as_str(),
+                    &uri_str,
+                    &req_headers,
+                    req_version.clone(),
+                    status,
+                    Some(headers.clone()),
+                    duration,
+                    Some(body_bytes.clone()),
+                    false,
+                    true,
+                )
+                .await;
+                return Ok(resp);
+            }
+            Err(CollectLimitedError::Other(e)) => {
+                let body =
+                    Full::new(Bytes::from(format!("upstream body collect error: {}", e))).boxed();
+                let resp = Response::builder()
+                    .status(500)
+                    .body(body)
+                    .unwrap_or_else(|_| {
+                        Response::new(Full::new(Bytes::from("upstream error")).boxed())
+                    });
+                let duration = started.elapsed().as_millis() as u64;
+                build_and_write_transaction(
+                    captures,
+                    &client_id,
+                    method.as_str(),
+                    &uri_str,
+                    &req_headers,
+                    req_version.clone(),
+                    500,
+                    None,
+                    duration,
+                    Some(body_bytes.clone()),
+                    false,
+                    false,
+                )
+                .await;
+                return Ok(resp);
+            }
+        };
 
     let duration = started.elapsed().as_millis() as u64;
 
@@ -839,6 +898,120 @@ mod tests {
         .await?;
 
         assert_eq!(resp.status().as_u16(), 500);
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn request_body_over_limit_returns_413_and_marks_capture() -> anyhow::Result<()> {
+        let mut cfg = crate::config::Config::default();
+        cfg.general.max_body_bytes = 8;
+        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None).await?;
+
+        // Never reaches an upstream: the limit trips while collecting the body.
+        let req = Request::builder()
+            .method("POST")
+            .uri("http://127.0.0.1:9/upload")
+            .body(Full::new(Bytes::from(vec![b'a'; 64])))?;
+
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse()?,
+        ));
+        let resp = handle_http_logic(
+            req,
+            shared.clone(),
+            conn_metadata,
+            hyper::http::uri::Scheme::HTTP,
+        )
+        .await?;
+        assert_eq!(resp.status().as_u16(), 413);
+
+        let entries = read_capture(&tmp).await?;
+        let v = &entries[0];
+        assert_eq!(v["response"]["status"].as_u64(), Some(413));
+        assert_eq!(v["request_body_over_limit"].as_bool(), Some(true));
+        assert_eq!(v["response_body_over_limit"].as_bool(), Some(false));
+        assert!(v["request"]["body_length"].is_null());
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn response_body_over_limit_returns_502_and_keeps_upstream_status() -> anyhow::Result<()>
+    {
+        let mock = MockServer::start().await;
+        Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("x-upstream", "yes")
+                    .set_body_bytes(vec![b'b'; 64]),
+            )
+            .mount(&mock)
+            .await;
+
+        let mut cfg = crate::config::Config::default();
+        cfg.general.max_body_bytes = 8;
+        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None).await?;
+
+        let req = make_request_with_headers("GET", mock.uri(), None)?;
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse()?,
+        ));
+        let resp = handle_request(
+            req,
+            shared.clone(),
+            conn_metadata,
+            hyper::http::uri::Scheme::HTTP,
+        )
+        .await?;
+        assert_eq!(resp.status().as_u16(), 502);
+
+        // The capture records the upstream's real status and headers; only the
+        // marker explains the missing body.
+        let entries = read_capture(&tmp).await?;
+        let v = &entries[0];
+        assert_eq!(v["response"]["status"].as_u64(), Some(200));
+        assert_eq!(v["response_body_over_limit"].as_bool(), Some(true));
+        assert_eq!(v["request_body_over_limit"].as_bool(), Some(false));
+        assert!(v["response"]["body_length"].is_null());
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn response_body_exactly_at_limit_passes() -> anyhow::Result<()> {
+        let mock = MockServer::start().await;
+        Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![b'c'; 8]))
+            .mount(&mock)
+            .await;
+
+        let mut cfg = crate::config::Config::default();
+        cfg.general.max_body_bytes = 8;
+        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None).await?;
+
+        let req = make_request_with_headers("GET", mock.uri(), None)?;
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse()?,
+        ));
+        let resp = handle_request(
+            req,
+            shared.clone(),
+            conn_metadata,
+            hyper::http::uri::Scheme::HTTP,
+        )
+        .await?;
+        assert_eq!(resp.status().as_u16(), 200);
+
+        let entries = read_capture(&tmp).await?;
+        let v = &entries[0];
+        assert_eq!(v["response"]["body_length"].as_u64(), Some(8));
+        assert_eq!(v["response_body_over_limit"].as_bool(), Some(false));
+
         let _ = fs::remove_file(&tmp).await;
         Ok(())
     }

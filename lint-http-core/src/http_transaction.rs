@@ -102,6 +102,16 @@ pub struct HttpTransaction {
     #[serde(default)]
     pub was_upgraded: bool,
 
+    /// True when the request body exceeded `max_body_bytes`. The body was not
+    /// captured (`request_body` and `request.body_length` stay `None`).
+    #[serde(default)]
+    pub request_body_over_limit: bool,
+
+    /// True when the response body exceeded `max_body_bytes`. The body was not
+    /// captured (`response_body` and `response.body_length` stay `None`).
+    #[serde(default)]
+    pub response_body_over_limit: bool,
+
     /// The protocol negotiated via the Upgrade header (e.g. "websocket", "h2c").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub upgrade_protocol: Option<String>,
@@ -131,6 +141,8 @@ impl HttpTransaction {
             connection_id: None,
             sequence_number: None,
             was_upgraded: false,
+            request_body_over_limit: false,
+            response_body_over_limit: false,
             upgrade_protocol: None,
             violations: Vec::new(),
         }
@@ -168,6 +180,28 @@ mod tests {
             tx2.request.headers.get(key).and_then(|v| v.to_str().ok()),
             expected
         );
+        Ok(())
+    }
+
+    #[test]
+    fn over_limit_flags_roundtrip_and_default_false() -> anyhow::Result<()> {
+        let mut tx = make_test_transaction();
+        tx.request_body_over_limit = true;
+        tx.response_body_over_limit = true;
+
+        let s = serde_json::to_string(&tx)?;
+        let tx2: HttpTransaction = serde_json::from_str(&s)?;
+        assert!(tx2.request_body_over_limit);
+        assert!(tx2.response_body_over_limit);
+
+        // Records written before the flags existed deserialize to false.
+        let mut v: serde_json::Value = serde_json::from_str(&s)?;
+        let obj = v.as_object_mut().expect("transaction serializes as object");
+        obj.remove("request_body_over_limit");
+        obj.remove("response_body_over_limit");
+        let tx3: HttpTransaction = serde_json::from_value(v)?;
+        assert!(!tx3.request_body_over_limit);
+        assert!(!tx3.response_body_over_limit);
         Ok(())
     }
 

@@ -35,6 +35,7 @@ captures = "captures.jsonl"       # Path to capture file
 ttl_seconds = 300                 # How long to keep state records
 captures_seed = false             # Seed state from captures file on startup
 captures_include_body = false     # When true, captured bodies are included in the captures JSONL (base64). Default: false
+max_body_bytes = 67108864         # Max body bytes buffered per request/response. Default: 64 MiB
 ```
 
 - **listen**: The IP address and port the proxy should bind to.
@@ -44,6 +45,7 @@ captures_include_body = false     # When true, captured bodies are included in t
   - Continuing analysis from previous proxy sessions (stateful rules will have access to "previous" transactions)
   - Setting up elaborate testing scenarios with mocked previous states
   - Default is `false` (disabled).
+- **max_body_bytes**: Maximum number of body bytes the proxy will buffer per request or response (default: 64 MiB). Over-limit request bodies are rejected with `413`; over-limit response bodies abort the exchange with `502`. Either way the captured transaction is marked with `request_body_over_limit` / `response_body_over_limit` and the body itself is not captured.
 
 ### TLS Configuration (Mandatory)
 

@@ -40,6 +40,15 @@ pub struct GeneralConfig {
     #[serde(default = "default_captures_include_body")]
     pub captures_include_body: bool,
 
+    /// Maximum number of body bytes the proxy will buffer per request or
+    /// response (default: 64 MiB). Over-limit request bodies are rejected
+    /// with 413; over-limit response bodies abort the exchange with 502.
+    /// Either way the captured transaction is marked with
+    /// `request_body_over_limit` / `response_body_over_limit` and the body
+    /// itself is not captured.
+    #[serde(default = "default_max_body_bytes")]
+    pub max_body_bytes: usize,
+
     /// Optional HTTP/3 (QUIC) listen address, e.g. "127.0.0.1:3443".
     /// When set, a QUIC/HTTP3 endpoint is started alongside the TCP listener.
     /// Requires TLS to be enabled.
@@ -68,6 +77,10 @@ const fn default_captures_include_body() -> bool {
     false
 }
 
+const fn default_max_body_bytes() -> usize {
+    64 * 1024 * 1024
+}
+
 fn default_listen() -> String {
     "127.0.0.1:3000".to_string()
 }
@@ -90,6 +103,7 @@ impl Default for GeneralConfig {
             max_protocol_event_history: default_max_protocol_event_history(),
             captures_seed: default_captures_seed(),
             captures_include_body: default_captures_include_body(),
+            max_body_bytes: default_max_body_bytes(),
             h3_listen: None,
             h3_server_name: None,
         }
@@ -273,6 +287,31 @@ enabled = false
     fn h3_listen_defaults_to_none() {
         let cfg = Config::default();
         assert!(cfg.general.h3_listen.is_none());
+    }
+
+    #[test]
+    fn max_body_bytes_defaults_to_64_mib() {
+        let cfg = Config::default();
+        assert_eq!(cfg.general.max_body_bytes, 64 * 1024 * 1024);
+    }
+
+    #[tokio::test]
+    async fn max_body_bytes_parsed_when_present() -> anyhow::Result<()> {
+        let tmp_toml =
+            std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
+        let toml = r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+max_body_bytes = 1024
+
+[tls]
+enabled = false
+"#;
+        fs::write(&tmp_toml, toml).await?;
+        let cfg = Config::load_from_path(&tmp_toml).await?;
+        assert_eq!(cfg.general.max_body_bytes, 1024);
+        fs::remove_file(&tmp_toml).await?;
+        Ok(())
     }
 
     #[tokio::test]
