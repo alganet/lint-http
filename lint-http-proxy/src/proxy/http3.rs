@@ -10,6 +10,7 @@ use hyper::{Request, Response, Uri};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::time::Instant;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, trace, warn};
 
 use crate::ca::CertificateAuthority;
@@ -95,8 +96,22 @@ pub(super) fn init_h3_endpoint(
 
 /// Accept loop for an already-bound QUIC endpoint.  Each incoming connection
 /// is handled in a spawned task through the same pipeline as TCP traffic.
-pub(super) async fn run_h3_accept_loop(endpoint: quinn::Endpoint, shared: Arc<Shared>) {
-    while let Some(incoming) = endpoint.accept().await {
+/// Returns when `shutdown` is cancelled (or the endpoint stops yielding), after
+/// asking the endpoint to close and waiting for in-flight connections to idle,
+/// bounded by `shutdown_timeout_seconds`.
+pub(super) async fn run_h3_accept_loop(
+    endpoint: quinn::Endpoint,
+    shared: Arc<Shared>,
+    shutdown: CancellationToken,
+) {
+    loop {
+        let incoming = tokio::select! {
+            _ = shutdown.cancelled() => break,
+            incoming = endpoint.accept() => match incoming {
+                Some(incoming) => incoming,
+                None => break,
+            },
+        };
         let shared = shared.clone();
         tokio::spawn(async move {
             match incoming.await {
@@ -112,6 +127,11 @@ pub(super) async fn run_h3_accept_loop(endpoint: quinn::Endpoint, shared: Arc<Sh
             }
         });
     }
+
+    // Stop accepting, signal peers, and let in-flight connections drain.
+    endpoint.close(0u32.into(), b"shutting down");
+    let drain = std::time::Duration::from_secs(shared.cfg.general.shutdown_timeout_seconds);
+    let _ = tokio::time::timeout(drain, endpoint.wait_idle()).await;
 }
 
 /// Handle a single HTTP/3 connection: accept request streams, forward upstream,

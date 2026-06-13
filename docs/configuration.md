@@ -36,6 +36,8 @@ ttl_seconds = 300                 # How long to keep state records
 captures_seed = false             # Seed state from captures file on startup
 captures_include_body = false     # When true, captured bodies are included in the captures JSONL (base64). Default: false
 max_body_bytes = 67108864         # Max body bytes buffered per request/response. Default: 64 MiB
+max_connections = 1024            # Max simultaneous live TCP connections. Default: 1024
+shutdown_timeout_seconds = 30     # Seconds to drain in-flight handlers on Ctrl-C. Default: 30
 ```
 
 - **listen**: The IP address and port the proxy should bind to.
@@ -46,6 +48,8 @@ max_body_bytes = 67108864         # Max body bytes buffered per request/response
   - Setting up elaborate testing scenarios with mocked previous states
   - Default is `false` (disabled).
 - **max_body_bytes**: Maximum number of body bytes the proxy will buffer per request or response (default: 64 MiB). Over-limit request bodies are rejected with `413`; over-limit response bodies abort the exchange with `502`. Either way the captured transaction is marked with `request_body_over_limit` / `response_body_over_limit` and the body itself is not captured.
+- **max_connections**: Maximum number of simultaneous live TCP connections the proxy will serve (default: 1024). Additional connections wait for a slot rather than being accepted unboundedly, bounding resource use under burst load.
+- **shutdown_timeout_seconds**: On graceful shutdown (Ctrl-C), how many seconds to wait for in-flight handlers to drain before exiting anyway (default: 30). The capture file is flushed and fsynced as part of shutdown, so the last records are never truncated.
 
 ### TLS Configuration (Mandatory)
 

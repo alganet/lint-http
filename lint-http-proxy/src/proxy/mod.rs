@@ -28,7 +28,11 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
-use tracing::{error, info};
+use std::time::Duration;
+use tokio::sync::Semaphore;
+use tokio::time::timeout;
+use tokio_util::sync::CancellationToken;
+use tracing::{error, info, warn};
 
 use crate::ca::CertificateAuthority;
 use crate::capture::CaptureWriter;
@@ -58,20 +62,58 @@ pub async fn run_proxy(
     captures: CaptureWriter,
     cfg: Arc<Config>,
 ) -> anyhow::Result<()> {
-    // Default behavior: no accept limit (runs forever)
-    run_proxy_with_limit(listen, captures, cfg, None).await
+    // Translate Ctrl-C into a cancellation the accept loop and handlers observe.
+    let shutdown = CancellationToken::new();
+    {
+        let shutdown = shutdown.clone();
+        tokio::spawn(async move {
+            if tokio::signal::ctrl_c().await.is_ok() {
+                info!("ctrl-c received, shutting down");
+                shutdown.cancel();
+            }
+        });
+    }
+    run_proxy_inner(listen, captures, cfg, None, shutdown).await
 }
 
 /// Testable variant of `run_proxy` that accepts an optional `accept_limit`.
 /// When `accept_limit` is `Some(n)`, the accept loop will accept `n` connections
-/// and then return after accepting the Nth connection. Connection handlers are
-/// spawned asynchronously and may still be running when this function returns,
-/// allowing tests to deterministically bound how many connections are accepted.
+/// and then return. Used by tests to deterministically bound accepts; the
+/// shutdown sequence still runs (stop accepting, drain handlers, flush
+/// captures) before returning.
 pub async fn run_proxy_with_limit(
     listen: SocketAddr,
     captures: CaptureWriter,
     cfg: Arc<Config>,
     accept_limit: Option<usize>,
+) -> anyhow::Result<()> {
+    run_proxy_inner(
+        listen,
+        captures,
+        cfg,
+        accept_limit,
+        CancellationToken::new(),
+    )
+    .await
+}
+
+/// Variant that runs until `shutdown` is cancelled (or Ctrl-C is wired by the
+/// caller). Lets shutdown integration tests drive graceful shutdown directly.
+pub async fn run_proxy_with_shutdown(
+    listen: SocketAddr,
+    captures: CaptureWriter,
+    cfg: Arc<Config>,
+    shutdown: CancellationToken,
+) -> anyhow::Result<()> {
+    run_proxy_inner(listen, captures, cfg, None, shutdown).await
+}
+
+async fn run_proxy_inner(
+    listen: SocketAddr,
+    captures: CaptureWriter,
+    cfg: Arc<Config>,
+    accept_limit: Option<usize>,
+    shutdown: CancellationToken,
 ) -> anyhow::Result<()> {
     let https = HttpsConnectorBuilder::new()
         .with_native_roots()?
@@ -121,15 +163,25 @@ pub async fn run_proxy_with_limit(
         }
     }
 
-    // Spawn background cleanup task
+    // Connection bound and drain budget. Read before `cfg` moves into `Shared`.
+    let max_connections = cfg.general.max_connections;
+    let shutdown_timeout = Duration::from_secs(cfg.general.shutdown_timeout_seconds);
+    let semaphore = Arc::new(Semaphore::new(max_connections));
+
+    // Spawn background cleanup task, cancellable so shutdown can join it.
     let state_cleanup = state.clone();
     let pe_store_cleanup = protocol_event_store.clone();
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+    let cleanup_shutdown = shutdown.clone();
+    let cleanup_handle = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
         loop {
-            interval.tick().await;
-            state_cleanup.cleanup_expired();
-            pe_store_cleanup.cleanup_expired();
+            tokio::select! {
+                _ = interval.tick() => {
+                    state_cleanup.cleanup_expired();
+                    pe_store_cleanup.cleanup_expired();
+                }
+                _ = cleanup_shutdown.cancelled() => break,
+            }
         }
     });
 
@@ -164,12 +216,13 @@ pub async fn run_proxy_with_limit(
     });
 
     // Start HTTP/3 (QUIC) accept loop if an endpoint was created.
-    if let Some(endpoint) = h3_endpoint {
+    let h3_handle = h3_endpoint.map(|endpoint| {
         let shared_h3 = shared.clone();
+        let shutdown_h3 = shutdown.clone();
         tokio::spawn(async move {
-            run_h3_accept_loop(endpoint, shared_h3).await;
-        });
-    }
+            run_h3_accept_loop(endpoint, shared_h3, shutdown_h3).await;
+        })
+    });
 
     // Use a manual TcpListener accept loop to preserve the remote address and
     // avoid relying on the removed `make_service_fn` helper in hyper v1.
@@ -179,24 +232,40 @@ pub async fn run_proxy_with_limit(
     let executor = TokioExecutor::new();
     let server_builder = AutoConnBuilder::new(executor);
 
-    // Accept loop with optional limit
+    // Accept loop, bounded by the connection semaphore and interruptible by
+    // shutdown. Each accepted connection holds an owned permit for its lifetime,
+    // so the semaphore doubles as the drain barrier below.
     let mut remaining = accept_limit;
     loop {
-        // If we're limited and have reached zero, stop accepting
         if let Some(0) = remaining {
             break;
         }
 
-        let (stream, remote_addr) = listener.accept().await?;
+        // Reserve a slot first, so we never accept beyond `max_connections`.
+        let permit = tokio::select! {
+            biased;
+            _ = shutdown.cancelled() => break,
+            permit = semaphore.clone().acquire_owned() => permit?,
+        };
 
-        // Decrement remaining if present
-        if let Some(ref mut n) = remaining {
+        let (stream, remote_addr) = tokio::select! {
+            _ = shutdown.cancelled() => {
+                drop(permit);
+                break;
+            }
+            accepted = listener.accept() => accepted?,
+        };
+
+        if let Some(n) = remaining.as_mut() {
             *n -= 1;
         }
 
         let shared = shared.clone();
         let builder_clone = server_builder.clone();
+        let shutdown_conn = shutdown.clone();
         tokio::spawn(async move {
+            // Released when this task ends; the drain waits on all permits.
+            let _permit = permit;
             let conn_metadata = Arc::new(crate::connection::ConnectionMetadata::new(remote_addr));
             let service = service_fn(move |req: Request<Incoming>| {
                 let shared = shared.clone();
@@ -214,13 +283,47 @@ pub async fn run_proxy_with_limit(
             });
 
             let io = TokioIo::new(stream);
-            if let Err(e) = builder_clone
-                .serve_connection_with_upgrades(io, service)
-                .await
-            {
-                error!(%e, "connection error");
+            let conn = builder_clone.serve_connection_with_upgrades(io, service);
+            tokio::pin!(conn);
+            tokio::select! {
+                res = conn.as_mut() => {
+                    if let Err(e) = res {
+                        error!(%e, "connection error");
+                    }
+                }
+                _ = shutdown_conn.cancelled() => {
+                    // Finish in-flight requests but stop reading new ones.
+                    conn.as_mut().graceful_shutdown();
+                    if let Err(e) = conn.await {
+                        error!(%e, "connection error after graceful shutdown");
+                    }
+                }
             }
         });
+    }
+
+    // Graceful shutdown: stop accepting (done), cancel handlers, then drain.
+    shutdown.cancel();
+
+    // Wait until every connection task has released its permit (acquiring the
+    // full set proves the count is back to zero), bounded by the timeout.
+    let drain = semaphore.acquire_many(max_connections.min(u32::MAX as usize) as u32);
+    if timeout(shutdown_timeout, drain).await.is_err() {
+        warn!(
+            timeout_s = shutdown_timeout.as_secs(),
+            "shutdown drain timed out; some connections did not finish"
+        );
+    }
+
+    let _ = cleanup_handle.await;
+    if let Some(handle) = h3_handle {
+        let _ = handle.await;
+    }
+
+    // Flush, fsync, and join the capture writer last, after all handlers that
+    // could write to it have drained, so no capture line is lost or truncated.
+    if let Err(e) = shared.captures.shutdown().await {
+        warn!(error = %e, "failed to shut down capture writer");
     }
 
     Ok(())
@@ -339,6 +442,51 @@ mod tests {
         let res = tokio::time::timeout(std::time::Duration::from_secs(5), task).await??;
         assert!(res.is_ok());
         // Drop the stream now that the proxy has accepted it
+        drop(stream_opt);
+
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_proxy_with_shutdown_drains_and_returns() -> anyhow::Result<()> {
+        use tokio::net::TcpStream;
+
+        let l = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let addr = l.local_addr()?;
+        drop(l);
+
+        let (shared, tmp, cw) =
+            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
+
+        let shutdown = CancellationToken::new();
+        let cfg_clone = shared.cfg.clone();
+        let cw_clone = cw.clone();
+        let shutdown_for_task = shutdown.clone();
+        let task = tokio::spawn(async move {
+            run_proxy_with_shutdown(addr, cw_clone, cfg_clone, shutdown_for_task).await
+        });
+
+        // Connect so a handler is live and holding a permit, then let the proxy
+        // accept it before we ask it to shut down.
+        let mut stream_opt: Option<TcpStream> = None;
+        for _ in 0..100 {
+            match TcpStream::connect(addr).await {
+                Ok(s) => {
+                    stream_opt = Some(s);
+                    break;
+                }
+                Err(_) => tokio::time::sleep(std::time::Duration::from_millis(50)).await,
+            }
+        }
+        assert!(stream_opt.is_some(), "failed to connect to proxy");
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // Cancellation should stop accepting, drain the live connection via
+        // graceful shutdown, flush captures, and return Ok within the timeout.
+        shutdown.cancel();
+        let res = tokio::time::timeout(std::time::Duration::from_secs(5), task).await??;
+        assert!(res.is_ok());
         drop(stream_opt);
 
         let _ = fs::remove_file(&tmp).await;

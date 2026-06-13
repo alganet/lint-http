@@ -32,7 +32,7 @@ async fn run_app(args: Args) -> anyhow::Result<()> {
     )
     .await?;
 
-    // Start proxy and return its result (no signal handling here).
+    // Start the proxy; `run_proxy` wires Ctrl-C to a graceful shutdown.
     proxy::run_proxy(addr, capture_writer, cfg).await
 }
 
