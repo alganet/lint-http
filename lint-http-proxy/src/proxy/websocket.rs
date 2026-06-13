@@ -16,7 +16,7 @@ use tracing::{error, warn};
 use crate::capture::CaptureWriter;
 
 use super::body::{collect_limited, CollectLimitedError};
-use super::hop_by_hop::{format_http_version, is_hop_by_hop_header, parse_connection_tokens};
+use super::hop_by_hop::{format_http_version, parse_connection_tokens};
 use super::pipeline::ProtocolEventPipeline;
 use super::Shared;
 
@@ -197,13 +197,7 @@ pub(super) async fn handle_websocket_upgrade(
         shared.pipeline().commit(tx).await;
 
         let mut resp_builder = Response::builder().status(status);
-        let connection_hop_headers =
-            parse_connection_tokens(headers.get(hyper::header::CONNECTION));
-        for (name, value) in headers.iter() {
-            let name_str = name.as_str().to_ascii_lowercase();
-            if is_hop_by_hop_header(&name_str, &connection_hop_headers) {
-                continue;
-            }
+        for (name, value) in super::exchange::filter_response_headers(&headers, status).iter() {
             resp_builder = resp_builder.header(name, value);
         }
         let resp = resp_builder

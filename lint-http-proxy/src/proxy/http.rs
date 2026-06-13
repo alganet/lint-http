@@ -12,11 +12,10 @@ use std::sync::Arc;
 use tokio::time::Instant;
 use tracing::{error, warn};
 
-use crate::capture::CaptureWriter;
-
 use super::body::{collect_limited, CollectLimitedError};
 use super::connect::handle_connect;
-use super::hop_by_hop::{format_http_version, is_hop_by_hop_header, parse_connection_tokens};
+use super::exchange::{build_upstream_request, exchange, record_error_transaction, ProxiedRequest};
+use super::hop_by_hop::format_http_version;
 use super::websocket::{handle_websocket_upgrade, is_websocket_upgrade};
 use super::Shared;
 
@@ -108,48 +107,13 @@ where
     handle_http_logic(req, shared, conn_metadata, scheme).await
 }
 
-/// Build a minimal `HttpTransaction` (request + response status only) and
-/// write it to the captures file.  Used on the error paths in
-/// [`handle_http_logic`] where the upstream request never completes normally.
-#[allow(clippy::too_many_arguments)]
-async fn build_and_write_transaction(
-    captures: &CaptureWriter,
-    client_id: &crate::state::ClientIdentifier,
-    method: &str,
-    uri_str: &str,
-    req_headers: &hyper::HeaderMap<hyper::header::HeaderValue>,
-    req_version: String,
-    status: u16,
-    response_headers: Option<hyper::HeaderMap<hyper::header::HeaderValue>>,
-    duration_ms: u64,
-    req_body: Option<bytes::Bytes>,
-    request_body_over_limit: bool,
-    response_body_over_limit: bool,
-) {
-    let mut tx = crate::http_transaction::HttpTransaction::new(
-        client_id.clone(),
-        method.to_string(),
-        uri_str.to_string(),
-    );
-    tx.request.headers = req_headers.clone();
-    tx.request.version = req_version;
-    if let Some(b) = req_body {
-        tx.request.body_length = Some(b.len() as u64);
-        tx.request_body = Some(b);
-    }
-    tx.request_body_over_limit = request_body_over_limit;
-    tx.response_body_over_limit = response_body_over_limit;
-    tx.response = Some(crate::http_transaction::ResponseInfo {
-        status,
-        version: "HTTP/1.1".into(),
-        headers: response_headers.unwrap_or_default(),
-        body_length: None,
-        trailers: None,
-    });
-    tx.timing = crate::http_transaction::TimingInfo { duration_ms };
-    if let Err(e) = captures.write_transaction(tx).await {
-        warn!(error = %e, "failed to write transaction capture");
-    }
+/// Build a boxed plaintext error response (status + message body, no headers).
+fn error_resp(status: u16, msg: &str) -> Response<BoxBody<Bytes, Infallible>> {
+    let body = Bytes::from(msg.to_string());
+    Response::builder()
+        .status(status)
+        .body(Full::new(body.clone()).boxed())
+        .unwrap_or_else(|_| Response::new(Full::new(body).boxed()))
 }
 
 async fn handle_http_logic<B>(
@@ -185,19 +149,6 @@ where
 
     let is_ws_upgrade = is_websocket_upgrade(&req);
 
-    let mut builder = Request::builder().method(req.method()).uri(uri.clone());
-    for (name, value) in req.headers().iter() {
-        if !shared
-            .cfg
-            .tls
-            .suppress_headers
-            .iter()
-            .any(|h| h.eq_ignore_ascii_case(name.as_str()))
-        {
-            builder = builder.header(name, value);
-        }
-    }
-
     let method = req.method().clone();
     let uri_str = req.uri().to_string();
     let req_headers = req.headers().clone();
@@ -210,112 +161,98 @@ where
         .to_string();
     let client_id = crate::state::ClientIdentifier::new(client_ip, user_agent);
 
-    // Capture request version before moving `req` into body
+    // Capture request version before moving `req` into body.
     let req_version = format_http_version(req.version());
 
-    // Extract the client OnUpgrade before consuming the request body.
-    // For WebSocket upgrades, we need this to get the upgraded client IO later.
+    // Extract the client OnUpgrade before consuming the request body; for
+    // WebSocket upgrades we need it to reach the upgraded client IO later.
     let client_on_upgrade = if is_ws_upgrade {
         Some(hyper::upgrade::on(&mut req))
     } else {
         None
     };
 
-    let body = req.into_body();
     let captures = &shared.captures;
     let max_body_bytes = shared.cfg.general.max_body_bytes;
 
-    let (body_bytes, req_trailers) = match collect_limited(body, max_body_bytes).await {
+    let (body_bytes, req_trailers) = match collect_limited(req.into_body(), max_body_bytes).await {
         Ok((bytes, trailers)) => (bytes, trailers),
         Err(CollectLimitedError::OverLimit) => {
             warn!("request body exceeds max_body_bytes ({})", max_body_bytes);
-            let msg = "request body exceeds max_body_bytes";
-            let resp = Response::builder()
-                .status(413)
-                .body(Full::new(Bytes::from(msg)).boxed())
-                .unwrap_or_else(|_| Response::new(Full::new(Bytes::from(msg)).boxed()));
             let duration = started.elapsed().as_millis() as u64;
-            build_and_write_transaction(
+            record_error_transaction(
                 captures,
                 &client_id,
                 method.as_str(),
                 &uri_str,
                 &req_headers,
-                req_version.clone(),
+                &req_version,
                 413,
                 None,
                 duration,
                 None,
+                conn_metadata.id,
+                conn_metadata.next_sequence_number(),
                 true,
                 false,
             )
             .await;
-            return Ok(resp);
+            return Ok(error_resp(413, "request body exceeds max_body_bytes"));
         }
         Err(CollectLimitedError::Other(e)) => {
             error!("failed to collect request body: {}", e);
-            let resp = Response::builder()
-                .status(500)
-                .body(Full::new(Bytes::from("request body collect error")).boxed())
-                .unwrap_or_else(|_| {
-                    Response::new(Full::new(Bytes::from("request body collect error")).boxed())
-                });
             let duration = started.elapsed().as_millis() as u64;
-            build_and_write_transaction(
+            record_error_transaction(
                 captures,
                 &client_id,
                 method.as_str(),
                 &uri_str,
                 &req_headers,
-                req_version.clone(),
+                &req_version,
                 500,
                 None,
                 duration,
                 None,
+                conn_metadata.id,
+                conn_metadata.next_sequence_number(),
                 false,
                 false,
             )
             .await;
-            return Ok(resp);
+            return Ok(error_resp(500, "request body collect error"));
         }
     };
 
-    let upstream_req = match builder.body(Full::new(body_bytes.clone())) {
-        Ok(r) => r,
-        Err(e) => {
-            error!("failed to build upstream request: {}", e);
-            let body = Full::new(Bytes::from(format!("request build error: {}", e))).boxed();
-            let resp = Response::builder()
-                .status(500)
-                .body(body)
-                .unwrap_or_else(|_| {
-                    Response::new(Full::new(Bytes::from("internal error")).boxed())
-                });
-            // record a failed capture with 500
-            let duration = started.elapsed().as_millis() as u64;
-            build_and_write_transaction(
-                captures,
-                &client_id,
-                method.as_str(),
-                &uri_str,
-                &req_headers,
-                req_version.clone(),
-                500,
-                None,
-                duration,
-                Some(body_bytes.clone()),
-                false,
-                false,
-            )
-            .await;
-            return Ok(resp);
-        }
-    };
-
-    // WebSocket upgrade path: bypass LegacyClient, use direct connection with
-    // upgrade support, and spawn a relay task for frame-level capture.
+    // WebSocket upgrade path: bypass the exchange core; the WS handler builds
+    // its own upstream connection and consumes its own sequence number.
     if is_ws_upgrade {
         if let Some(client_on_upgrade) = client_on_upgrade {
+            let upstream_req =
+                match build_upstream_request(&method, &uri, &req_headers, &body_bytes, &shared) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("failed to build upstream request: {}", e);
+                        let duration = started.elapsed().as_millis() as u64;
+                        record_error_transaction(
+                            captures,
+                            &client_id,
+                            method.as_str(),
+                            &uri_str,
+                            &req_headers,
+                            &req_version,
+                            500,
+                            None,
+                            duration,
+                            Some(body_bytes.clone()),
+                            conn_metadata.id,
+                            conn_metadata.next_sequence_number(),
+                            false,
+                            false,
+                        )
+                        .await;
+                        return Ok(error_resp(500, &format!("request build error: {}", e)));
+                    }
+                };
             return handle_websocket_upgrade(
                 upstream_req,
                 client_on_upgrade,
@@ -336,163 +273,29 @@ where
         }
     }
 
-    let resp = match shared.client.request(upstream_req).await {
-        Ok(r) => r,
-        Err(e) => {
-            let body = Full::new(Bytes::from(format!("upstream error: {}", e))).boxed();
-            let resp = Response::builder()
-                .status(502)
-                .body(body)
-                .unwrap_or_else(|_| {
-                    Response::new(Full::new(Bytes::from("upstream error")).boxed())
-                });
-            let duration = started.elapsed().as_millis() as u64;
-            build_and_write_transaction(
-                captures,
-                &client_id,
-                method.as_str(),
-                &uri_str,
-                &req_headers,
-                req_version.clone(),
-                502,
-                None,
-                duration,
-                Some(body_bytes.clone()),
-                false,
-                false,
-            )
-            .await;
-            return Ok(resp);
-        }
+    // Non-WebSocket: run the shared exchange core and deliver its response.
+    let pr = ProxiedRequest {
+        method,
+        uri,
+        uri_str,
+        headers: req_headers,
+        version: req_version,
+        body: body_bytes,
+        trailers: req_trailers,
+        client_id,
+        connection_id: conn_metadata.id,
+        sequence_number: conn_metadata.next_sequence_number(),
     };
 
-    let status = resp.status().as_u16();
-    let headers = resp.headers().clone();
-    // Capture the upstream response version before consuming the body
-    let resp_ver = format_http_version(resp.version());
-    let (resp_body_bytes, resp_trailers) =
-        match collect_limited(resp.into_body(), max_body_bytes).await {
-            Ok((bytes, trailers)) => (bytes, trailers),
-            Err(CollectLimitedError::OverLimit) => {
-                warn!(
-                    "upstream response body exceeds max_body_bytes ({})",
-                    max_body_bytes
-                );
-                let msg = "upstream response exceeds max_body_bytes";
-                let resp = Response::builder()
-                    .status(502)
-                    .body(Full::new(Bytes::from(msg)).boxed())
-                    .unwrap_or_else(|_| Response::new(Full::new(Bytes::from(msg)).boxed()));
-                let duration = started.elapsed().as_millis() as u64;
-                // Record the upstream's real status and headers; the body was
-                // discarded, so only the over-limit marker explains its absence.
-                build_and_write_transaction(
-                    captures,
-                    &client_id,
-                    method.as_str(),
-                    &uri_str,
-                    &req_headers,
-                    req_version.clone(),
-                    status,
-                    Some(headers.clone()),
-                    duration,
-                    Some(body_bytes.clone()),
-                    false,
-                    true,
-                )
-                .await;
-                return Ok(resp);
-            }
-            Err(CollectLimitedError::Other(e)) => {
-                let body =
-                    Full::new(Bytes::from(format!("upstream body collect error: {}", e))).boxed();
-                let resp = Response::builder()
-                    .status(500)
-                    .body(body)
-                    .unwrap_or_else(|_| {
-                        Response::new(Full::new(Bytes::from("upstream error")).boxed())
-                    });
-                let duration = started.elapsed().as_millis() as u64;
-                build_and_write_transaction(
-                    captures,
-                    &client_id,
-                    method.as_str(),
-                    &uri_str,
-                    &req_headers,
-                    req_version.clone(),
-                    500,
-                    None,
-                    duration,
-                    Some(body_bytes.clone()),
-                    false,
-                    false,
-                )
-                .await;
-                return Ok(resp);
-            }
-        };
+    let proxied = exchange(pr, &shared, started).await;
 
-    let duration = started.elapsed().as_millis() as u64;
-
-    let mut tx = crate::http_transaction::HttpTransaction::new(
-        client_id.clone(),
-        method.as_str().to_string(),
-        uri_str.clone(),
-    );
-    tx.request.headers = req_headers.clone();
-    tx.request.version = req_version.clone();
-    // record request body and length
-    tx.request.body_length = Some(body_bytes.len() as u64);
-    tx.request.trailers = req_trailers;
-    tx.request_body = Some(body_bytes.clone());
-
-    tx.response = Some(crate::http_transaction::ResponseInfo {
-        status,
-        version: resp_ver,
-        headers: headers.clone(),
-        body_length: Some(resp_body_bytes.len() as u64),
-        trailers: resp_trailers,
-    });
-    tx.response_body = Some(resp_body_bytes.clone());
-    tx.timing = crate::http_transaction::TimingInfo {
-        duration_ms: duration,
-    };
-    tx.connection_id = Some(conn_metadata.id);
-    tx.sequence_number = Some(conn_metadata.next_sequence_number());
-    if status == 101 {
-        tx.was_upgraded = true;
-        tx.upgrade_protocol = headers
-            .get("upgrade")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string());
+    let mut resp_builder = Response::builder().status(proxied.status);
+    for (name, value) in proxied.headers.iter() {
+        resp_builder = resp_builder.header(name, value);
     }
-
-    shared.pipeline().commit(tx).await;
-
-    let mut resp_builder = Response::builder().status(status);
-
-    if status == 101 {
-        // 101 Switching Protocols: preserve all headers including Connection
-        // and Upgrade which are essential for the upgrade handshake.
-        for (name, value) in headers.iter() {
-            resp_builder = resp_builder.header(name, value);
-        }
-    } else {
-        let connection_hop_headers =
-            parse_connection_tokens(headers.get(hyper::header::CONNECTION));
-        for (name, value) in headers.iter() {
-            let name_str = name.as_str().to_ascii_lowercase();
-            if is_hop_by_hop_header(&name_str, &connection_hop_headers) {
-                continue;
-            }
-            resp_builder = resp_builder.header(name, value);
-        }
-    }
-    let resp = resp_builder
-        .body(Full::new(resp_body_bytes.clone()).boxed())
-        .unwrap_or_else(|_| Response::new(Full::new(resp_body_bytes.clone()).boxed()));
-
-    Ok(resp)
+    Ok(resp_builder
+        .body(Full::new(proxied.body.clone()).boxed())
+        .unwrap_or_else(|_| Response::new(Full::new(proxied.body).boxed())))
 }
 
 #[cfg(test)]
