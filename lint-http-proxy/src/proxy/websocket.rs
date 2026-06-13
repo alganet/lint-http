@@ -11,10 +11,11 @@ use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::time::Instant;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::capture::CaptureWriter;
 
+use super::body::{collect_limited, CollectLimitedError};
 use super::hop_by_hop::{format_http_version, is_hop_by_hop_header, parse_connection_tokens};
 use super::pipeline::ProtocolEventPipeline;
 use super::Shared;
@@ -123,9 +124,10 @@ pub(super) async fn handle_websocket_upgrade(
     }
 
     let tx_id = tx.id;
-    shared.pipeline().commit(tx).await;
 
     if status == 101 {
+        shared.pipeline().commit(tx).await;
+
         // Extract the server-side upgraded IO
         let server_upgraded = hyper::upgrade::on(&mut upstream_resp);
 
@@ -168,11 +170,31 @@ pub(super) async fn handle_websocket_upgrade(
 
         Ok(resp)
     } else {
-        // Upstream did not accept the upgrade; return the response normally
-        let resp_body = match upstream_resp.into_body().collect().await {
-            Ok(collected) => collected.to_bytes(),
-            Err(_) => Bytes::new(),
+        // Upstream did not accept the upgrade; return the response normally,
+        // bounded by max_body_bytes.
+        let max_body_bytes = shared.cfg.general.max_body_bytes;
+        let resp_body = match collect_limited(upstream_resp.into_body(), max_body_bytes).await {
+            Ok((bytes, _trailers)) => bytes,
+            Err(CollectLimitedError::OverLimit) => {
+                warn!(
+                    "websocket non-101 response body exceeds max_body_bytes ({})",
+                    max_body_bytes
+                );
+                tx.response_body_over_limit = true;
+                if let Some(r) = tx.response.as_mut() {
+                    r.body_length = None;
+                }
+                shared.pipeline().commit(tx).await;
+                let msg = "upstream response exceeds max_body_bytes";
+                let resp = Response::builder()
+                    .status(502)
+                    .body(Full::new(Bytes::from(msg)).boxed())
+                    .unwrap_or_else(|_| Response::new(Full::new(Bytes::from(msg)).boxed()));
+                return Ok(resp);
+            }
+            Err(CollectLimitedError::Other(_)) => Bytes::new(),
         };
+        shared.pipeline().commit(tx).await;
 
         let mut resp_builder = Response::builder().status(status);
         let connection_hop_headers =
@@ -823,6 +845,83 @@ mod tests {
 
         // Server returned 400, so proxy should forward it
         assert_eq!(resp.status().as_u16(), 400);
+
+        let _ = server_task.await;
+        let _ = tokio::fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn handle_websocket_upgrade_non_101_over_limit_returns_502() -> anyhow::Result<()> {
+        // Plain HTTP server rejecting the upgrade with an 11-byte body, which
+        // exceeds the configured 4-byte limit.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let port = listener.local_addr()?.port();
+
+        let server_task = tokio::spawn(async move {
+            if let Ok((socket, _)) = listener.accept().await {
+                let mut buf = [0u8; 4096];
+                let _ = socket.readable().await;
+                let _ = socket.try_read(&mut buf);
+                let resp = b"HTTP/1.1 400 Bad Request\r\nContent-Length: 11\r\n\r\nBad Request";
+                let _ = socket.try_write(resp);
+            }
+        });
+
+        let mut cfg = crate::config::Config::default();
+        cfg.general.max_body_bytes = 4;
+        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None).await?;
+
+        let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
+        let upstream_req = Request::builder()
+            .method("GET")
+            .uri(uri.clone())
+            .header("connection", "Upgrade")
+            .header("upgrade", "websocket")
+            .body(Full::new(Bytes::new()))?;
+
+        let fake_on_upgrade = hyper::upgrade::on(
+            Request::builder()
+                .method("GET")
+                .uri("http://fake/")
+                .body(Full::new(Bytes::new()).boxed())
+                .unwrap(),
+        );
+
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse()?,
+        ));
+        let started = Instant::now();
+        let client_id =
+            crate::state::ClientIdentifier::new("127.0.0.1".parse().unwrap(), "test".to_string());
+
+        let resp = handle_websocket_upgrade(
+            upstream_req,
+            fake_on_upgrade,
+            &uri,
+            &hyper::http::uri::Scheme::HTTP,
+            &started,
+            &client_id,
+            &Method::GET,
+            &uri.to_string(),
+            &hyper::HeaderMap::new(),
+            "HTTP/1.1",
+            Bytes::new(),
+            None,
+            shared,
+            conn_metadata,
+        )
+        .await?;
+
+        assert_eq!(resp.status().as_u16(), 502);
+
+        // The capture keeps the upstream's real status; the marker explains
+        // the missing body.
+        let content = tokio::fs::read_to_string(&tmp).await?;
+        let v: serde_json::Value = serde_json::from_str(content.trim())?;
+        assert_eq!(v["response"]["status"].as_u64(), Some(400));
+        assert_eq!(v["response_body_over_limit"].as_bool(), Some(true));
+        assert!(v["response"]["body_length"].is_null());
 
         let _ = server_task.await;
         let _ = tokio::fs::remove_file(&tmp).await;

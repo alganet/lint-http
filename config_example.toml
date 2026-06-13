@@ -11,6 +11,11 @@ captures_seed = false
 # file as base64 strings. Bodies are still captured in memory for rules; this
 # option only affects serialization to the captures file.
 captures_include_body = false
+# Maximum body bytes the proxy will buffer per request or response.
+# Over-limit request bodies are rejected with 413; over-limit response bodies
+# abort the exchange with 502. The captured transaction is marked with
+# request_body_over_limit / response_body_over_limit. Default: 64 MiB.
+# max_body_bytes = 67108864
 # Maximum protocol events per connection/session key for protocol-level rules
 # (e.g. WebSocket frame sequencing). Larger values let rules detect violations
 # across more frames but use more memory. Default: 200.

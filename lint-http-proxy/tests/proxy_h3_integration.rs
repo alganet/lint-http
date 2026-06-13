@@ -203,6 +203,51 @@ async fn h3_get(
     Ok((status, headers, body))
 }
 
+/// Send a single HTTP/3 POST request with a body via quinn+h3, return status
+/// and response body. Mirrors [`h3_get`].
+async fn h3_request_with_body(
+    endpoint: &quinn::Endpoint,
+    h3_addr: SocketAddr,
+    uri: &str,
+    body: &[u8],
+) -> anyhow::Result<(u16, Vec<u8>)> {
+    use bytes::Buf;
+
+    let conn = endpoint.connect(h3_addr, "localhost")?.await?;
+    let (mut driver, mut send_request) = h3::client::new(h3_quinn::Connection::new(conn)).await?;
+
+    let driver_handle = tokio::spawn(async move {
+        futures_util::future::poll_fn(|cx| driver.poll_close(cx)).await;
+    });
+
+    let req = http::Request::builder().method("POST").uri(uri).body(())?;
+    let mut stream = send_request.send_request(req).await?;
+    stream
+        .send_data(bytes::Bytes::copy_from_slice(body))
+        .await?;
+    stream.finish().await?;
+
+    let resp = stream.recv_response().await?;
+    let status = resp.status().as_u16();
+
+    let mut resp_body = Vec::new();
+    while let Some(chunk) = stream.recv_data().await? {
+        let mut buf = chunk;
+        while buf.has_remaining() {
+            let b = buf.chunk();
+            resp_body.extend_from_slice(b);
+            let len = b.len();
+            buf.advance(len);
+        }
+    }
+
+    drop(stream);
+    drop(send_request);
+    let _ = driver_handle.await;
+
+    Ok((status, resp_body))
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -460,6 +505,105 @@ async fn h3_multiple_requests_on_same_connection_increment_sequence() -> anyhow:
     assert_eq!(records[1]["sequence_number"].as_u64(), Some(1));
 
     // Cleanup
+    endpoint.close(0u32.into(), b"done");
+    handle.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    let _ = tokio::fs::remove_file(&cert_path).await;
+    let _ = tokio::fs::remove_file(&key_path).await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn h3_request_body_over_limit_returns_413() -> anyhow::Result<()> {
+    let (handle, _tcp_addr, h3_addr, captures_path, cert_path, key_path) =
+        start_proxy_with_h3(Some(Box::new(|cfg| {
+            cfg.general.max_body_bytes = 16;
+        })))
+        .await?;
+
+    let endpoint = build_h3_client(&cert_path)?;
+    // The limit trips while collecting the request body, before any upstream
+    // contact, so no mock server is needed.
+    let (status, _body) =
+        h3_request_with_body(&endpoint, h3_addr, "http://127.0.0.1:9/upload", &[b'a'; 64]).await?;
+    assert_eq!(status, 413);
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    let content = tokio::fs::read_to_string(&captures_path).await?;
+    let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
+    assert!(
+        !lines.is_empty(),
+        "over-limit transaction should be captured"
+    );
+
+    let v: serde_json::Value = serde_json::from_str(lines[0])?;
+    assert_eq!(v["response"]["status"].as_u64(), Some(413));
+    assert_eq!(v["request_body_over_limit"].as_bool(), Some(true));
+    assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3"));
+    assert!(v["request"]["body_length"].is_null());
+
+    endpoint.close(0u32.into(), b"done");
+    handle.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    let _ = tokio::fs::remove_file(&cert_path).await;
+    let _ = tokio::fs::remove_file(&key_path).await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn h3_response_body_over_limit_returns_502() -> anyhow::Result<()> {
+    let mock = MockServer::start().await;
+    Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/big"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("x-upstream", "yes")
+                .set_body_bytes(vec![b'b'; 64]),
+        )
+        .mount(&mock)
+        .await;
+
+    let (handle, _tcp_addr, h3_addr, captures_path, cert_path, key_path) =
+        start_proxy_with_h3(Some(Box::new(|cfg| {
+            cfg.general.max_body_bytes = 16;
+        })))
+        .await?;
+
+    let endpoint = build_h3_client(&cert_path)?;
+    let uri = format!("http://127.0.0.1:{}/big", mock.address().port());
+
+    let (status, _headers, _body) = h3_get(&endpoint, h3_addr, &uri, &[]).await?;
+    assert_eq!(status, 502);
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    // The capture records the upstream's real status; the marker explains the
+    // missing body.
+    let content = tokio::fs::read_to_string(&captures_path).await?;
+    let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
+    assert!(
+        !lines.is_empty(),
+        "over-limit transaction should be captured"
+    );
+
+    let v: serde_json::Value = serde_json::from_str(lines[0])?;
+    assert_eq!(v["response"]["status"].as_u64(), Some(200));
+    assert_eq!(v["response_body_over_limit"].as_bool(), Some(true));
+    assert!(v["response"]["body_length"].is_null());
+    // The upstream's real response headers are recorded even though the body
+    // was discarded (headers serialize as ordered [name, value] pairs).
+    let resp_headers = v["response"]["headers"]
+        .as_array()
+        .expect("response headers serialize as an array");
+    assert!(
+        resp_headers.iter().any(|pair| {
+            pair.get(0).and_then(|n| n.as_str()) == Some("x-upstream")
+                && pair.get(1).and_then(|val| val.as_str()) == Some("yes")
+        }),
+        "captured response should retain the upstream x-upstream header: {resp_headers:?}"
+    );
+
     endpoint.close(0u32.into(), b"done");
     handle.abort();
     let _ = tokio::fs::remove_file(&captures_path).await;

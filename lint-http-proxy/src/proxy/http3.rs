@@ -5,7 +5,7 @@
 //! HTTP/3 (QUIC) accept loop and per-stream request handling.
 
 use bytes::Bytes;
-use http_body_util::{BodyExt, Full};
+use http_body_util::Full;
 use hyper::{Request, Response, Uri};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -249,16 +249,64 @@ async fn handle_h3_request(
 
     let started = Instant::now();
 
-    // Collect the request body from the h3 stream
+    let method = req.method().clone();
+    let uri_str = req.uri().to_string();
+    let req_headers = req.headers().clone();
+
+    let client_ip = conn_metadata.remote_addr.ip();
+    let user_agent = req_headers
+        .get("user-agent")
+        .and_then(|v: &hyper::header::HeaderValue| v.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
+    let client_id = crate::state::ClientIdentifier::new(client_ip, user_agent);
+
+    // Collect the request body from the h3 stream, bounded by max_body_bytes.
+    let max_body_bytes = shared.cfg.general.max_body_bytes;
     let mut req_body = Vec::new();
-    while let Some(chunk) = stream.recv_data().await? {
+    let mut req_body_over_limit = false;
+    'collect: while let Some(chunk) = stream.recv_data().await? {
         let mut buf = chunk;
+        if req_body.len() + buf.remaining() > max_body_bytes {
+            req_body_over_limit = true;
+            break 'collect;
+        }
         while buf.has_remaining() {
             let bytes = buf.chunk();
             req_body.extend_from_slice(bytes);
             let len = bytes.len();
             buf.advance(len);
         }
+    }
+    if req_body_over_limit {
+        warn!(
+            "HTTP/3 request body exceeds max_body_bytes ({})",
+            max_body_bytes
+        );
+        let duration = started.elapsed().as_millis() as u64;
+        record_h3_error(
+            &shared.captures,
+            &client_id,
+            method.as_str(),
+            &uri_str,
+            &req_headers,
+            None,
+            413,
+            None,
+            duration,
+            &conn_metadata,
+            stream_id as u32,
+            true,
+            false,
+        )
+        .await;
+        let resp = Response::builder().status(413).body(()).unwrap();
+        stream.send_response(resp).await?;
+        stream
+            .send_data(Bytes::from("request body exceeds max_body_bytes"))
+            .await?;
+        stream.finish().await?;
+        return Ok(());
     }
     let req_body_bytes = Bytes::from(req_body);
 
@@ -298,18 +346,6 @@ async fn handle_h3_request(
             .unwrap_or_else(|_| Uri::from_static("https://localhost/"))
     };
 
-    let method = req.method().clone();
-    let uri_str = req.uri().to_string();
-    let req_headers = req.headers().clone();
-
-    let client_ip = conn_metadata.remote_addr.ip();
-    let user_agent = req_headers
-        .get("user-agent")
-        .and_then(|v: &hyper::header::HeaderValue| v.to_str().ok())
-        .unwrap_or("unknown")
-        .to_string();
-    let client_id = crate::state::ClientIdentifier::new(client_ip, user_agent);
-
     // Build upstream request (forwarded over TCP via the existing hyper client)
     let mut builder = Request::builder().method(method.clone()).uri(uri.clone());
     for (name, value) in req_headers.iter() {
@@ -335,11 +371,14 @@ async fn handle_h3_request(
         method: &str,
         uri_str: &str,
         req_headers: &hyper::HeaderMap,
-        req_body: &Bytes,
+        req_body: Option<&Bytes>,
         status: u16,
+        resp_headers: Option<&hyper::HeaderMap>,
         duration_ms: u64,
         conn_metadata: &crate::connection::ConnectionMetadata,
         sequence_number: u32,
+        request_body_over_limit: bool,
+        response_body_over_limit: bool,
     ) {
         let mut tx = crate::http_transaction::HttpTransaction::new(
             client_id.clone(),
@@ -348,12 +387,16 @@ async fn handle_h3_request(
         );
         tx.request.headers = req_headers.clone();
         tx.request.version = "HTTP/3".to_string();
-        tx.request.body_length = Some(req_body.len() as u64);
-        tx.request_body = Some(req_body.clone());
+        if let Some(b) = req_body {
+            tx.request.body_length = Some(b.len() as u64);
+            tx.request_body = Some(b.clone());
+        }
+        tx.request_body_over_limit = request_body_over_limit;
+        tx.response_body_over_limit = response_body_over_limit;
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
             version: "HTTP/3".into(),
-            headers: hyper::HeaderMap::new(),
+            headers: resp_headers.cloned().unwrap_or_default(),
             body_length: None,
             trailers: None,
         });
@@ -376,11 +419,14 @@ async fn handle_h3_request(
                 method.as_str(),
                 &uri_str,
                 &req_headers,
-                &req_body_bytes,
+                Some(&req_body_bytes),
                 502,
+                None,
                 duration,
                 &conn_metadata,
                 stream_id as u32,
+                false,
+                false,
             )
             .await;
             let resp = Response::builder().status(502).body(()).unwrap();
@@ -397,37 +443,71 @@ async fn handle_h3_request(
     let resp_headers = resp.headers().clone();
     let resp_ver = format_http_version(resp.version());
 
-    // Collect response body and trailers (matching TCP path)
-    let (resp_body_bytes, resp_trailers) = match resp.into_body().collect().await {
-        Ok(collected) => {
-            let trailers = collected.trailers().cloned();
-            (collected.to_bytes(), trailers)
-        }
-        Err(e) => {
-            error!("HTTP/3 upstream body collect error: {}", e);
-            let duration = started.elapsed().as_millis() as u64;
-            record_h3_error(
-                &shared.captures,
-                &client_id,
-                method.as_str(),
-                &uri_str,
-                &req_headers,
-                &req_body_bytes,
-                502,
-                duration,
-                &conn_metadata,
-                stream_id as u32,
-            )
-            .await;
-            let resp = Response::builder().status(502).body(()).unwrap();
-            stream.send_response(resp).await?;
-            stream
-                .send_data(Bytes::from(format!("upstream body error: {}", e)))
-                .await?;
-            stream.finish().await?;
-            return Ok(());
-        }
-    };
+    // Collect response body and trailers (matching TCP path), bounded by
+    // max_body_bytes.
+    let (resp_body_bytes, resp_trailers) =
+        match super::body::collect_limited(resp.into_body(), max_body_bytes).await {
+            Ok((bytes, trailers)) => (bytes, trailers),
+            Err(super::body::CollectLimitedError::OverLimit) => {
+                warn!(
+                    "HTTP/3 upstream response body exceeds max_body_bytes ({})",
+                    max_body_bytes
+                );
+                let duration = started.elapsed().as_millis() as u64;
+                // Record the upstream's real status and headers; the
+                // over-limit marker explains the missing body.
+                record_h3_error(
+                    &shared.captures,
+                    &client_id,
+                    method.as_str(),
+                    &uri_str,
+                    &req_headers,
+                    Some(&req_body_bytes),
+                    status,
+                    Some(&resp_headers),
+                    duration,
+                    &conn_metadata,
+                    stream_id as u32,
+                    false,
+                    true,
+                )
+                .await;
+                let resp = Response::builder().status(502).body(()).unwrap();
+                stream.send_response(resp).await?;
+                stream
+                    .send_data(Bytes::from("upstream response exceeds max_body_bytes"))
+                    .await?;
+                stream.finish().await?;
+                return Ok(());
+            }
+            Err(super::body::CollectLimitedError::Other(e)) => {
+                error!("HTTP/3 upstream body collect error: {}", e);
+                let duration = started.elapsed().as_millis() as u64;
+                record_h3_error(
+                    &shared.captures,
+                    &client_id,
+                    method.as_str(),
+                    &uri_str,
+                    &req_headers,
+                    Some(&req_body_bytes),
+                    502,
+                    None,
+                    duration,
+                    &conn_metadata,
+                    stream_id as u32,
+                    false,
+                    false,
+                )
+                .await;
+                let resp = Response::builder().status(502).body(()).unwrap();
+                stream.send_response(resp).await?;
+                stream
+                    .send_data(Bytes::from(format!("upstream body error: {}", e)))
+                    .await?;
+                stream.finish().await?;
+                return Ok(());
+            }
+        };
 
     let duration = started.elapsed().as_millis() as u64;
 

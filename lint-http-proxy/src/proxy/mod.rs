@@ -4,6 +4,7 @@
 
 //! HTTP proxy server implementation with request forwarding and capture.
 
+mod body;
 mod connect;
 mod hop_by_hop;
 mod http;
