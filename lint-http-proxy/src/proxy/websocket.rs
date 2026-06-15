@@ -16,6 +16,7 @@ use tracing::{error, warn};
 use crate::capture::CaptureWriter;
 
 use super::body::{collect_limited, CollectLimitedError};
+use super::exchange::record_error_transaction;
 use super::hop_by_hop::{format_http_version, parse_connection_tokens};
 use super::pipeline::ProtocolEventPipeline;
 use super::Shared;
@@ -60,14 +61,19 @@ pub(super) async fn handle_websocket_upgrade(
         Ok(s) => s,
         Err(e) => {
             error!("websocket upstream connect error: {}", e);
-            let body = Full::new(Bytes::from(format!("websocket upstream error: {}", e))).boxed();
-            let resp = Response::builder()
-                .status(502)
-                .body(body)
-                .unwrap_or_else(|_| {
-                    Response::new(Full::new(Bytes::from("upstream error")).boxed())
-                });
-            return Ok(resp);
+            record_handshake_failure(
+                &shared,
+                client_id,
+                method,
+                uri_str,
+                req_headers,
+                req_version,
+                &body_bytes,
+                &conn_metadata,
+                started,
+            )
+            .await;
+            return Ok(upstream_error_response(&e));
         }
     };
 
@@ -76,14 +82,19 @@ pub(super) async fn handle_websocket_upgrade(
         Ok(r) => r,
         Err(e) => {
             error!("websocket upstream request error: {}", e);
-            let body = Full::new(Bytes::from(format!("websocket upstream error: {}", e))).boxed();
-            let resp = Response::builder()
-                .status(502)
-                .body(body)
-                .unwrap_or_else(|_| {
-                    Response::new(Full::new(Bytes::from("upstream error")).boxed())
-                });
-            return Ok(resp);
+            record_handshake_failure(
+                &shared,
+                client_id,
+                method,
+                uri_str,
+                req_headers,
+                req_version,
+                &body_bytes,
+                &conn_metadata,
+                started,
+            )
+            .await;
+            return Ok(upstream_error_response(&e));
         }
     };
 
@@ -206,6 +217,52 @@ pub(super) async fn handle_websocket_upgrade(
 
         Ok(resp)
     }
+}
+
+/// Build the 502 returned to the client when a WebSocket upstream handshake
+/// fails (connect or request-send error).
+fn upstream_error_response(e: impl std::fmt::Display) -> Response<BoxBody<Bytes, Infallible>> {
+    let body = Full::new(Bytes::from(format!("websocket upstream error: {}", e))).boxed();
+    Response::builder()
+        .status(502)
+        .body(body)
+        .unwrap_or_else(|_| Response::new(Full::new(Bytes::from("upstream error")).boxed()))
+}
+
+/// Record a transaction for a WebSocket handshake that failed before the
+/// upstream produced any response, so the request is not silently lost. Routes
+/// through the pipeline (lint → state → capture) and consumes one sequence
+/// number, matching the success path.
+#[allow(clippy::too_many_arguments)]
+async fn record_handshake_failure(
+    shared: &Arc<Shared>,
+    client_id: &crate::state::ClientIdentifier,
+    method: &Method,
+    uri_str: &str,
+    req_headers: &hyper::HeaderMap,
+    req_version: &str,
+    body_bytes: &Bytes,
+    conn_metadata: &crate::connection::ConnectionMetadata,
+    started: &Instant,
+) {
+    let duration = started.elapsed().as_millis() as u64;
+    record_error_transaction(
+        shared,
+        client_id,
+        method.as_str(),
+        uri_str,
+        req_headers,
+        req_version,
+        502,
+        None,
+        duration,
+        Some(body_bytes.clone()),
+        conn_metadata.id,
+        conn_metadata.next_sequence_number(),
+        false,
+        false,
+    )
+    .await;
 }
 
 /// Open a direct TCP (or TLS) connection to the upstream host and perform
@@ -469,6 +526,15 @@ mod tests {
         )
     }
 
+    /// Whether a captured transaction's request headers (serialized as ordered
+    /// `[name, value]` pairs) contain `name`.
+    fn captured_request_has_header(v: &serde_json::Value, name: &str) -> bool {
+        v["request"]["headers"]
+            .as_array()
+            .map(|pairs| pairs.iter().any(|p| p[0] == name))
+            .unwrap_or(false)
+    }
+
     #[test]
     fn is_websocket_upgrade_detects_valid_upgrade() {
         let req = Request::builder()
@@ -721,7 +787,7 @@ mod tests {
     async fn handle_websocket_upgrade_upstream_connect_error() -> anyhow::Result<()> {
         // Test that handle_websocket_upgrade returns 502 when upstream is unreachable
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None).await?;
 
         // Build a request targeting a closed port
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
@@ -751,6 +817,8 @@ mod tests {
         let started = Instant::now();
         let client_id =
             crate::state::ClientIdentifier::new("127.0.0.1".parse().unwrap(), "test".to_string());
+        let mut req_headers = hyper::HeaderMap::new();
+        req_headers.insert("x-test", "1".parse()?);
 
         let resp = handle_websocket_upgrade(
             upstream_req,
@@ -761,7 +829,7 @@ mod tests {
             &client_id,
             &Method::GET,
             &uri.to_string(),
-            &hyper::HeaderMap::new(),
+            &req_headers,
             "HTTP/1.1",
             Bytes::new(),
             None,
@@ -771,6 +839,17 @@ mod tests {
         .await?;
 
         assert_eq!(resp.status().as_u16(), 502);
+
+        // The failed handshake is now captured rather than silently dropped,
+        // preserving the request headers.
+        cw.flush().await?;
+        let content = tokio::fs::read_to_string(&tmp).await?;
+        let v: serde_json::Value = serde_json::from_str(content.trim())?;
+        assert_eq!(v["response"]["status"].as_u64(), Some(502));
+        assert!(
+            captured_request_has_header(&v, "x-test"),
+            "captured request should preserve request headers"
+        );
 
         let _ = tokio::fs::remove_file(&tmp).await;
         Ok(())
@@ -1128,7 +1207,7 @@ mod tests {
         });
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None).await?;
 
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
         let upstream_req = Request::builder()
@@ -1152,6 +1231,8 @@ mod tests {
         let started = Instant::now();
         let client_id =
             crate::state::ClientIdentifier::new("127.0.0.1".parse().unwrap(), "test".to_string());
+        let mut req_headers = hyper::HeaderMap::new();
+        req_headers.insert("x-test", "1".parse()?);
 
         let resp = handle_websocket_upgrade(
             upstream_req,
@@ -1162,7 +1243,7 @@ mod tests {
             &client_id,
             &Method::GET,
             &uri.to_string(),
-            &hyper::HeaderMap::new(),
+            &req_headers,
             "HTTP/1.1",
             Bytes::new(),
             None,
@@ -1173,6 +1254,16 @@ mod tests {
 
         // Server dropped connection, send_request should fail -> 502
         assert_eq!(resp.status().as_u16(), 502);
+
+        // The failed handshake is captured rather than silently dropped.
+        cw.flush().await?;
+        let content = tokio::fs::read_to_string(&tmp).await?;
+        let v: serde_json::Value = serde_json::from_str(content.trim())?;
+        assert_eq!(v["response"]["status"].as_u64(), Some(502));
+        assert!(
+            captured_request_has_header(&v, "x-test"),
+            "captured request should preserve request headers"
+        );
 
         let _ = server_task.await;
         let _ = tokio::fs::remove_file(&tmp).await;

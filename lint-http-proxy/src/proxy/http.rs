@@ -172,7 +172,6 @@ where
         None
     };
 
-    let captures = &shared.captures;
     let max_body_bytes = shared.cfg.general.max_body_bytes;
 
     let (body_bytes, req_trailers) = match collect_limited(req.into_body(), max_body_bytes).await {
@@ -181,7 +180,7 @@ where
             warn!("request body exceeds max_body_bytes ({})", max_body_bytes);
             let duration = started.elapsed().as_millis() as u64;
             record_error_transaction(
-                captures,
+                &shared,
                 &client_id,
                 method.as_str(),
                 &uri_str,
@@ -203,7 +202,7 @@ where
             error!("failed to collect request body: {}", e);
             let duration = started.elapsed().as_millis() as u64;
             record_error_transaction(
-                captures,
+                &shared,
                 &client_id,
                 method.as_str(),
                 &uri_str,
@@ -234,7 +233,7 @@ where
                         error!("failed to build upstream request: {}", e);
                         let duration = started.elapsed().as_millis() as u64;
                         record_error_transaction(
-                            captures,
+                            &shared,
                             &client_id,
                             method.as_str(),
                             &uri_str,
@@ -382,6 +381,14 @@ mod tests {
         let s = fs::read_to_string(&tmp).await?;
         let v: serde_json::Value = serde_json::from_str(s.trim())?;
         assert_eq!(v["response"]["status"].as_u64(), Some(502));
+
+        // The errored exchange is also recorded into history, so stateful rules
+        // can see failure traffic (not just successful exchanges).
+        let client =
+            crate::state::ClientIdentifier::new("127.0.0.1".parse()?, "unknown".to_string());
+        let history = shared.state.get_history(&client, "http://127.0.0.1:9/");
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].response.as_ref().unwrap().status, 502);
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())
