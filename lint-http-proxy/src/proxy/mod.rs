@@ -11,12 +11,13 @@ mod hop_by_hop;
 mod http;
 mod http3;
 mod pipeline;
+mod tee_body;
 #[cfg(test)]
 mod test_support;
 mod websocket;
 
 use bytes::Bytes;
-use http_body_util::combinators::BoxBody;
+use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use hyper::{service::service_fn, Request, Response};
 use hyper_rustls::HttpsConnectorBuilder;
@@ -42,13 +43,35 @@ use crate::config::Config;
 use self::http::handle_request;
 use self::http3::{init_h3_endpoint, run_h3_accept_loop};
 
+/// Body type returned to the client. Streaming upstream responses can error
+/// mid-body (the inner `Incoming` is fallible), so unlike the request side this
+/// carries a real error rather than `Infallible`. Unsync because `Incoming` is
+/// not `Sync`; `serve_connection` only requires `Send`.
+pub(super) type ResponseBody = http_body_util::combinators::UnsyncBoxBody<Bytes, BoxError>;
+
+/// Wrap fully-buffered bytes (proxy-generated responses: errors, the CA cert,
+/// CONNECT acks) as a [`ResponseBody`]. `Full` is infallible, so the boxed
+/// error never materializes.
+pub(super) fn boxed_full(body: Bytes) -> ResponseBody {
+    Full::new(body).map_err(|e| match e {}).boxed_unsync()
+}
+
 pub(super) type ServiceFuture =
-    Pin<Box<dyn Future<Output = Result<Response<BoxBody<Bytes, Infallible>>, Infallible>> + Send>>;
+    Pin<Box<dyn Future<Output = Result<Response<ResponseBody>, Infallible>> + Send>>;
+
+/// Boxed error for the upstream request body — `Full<Bytes>` for buffered
+/// bodies (WebSocket, H3) or a streaming `TeeBody` for H1/H2 requests.
+pub(super) type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
+/// Request body type sent to the upstream client. Unsync (like [`ResponseBody`])
+/// so it can carry a streaming/teeing request body; the client only requires
+/// `Send`.
+pub(super) type ClientBody = http_body_util::combinators::UnsyncBoxBody<Bytes, BoxError>;
 
 pub(super) struct Shared {
     pub(super) client: LegacyClient<
         hyper_rustls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>,
-        http_body_util::Full<bytes::Bytes>,
+        ClientBody,
     >,
     pub(super) captures: CaptureWriter,
     pub(super) cfg: Arc<Config>,
@@ -122,7 +145,7 @@ async fn run_proxy_inner(
         .enable_http1()
         .enable_http2()
         .build();
-    let client: LegacyClient<_, http_body_util::Full<bytes::Bytes>> =
+    let client: LegacyClient<_, ClientBody> =
         LegacyClient::builder(TokioExecutor::new()).build(https);
 
     let ca = if cfg.tls.enabled {

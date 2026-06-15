@@ -49,6 +49,15 @@ pub struct GeneralConfig {
     #[serde(default = "default_max_body_bytes")]
     pub max_body_bytes: usize,
 
+    /// Maximum number of body bytes captured into the transaction for rules and
+    /// the captures file (default: 1 MiB). Bodies are forwarded in full
+    /// regardless; only the captured copy is bounded to this prefix. When a body
+    /// exceeds it, `request_body_over_limit` / `response_body_over_limit` mark
+    /// the captured body as a truncated prefix (the real size is still recorded
+    /// in `body_length`).
+    #[serde(default = "default_captures_max_body_bytes")]
+    pub captures_max_body_bytes: usize,
+
     /// Maximum number of simultaneous live TCP connections the proxy will
     /// serve. Further connections wait for a slot rather than being accepted
     /// unboundedly (default: 1024).
@@ -92,6 +101,10 @@ const fn default_max_body_bytes() -> usize {
     64 * 1024 * 1024
 }
 
+const fn default_captures_max_body_bytes() -> usize {
+    1024 * 1024
+}
+
 const fn default_max_connections() -> usize {
     1024
 }
@@ -123,6 +136,7 @@ impl Default for GeneralConfig {
             captures_seed: default_captures_seed(),
             captures_include_body: default_captures_include_body(),
             max_body_bytes: default_max_body_bytes(),
+            captures_max_body_bytes: default_captures_max_body_bytes(),
             max_connections: default_max_connections(),
             shutdown_timeout_seconds: default_shutdown_timeout_seconds(),
             h3_listen: None,

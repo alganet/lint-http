@@ -552,7 +552,7 @@ async fn h3_request_body_over_limit_returns_413() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn h3_response_body_over_limit_returns_502() -> anyhow::Result<()> {
+async fn h3_response_over_limit_streams_full_and_truncates_capture() -> anyhow::Result<()> {
     let mock = MockServer::start().await;
     Mock::given(wiremock::matchers::method("GET"))
         .and(wiremock::matchers::path("/big"))
@@ -566,20 +566,23 @@ async fn h3_response_body_over_limit_returns_502() -> anyhow::Result<()> {
 
     let (handle, _tcp_addr, h3_addr, captures_path, cert_path, key_path) =
         start_proxy_with_h3(Some(Box::new(|cfg| {
-            cfg.general.max_body_bytes = 16;
+            cfg.general.captures_max_body_bytes = 16;
         })))
         .await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     let uri = format!("http://127.0.0.1:{}/big", mock.address().port());
 
-    let (status, _headers, _body) = h3_get(&endpoint, h3_addr, &uri, &[]).await?;
-    assert_eq!(status, 502);
+    let (status, _headers, body) = h3_get(&endpoint, h3_addr, &uri, &[]).await?;
+    // The full response is streamed to the client (no rejection); only the
+    // captured copy is bounded.
+    assert_eq!(status, 200);
+    assert_eq!(body.len(), 64);
 
     tokio::time::sleep(Duration::from_millis(200)).await;
 
-    // The capture records the upstream's real status; the marker explains the
-    // missing body.
+    // The capture holds only the bounded prefix, marked truncated, while
+    // body_length records the real streamed total.
     let content = tokio::fs::read_to_string(&captures_path).await?;
     let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
     assert!(
@@ -590,7 +593,7 @@ async fn h3_response_body_over_limit_returns_502() -> anyhow::Result<()> {
     let v: serde_json::Value = serde_json::from_str(lines[0])?;
     assert_eq!(v["response"]["status"].as_u64(), Some(200));
     assert_eq!(v["response_body_over_limit"].as_bool(), Some(true));
-    assert!(v["response"]["body_length"].is_null());
+    assert_eq!(v["response"]["body_length"].as_u64(), Some(64));
     // The upstream's real response headers are recorded even though the body
     // was discarded (headers serialize as ordered [name, value] pairs).
     let resp_headers = v["response"]["headers"]

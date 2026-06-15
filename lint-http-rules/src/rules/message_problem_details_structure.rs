@@ -41,8 +41,16 @@ impl Rule for MessageProblemDetailsStructure {
                 let sub = parsed.subtype.to_ascii_lowercase();
 
                 if t == "application" && sub == "problem+json" {
-                    // If the transaction contains captured body bytes, inspect them conservatively
-                    if let Some(b) = &tx.response_body {
+                    // If the transaction contains captured body bytes, inspect them
+                    // conservatively. Skip byte inspection when the captured body is a
+                    // truncated prefix (streaming): a truncated JSON object would
+                    // mis-parse. The length-based checks below use the real
+                    // `body_length`, so coverage degrades gracefully.
+                    if let Some(b) = tx
+                        .response_body
+                        .as_ref()
+                        .filter(|_| !tx.response_body_over_limit)
+                    {
                         // Empty bytes -> violation
                         if b.is_empty() {
                             return Some(Violation {
@@ -336,6 +344,37 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none());
+    }
+
+    #[test]
+    fn truncated_body_prefix_skips_byte_inspection() {
+        // A truncated prefix of a problem+json body would mis-parse; the rule
+        // must skip byte inspection and fall back to body_length (real size).
+        let rule = MessageProblemDetailsStructure;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 500,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[(
+                "content-type",
+                "application/problem+json",
+            )]),
+            body_length: Some(4096),
+            trailers: None,
+        });
+        // Prefix is a truncated (unparseable) JSON object.
+        tx.response_body = Some(bytes::Bytes::from_static(b"{\"type\":\"abo"));
+        tx.response_body_over_limit = true;
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(
+            v.is_none(),
+            "truncated prefix must not be parsed as a full body"
+        );
     }
 
     #[test]

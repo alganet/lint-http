@@ -27,7 +27,13 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
         if let Some(hv) = tx.request.headers.get("content-type") {
             if let Ok(s) = hv.to_str() {
                 if let Some(boundary) = crate::helpers::headers::extract_multipart_boundary(s) {
-                    if let Some(b) = &tx.request_body {
+                    // Skip a truncated prefix (streaming): the terminating boundary
+                    // sits at the body's end and would be missing from a prefix.
+                    if let Some(b) = tx
+                        .request_body
+                        .as_ref()
+                        .filter(|_| !tx.request_body_over_limit)
+                    {
                         if let Some(v) =
                             check_body_contains_boundary("request", &boundary, b.as_ref(), &config)
                         {
@@ -43,7 +49,11 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
             if let Some(hv) = resp.headers.get("content-type") {
                 if let Ok(s) = hv.to_str() {
                     if let Some(boundary) = crate::helpers::headers::extract_multipart_boundary(s) {
-                        if let Some(b) = &tx.response_body {
+                        if let Some(b) = tx
+                            .response_body
+                            .as_ref()
+                            .filter(|_| !tx.response_body_over_limit)
+                        {
                             if let Some(v) = check_body_contains_boundary(
                                 "response",
                                 &boundary,
@@ -183,6 +193,25 @@ mod tests {
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("--abc"));
+    }
+
+    #[test]
+    fn truncated_body_prefix_skips_boundary_scan() {
+        // A truncated prefix is missing the terminating boundary (it sits at the
+        // body's end); the rule must skip the scan rather than false-positive.
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-type", "multipart/mixed; boundary=abc")],
+        );
+        tx.response_body = Some(Bytes::from_static(b"--abc\r\nContent-Type: text/pl"));
+        tx.response_body_over_limit = true;
+        let rule = MessageMultipartContentTypeAndBodyConsistency;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "truncated prefix must not be boundary-scanned");
     }
 
     #[test]

@@ -5,6 +5,7 @@
 //! HTTP/3 (QUIC) accept loop and per-stream request handling.
 
 use bytes::Bytes;
+use http_body_util::BodyExt;
 use hyper::{Response, Uri};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -16,6 +17,7 @@ use crate::ca::CertificateAuthority;
 
 use super::connect::AlwaysResolves;
 use super::exchange::{exchange, record_error_transaction, ProxiedRequest};
+use super::tee_body;
 use super::Shared;
 
 /// QUIC transport parameter defaults for the HTTP/3 proxy.
@@ -366,6 +368,13 @@ async fn handle_h3_request(
             .unwrap_or_else(|_| Uri::from_static("https://localhost/"))
     };
 
+    // The H3 request body is already buffered (recv loop above); present it
+    // through the same streaming exchange interface with a pre-resolved capture
+    // (bounded to the same prefix cap as H1/H2). H3 request streaming is a
+    // follow-up.
+    let prefix_cap = shared.cfg.general.captures_max_body_bytes;
+    let (body, body_done_rx) = tee_body::buffered(req_body_bytes, req_trailers, prefix_cap);
+
     // Run the shared exchange core (forward, collect, lint, capture).
     let pr = ProxiedRequest {
         method,
@@ -373,8 +382,8 @@ async fn handle_h3_request(
         uri_str,
         headers: req_headers,
         version: "HTTP/3".to_string(),
-        body: req_body_bytes,
-        trailers: req_trailers,
+        body,
+        body_done: body_done_rx,
         client_id,
         connection_id: conn_metadata.id,
         sequence_number: stream_id as u32,
@@ -389,7 +398,20 @@ async fn handle_h3_request(
     }
     let h3_resp = resp_builder.body(()).unwrap();
     stream.send_response(h3_resp).await?;
-    stream.send_data(proxied.body).await?;
+
+    // Drive the streaming response body frame-by-frame onto the QUIC stream.
+    let mut body = proxied.body;
+    while let Some(frame) = body.frame().await {
+        let frame = frame.map_err(|e| anyhow::anyhow!("HTTP/3 response body error: {}", e))?;
+        match frame.into_data() {
+            Ok(data) => stream.send_data(data).await?,
+            Err(frame) => {
+                if let Ok(trailers) = frame.into_trailers() {
+                    stream.send_trailers(trailers).await?;
+                }
+            }
+        }
+    }
     stream.finish().await?;
 
     Ok(())
@@ -401,7 +423,7 @@ mod tests {
     use crate::proxy::http::handle_request;
     use crate::proxy::run_proxy_with_limit;
     use crate::proxy::test_support::{
-        make_request_with_headers, make_shared_with_cfg, read_capture,
+        drain_and_read_captures, make_request_with_headers, make_shared_with_cfg,
     };
     use std::net::SocketAddr;
     use std::sync::Arc as StdArc;
@@ -468,8 +490,7 @@ mod tests {
         .await?;
         assert_eq!(resp.status().as_u16(), 200);
 
-        _cw.flush().await?;
-        let entries = read_capture(&tmp).await?;
+        let entries = drain_and_read_captures(resp, &_cw, &tmp).await?;
         assert!(!entries.is_empty());
 
         let _ = fs::remove_file(&tmp).await;
