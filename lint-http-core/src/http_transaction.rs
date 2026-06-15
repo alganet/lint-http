@@ -102,13 +102,17 @@ pub struct HttpTransaction {
     #[serde(default)]
     pub was_upgraded: bool,
 
-    /// True when the request body exceeded `max_body_bytes`. The body was not
-    /// captured (`request_body` and `request.body_length` stay `None`).
+    /// True when the captured request body is incomplete: either it was rejected
+    /// for exceeding `max_body_bytes`, or (when streaming) `request_body` holds
+    /// only a truncated prefix of `captures_max_body_bytes`. Rules that need the
+    /// whole body should not treat a present `request_body` as complete when set.
     #[serde(default)]
     pub request_body_over_limit: bool,
 
-    /// True when the response body exceeded `max_body_bytes`. The body was not
-    /// captured (`response_body` and `response.body_length` stay `None`).
+    /// True when the captured response body is incomplete: either it was rejected
+    /// for exceeding `max_body_bytes`, or (when streaming) `response_body` holds
+    /// only a truncated prefix of `captures_max_body_bytes`. Rules that need the
+    /// whole body should not treat a present `response_body` as complete when set.
     #[serde(default)]
     pub response_body_over_limit: bool,
 

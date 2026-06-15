@@ -14,18 +14,19 @@
 //! staying in sync.
 
 use bytes::Bytes;
-use http_body_util::Full;
+use http_body_util::BodyExt;
 use hyper::{HeaderMap, Method, Request, Uri};
 use std::sync::Arc;
+use tokio::sync::oneshot;
 use tokio::time::Instant;
 use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::state::ClientIdentifier;
 
-use super::body::{collect_limited, CollectLimitedError};
 use super::hop_by_hop::{format_http_version, is_hop_by_hop_header, parse_connection_tokens};
-use super::Shared;
+use super::tee_body::{self, CapturedBody};
+use super::{boxed_full, BoxError, ClientBody, ResponseBody, Shared};
 
 /// The post-front-half request inputs both transports compute, ready for the
 /// shared upstream exchange.
@@ -41,8 +42,12 @@ pub(super) struct ProxiedRequest {
     pub headers: HeaderMap,
     /// Request version string ("HTTP/1.1", "HTTP/3", …).
     pub version: String,
-    pub body: Bytes,
-    pub trailers: Option<HeaderMap>,
+    /// The request body, already wrapped so it streams to the upstream while a
+    /// bounded prefix is teed for capture (H3 wraps a buffered body).
+    pub body: ClientBody,
+    /// Resolves with the teed request-body capture (prefix, total length,
+    /// trailers) once the body has finished streaming to the upstream.
+    pub body_done: oneshot::Receiver<CapturedBody>,
     pub client_id: ClientIdentifier,
     pub connection_id: Uuid,
     pub sequence_number: u32,
@@ -50,11 +55,13 @@ pub(super) struct ProxiedRequest {
 
 /// What the transport should deliver to the client. Headers are already
 /// hop-by-hop filtered (with the 101 carve-out); they are empty for
-/// proxy-generated error responses.
+/// proxy-generated error responses. The body streams: for a successful
+/// exchange it tees a bounded prefix into the transaction (committed at
+/// stream-end); for a proxy error it is the buffered error message.
 pub(super) struct ProxiedResponse {
     pub status: u16,
     pub headers: HeaderMap,
-    pub body: Bytes,
+    pub body: ResponseBody,
 }
 
 /// Forward `req` upstream, collect the response, build + commit the
@@ -67,24 +74,62 @@ pub(super) async fn exchange(
     shared: &Arc<Shared>,
     started: Instant,
 ) -> ProxiedResponse {
-    let max_body_bytes = shared.cfg.general.max_body_bytes;
+    let ProxiedRequest {
+        method,
+        uri,
+        uri_str,
+        headers,
+        version,
+        body,
+        body_done,
+        client_id,
+        connection_id,
+        sequence_number,
+    } = req;
 
-    let upstream_req =
-        match build_upstream_request(&req.method, &req.uri, &req.headers, &req.body, shared) {
-            Ok(r) => r,
-            Err(e) => {
-                error!("failed to build upstream request: {}", e);
-                let duration = started.elapsed().as_millis() as u64;
-                record_exchange_error(shared, &req, 500, None, duration, false).await;
-                return error_response(500, format!("request build error: {}", e));
-            }
-        };
+    let upstream_req = match build_upstream_request(&method, &uri, &headers, body, shared) {
+        Ok(r) => r,
+        Err(e) => {
+            error!("failed to build upstream request: {}", e);
+            let duration = started.elapsed().as_millis() as u64;
+            record_exchange_error(
+                shared,
+                &client_id,
+                method.as_str(),
+                &uri_str,
+                &headers,
+                &version,
+                connection_id,
+                sequence_number,
+                500,
+                None,
+                duration,
+                body_done.await.ok().as_ref(),
+            )
+            .await;
+            return error_response(500, format!("request build error: {}", e));
+        }
+    };
 
     let resp = match shared.client.request(upstream_req).await {
         Ok(r) => r,
         Err(e) => {
             let duration = started.elapsed().as_millis() as u64;
-            record_exchange_error(shared, &req, 502, None, duration, false).await;
+            record_exchange_error(
+                shared,
+                &client_id,
+                method.as_str(),
+                &uri_str,
+                &headers,
+                &version,
+                connection_id,
+                sequence_number,
+                502,
+                None,
+                duration,
+                body_done.await.ok().as_ref(),
+            )
+            .await;
             return error_response(502, format!("upstream error: {}", e));
         }
     };
@@ -93,40 +138,9 @@ pub(super) async fn exchange(
     let upstream_headers = resp.headers().clone();
     let resp_ver = format_http_version(resp.version());
 
-    let (resp_body_bytes, resp_trailers) =
-        match collect_limited(resp.into_body(), max_body_bytes).await {
-            Ok((bytes, trailers)) => (bytes, trailers),
-            Err(CollectLimitedError::OverLimit) => {
-                warn!(
-                    "upstream response body exceeds max_body_bytes ({})",
-                    max_body_bytes
-                );
-                let duration = started.elapsed().as_millis() as u64;
-                // Record the upstream's real status and headers; the body was
-                // discarded, so only the over-limit marker explains its absence.
-                record_exchange_error(
-                    shared,
-                    &req,
-                    status,
-                    Some(upstream_headers.clone()),
-                    duration,
-                    true,
-                )
-                .await;
-                return error_response(502, "upstream response exceeds max_body_bytes".to_string());
-            }
-            Err(CollectLimitedError::Other(e)) => {
-                error!("upstream body collect error: {}", e);
-                let duration = started.elapsed().as_millis() as u64;
-                record_exchange_error(shared, &req, 500, None, duration, false).await;
-                return error_response(500, format!("upstream body collect error: {}", e));
-            }
-        };
-
-    let duration = started.elapsed().as_millis() as u64;
-
-    // Read everything the client response needs from the upstream headers
-    // before they are moved into the recorded transaction below.
+    // Status, headers, and upgrade info are known immediately. The body streams
+    // to the client unbuffered while `TeeBody` copies a bounded prefix and sums
+    // the real total; the transaction is committed once the stream ends.
     let out_headers = filter_response_headers(&upstream_headers, status);
     let (was_upgraded, upgrade_protocol) = if status == 101 {
         let proto = upstream_headers
@@ -138,51 +152,78 @@ pub(super) async fn exchange(
         (false, None)
     };
 
-    let mut tx = crate::http_transaction::HttpTransaction::new(
-        req.client_id,
-        req.method.as_str().to_string(),
-        req.uri_str,
-    );
-    tx.request.headers = req.headers;
-    tx.request.version = req.version;
-    tx.request.body_length = Some(req.body.len() as u64);
-    tx.request.trailers = req.trailers;
-    tx.request_body = Some(req.body);
+    let prefix_cap = shared.cfg.general.captures_max_body_bytes;
+    let inner = resp
+        .into_body()
+        .map_err(|e| -> BoxError { e.into() })
+        .boxed_unsync();
+    let (resp_body, done_rx) = tee_body::tee(inner, prefix_cap);
 
-    tx.response = Some(crate::http_transaction::ResponseInfo {
-        status,
-        version: resp_ver,
-        headers: upstream_headers,
-        body_length: Some(resp_body_bytes.len() as u64),
-        trailers: resp_trailers,
+    // Commit once both body halves have finished streaming — the request body
+    // (already sent upstream) and the response body (just read by the client) —
+    // so each `body_length` reflects the real total and each captured body is a
+    // bounded prefix.
+    let shared = shared.clone();
+    tokio::spawn(async move {
+        let (req_cap, resp_cap) = tokio::join!(body_done, done_rx);
+        let (Ok(req_cap), Ok(resp_cap)) = (req_cap, resp_cap) else {
+            // A tee was dropped without finalizing (should not happen — Drop
+            // always sends). Surface it so a lost capture is diagnosable.
+            warn!(
+                connection_id = %connection_id,
+                sequence_number, "dropped transaction: body capture never resolved"
+            );
+            return;
+        };
+        let mut tx = crate::http_transaction::HttpTransaction::new(
+            client_id,
+            method.as_str().to_string(),
+            uri_str,
+        );
+        tx.request.headers = headers;
+        tx.request.version = version;
+        tx.request.body_length = Some(req_cap.total);
+        tx.request.trailers = req_cap.trailers;
+        tx.request_body = Some(req_cap.prefix);
+        tx.request_body_over_limit = req_cap.truncated;
+
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status,
+            version: resp_ver,
+            headers: upstream_headers,
+            body_length: Some(resp_cap.total),
+            trailers: resp_cap.trailers,
+        });
+        tx.response_body = Some(resp_cap.prefix);
+        tx.response_body_over_limit = resp_cap.truncated;
+        tx.timing = crate::http_transaction::TimingInfo {
+            duration_ms: started.elapsed().as_millis() as u64,
+        };
+        tx.connection_id = Some(connection_id);
+        tx.sequence_number = Some(sequence_number);
+        tx.was_upgraded = was_upgraded;
+        tx.upgrade_protocol = upgrade_protocol;
+
+        shared.pipeline().commit(tx).await;
     });
-    tx.response_body = Some(resp_body_bytes.clone());
-    tx.timing = crate::http_transaction::TimingInfo {
-        duration_ms: duration,
-    };
-    tx.connection_id = Some(req.connection_id);
-    tx.sequence_number = Some(req.sequence_number);
-    tx.was_upgraded = was_upgraded;
-    tx.upgrade_protocol = upgrade_protocol;
-
-    shared.pipeline().commit(tx).await;
 
     ProxiedResponse {
         status,
         headers: out_headers,
-        body: resp_body_bytes,
+        body: resp_body,
     }
 }
 
-/// Build the upstream request, copying client headers except those configured
-/// in `suppress_headers`.
-pub(super) fn build_upstream_request(
+/// Build the upstream request line + headers (method, URI, client headers
+/// minus `suppress_headers`), leaving the body for the caller to attach — the
+/// exchange path uses a boxed [`ClientBody`], the WebSocket path a raw
+/// `Full<Bytes>` for its own upgrade connection.
+pub(super) fn upstream_request_builder(
     method: &Method,
     uri: &Uri,
     headers: &HeaderMap,
-    body: &Bytes,
     shared: &Arc<Shared>,
-) -> Result<Request<Full<Bytes>>, hyper::http::Error> {
+) -> hyper::http::request::Builder {
     let mut builder = Request::builder().method(method).uri(uri);
     for (name, value) in headers.iter() {
         if !shared
@@ -195,7 +236,17 @@ pub(super) fn build_upstream_request(
             builder = builder.header(name, value);
         }
     }
-    builder.body(Full::new(body.clone()))
+    builder
+}
+
+pub(super) fn build_upstream_request(
+    method: &Method,
+    uri: &Uri,
+    headers: &HeaderMap,
+    body: ClientBody,
+    shared: &Arc<Shared>,
+) -> Result<Request<ClientBody>, hyper::http::Error> {
+    upstream_request_builder(method, uri, headers, shared).body(body)
 }
 
 /// Filter response headers before returning them to the client. For 101
@@ -222,36 +273,43 @@ fn error_response(status: u16, body: String) -> ProxiedResponse {
     ProxiedResponse {
         status,
         headers: HeaderMap::new(),
-        body: Bytes::from(body),
+        body: boxed_full(Bytes::from(body)),
     }
 }
 
-/// Record an error transaction from inside [`exchange`], where the full
-/// [`ProxiedRequest`] is in hand. The request body has already been collected,
-/// so `request_body_over_limit` is always `false` here.
+/// Record an error transaction from inside [`exchange`] (build / upstream
+/// failure), using whatever request-body prefix the tee captured before the
+/// request was dropped.
+#[allow(clippy::too_many_arguments)]
 async fn record_exchange_error(
     shared: &Arc<Shared>,
-    req: &ProxiedRequest,
+    client_id: &ClientIdentifier,
+    method: &str,
+    uri_str: &str,
+    headers: &HeaderMap,
+    version: &str,
+    connection_id: Uuid,
+    sequence_number: u32,
     status: u16,
     response_headers: Option<HeaderMap>,
     duration_ms: u64,
-    response_body_over_limit: bool,
+    req_captured: Option<&CapturedBody>,
 ) {
     record_error_transaction(
         shared,
-        &req.client_id,
-        req.method.as_str(),
-        &req.uri_str,
-        &req.headers,
-        &req.version,
+        client_id,
+        method,
+        uri_str,
+        headers,
+        version,
         status,
         response_headers,
         duration_ms,
-        Some(req.body.clone()),
-        req.connection_id,
-        req.sequence_number,
+        req_captured.map(|c| c.prefix.clone()),
+        connection_id,
+        sequence_number,
+        req_captured.is_some_and(|c| c.truncated),
         false,
-        response_body_over_limit,
     )
     .await;
 }

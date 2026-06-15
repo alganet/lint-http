@@ -40,7 +40,7 @@ pub(super) async fn make_shared_with_cfg(
         .enable_http1()
         .enable_http2()
         .build();
-    let client: LegacyClient<_, http_body_util::Full<bytes::Bytes>> =
+    let client: LegacyClient<_, super::ClientBody> =
         LegacyClient::builder(TokioExecutor::new()).build(https);
     let state = StdArc::new(crate::state::StateStore::new(300, 10));
     let protocol_event_store = StdArc::new(crate::protocol_event_store::ProtocolEventStore::new(
@@ -90,4 +90,36 @@ pub(super) async fn read_capture(path: &str) -> anyhow::Result<Vec<serde_json::V
         entries.push(serde_json::from_str(line)?);
     }
     Ok(entries)
+}
+
+/// Drive a streaming response body to completion (firing the capture-prefix tee
+/// and its detached commit task), then poll the capture file until the
+/// transaction lands. With streaming, the transaction is committed only after
+/// the response body has been fully read, so a test must consume the body and
+/// wait for the asynchronous commit before reading the capture.
+pub(super) async fn drain_and_read_captures(
+    resp: hyper::Response<super::ResponseBody>,
+    cw: &CaptureWriter,
+    path: &str,
+) -> anyhow::Result<Vec<serde_json::Value>> {
+    use http_body_util::BodyExt;
+    let _ = resp.into_body().collect().await;
+    read_captures_after_stream(cw, path).await
+}
+
+/// Poll the capture file until the streamed transaction's commit task has
+/// landed (the commit is detached, firing after the body finishes streaming).
+pub(super) async fn read_captures_after_stream(
+    cw: &CaptureWriter,
+    path: &str,
+) -> anyhow::Result<Vec<serde_json::Value>> {
+    for _ in 0..200 {
+        cw.flush().await?;
+        let entries = read_capture(path).await?;
+        if !entries.is_empty() {
+            return Ok(entries);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    }
+    anyhow::bail!("capture not written within timeout")
 }

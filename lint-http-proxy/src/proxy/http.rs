@@ -5,7 +5,7 @@
 //! HTTP/1.1 and HTTP/2 request dispatch and forwarding.
 
 use bytes::Bytes;
-use http_body_util::{combinators::BoxBody, BodyExt, Full};
+use http_body_util::{BodyExt, Full};
 use hyper::{Method, Request, Response, Uri};
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -14,20 +14,22 @@ use tracing::{error, warn};
 
 use super::body::{collect_limited, CollectLimitedError};
 use super::connect::handle_connect;
-use super::exchange::{build_upstream_request, exchange, record_error_transaction, ProxiedRequest};
+use super::exchange::{
+    exchange, record_error_transaction, upstream_request_builder, ProxiedRequest,
+};
 use super::hop_by_hop::format_http_version;
+use super::tee_body;
 use super::websocket::{handle_websocket_upgrade, is_websocket_upgrade};
-use super::Shared;
+use super::{boxed_full, BoxError, ResponseBody, Shared};
 
 pub(super) async fn handle_request<B>(
     req: Request<B>,
     shared: Arc<Shared>,
     conn_metadata: Arc<crate::connection::ConnectionMetadata>,
     scheme: hyper::http::uri::Scheme,
-) -> Result<Response<BoxBody<Bytes, Infallible>>, Infallible>
+) -> Result<Response<ResponseBody>, Infallible>
 where
-    B: hyper::body::Body + Send + 'static,
-    B::Data: Send,
+    B: hyper::body::Body<Data = Bytes> + Send + 'static,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     if req.method() == Method::CONNECT {
@@ -46,16 +48,18 @@ where
                     Err(e) => error!("upgrade error for {}: {}", uri, e),
                 }
             });
-            return Ok(Response::new(Full::new(Bytes::new()).boxed()));
+            return Ok(Response::new(boxed_full(Bytes::new())));
         } else {
             return Ok(Response::builder()
                 .status(405)
-                .body(Full::new(Bytes::from("CONNECT not supported (TLS disabled)")).boxed())
+                .body(boxed_full(Bytes::from(
+                    "CONNECT not supported (TLS disabled)",
+                )))
                 .unwrap_or_else(|e| {
                     error!("failed to build 405 response: {}", e);
-                    Response::new(
-                        Full::new(Bytes::from("CONNECT not supported (TLS disabled)")).boxed(),
-                    )
+                    Response::new(boxed_full(Bytes::from(
+                        "CONNECT not supported (TLS disabled)",
+                    )))
                 }));
         }
     }
@@ -70,15 +74,13 @@ where
                     "Content-Disposition",
                     "attachment; filename=\"lint-http-ca.crt\"",
                 )
-                .body(Full::new(Bytes::from(pem.clone())).boxed())
-                .unwrap_or_else(|_| Response::new(Full::new(Bytes::from(pem.clone())).boxed())));
+                .body(boxed_full(Bytes::from(pem.clone())))
+                .unwrap_or_else(|_| Response::new(boxed_full(Bytes::from(pem.clone())))));
         } else {
             return Ok(Response::builder()
                 .status(404)
-                .body(Full::new(Bytes::from("TLS not enabled")).boxed())
-                .unwrap_or_else(|_| {
-                    Response::new(Full::new(Bytes::from("TLS not enabled")).boxed())
-                }));
+                .body(boxed_full(Bytes::from("TLS not enabled")))
+                .unwrap_or_else(|_| Response::new(boxed_full(Bytes::from("TLS not enabled")))));
         }
     }
 
@@ -90,30 +92,29 @@ pub(super) async fn handle_inner_request<B>(
     shared: Arc<Shared>,
     conn_metadata: Arc<crate::connection::ConnectionMetadata>,
     scheme: hyper::http::uri::Scheme,
-) -> Result<Response<BoxBody<Bytes, Infallible>>, Infallible>
+) -> Result<Response<ResponseBody>, Infallible>
 where
-    B: hyper::body::Body + Send + 'static,
-    B::Data: Send,
+    B: hyper::body::Body<Data = Bytes> + Send + 'static,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     if req.method() == Method::CONNECT {
         return Ok(Response::builder()
             .status(405)
-            .body(Full::new(Bytes::from("Nested CONNECT not supported")).boxed())
+            .body(boxed_full(Bytes::from("Nested CONNECT not supported")))
             .unwrap_or_else(|_| {
-                Response::new(Full::new(Bytes::from("Nested CONNECT not supported")).boxed())
+                Response::new(boxed_full(Bytes::from("Nested CONNECT not supported")))
             }));
     }
     handle_http_logic(req, shared, conn_metadata, scheme).await
 }
 
 /// Build a boxed plaintext error response (status + message body, no headers).
-fn error_resp(status: u16, msg: &str) -> Response<BoxBody<Bytes, Infallible>> {
+fn error_resp(status: u16, msg: &str) -> Response<ResponseBody> {
     let body = Bytes::from(msg.to_string());
     Response::builder()
         .status(status)
-        .body(Full::new(body.clone()).boxed())
-        .unwrap_or_else(|_| Response::new(Full::new(body).boxed()))
+        .body(boxed_full(body.clone()))
+        .unwrap_or_else(|_| Response::new(boxed_full(body)))
 }
 
 async fn handle_http_logic<B>(
@@ -121,10 +122,9 @@ async fn handle_http_logic<B>(
     shared: Arc<Shared>,
     conn_metadata: Arc<crate::connection::ConnectionMetadata>,
     scheme: hyper::http::uri::Scheme,
-) -> Result<Response<BoxBody<Bytes, Infallible>>, Infallible>
+) -> Result<Response<ResponseBody>, Infallible>
 where
-    B: hyper::body::Body + Send + 'static,
-    B::Data: Send,
+    B: hyper::body::Body<Data = Bytes> + Send + 'static,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     let started = Instant::now();
@@ -172,65 +172,40 @@ where
         None
     };
 
-    let max_body_bytes = shared.cfg.general.max_body_bytes;
-
-    let (body_bytes, req_trailers) = match collect_limited(req.into_body(), max_body_bytes).await {
-        Ok((bytes, trailers)) => (bytes, trailers),
-        Err(CollectLimitedError::OverLimit) => {
-            warn!("request body exceeds max_body_bytes ({})", max_body_bytes);
-            let duration = started.elapsed().as_millis() as u64;
-            record_error_transaction(
-                &shared,
-                &client_id,
-                method.as_str(),
-                &uri_str,
-                &req_headers,
-                &req_version,
-                413,
-                None,
-                duration,
-                None,
-                conn_metadata.id,
-                conn_metadata.next_sequence_number(),
-                true,
-                false,
-            )
-            .await;
-            return Ok(error_resp(413, "request body exceeds max_body_bytes"));
-        }
-        Err(CollectLimitedError::Other(e)) => {
-            error!("failed to collect request body: {}", e);
-            let duration = started.elapsed().as_millis() as u64;
-            record_error_transaction(
-                &shared,
-                &client_id,
-                method.as_str(),
-                &uri_str,
-                &req_headers,
-                &req_version,
-                500,
-                None,
-                duration,
-                None,
-                conn_metadata.id,
-                conn_metadata.next_sequence_number(),
-                false,
-                false,
-            )
-            .await;
-            return Ok(error_resp(500, "request body collect error"));
-        }
-    };
-
-    // WebSocket upgrade path: bypass the exchange core; the WS handler builds
-    // its own upstream connection and consumes its own sequence number.
+    // WebSocket handshakes buffer their (tiny) body for the dedicated upgrade
+    // path, which builds its own upstream connection; everything else streams
+    // the request body through the exchange core. The WebSocket arm always
+    // returns, so the request body is consumed exactly once.
     if is_ws_upgrade {
         if let Some(client_on_upgrade) = client_on_upgrade {
-            let upstream_req =
-                match build_upstream_request(&method, &uri, &req_headers, &body_bytes, &shared) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        error!("failed to build upstream request: {}", e);
+            let max_body_bytes = shared.cfg.general.max_body_bytes;
+            let (body_bytes, req_trailers) =
+                match collect_limited(req.into_body(), max_body_bytes).await {
+                    Ok((bytes, trailers)) => (bytes, trailers),
+                    Err(CollectLimitedError::OverLimit) => {
+                        warn!("request body exceeds max_body_bytes ({})", max_body_bytes);
+                        let duration = started.elapsed().as_millis() as u64;
+                        record_error_transaction(
+                            &shared,
+                            &client_id,
+                            method.as_str(),
+                            &uri_str,
+                            &req_headers,
+                            &req_version,
+                            413,
+                            None,
+                            duration,
+                            None,
+                            conn_metadata.id,
+                            conn_metadata.next_sequence_number(),
+                            true,
+                            false,
+                        )
+                        .await;
+                        return Ok(error_resp(413, "request body exceeds max_body_bytes"));
+                    }
+                    Err(CollectLimitedError::Other(e)) => {
+                        error!("failed to collect request body: {}", e);
                         let duration = started.elapsed().as_millis() as u64;
                         record_error_transaction(
                             &shared,
@@ -242,16 +217,43 @@ where
                             500,
                             None,
                             duration,
-                            Some(body_bytes.clone()),
+                            None,
                             conn_metadata.id,
                             conn_metadata.next_sequence_number(),
                             false,
                             false,
                         )
                         .await;
-                        return Ok(error_resp(500, &format!("request build error: {}", e)));
+                        return Ok(error_resp(500, "request body collect error"));
                     }
                 };
+            let upstream_req = match upstream_request_builder(&method, &uri, &req_headers, &shared)
+                .body(Full::new(body_bytes.clone()))
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("failed to build upstream request: {}", e);
+                    let duration = started.elapsed().as_millis() as u64;
+                    record_error_transaction(
+                        &shared,
+                        &client_id,
+                        method.as_str(),
+                        &uri_str,
+                        &req_headers,
+                        &req_version,
+                        500,
+                        None,
+                        duration,
+                        Some(body_bytes.clone()),
+                        conn_metadata.id,
+                        conn_metadata.next_sequence_number(),
+                        false,
+                        false,
+                    )
+                    .await;
+                    return Ok(error_resp(500, &format!("request build error: {}", e)));
+                }
+            };
             return handle_websocket_upgrade(
                 upstream_req,
                 client_on_upgrade,
@@ -272,15 +274,24 @@ where
         }
     }
 
-    // Non-WebSocket: run the shared exchange core and deliver its response.
+    // Non-WebSocket: tee the request body — forward it to the upstream while
+    // capturing a bounded prefix. The transaction is committed at the response
+    // stream-end inside `exchange`, joining both captured halves.
+    let prefix_cap = shared.cfg.general.captures_max_body_bytes;
+    let inner = req
+        .into_body()
+        .map_err(|e| -> BoxError { e.into() })
+        .boxed_unsync();
+    let (body, body_done_rx) = tee_body::tee(inner, prefix_cap);
+
     let pr = ProxiedRequest {
         method,
         uri,
         uri_str,
         headers: req_headers,
         version: req_version,
-        body: body_bytes,
-        trailers: req_trailers,
+        body,
+        body_done: body_done_rx,
         client_id,
         connection_id: conn_metadata.id,
         sequence_number: conn_metadata.next_sequence_number(),
@@ -292,9 +303,13 @@ where
     for (name, value) in proxied.headers.iter() {
         resp_builder = resp_builder.header(name, value);
     }
-    Ok(resp_builder
-        .body(Full::new(proxied.body.clone()).boxed())
-        .unwrap_or_else(|_| Response::new(Full::new(proxied.body).boxed())))
+    // The streaming body can't be cloned, so fall back to a fresh error
+    // response if building fails (it shouldn't: status + filtered headers are
+    // valid).
+    Ok(resp_builder.body(proxied.body).unwrap_or_else(|e| {
+        error!("failed to build client response: {}", e);
+        error_resp(502, "failed to build response")
+    }))
 }
 
 #[cfg(test)]
@@ -302,7 +317,8 @@ mod tests {
     use super::*;
     use crate::ca::CertificateAuthority;
     use crate::proxy::test_support::{
-        make_request_with_headers, make_shared_with_cfg, read_capture,
+        drain_and_read_captures, make_request_with_headers, make_shared_with_cfg,
+        read_captures_after_stream,
     };
     use bytes::Bytes;
     use http_body_util::{BodyExt, Full};
@@ -343,8 +359,7 @@ mod tests {
         .await?;
         assert_eq!(resp.status().as_u16(), 200);
 
-        _cw.flush().await?;
-        let entries = read_capture(&tmp).await?;
+        let entries = drain_and_read_captures(resp, &_cw, &tmp).await?;
         let v = &entries[0];
         assert_eq!(v["response"]["status"].as_u64(), Some(200));
         // Ensure that violations were captured (non-empty)
@@ -424,9 +439,8 @@ mod tests {
         .await?;
         assert_eq!(resp.status().as_u16(), 200);
 
-        _cw.flush().await?;
-        let s = fs::read_to_string(&tmp).await?;
-        let v: serde_json::Value = serde_json::from_str(s.trim())?;
+        let entries = drain_and_read_captures(resp, &_cw, &tmp).await?;
+        let v = &entries[0];
         assert_eq!(v["response"]["status"].as_u64(), Some(200));
 
         let _ = fs::remove_file(&tmp).await;
@@ -472,9 +486,8 @@ mod tests {
         .await?;
         assert_eq!(resp.status().as_u16(), 200);
 
-        _cw.flush().await?;
-        let s = fs::read_to_string(&tmp).await?;
-        let v: serde_json::Value = serde_json::from_str(s.trim())?;
+        let entries = drain_and_read_captures(resp, &_cw, &tmp).await?;
+        let v = &entries[0];
         assert_eq!(v["response"]["status"].as_u64(), Some(200));
         // Ensure that there are no violations recorded
         assert!(v["violations"]
@@ -523,7 +536,11 @@ mod tests {
             Some("application/x-x509-ca-cert")
         );
 
-        let body_bytes = resp.into_body().collect().await?;
+        let body_bytes = resp
+            .into_body()
+            .collect()
+            .await
+            .map_err(|e| anyhow::anyhow!("collect body: {}", e))?;
         let body_str = String::from_utf8(body_bytes.to_bytes().to_vec())?;
         assert!(body_str.contains("BEGIN CERTIFICATE"));
 
@@ -691,13 +708,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn handle_http_logic_body_collect_error_returns_500() -> anyhow::Result<()> {
+    async fn handle_http_logic_request_body_error_returns_502() -> anyhow::Result<()> {
+        // Upstream that accepts the connection so the client begins sending the
+        // request body, which then errors mid-stream.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let port = listener.local_addr()?.port();
+        let server_task = tokio::spawn(async move {
+            if let Ok((socket, _)) = listener.accept().await {
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                drop(socket);
+            }
+        });
+
         let cfg = StdArc::new(crate::config::Config::default());
         let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
 
+        let uri: Uri = format!("http://127.0.0.1:{}/error", port).parse()?;
         let req = Request::builder()
-            .method("GET")
-            .uri("http://example.com/error")
+            .method("POST")
+            .uri(uri)
             .body(FailingBody)?;
 
         let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
@@ -711,21 +740,32 @@ mod tests {
         )
         .await?;
 
-        assert_eq!(resp.status().as_u16(), 500);
+        // The request body errors while being streamed upstream, so the exchange
+        // fails before any response — a 502 (not a synthesized 500).
+        assert_eq!(resp.status().as_u16(), 502);
+        let _ = server_task.await;
         let _ = fs::remove_file(&tmp).await;
         Ok(())
     }
 
     #[tokio::test]
-    async fn request_body_over_limit_returns_413_and_marks_capture() -> anyhow::Result<()> {
+    async fn large_request_body_streams_and_truncates_capture() -> anyhow::Result<()> {
+        let mock = MockServer::start().await;
+        Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/upload"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock)
+            .await;
+
         let mut cfg = crate::config::Config::default();
-        cfg.general.max_body_bytes = 8;
+        cfg.general.captures_max_body_bytes = 8;
         let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None).await?;
 
-        // Never reaches an upstream: the limit trips while collecting the body.
+        // The full 64-byte body is streamed to the upstream (no rejection); only
+        // the captured copy is bounded to the 8-byte prefix.
         let req = Request::builder()
             .method("POST")
-            .uri("http://127.0.0.1:9/upload")
+            .uri(format!("{}/upload", mock.uri()))
             .body(Full::new(Bytes::from(vec![b'a'; 64])))?;
 
         let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
@@ -738,23 +778,20 @@ mod tests {
             hyper::http::uri::Scheme::HTTP,
         )
         .await?;
-        assert_eq!(resp.status().as_u16(), 413);
+        assert_eq!(resp.status().as_u16(), 200);
 
-        _cw.flush().await?;
-        let entries = read_capture(&tmp).await?;
+        let entries = drain_and_read_captures(resp, &_cw, &tmp).await?;
         let v = &entries[0];
-        assert_eq!(v["response"]["status"].as_u64(), Some(413));
+        assert_eq!(v["response"]["status"].as_u64(), Some(200));
         assert_eq!(v["request_body_over_limit"].as_bool(), Some(true));
-        assert_eq!(v["response_body_over_limit"].as_bool(), Some(false));
-        assert!(v["request"]["body_length"].is_null());
+        assert_eq!(v["request"]["body_length"].as_u64(), Some(64));
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())
     }
 
     #[tokio::test]
-    async fn response_body_over_limit_returns_502_and_keeps_upstream_status() -> anyhow::Result<()>
-    {
+    async fn response_body_over_limit_streams_full_and_truncates_capture() -> anyhow::Result<()> {
         let mock = MockServer::start().await;
         Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/"))
@@ -767,7 +804,7 @@ mod tests {
             .await;
 
         let mut cfg = crate::config::Config::default();
-        cfg.general.max_body_bytes = 8;
+        cfg.general.captures_max_body_bytes = 8;
         let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None).await?;
 
         let req = make_request_with_headers("GET", mock.uri(), None)?;
@@ -781,17 +818,25 @@ mod tests {
             hyper::http::uri::Scheme::HTTP,
         )
         .await?;
-        assert_eq!(resp.status().as_u16(), 502);
+        // The full response is streamed to the client (no rejection); only the
+        // captured copy is bounded.
+        assert_eq!(resp.status().as_u16(), 200);
+        let body = resp
+            .into_body()
+            .collect()
+            .await
+            .map_err(|e| anyhow::anyhow!("collect body: {}", e))?
+            .to_bytes();
+        assert_eq!(body.len(), 64);
 
-        // The capture records the upstream's real status and headers; only the
-        // marker explains the missing body.
-        _cw.flush().await?;
-        let entries = read_capture(&tmp).await?;
+        // The capture holds only the bounded prefix, marked truncated, while
+        // body_length records the real streamed total.
+        let entries = read_captures_after_stream(&_cw, &tmp).await?;
         let v = &entries[0];
         assert_eq!(v["response"]["status"].as_u64(), Some(200));
         assert_eq!(v["response_body_over_limit"].as_bool(), Some(true));
         assert_eq!(v["request_body_over_limit"].as_bool(), Some(false));
-        assert!(v["response"]["body_length"].is_null());
+        assert_eq!(v["response"]["body_length"].as_u64(), Some(64));
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())
@@ -807,7 +852,7 @@ mod tests {
             .await;
 
         let mut cfg = crate::config::Config::default();
-        cfg.general.max_body_bytes = 8;
+        cfg.general.captures_max_body_bytes = 8;
         let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None).await?;
 
         let req = make_request_with_headers("GET", mock.uri(), None)?;
@@ -823,8 +868,8 @@ mod tests {
         .await?;
         assert_eq!(resp.status().as_u16(), 200);
 
-        _cw.flush().await?;
-        let entries = read_capture(&tmp).await?;
+        // Exactly at the prefix cap: captured in full, not marked truncated.
+        let entries = drain_and_read_captures(resp, &_cw, &tmp).await?;
         let v = &entries[0];
         assert_eq!(v["response"]["body_length"].as_u64(), Some(8));
         assert_eq!(v["response_body_over_limit"].as_bool(), Some(false));
@@ -875,8 +920,7 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests[0].headers.get("user-agent").is_none());
 
-        _cw.flush().await?;
-        let entries = read_capture(&tmp).await?;
+        let entries = drain_and_read_captures(resp, &_cw, &tmp).await?;
         let v = &entries[0];
         // The capture still records the original request headers (suppression only affects upstream)
         // Headers serialize as an array of [name, value] pairs.
@@ -1010,7 +1054,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn handle_http_logic_upstream_body_collect_error_returns_500() -> anyhow::Result<()> {
+    async fn handle_http_logic_upstream_body_error_streams_partial() -> anyhow::Result<()> {
         // Start a raw TCP server that returns a truncated response body
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
         let addr = listener.local_addr()?;
@@ -1049,7 +1093,18 @@ mod tests {
         )
         .await?;
 
-        assert_eq!(resp.status().as_u16(), 500);
+        // Streaming: the status line is sent before the body, so an upstream
+        // body error surfaces as a failed body read, not a synthesized 500.
+        assert_eq!(resp.status().as_u16(), 200);
+        let collected = resp.into_body().collect().await;
+        assert!(collected.is_err(), "truncated upstream body should error");
+
+        // The partial response is still captured (real status + the bytes that
+        // arrived before the error).
+        let entries = read_captures_after_stream(&_cw, &tmp).await?;
+        let v = &entries[0];
+        assert_eq!(v["response"]["status"].as_u64(), Some(200));
+        assert_eq!(v["response"]["body_length"].as_u64(), Some(3));
 
         let _ = server_task.await;
         let _ = fs::remove_file(&tmp).await;
@@ -1186,9 +1241,8 @@ mod tests {
         );
         assert!(resp.headers().get("connection").is_some());
 
-        _cw.flush().await?;
-        let content = tokio::fs::read_to_string(&tmp).await?;
-        let v: serde_json::Value = serde_json::from_str(content.lines().next().unwrap())?;
+        let entries = drain_and_read_captures(resp, &_cw, &tmp).await?;
+        let v = &entries[0];
         assert_eq!(v["was_upgraded"].as_bool(), Some(true));
         assert_eq!(v["upgrade_protocol"].as_str(), Some("h2c"));
 

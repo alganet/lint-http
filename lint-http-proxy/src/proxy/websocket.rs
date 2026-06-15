@@ -5,7 +5,7 @@
 //! WebSocket upgrade handshake and bidirectional frame relay.
 
 use bytes::Bytes;
-use http_body_util::{combinators::BoxBody, BodyExt, Full};
+use http_body_util::Full;
 use hyper::{Method, Request, Response, Uri};
 use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
@@ -19,7 +19,7 @@ use super::body::{collect_limited, CollectLimitedError};
 use super::exchange::record_error_transaction;
 use super::hop_by_hop::{format_http_version, parse_connection_tokens};
 use super::pipeline::ProtocolEventPipeline;
-use super::Shared;
+use super::{boxed_full, ResponseBody, Shared};
 
 /// Check if a request is a WebSocket upgrade request.
 ///
@@ -55,7 +55,7 @@ pub(super) async fn handle_websocket_upgrade(
     req_trailers: Option<hyper::HeaderMap>,
     shared: Arc<Shared>,
     conn_metadata: Arc<crate::connection::ConnectionMetadata>,
-) -> Result<Response<BoxBody<Bytes, Infallible>>, Infallible> {
+) -> Result<Response<ResponseBody>, Infallible> {
     // Connect directly to upstream with upgrade support
     let (mut sender, _conn_handle) = match connect_upstream_for_upgrade(uri, scheme).await {
         Ok(s) => s,
@@ -150,8 +150,8 @@ pub(super) async fn handle_websocket_upgrade(
             resp_builder = resp_builder.header(name, value);
         }
         let resp = resp_builder
-            .body(Full::new(Bytes::new()).boxed())
-            .unwrap_or_else(|_| Response::new(Full::new(Bytes::new()).boxed()));
+            .body(boxed_full(Bytes::new()))
+            .unwrap_or_else(|_| Response::new(boxed_full(Bytes::new())));
 
         // Spawn background relay task
         let captures_clone = shared.captures.clone();
@@ -199,8 +199,8 @@ pub(super) async fn handle_websocket_upgrade(
                 let msg = "upstream response exceeds max_body_bytes";
                 let resp = Response::builder()
                     .status(502)
-                    .body(Full::new(Bytes::from(msg)).boxed())
-                    .unwrap_or_else(|_| Response::new(Full::new(Bytes::from(msg)).boxed()));
+                    .body(boxed_full(Bytes::from(msg)))
+                    .unwrap_or_else(|_| Response::new(boxed_full(Bytes::from(msg))));
                 return Ok(resp);
             }
             Err(CollectLimitedError::Other(_)) => Bytes::new(),
@@ -212,8 +212,8 @@ pub(super) async fn handle_websocket_upgrade(
             resp_builder = resp_builder.header(name, value);
         }
         let resp = resp_builder
-            .body(Full::new(resp_body).boxed())
-            .unwrap_or_else(|_| Response::new(Full::new(Bytes::new()).boxed()));
+            .body(boxed_full(resp_body))
+            .unwrap_or_else(|_| Response::new(boxed_full(Bytes::new())));
 
         Ok(resp)
     }
@@ -221,12 +221,12 @@ pub(super) async fn handle_websocket_upgrade(
 
 /// Build the 502 returned to the client when a WebSocket upstream handshake
 /// fails (connect or request-send error).
-fn upstream_error_response(e: impl std::fmt::Display) -> Response<BoxBody<Bytes, Infallible>> {
-    let body = Full::new(Bytes::from(format!("websocket upstream error: {}", e))).boxed();
+fn upstream_error_response(e: impl std::fmt::Display) -> Response<ResponseBody> {
+    let body = boxed_full(Bytes::from(format!("websocket upstream error: {}", e)));
     Response::builder()
         .status(502)
         .body(body)
-        .unwrap_or_else(|_| Response::new(Full::new(Bytes::from("upstream error")).boxed()))
+        .unwrap_or_else(|_| Response::new(boxed_full(Bytes::from("upstream error"))))
 }
 
 /// Record a transaction for a WebSocket handshake that failed before the
