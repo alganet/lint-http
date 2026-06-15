@@ -28,6 +28,92 @@ use crate::rules::Rule;
 /// Implementing this rule requires history spanning an entire origin (not just
 /// the same resource) because nonces are shared across a protection space.  The
 /// engine therefore queries transactions `ByOrigin` for this rule.
+/// Scan history (newest-first) for the most recent Digest `401` challenge and
+/// return its `(nonce, opaque, stale)` parameters. Extracted from
+/// `check_transaction` so the dispatcher stays within the complexity budget.
+fn find_last_digest_challenge(
+    history: &crate::transaction_history::TransactionHistory,
+) -> (Option<String>, Option<String>, Option<String>) {
+    let mut nonce: Option<String> = None;
+    let mut opaque: Option<String> = None;
+    let mut stale: Option<String> = None;
+
+    for prev in history.iter() {
+        let Some(resp) = &prev.response else { continue };
+        if resp.status != 401 {
+            continue;
+        }
+        for hv2 in resp.headers.get_all("www-authenticate").iter() {
+            let Ok(val2) = hv2.to_str() else { continue };
+            let Ok(challs) = crate::helpers::auth::split_and_group_challenges(val2) else {
+                continue;
+            };
+            for chall in challs {
+                let mut parts2 = chall.splitn(2, char::is_whitespace);
+                let scheme2 = parts2.next().unwrap_or("");
+                if !scheme2.eq_ignore_ascii_case("digest") {
+                    continue;
+                }
+                let rest2 = parts2.next().unwrap_or("").trim();
+                let Ok(map2) = crate::helpers::auth::parse_auth_params(rest2) else {
+                    continue;
+                };
+                if nonce.is_none() {
+                    if let Some(n) = map2.get("nonce") {
+                        nonce = Some(n.trim_matches('"').to_string());
+                    }
+                    if let Some(o) = map2.get("opaque") {
+                        opaque = Some(o.trim_matches('"').to_string());
+                    }
+                    if let Some(st) = map2.get("stale") {
+                        stale = Some(st.trim_matches('"').to_string());
+                    }
+                }
+            }
+        }
+        if nonce.is_some() {
+            break; // we only need the most recent challenge
+        }
+    }
+
+    (nonce, opaque, stale)
+}
+
+/// Highest previously-observed nonce-count (`nc`) for `nonce` across history.
+/// Extracted alongside [`find_last_digest_challenge`] to keep the dispatcher flat.
+fn highest_nc_for_nonce(
+    history: &crate::transaction_history::TransactionHistory,
+    nonce: &str,
+) -> u64 {
+    let mut highest = 0u64;
+    for prev in history.iter() {
+        for hv3 in prev.request.headers.get_all("authorization").iter() {
+            let Ok(val3) = hv3.to_str() else { continue };
+            let mut parts3 = val3.trim().splitn(2, char::is_whitespace);
+            let scheme3 = parts3.next().unwrap_or("");
+            if !scheme3.eq_ignore_ascii_case("digest") {
+                continue;
+            }
+            let rest3 = parts3.next().unwrap_or("").trim();
+            let Ok(map3) = crate::helpers::auth::parse_auth_params(rest3) else {
+                continue;
+            };
+            let Some(prev_nonce) = map3.get("nonce") else {
+                continue;
+            };
+            if prev_nonce.trim_matches('"') != nonce {
+                continue;
+            }
+            if let Some(prev_nc) = map3.get("nc") {
+                if let Ok(prev_nc_val) = crate::helpers::auth::parse_nc_hex(prev_nc) {
+                    highest = highest.max(prev_nc_val);
+                }
+            }
+        }
+    }
+    highest
+}
+
 pub struct StatefulDigestAuthNonceHandling;
 
 impl Rule for StatefulDigestAuthNonceHandling {
@@ -78,53 +164,8 @@ impl Rule for StatefulDigestAuthNonceHandling {
             let nc_str = params.get("nc").map(|v| v.as_str());
 
             // find the most recent Digest challenge in history
-            let mut last_challenge_nonce: Option<String> = None;
-            let mut last_challenge_opaque: Option<String> = None;
-            let mut last_challenge_stale: Option<String> = None;
-
-            for prev in history.iter() {
-                if let Some(resp) = &prev.response {
-                    if resp.status == 401 {
-                        for hv2 in resp.headers.get_all("www-authenticate").iter() {
-                            if let Ok(val2) = hv2.to_str() {
-                                if let Ok(challs) =
-                                    crate::helpers::auth::split_and_group_challenges(val2)
-                                {
-                                    for chall in challs {
-                                        let mut parts2 = chall.splitn(2, char::is_whitespace);
-                                        let scheme2 = parts2.next().unwrap_or("");
-                                        if !scheme2.eq_ignore_ascii_case("digest") {
-                                            continue;
-                                        }
-                                        let rest2 = parts2.next().unwrap_or("").trim();
-                                        if let Ok(map2) =
-                                            crate::helpers::auth::parse_auth_params(rest2)
-                                        {
-                                            if last_challenge_nonce.is_none() {
-                                                if let Some(n) = map2.get("nonce") {
-                                                    last_challenge_nonce =
-                                                        Some(n.trim_matches('"').to_string());
-                                                }
-                                                if let Some(o) = map2.get("opaque") {
-                                                    last_challenge_opaque =
-                                                        Some(o.trim_matches('"').to_string());
-                                                }
-                                                if let Some(st) = map2.get("stale") {
-                                                    last_challenge_stale =
-                                                        Some(st.trim_matches('"').to_string());
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if last_challenge_nonce.is_some() {
-                            break; // we only need the most recent challenge
-                        }
-                    }
-                }
-            }
+            let (last_challenge_nonce, last_challenge_opaque, last_challenge_stale) =
+                find_last_digest_challenge(history);
 
             // 1. nonce must have been offered in a challenge
             if nonce.is_some() && last_challenge_nonce.is_none() {
@@ -187,34 +228,10 @@ impl Rule for StatefulDigestAuthNonceHandling {
                 };
 
                 // find highest previous nc for same nonce
-                let mut highest = 0u64;
-                for prev in history.iter() {
-                    for hv3 in prev.request.headers.get_all("authorization").iter() {
-                        if let Ok(val3) = hv3.to_str() {
-                            let mut parts3 = val3.trim().splitn(2, char::is_whitespace);
-                            let scheme3 = parts3.next().unwrap_or("");
-                            if !scheme3.eq_ignore_ascii_case("digest") {
-                                continue;
-                            }
-                            let rest3 = parts3.next().unwrap_or("").trim();
-                            if let Ok(map3) = crate::helpers::auth::parse_auth_params(rest3) {
-                                if let (Some(prev_nonce), Some(this_nonce)) =
-                                    (map3.get("nonce"), nonce.as_ref())
-                                {
-                                    if prev_nonce.trim_matches('"') == this_nonce.as_str() {
-                                        if let Some(prev_nc) = map3.get("nc") {
-                                            if let Ok(prev_nc_val) =
-                                                crate::helpers::auth::parse_nc_hex(prev_nc)
-                                            {
-                                                highest = highest.max(prev_nc_val);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                let highest = nonce
+                    .as_ref()
+                    .map(|n| highest_nc_for_nonce(history, n))
+                    .unwrap_or(0);
 
                 if current_nc <= highest {
                     return Some(Violation {

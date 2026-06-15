@@ -6,6 +6,172 @@ use crate::lint::Violation;
 use crate::rules::Rule;
 use std::net::IpAddr;
 
+/// Validate a `for=`/`by=` node identifier (RFC 7239 §6): `unknown`, an
+/// IP[:port], a bracketed IPv6[:port], or an obfuscated token. Returns the
+/// error message on failure, `None` when valid. Extracted from
+/// `validate_element` so the dispatcher stays within the complexity budget.
+fn validate_node_identifier(name: &str, value: &str) -> Option<String> {
+    use crate::helpers::token::find_invalid_token_char;
+
+    // value may be 'unknown', an obfuscated token, or an addr (IPv4/IPv6) optionally with port
+    if value.eq_ignore_ascii_case("unknown") {
+        return None;
+    }
+
+    // IPv6 in brackets: [2001:db8::1] or [2001:db8::1]:port
+    if value.starts_with('[') {
+        let Some(end) = value.find(']') else {
+            return Some(format!(
+                "Invalid IPv6 bracketed address in Forwarded '{}' parameter: {}",
+                name, value
+            ));
+        };
+        let inside = &value[1..end];
+        if inside.is_empty() {
+            return Some(format!("Empty IPv6 address in Forwarded '{}' parameter", name));
+        }
+        if inside.parse::<IpAddr>().is_err() {
+            return Some(format!(
+                "Invalid IPv6 address in Forwarded '{}' parameter: {}",
+                name, inside
+            ));
+        }
+        // optionally validate port after ']' if present
+        let rest = &value[end + 1..];
+        if !rest.is_empty() && !rest.starts_with(':') {
+            return Some(format!(
+                "Invalid IPv6 port syntax in Forwarded '{}' parameter: {}",
+                name, value
+            ));
+        }
+        if let Some(port) = rest.strip_prefix(':') {
+            if port.is_empty() || port.parse::<u16>().is_err() {
+                return Some(format!(
+                    "Invalid port '{}' in Forwarded '{}' parameter",
+                    port, name
+                ));
+            }
+        }
+        return None;
+    }
+
+    // Possibly contains a colon for IPv4:port or token:port. Split on the last ':'
+    if let Some(idx) = value.rfind(':') {
+        let (host, port_part) = value.split_at(idx);
+        let port = &port_part[1..];
+        if !port.is_empty() && port.parse::<u16>().is_err() {
+            return Some(format!(
+                "Invalid port '{}' in Forwarded '{}' parameter",
+                port, name
+            ));
+        }
+        // try parsing host as IP
+        if host.parse::<IpAddr>().is_ok() {
+            return None;
+        }
+        // else treat as obfuscated token - must follow token grammar
+        if let Some(c) = find_invalid_token_char(host) {
+            return Some(format!(
+                "Invalid obfuscated token '{}' in Forwarded '{}' parameter",
+                c, name
+            ));
+        }
+        return None;
+    }
+
+    // No port and not bracketed; try parse as IP
+    if value.parse::<IpAddr>().is_ok() {
+        return None;
+    }
+
+    // If this looks like a dotted IPv4 (digits and dots only) but failed to parse,
+    // that's an invalid IPv4 address (common misconfiguration)
+    if value.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return Some(format!(
+            "Invalid IPv4 address in Forwarded '{}' parameter: {}",
+            name, value
+        ));
+    }
+
+    // Otherwise obfuscated token (must be token)
+    if let Some(c) = find_invalid_token_char(value) {
+        return Some(format!(
+            "Invalid obfuscated token '{}' in Forwarded '{}' parameter",
+            c, name
+        ));
+    }
+    None
+}
+
+/// Validate a `host=` value (RFC 7239 §6): a host or host:port, or a bracketed
+/// IPv6[:port]. Returns the error message on failure, `None` when valid.
+/// Extracted alongside [`validate_node_identifier`] to keep the dispatcher flat.
+fn validate_host_param(value: &str) -> Option<String> {
+    use crate::helpers::token::find_invalid_token_char;
+
+    // If bracketed IPv6, validate
+    if value.starts_with('[') {
+        let Some(end) = value.find(']') else {
+            return Some(format!(
+                "Invalid IPv6 bracketed address in Forwarded 'host' parameter: {}",
+                value
+            ));
+        };
+        let inside = &value[1..end];
+        if inside.parse::<IpAddr>().is_err() {
+            return Some(format!(
+                "Invalid IPv6 address in Forwarded 'host' parameter: {}",
+                inside
+            ));
+        }
+        // optionally validate port
+        let rest = &value[end + 1..];
+        if !rest.is_empty() && !rest.starts_with(':') {
+            return Some(format!(
+                "Invalid host port syntax in Forwarded 'host' parameter: {}",
+                value
+            ));
+        }
+        if let Some(port) = rest.strip_prefix(':') {
+            if port.is_empty() || port.parse::<u16>().is_err() {
+                return Some(format!(
+                    "Invalid port '{}' in Forwarded 'host' parameter",
+                    port
+                ));
+            }
+        }
+        return None;
+    }
+
+    // host may include port
+    if let Some(idx) = value.rfind(':') {
+        let (host, port_part) = value.split_at(idx);
+        let port = &port_part[1..];
+        if !port.is_empty() && port.parse::<u16>().is_err() {
+            return Some(format!(
+                "Invalid port '{}' in Forwarded 'host' parameter",
+                port
+            ));
+        }
+        // host part may be a reg-name; ensure token-ish
+        if let Some(c) = find_invalid_token_char(host) {
+            return Some(format!(
+                "Invalid host '{}' in Forwarded 'host' parameter (invalid char '{}')",
+                host, c
+            ));
+        }
+        return None;
+    }
+
+    if let Some(c) = find_invalid_token_char(value) {
+        return Some(format!(
+            "Invalid host '{}' in Forwarded 'host' parameter (invalid char '{}')",
+            value, c
+        ));
+    }
+    None
+}
+
 pub struct MessageForwardedHeaderValidity;
 
 impl Rule for MessageForwardedHeaderValidity {
@@ -129,131 +295,11 @@ impl Rule for MessageForwardedHeaderValidity {
                 let value = value_owned.as_deref().unwrap_or(raw_value);
 
                 if name_lc == "for" || name_lc == "by" {
-                    // value may be 'unknown', an obfuscated token, or an addr (IPv4/IPv6) optionally with port
-                    if value.eq_ignore_ascii_case("unknown") {
-                        // ok
-                        continue;
-                    }
-
-                    // IPv6 in brackets: [2001:db8::1] or [2001:db8::1]:port
-                    if value.starts_with('[') {
-                        // must contain closing ']'
-                        if let Some(end) = value.find(']') {
-                            let inside = &value[1..end];
-                            if inside.is_empty() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "Empty IPv6 address in Forwarded '{}' parameter",
-                                        name
-                                    ),
-                                });
-                            }
-                            if inside.parse::<IpAddr>().is_err() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "Invalid IPv6 address in Forwarded '{}' parameter: {}",
-                                        name, inside
-                                    ),
-                                });
-                            }
-                            // optionally validate port after ']' if present
-                            let rest = &value[end + 1..];
-                            if !rest.is_empty() && !rest.starts_with(':') {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "Invalid IPv6 port syntax in Forwarded '{}' parameter: {}",
-                                        name, value
-                                    ),
-                                });
-                            }
-                            if let Some(port) = rest.strip_prefix(':') {
-                                if port.is_empty() || port.parse::<u16>().is_err() {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: config.severity,
-                                        message: format!(
-                                            "Invalid port '{}' in Forwarded '{}' parameter",
-                                            port, name
-                                        ),
-                                    });
-                                }
-                            }
-                            continue;
-                        } else {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!("Invalid IPv6 bracketed address in Forwarded '{}' parameter: {}", name, value),
-                            });
-                        }
-                    }
-
-                    // Possibly contains a colon for IPv4:port or token:port. Try parsing host:port by splitting last ':'
-                    if let Some(idx) = value.rfind(':') {
-                        let (host_part, port_part) = value.split_at(idx);
-                        let host = host_part;
-                        let port = &port_part[1..];
-                        if !port.is_empty() && port.parse::<u16>().is_err() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "Invalid port '{}' in Forwarded '{}' parameter",
-                                    port, name
-                                ),
-                            });
-                        }
-                        // try parsing host as IP
-                        if host.parse::<IpAddr>().is_ok() {
-                            continue;
-                        }
-                        // else treat as obfuscated token - must follow token grammar
-                        if let Some(c) = crate::helpers::token::find_invalid_token_char(host) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "Invalid obfuscated token '{}' in Forwarded '{}' parameter",
-                                    c, name
-                                ),
-                            });
-                        }
-                        continue;
-                    }
-
-                    // No port and not bracketed; try parse as IP
-                    if value.parse::<IpAddr>().is_ok() {
-                        continue;
-                    }
-
-                    // If this looks like a dotted IPv4 (digits and dots only) but failed to parse,
-                    // that's an invalid IPv4 address (common misconfiguration)
-                    if value.chars().all(|c| c.is_ascii_digit() || c == '.') {
+                    if let Some(message) = validate_node_identifier(name, value) {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: config.severity,
-                            message: format!(
-                                "Invalid IPv4 address in Forwarded '{}' parameter: {}",
-                                name, value
-                            ),
-                        });
-                    }
-
-                    // Otherwise obfuscated token (must be token)
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!(
-                                "Invalid obfuscated token '{}' in Forwarded '{}' parameter",
-                                c, name
-                            ),
+                            message,
                         });
                     }
                     continue;
@@ -272,87 +318,13 @@ impl Rule for MessageForwardedHeaderValidity {
                 }
 
                 if name_lc == "host" {
-                    // host may be a host or host:port or IPv6 in brackets
-                    // basic validation: ensure no invalid control characters and token-ish content
-                    // If bracketed IPv6, validate
-                    if value.starts_with('[') {
-                        if let Some(end) = value.find(']') {
-                            let inside = &value[1..end];
-                            if inside.parse::<IpAddr>().is_err() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "Invalid IPv6 address in Forwarded 'host' parameter: {}",
-                                        inside
-                                    ),
-                                });
-                            }
-                            // optionally validate port
-                            let rest = &value[end + 1..];
-                            if !rest.is_empty() && !rest.starts_with(':') {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!("Invalid host port syntax in Forwarded 'host' parameter: {}", value),
-                                });
-                            }
-                            if let Some(port) = rest.strip_prefix(':') {
-                                if port.is_empty() || port.parse::<u16>().is_err() {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: config.severity,
-                                        message: format!(
-                                            "Invalid port '{}' in Forwarded 'host' parameter",
-                                            port
-                                        ),
-                                    });
-                                }
-                            }
-                            continue;
-                        } else {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!("Invalid IPv6 bracketed address in Forwarded 'host' parameter: {}", value),
-                            });
-                        }
-                    }
-
-                    // host may include port
-                    if let Some(idx) = value.rfind(':') {
-                        let (host_part, port_part) = value.split_at(idx);
-                        let host = host_part;
-                        let port = &port_part[1..];
-                        if !port.is_empty() && port.parse::<u16>().is_err() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "Invalid port '{}' in Forwarded 'host' parameter",
-                                    port
-                                ),
-                            });
-                        }
-                        // host part may be a reg-name; ensure token-ish
-                        if let Some(c) = crate::helpers::token::find_invalid_token_char(host) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!("Invalid host '{}' in Forwarded 'host' parameter (invalid char '{}')", host, c),
-                            });
-                        }
-                        continue;
-                    }
-
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
+                    if let Some(message) = validate_host_param(value) {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: config.severity,
-                            message: format!("Invalid host '{}' in Forwarded 'host' parameter (invalid char '{}')", value, c),
+                            message,
                         });
                     }
-
                     continue;
                 }
 

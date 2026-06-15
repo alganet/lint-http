@@ -171,21 +171,7 @@ async fn run_proxy_inner(
     ));
 
     // Seed state from captures file if enabled
-    if cfg.general.captures_seed {
-        match crate::capture::load_captures(&cfg.general.captures).await {
-            Ok(records) => {
-                let count = records.len();
-                for record in &records {
-                    state.seed_from_transaction(record);
-                }
-                info!(count, "seeded state from captures");
-            }
-            Err(e) => {
-                // Log warning but don't fail startup
-                tracing::warn!(error = %e, "failed to load captures for seeding");
-            }
-        }
-    }
+    seed_state_from_captures(&cfg, &state).await;
 
     // Connection bound and drain budget. Read before `cfg` moves into `Shared`.
     let max_connections = cfg.general.max_connections;
@@ -290,39 +276,7 @@ async fn run_proxy_inner(
         tokio::spawn(async move {
             // Released when this task ends; the drain waits on all permits.
             let _permit = permit;
-            let conn_metadata = Arc::new(crate::connection::ConnectionMetadata::new(remote_addr));
-            let service = service_fn(move |req: Request<Incoming>| {
-                let shared = shared.clone();
-                let conn_metadata = conn_metadata.clone();
-                let fut: ServiceFuture = Box::pin(async move {
-                    handle_request(
-                        req,
-                        shared.clone(),
-                        conn_metadata.clone(),
-                        hyper::http::uri::Scheme::HTTP,
-                    )
-                    .await
-                });
-                fut
-            });
-
-            let io = TokioIo::new(stream);
-            let conn = builder_clone.serve_connection_with_upgrades(io, service);
-            tokio::pin!(conn);
-            tokio::select! {
-                res = conn.as_mut() => {
-                    if let Err(e) = res {
-                        error!(%e, "connection error");
-                    }
-                }
-                _ = shutdown_conn.cancelled() => {
-                    // Finish in-flight requests but stop reading new ones.
-                    conn.as_mut().graceful_shutdown();
-                    if let Err(e) = conn.await {
-                        error!(%e, "connection error after graceful shutdown");
-                    }
-                }
-            }
+            serve_connection(stream, remote_addr, shared, builder_clone, shutdown_conn).await;
         });
     }
 
@@ -351,6 +305,75 @@ async fn run_proxy_inner(
     }
 
     Ok(())
+}
+
+/// Seed in-memory state from the captures file when `captures_seed` is enabled.
+/// Load failures are logged but never fail startup. Extracted from
+/// `run_proxy_inner` to keep it within the cognitive-complexity budget.
+async fn seed_state_from_captures(cfg: &Config, state: &crate::state::StateStore) {
+    if !cfg.general.captures_seed {
+        return;
+    }
+    match crate::capture::load_captures(&cfg.general.captures).await {
+        Ok(records) => {
+            let count = records.len();
+            for record in &records {
+                state.seed_from_transaction(record);
+            }
+            info!(count, "seeded state from captures");
+        }
+        Err(e) => {
+            // Log warning but don't fail startup
+            tracing::warn!(error = %e, "failed to load captures for seeding");
+        }
+    }
+}
+
+/// Serve a single accepted TCP connection until it closes or `shutdown` fires.
+///
+/// Extracted from the accept loop so `run_proxy_inner` stays within the
+/// cognitive-complexity budget: this owns the per-connection service wiring and
+/// the run-vs-graceful-shutdown select.
+async fn serve_connection(
+    stream: tokio::net::TcpStream,
+    remote_addr: SocketAddr,
+    shared: Arc<Shared>,
+    builder: AutoConnBuilder<TokioExecutor>,
+    shutdown: CancellationToken,
+) {
+    let conn_metadata = Arc::new(crate::connection::ConnectionMetadata::new(remote_addr));
+    let service = service_fn(move |req: Request<Incoming>| {
+        let shared = shared.clone();
+        let conn_metadata = conn_metadata.clone();
+        let fut: ServiceFuture = Box::pin(async move {
+            handle_request(
+                req,
+                shared.clone(),
+                conn_metadata.clone(),
+                hyper::http::uri::Scheme::HTTP,
+            )
+            .await
+        });
+        fut
+    });
+
+    let io = TokioIo::new(stream);
+    let conn = builder.serve_connection_with_upgrades(io, service);
+    tokio::pin!(conn);
+    tokio::select! {
+        res = conn.as_mut() => {
+            if let Err(e) = res {
+                error!(%e, "connection error");
+            }
+        }
+        _ = shutdown.cancelled() => {
+            // Finish in-flight requests but stop reading new ones.
+            conn.as_mut().graceful_shutdown();
+            if let Err(e) = conn.await {
+                error!(%e, "connection error after graceful shutdown");
+            }
+        }
+    }
 }
 
 #[cfg(test)]

@@ -13,6 +13,12 @@ authors = ["Alexandre Gomes Gaigalas <alganet@gmail.com>"]
 license = "ISC"
 repository = "https://github.com/alganet/lint-http"
 
+# Clippy lints enforced across every workspace crate. cognitive_complexity is a
+# nursery (allow-by-default) lint; enabling it here makes the threshold in
+# clippy.toml actually bite, so function complexity can't silently grow.
+[workspace.lints.clippy]
+cognitive_complexity = "warn"
+
 [workspace.dependencies]
 # Internal crates
 lint-http-core = { path = "lint-http-core" }

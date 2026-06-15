@@ -70,3 +70,6 @@ lint-http-core = { workspace = true, features = ["test-utils"] }
 wiremock = { workspace = true }
 rstest = { workspace = true }
 http = { workspace = true }
+
+[lints]
+workspace = true

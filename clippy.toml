@@ -3,4 +3,11 @@
 # SPDX-License-Identifier: ISC
 
 disallowed-methods = []
+
+# Deliberately above clippy's default of 25. The rules crate is dominated by
+# flat RFC parsers (linear byte scans with early-return error branches) whose
+# complexity is inherent — forcing them under 25 would mean threading parser
+# state across artificial helper boundaries, hurting readability. 30 still bites
+# on genuinely tangled functions (mixed parsing + multi-branch policy, god-style
+# entry points) without penalizing honest parsers.
 cognitive-complexity-threshold = 30

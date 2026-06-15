@@ -35,3 +35,6 @@ clap = { workspace = true }
 lint-http-core = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true }
 rstest = { workspace = true }
+
+[lints]
+workspace = true
