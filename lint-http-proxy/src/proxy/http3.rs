@@ -303,7 +303,7 @@ async fn handle_h3_request(
         );
         let duration = started.elapsed().as_millis() as u64;
         record_error_transaction(
-            &shared.captures,
+            &shared,
             &client_id,
             method.as_str(),
             &uri_str,

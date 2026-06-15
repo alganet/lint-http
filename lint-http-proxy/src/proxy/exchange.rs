@@ -21,7 +21,6 @@ use tokio::time::Instant;
 use tracing::{error, warn};
 use uuid::Uuid;
 
-use crate::capture::CaptureWriter;
 use crate::state::ClientIdentifier;
 
 use super::body::{collect_limited, CollectLimitedError};
@@ -68,7 +67,6 @@ pub(super) async fn exchange(
     shared: &Arc<Shared>,
     started: Instant,
 ) -> ProxiedResponse {
-    let captures = &shared.captures;
     let max_body_bytes = shared.cfg.general.max_body_bytes;
 
     let upstream_req =
@@ -77,7 +75,7 @@ pub(super) async fn exchange(
             Err(e) => {
                 error!("failed to build upstream request: {}", e);
                 let duration = started.elapsed().as_millis() as u64;
-                record_exchange_error(captures, &req, 500, None, duration, false).await;
+                record_exchange_error(shared, &req, 500, None, duration, false).await;
                 return error_response(500, format!("request build error: {}", e));
             }
         };
@@ -86,7 +84,7 @@ pub(super) async fn exchange(
         Ok(r) => r,
         Err(e) => {
             let duration = started.elapsed().as_millis() as u64;
-            record_exchange_error(captures, &req, 502, None, duration, false).await;
+            record_exchange_error(shared, &req, 502, None, duration, false).await;
             return error_response(502, format!("upstream error: {}", e));
         }
     };
@@ -107,7 +105,7 @@ pub(super) async fn exchange(
                 // Record the upstream's real status and headers; the body was
                 // discarded, so only the over-limit marker explains its absence.
                 record_exchange_error(
-                    captures,
+                    shared,
                     &req,
                     status,
                     Some(upstream_headers.clone()),
@@ -120,7 +118,7 @@ pub(super) async fn exchange(
             Err(CollectLimitedError::Other(e)) => {
                 error!("upstream body collect error: {}", e);
                 let duration = started.elapsed().as_millis() as u64;
-                record_exchange_error(captures, &req, 500, None, duration, false).await;
+                record_exchange_error(shared, &req, 500, None, duration, false).await;
                 return error_response(500, format!("upstream body collect error: {}", e));
             }
         };
@@ -232,7 +230,7 @@ fn error_response(status: u16, body: String) -> ProxiedResponse {
 /// [`ProxiedRequest`] is in hand. The request body has already been collected,
 /// so `request_body_over_limit` is always `false` here.
 async fn record_exchange_error(
-    captures: &CaptureWriter,
+    shared: &Arc<Shared>,
     req: &ProxiedRequest,
     status: u16,
     response_headers: Option<HeaderMap>,
@@ -240,7 +238,7 @@ async fn record_exchange_error(
     response_body_over_limit: bool,
 ) {
     record_error_transaction(
-        captures,
+        shared,
         &req.client_id,
         req.method.as_str(),
         &req.uri_str,
@@ -258,14 +256,15 @@ async fn record_exchange_error(
     .await;
 }
 
-/// Build a minimal `HttpTransaction` (request + response status only) and write
-/// it straight to captures, bypassing lint and state recording. Used on the
-/// error paths where the upstream exchange never completes normally. Shared by
-/// both transports; the caller supplies the transport's version string,
-/// connection id, and sequence number.
+/// Build a minimal `HttpTransaction` (request + response status only) and route
+/// it through the full pipeline (lint → state record → capture), so error
+/// exchanges are linted and enter `TransactionHistory` like any other traffic.
+/// Used on the error paths where the upstream exchange never completes
+/// normally. Shared by both transports; the caller supplies the transport's
+/// version string, connection id, and sequence number.
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn record_error_transaction(
-    captures: &CaptureWriter,
+    shared: &Arc<Shared>,
     client_id: &ClientIdentifier,
     method: &str,
     uri_str: &str,
@@ -303,7 +302,6 @@ pub(super) async fn record_error_transaction(
     tx.timing = crate::http_transaction::TimingInfo { duration_ms };
     tx.connection_id = Some(connection_id);
     tx.sequence_number = Some(sequence_number);
-    if let Err(e) = captures.write_transaction(tx).await {
-        warn!(error = %e, "failed to write transaction capture");
-    }
+    // Lint, record to state, and capture — error exchanges are real traffic.
+    shared.pipeline().commit(tx).await;
 }
