@@ -8,14 +8,14 @@ SPDX-License-Identifier: ISC
 Actionable guidance for AI coding agents working in `lint-http` (TLS-terminating HTTP(S) forward proxy + lint engine + JSONL capture writer).
 
 ## Big picture architecture
-- Startup wiring is in `src/main.rs`: parse `--config`, call `Config::load_from_path`, build `CaptureWriter`, run proxy.
+- Startup wiring is in `src/main.rs`: parse the CLI (clap subcommands; the `run` command carries `--config`), then `run_app` calls `Config::load_from_path`, validates rules, builds `CaptureWriter`, and runs the proxy. A bare `--config` is a deprecated alias for `run`.
 - Runtime flow: client traffic enters `src/proxy.rs` → transaction is built (`src/http_transaction.rs`) → violations computed in `src/lint.rs` using `src/rules/` → capture appended by `src/capture.rs`.
 - TLS MITM and CA management live in `src/ca.rs`; CA cert is exposed at `/_lint_http/cert`.
 - Stateful checks use `src/state.rs`; rules do not query store directly, they consume precomputed history from `src/queries/`.
 - Query strategy is centrally mapped in `src/queries/mapping.rs` (`ByResource` default, specific rules can opt into `ByOrigin`).
 
 ## Commands and CI expectations
-- Run locally: `cargo run -- --config config_example.toml`
+- Run locally: `cargo run -- run --config config_example.toml`
 - Format: `cargo fmt`
 - Lint: `cargo lint` (alias for strict clippy with `-D warnings`)
 - Tests: `cargo test`

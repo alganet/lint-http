@@ -2,24 +2,53 @@
 //
 // SPDX-License-Identifier: ISC
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::net::SocketAddr;
 
 use lint_http::{capture, config, proxy, rules};
 
 #[derive(Parser, Debug)]
-#[command(name = "lint-http", version)]
-struct Args {
-    /// Config TOML path (rules toggles, listen address, captures path)
+#[command(name = "lint-http", version, about = "HTTP-linting forward proxy")]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+
+    /// Deprecated: use `lint-http run --config <PATH>`.
+    #[arg(long, value_name = "PATH", hide = true)]
+    config: Option<String>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Run the intercepting proxy (config-driven).
+    Run(RunArgs),
+}
+
+#[derive(clap::Args, Debug)]
+struct RunArgs {
+    /// Config TOML path (rules toggles, listen address, captures path).
     #[arg(long)]
     config: String,
 }
 
-/// Simplified application entry point.
-async fn run_app(args: Args) -> anyhow::Result<()> {
+/// Load + validate the config and build the proxy's runtime inputs.
+///
+/// Takes the config *path* rather than the parsed CLI struct, so the proxy entry
+/// points are decoupled from the command surface. This step is proxy-specific
+/// (it initializes tracing and builds a `CaptureWriter`); future non-proxy
+/// subcommands (`lint`, `rules list`) reuse the library helpers
+/// `config::Config::load_from_path` / `rules::validate_rules` directly rather
+/// than this.
+async fn load_and_prepare(
+    config_path: &str,
+) -> anyhow::Result<(
+    SocketAddr,
+    capture::CaptureWriter,
+    std::sync::Arc<config::Config>,
+)> {
     let _ = tracing_subscriber::fmt::try_init();
 
-    let cfg = config::Config::load_from_path(&args.config).await?;
+    let cfg = config::Config::load_from_path(config_path).await?;
     // Validate every enabled rule's config section before binding, so a
     // malformed config fails fast rather than after the proxy is up.
     rules::validate_rules(&cfg)?;
@@ -32,42 +61,76 @@ async fn run_app(args: Args) -> anyhow::Result<()> {
     )
     .await?;
 
-    // Start the proxy; `run_proxy` wires Ctrl-C to a graceful shutdown.
+    Ok((addr, capture_writer, cfg))
+}
+
+/// Run the proxy until Ctrl-C / shutdown.
+async fn run_app(config_path: &str) -> anyhow::Result<()> {
+    let (addr, capture_writer, cfg) = load_and_prepare(config_path).await?;
+    // `run_proxy` wires Ctrl-C to a graceful shutdown.
     proxy::run_proxy(addr, capture_writer, cfg).await
 }
 
 // Testable variant of run_app that allows tests to pass in an accept limit so the
 // proxy returns after a bounded number of connections.
 #[cfg(test)]
-async fn run_app_with_limit(args: Args, accept_limit: Option<usize>) -> anyhow::Result<()> {
-    let _ = tracing_subscriber::fmt::try_init();
-
-    let cfg = config::Config::load_from_path(&args.config).await?;
-    rules::validate_rules(&cfg)?;
-    let cfg = std::sync::Arc::new(cfg);
-
-    let addr: SocketAddr = cfg.general.listen.parse()?;
-    let capture_writer = capture::CaptureWriter::new(
-        cfg.general.captures.clone(),
-        cfg.general.captures_include_body,
-    )
-    .await?;
-
-    // Start proxy with an accept limit for testing
+async fn run_app_with_limit(config_path: &str, accept_limit: Option<usize>) -> anyhow::Result<()> {
+    let (addr, capture_writer, cfg) = load_and_prepare(config_path).await?;
     crate::proxy::run_proxy_with_limit(addr, capture_writer, cfg, accept_limit).await
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
-    run_app(args).await
+    let cli = Cli::parse();
+    let config_path = match cli.command {
+        Some(Command::Run(args)) => args.config,
+        // No subcommand: accept a bare `--config` as a deprecated alias for
+        // `run`, otherwise point the user at the new form.
+        None => {
+            let path = cli.config.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "no command given; try `lint-http run --config <PATH>` (see `lint-http --help`)"
+                )
+            })?;
+            eprintln!(
+                "warning: bare `--config` is deprecated; use `lint-http run --config {path}`"
+            );
+            path
+        }
+    };
+    run_app(&config_path).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
     use tokio::fs;
     use uuid::Uuid;
+
+    #[test]
+    fn cli_run_subcommand_parses_config() {
+        let cli = Cli::parse_from(["lint-http", "run", "--config", "x.toml"]);
+        match cli.command {
+            Some(Command::Run(args)) => assert_eq!(args.config, "x.toml"),
+            other => panic!("expected Run, got {other:?}"),
+        }
+        assert!(cli.config.is_none());
+    }
+
+    #[test]
+    fn cli_bare_config_is_legacy_alias() {
+        let cli = Cli::parse_from(["lint-http", "--config", "x.toml"]);
+        assert!(cli.command.is_none());
+        assert_eq!(cli.config.as_deref(), Some("x.toml"));
+    }
+
+    #[test]
+    fn cli_no_args_has_no_command() {
+        let cli = Cli::parse_from(["lint-http"]);
+        assert!(cli.command.is_none());
+        assert!(cli.config.is_none());
+    }
 
     #[tokio::test]
     async fn main_cli_config_loads_toml() -> anyhow::Result<()> {
@@ -87,14 +150,11 @@ mod tests {
     "#;
         fs::write(&tmp, toml).await?;
 
-        let args = Args {
-            config: tmp
-                .to_str()
-                .ok_or_else(|| anyhow::anyhow!("config path not utf8"))?
-                .to_string(),
-        };
+        let config_path = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("config path not utf8"))?;
 
-        let cfg = config::Config::load_from_path(&args.config).await?;
+        let cfg = config::Config::load_from_path(config_path).await?;
 
         assert!(!cfg.is_enabled("server_cache_control_present"));
         assert_eq!(cfg.general.listen, "127.0.0.1:3000");
@@ -121,12 +181,10 @@ enabled = false
 "#;
         fs::write(&tmp, toml).await?;
 
-        let args = Args {
-            config: tmp.to_str().expect("valid utf8 path").to_string(),
-        };
+        let config_path = tmp.to_str().expect("valid utf8 path");
 
         // run_app must fail during rule validation, before binding any socket.
-        let result = run_app(args).await;
+        let result = run_app(config_path).await;
 
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
@@ -166,12 +224,10 @@ enabled = false
         );
         fs::write(&tmp, toml).await?;
 
-        let args = Args {
-            config: tmp.to_str().expect("valid utf8 path").to_string(),
-        };
+        let config_path = tmp.to_str().expect("valid utf8 path").to_string();
 
         // Spawn run_app_with_limit with accept_limit = 1
-        let task = tokio::spawn(async move { run_app_with_limit(args, Some(1)).await });
+        let task = tokio::spawn(async move { run_app_with_limit(&config_path, Some(1)).await });
 
         // Connect to trigger accept
         let addr: SocketAddr = format!("127.0.0.1:{}", port).parse()?;
@@ -222,12 +278,10 @@ enabled = false
         );
         tokio::fs::write(&tmp, toml).await?;
 
-        let args = Args {
-            config: tmp.to_str().expect("valid utf8 path").to_string(),
-        };
+        let config_path = tmp.to_str().expect("valid utf8 path");
 
         // run_app should return an error because the port is already taken
-        let res = run_app(args).await;
+        let res = run_app(config_path).await;
         assert!(res.is_err());
 
         // Cleanup

@@ -27,7 +27,7 @@ lint-http inspects HTTP(S) traffic, runs protocol best-practice checks (rules), 
 1) Build and run (recommended for development):
 
 ```bash
-cargo run -- --config config_example.toml
+cargo run -- run --config config_example.toml
 ```
 
 2) Basic HTTP usage:
@@ -52,11 +52,15 @@ Notes:
 
 ## Configuration
 
-The proxy is configured via a TOML file passed with `--config`.
+The proxy is configured via a TOML file passed to the `run` subcommand with
+`--config`.
 
 ```bash
-lint-http --config config.toml
+lint-http run --config config.toml
 ```
+
+(A bare `lint-http --config config.toml` still works as a deprecated alias for
+`run` and prints a warning; prefer the `run` form.)
 
 Refer to `docs/configuration.md` for full options, including TLS settings and rule configuration.
 
