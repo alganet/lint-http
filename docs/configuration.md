@@ -6,19 +6,27 @@ SPDX-License-Identifier: ISC
 
 # Configuration
 
-`lint-http` is configured using a TOML file. You must provide this file using the `--config` CLI argument.
+`lint-http` is configured using a TOML file. You provide this file to the `run`
+subcommand using the `--config` CLI argument.
 
 ## Command-Line Options
 
-- `--config <PATH>`: Path to TOML configuration file (mandatory)
-- `-h, --help`: Print help
+`lint-http` uses subcommands; today the only one is `run`, which starts the
+intercepting proxy:
+
+- `run --config <PATH>`: Path to TOML configuration file (mandatory)
+- `-h, --help`: Print help (works on the binary and on `run`)
 - `-V, --version`: Print version
 
 Example:
 
 ```bash
-lint-http --config config.toml
+lint-http run --config config.toml
 ```
+
+For backwards compatibility, a bare `lint-http --config config.toml` is still
+accepted as a deprecated alias for `run` (it prints a warning); prefer the
+`run` form.
 
 ## Configuration File Structure
 
