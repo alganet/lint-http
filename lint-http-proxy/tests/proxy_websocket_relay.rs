@@ -133,11 +133,21 @@ async fn websocket_upgrade_through_proxy_captures_session() -> anyhow::Result<()
     drop(write);
     drop(read);
 
-    // Give the proxy time to write the session capture
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-
-    // Read captures file
-    let content = tokio::fs::read_to_string(&captures_path).await?;
+    // The relay writes the session capture asynchronously after the close
+    // handshake, and the capture writer flushes on its own schedule, so poll
+    // until both the 101 transaction and the websocket session land rather than
+    // relying on a fixed sleep (which races on a slow/loaded CI runner).
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let content = loop {
+        let content = tokio::fs::read_to_string(&captures_path)
+            .await
+            .unwrap_or_default();
+        let records = content.lines().filter(|l| !l.trim().is_empty()).count();
+        if records >= 2 || std::time::Instant::now() > deadline {
+            break content;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    };
     let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
 
     // Should have at least 2 records: the 101 transaction and the websocket session

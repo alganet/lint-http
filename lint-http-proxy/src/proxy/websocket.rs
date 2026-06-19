@@ -521,8 +521,11 @@ mod tests {
     use uuid::Uuid;
 
     fn test_pe_pipeline() -> ProtocolEventPipeline {
+        let cfg = StdArc::new(crate::config::Config::default());
+        let engine = StdArc::new(crate::engine::PreparedEngine::new(&cfg));
         ProtocolEventPipeline::new(
-            StdArc::new(crate::config::Config::default()),
+            engine,
+            cfg,
             StdArc::new(crate::protocol_event_store::ProtocolEventStore::new(
                 300, 100,
             )),

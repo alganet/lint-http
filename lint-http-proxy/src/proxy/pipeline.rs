@@ -19,6 +19,7 @@ use tracing::warn;
 
 use crate::capture::CaptureWriter;
 use crate::config::Config;
+use crate::engine::PreparedEngine;
 use crate::http_transaction::HttpTransaction;
 use crate::lint::Violation;
 use crate::protocol_event::ProtocolEvent;
@@ -30,6 +31,7 @@ use super::Shared;
 /// Orchestrates the per-transaction cycle: lint, record to state, write the
 /// capture line.
 pub(super) struct TransactionPipeline {
+    engine: Arc<PreparedEngine>,
     cfg: Arc<Config>,
     state: Arc<StateStore>,
     captures: CaptureWriter,
@@ -41,7 +43,7 @@ impl TransactionPipeline {
     /// cannot be re-committed or mutated after capture; returns the
     /// violations for callers that need them.
     pub(super) async fn commit(&self, mut tx: HttpTransaction) -> Vec<Violation> {
-        tx.violations = crate::engine::lint_transaction(&tx, &self.cfg, &self.state);
+        tx.violations = self.engine.lint_transaction(&tx, &self.cfg, &self.state);
         self.state.record_transaction(&tx);
         // Extract violations before moving the transaction into the writer.
         let violations = tx.violations.clone();
@@ -56,19 +58,26 @@ impl TransactionPipeline {
 /// store. Cloneable so concurrent relay tasks can each own one.
 #[derive(Clone)]
 pub(super) struct ProtocolEventPipeline {
+    engine: Arc<PreparedEngine>,
     cfg: Arc<Config>,
     store: Arc<ProtocolEventStore>,
 }
 
 impl ProtocolEventPipeline {
-    pub(super) fn new(cfg: Arc<Config>, store: Arc<ProtocolEventStore>) -> Self {
-        Self { cfg, store }
+    pub(super) fn new(
+        engine: Arc<PreparedEngine>,
+        cfg: Arc<Config>,
+        store: Arc<ProtocolEventStore>,
+    ) -> Self {
+        Self { engine, cfg, store }
     }
 
     /// Lint `event`, then record it — in that order. Returns the violations
     /// so callers can log or collect them.
     pub(super) fn commit(&self, event: &ProtocolEvent) -> Vec<Violation> {
-        let violations = crate::lint_protocol::lint_protocol_event(event, &self.cfg, &self.store);
+        let violations = self
+            .engine
+            .lint_protocol_event(event, &self.cfg, &self.store);
         self.store.record_event(event);
         violations
     }
@@ -77,6 +86,7 @@ impl ProtocolEventPipeline {
 impl Shared {
     pub(super) fn pipeline(&self) -> TransactionPipeline {
         TransactionPipeline {
+            engine: self.engine.clone(),
             cfg: self.cfg.clone(),
             state: self.state.clone(),
             captures: self.captures.clone(),
@@ -84,7 +94,11 @@ impl Shared {
     }
 
     pub(super) fn protocol_event_pipeline(&self) -> ProtocolEventPipeline {
-        ProtocolEventPipeline::new(self.cfg.clone(), self.protocol_event_store.clone())
+        ProtocolEventPipeline::new(
+            self.engine.clone(),
+            self.cfg.clone(),
+            self.protocol_event_store.clone(),
+        )
     }
 }
 

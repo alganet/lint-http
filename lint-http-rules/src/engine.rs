@@ -4,85 +4,144 @@
 
 //! Transaction lint dispatch.
 //!
-//! `lint_transaction` iterates the rule catalogue, building each rule's
-//! required cross-transaction history lazily from the [`StateStore`], and
-//! collects the violations. It sits *above* the rule catalogue and the query
-//! layer (it references both), so it lives in the rules crate rather than with
-//! the [`Violation`](crate::lint::Violation) data type in core.
+//! [`PreparedEngine`] precomputes the enabled rule set once per [`Config`]
+//! (immutable after startup), then dispatches transactions and protocol events
+//! against it — building each rule's required cross-transaction history lazily
+//! from the [`StateStore`] and collecting the violations. It sits *above* the
+//! rule catalogue and the query layer (it references both), so it lives in the
+//! rules crate rather than with the [`Violation`](crate::lint::Violation) data
+//! type in core.
 
 use crate::config::Config;
 use crate::lint::Violation;
+use crate::rules::{ProtocolRule, Rule};
 
-/// Lint an entire `HttpTransaction`.
+/// The enabled rule set for one [`Config`], precomputed once so per-transaction
+/// dispatch cost is proportional to the *enabled* rules rather than the full
+/// catalogue. `is_enabled` is a pure function of the (immutable) config, so the
+/// per-scope intersection is computed at construction instead of on every
+/// transaction. Build once and reuse for the lifetime of the config.
+pub struct PreparedEngine {
+    /// Enabled rules for a full transaction (response collected).
+    enabled_full: Vec<&'static dyn Rule>,
+    /// Enabled rules for a request-only transaction (Server-scoped excluded).
+    enabled_request_only: Vec<&'static dyn Rule>,
+    /// Enabled protocol-event rules (consumed by `lint_protocol_event`).
+    pub(crate) enabled_protocol: Vec<&'static dyn ProtocolRule>,
+}
+
+impl PreparedEngine {
+    /// Intersect the catalogue's precomputed scope views with `cfg.is_enabled`,
+    /// once. The per-rule `parse_rule_config` check inside each rule stays as a
+    /// harmless belt-and-suspenders.
+    pub fn new(cfg: &Config) -> Self {
+        let enabled = |r: &&'static dyn Rule| cfg.is_enabled(r.id());
+        Self {
+            enabled_full: crate::rules::RULES
+                .iter()
+                .copied()
+                .filter(enabled)
+                .collect(),
+            enabled_request_only: crate::rules::REQUEST_ONLY_RULES
+                .iter()
+                .copied()
+                .filter(enabled)
+                .collect(),
+            enabled_protocol: crate::rules::PROTOCOL_RULES
+                .iter()
+                .copied()
+                .filter(|r| cfg.is_enabled(r.id()))
+                .collect(),
+        }
+    }
+
+    /// Lint an entire `HttpTransaction` against the enabled rule set.
+    pub fn lint_transaction(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        cfg: &Config,
+        state: &crate::state::StateStore,
+    ) -> Vec<Violation> {
+        let mut out = Vec::new();
+
+        let mut history_by_resource: Option<crate::transaction_history::TransactionHistory> = None;
+        let mut history_by_origin: Option<crate::transaction_history::TransactionHistory> = None;
+        // separate cache for ByResourceAll queries to avoid mixing with
+        // per-client histories.  If a ByResource rule runs first its history was
+        // already computed and stored in `history_by_resource`; using that same
+        // value for ByResourceAll would omit other clients' entries.
+        let mut history_by_resource_all_clients: Option<
+            crate::transaction_history::TransactionHistory,
+        > = None;
+        let mut history_by_connection: Option<crate::transaction_history::TransactionHistory> =
+            None;
+        // Rules that don't read history (the vast majority) are dispatched
+        // against this shared empty history instead of an unused per-resource
+        // query.
+        let empty_history = crate::transaction_history::TransactionHistory::empty();
+
+        // Cache origin extraction since it's used by any rule requiring ByOrigin
+        let origin = crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
+
+        // Enabled rules only — disabled rules were filtered out at construction.
+        // `Server` rules are excluded when the response isn't collected yet
+        // (mirrors `crate::rules::rules_for_scope`, see `Rule::scope`).
+        let scoped = if tx.response.is_some() {
+            &self.enabled_full
+        } else {
+            &self.enabled_request_only
+        };
+        for rule in scoped {
+            let history = match crate::rules::query_type_for(rule.id()) {
+                Some(crate::queries::QueryType::ByResource) => history_by_resource
+                    .get_or_insert_with(|| {
+                        crate::queries::by_resource::by_resource(state, &tx.client, &tx.request.uri)
+                    }),
+                Some(crate::queries::QueryType::ByOrigin) => {
+                    history_by_origin.get_or_insert_with(|| {
+                        if let Some(o) = &origin {
+                            crate::queries::by_origin::by_origin(state, &tx.client, o)
+                        } else {
+                            crate::transaction_history::TransactionHistory::empty()
+                        }
+                    })
+                }
+                Some(crate::queries::QueryType::ByResourceAll) => history_by_resource_all_clients
+                    .get_or_insert_with(|| {
+                        crate::queries::by_resource_all_clients::by_resource_all_clients(
+                            state,
+                            &tx.request.uri,
+                        )
+                    }),
+                Some(crate::queries::QueryType::ByConnection) => history_by_connection
+                    .get_or_insert_with(|| {
+                        if let Some(conn_id) = tx.connection_id {
+                            crate::queries::by_connection::by_connection(state, conn_id)
+                        } else {
+                            crate::transaction_history::TransactionHistory::empty()
+                        }
+                    }),
+                // Rule reads no history.
+                None => &empty_history,
+            };
+
+            out.extend(rule.check_transaction(tx, history, cfg));
+        }
+
+        out
+    }
+}
+
+/// Lint an entire `HttpTransaction`. Convenience one-shot: builds a
+/// [`PreparedEngine`] for `cfg` and dispatches once. Hot paths (the proxy
+/// pipeline, the offline `lint` subcommand) build a `PreparedEngine` once and
+/// reuse it; this wrapper is for tests and one-off callers.
 pub fn lint_transaction(
     tx: &crate::http_transaction::HttpTransaction,
     cfg: &Config,
     state: &crate::state::StateStore,
 ) -> Vec<Violation> {
-    let mut out = Vec::new();
-
-    let mut history_by_resource: Option<crate::transaction_history::TransactionHistory> = None;
-    let mut history_by_origin: Option<crate::transaction_history::TransactionHistory> = None;
-    // separate cache for ByResourceAll queries to avoid mixing with
-    // per-client histories.  If a ByResource rule runs first its history was
-    // already computed and stored in `history_by_resource`; using that same
-    // value for ByResourceAll would omit other clients' entries.
-    let mut history_by_resource_all_clients: Option<
-        crate::transaction_history::TransactionHistory,
-    > = None;
-    let mut history_by_connection: Option<crate::transaction_history::TransactionHistory> = None;
-    // Rules that don't read history (the vast majority) are dispatched against
-    // this shared empty history instead of an unused per-resource query.
-    let empty_history = crate::transaction_history::TransactionHistory::empty();
-
-    // Cache origin extraction since it's used by any rule requiring ByOrigin
-    let origin = crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
-
-    // Dispatch only the rules whose scope matches the transaction shape:
-    // `Server` rules are skipped when the response has not been collected yet.
-    // See `Rule::scope` for the contract.
-    for rule in crate::rules::rules_for_scope(tx.response.is_some()) {
-        if !cfg.is_enabled(rule.id()) {
-            continue;
-        }
-        let history = match crate::rules::query_type_for(rule.id()) {
-            Some(crate::queries::QueryType::ByResource) => {
-                history_by_resource.get_or_insert_with(|| {
-                    crate::queries::by_resource::by_resource(state, &tx.client, &tx.request.uri)
-                })
-            }
-            Some(crate::queries::QueryType::ByOrigin) => {
-                history_by_origin.get_or_insert_with(|| {
-                    if let Some(o) = &origin {
-                        crate::queries::by_origin::by_origin(state, &tx.client, o)
-                    } else {
-                        crate::transaction_history::TransactionHistory::empty()
-                    }
-                })
-            }
-            Some(crate::queries::QueryType::ByResourceAll) => history_by_resource_all_clients
-                .get_or_insert_with(|| {
-                    crate::queries::by_resource_all_clients::by_resource_all_clients(
-                        state,
-                        &tx.request.uri,
-                    )
-                }),
-            Some(crate::queries::QueryType::ByConnection) => history_by_connection
-                .get_or_insert_with(|| {
-                    if let Some(conn_id) = tx.connection_id {
-                        crate::queries::by_connection::by_connection(state, conn_id)
-                    } else {
-                        crate::transaction_history::TransactionHistory::empty()
-                    }
-                }),
-            // Rule reads no history.
-            None => &empty_history,
-        };
-
-        out.extend(rule.check_transaction(tx, history, cfg));
-    }
-
-    out
+    PreparedEngine::new(cfg).lint_transaction(tx, cfg, state)
 }
 
 #[cfg(test)]
@@ -90,6 +149,54 @@ mod tests {
     use super::*;
     use crate::config::Config;
     use crate::test_helpers::{disable_rule, make_test_config_with_enabled_rules};
+
+    #[test]
+    fn prepared_engine_keeps_only_enabled_rules() {
+        // Enable two Server-scoped rules and one Client-scoped rule. The full
+        // set keeps all three; the request-only set keeps just the Client rule —
+        // exercising both the enabled filter and the Server-scope exclusion.
+        let cfg = make_test_config_with_enabled_rules(&[
+            "server_cache_control_present", // Server
+            "server_etag_or_last_modified", // Server
+            "client_user_agent_present",    // Client (survives into request-only)
+        ]);
+        let engine = PreparedEngine::new(&cfg);
+
+        assert_eq!(engine.enabled_full.len(), 3);
+        assert!(engine.enabled_full.iter().all(|r| cfg.is_enabled(r.id())));
+        // Only the non-Server rule survives into the request-only set; the
+        // assertion is non-vacuous because that set is non-empty here.
+        assert_eq!(engine.enabled_request_only.len(), 1);
+        assert!(engine
+            .enabled_request_only
+            .iter()
+            .all(|r| !matches!(r.scope(), crate::rules::RuleScope::Server)));
+
+        // An empty config enables nothing.
+        let empty = PreparedEngine::new(&Config::default());
+        assert_eq!(empty.enabled_full.len(), 0);
+        assert_eq!(empty.enabled_protocol.len(), 0);
+    }
+
+    #[test]
+    fn prepared_and_free_dispatch_agree() {
+        let state = crate::state::StateStore::new(300, 10);
+        let cfg = make_test_config_with_enabled_rules(&[
+            "server_cache_control_present",
+            "client_user_agent_present",
+        ]);
+        let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+
+        let via_free = lint_transaction(&tx, &cfg, &state);
+        let via_prepared = PreparedEngine::new(&cfg).lint_transaction(&tx, &cfg, &state);
+
+        let ids = |vs: &[Violation]| {
+            let mut v: Vec<_> = vs.iter().map(|x| x.rule.clone()).collect();
+            v.sort();
+            v
+        };
+        assert_eq!(ids(&via_free), ids(&via_prepared));
+    }
 
     #[test]
     fn lint_response_rules_emit_when_enabled() {

@@ -81,6 +81,10 @@ pub(super) struct Shared {
     pub(super) protocol_event_store: Arc<crate::protocol_event_store::ProtocolEventStore>,
     pub(super) ca: Option<Arc<CertificateAuthority>>,
     pub(super) quic_transport_params: Option<crate::protocol_event::QuicTransportParameters>,
+    /// Enabled rule set precomputed once from `cfg` (immutable after startup),
+    /// so per-transaction/-event dispatch skips disabled rules without a
+    /// per-rule config lookup. Shared by both pipelines.
+    pub(super) engine: Arc<crate::engine::PreparedEngine>,
     /// Connection bound, shared with the accept loops. The detached WebSocket
     /// relay acquires a permit from this so live sessions are counted against
     /// `max_connections` and waited on by the shutdown drain barrier.
@@ -224,6 +228,9 @@ async fn run_proxy_inner(
         (None, None)
     };
 
+    // Precompute the enabled rule set once; cfg is immutable from here on.
+    let engine = Arc::new(crate::engine::PreparedEngine::new(&cfg));
+
     let shared = Arc::new(Shared {
         client,
         captures,
@@ -232,6 +239,7 @@ async fn run_proxy_inner(
         protocol_event_store,
         ca,
         quic_transport_params,
+        engine,
         semaphore: semaphore.clone(),
         shutdown: shutdown.clone(),
     });
