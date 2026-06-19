@@ -35,6 +35,10 @@ captures_include_body = false
 # Server name (SNI) for the HTTP/3 TLS certificate. Clients must connect
 # using this name. Defaults to "localhost" when omitted.
 # h3_server_name = "proxy.example.com"
+# Serve the live capture stream at GET /_lint_http/stream (Server-Sent Events,
+# one event per transaction as it commits). Exposes all proxied traffic to
+# anyone who can reach the proxy port, so it is opt-in. Default: false.
+# live_stream_enabled = false
 
 [tls]
 enabled = true

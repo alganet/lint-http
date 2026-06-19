@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs::OpenOptions;
 use tokio::io::{AsyncWriteExt, BufWriter};
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::task::JoinHandle;
 use tracing::warn;
 
@@ -60,10 +60,19 @@ const CAPTURE_CHANNEL_CAPACITY: usize = 1024;
 /// burst larger than the buffer.
 const WRITE_BUFFER_BYTES: usize = 64 * 1024;
 
+/// Depth of the per-subscriber broadcast channel feeding the live capture
+/// stream. Unlike the durable file channel, this one is lossy on purpose: a
+/// subscriber that falls more than this many records behind drops the oldest
+/// (surfaced as `RecvError::Lagged`), so a slow SSE client can never slow the
+/// durable file write.
+const LIVE_STREAM_CHANNEL_CAPACITY: usize = 256;
+
 /// A message to the background writer task.
 enum CaptureMsg {
-    /// Serialize and append a record.
-    Record(CaptureEnvelope),
+    /// Serialize and append a record. Carried as an `Arc` so the live-stream
+    /// tee in the writer task is a cheap refcount bump rather than a deep clone
+    /// of the transaction.
+    Record(Arc<CaptureEnvelope>),
     /// Flush + fsync everything written so far, then acknowledge.
     Flush(oneshot::Sender<()>),
     /// Drain the queue, flush + fsync, acknowledge, then stop the task.
@@ -80,6 +89,10 @@ enum CaptureMsg {
 #[derive(Clone)]
 pub struct CaptureWriter {
     tx: mpsc::Sender<CaptureMsg>,
+    /// Live fan-out of each record as it is written. Subscribers (the
+    /// `/_lint_http/stream` SSE endpoint) get an `Arc` so one clone serves all
+    /// of them; the durable file write is never gated on this channel.
+    events: broadcast::Sender<Arc<CaptureEnvelope>>,
     /// Shared so any clone can join the task on shutdown: the first caller
     /// takes the handle, later callers find `None` and no-op.
     join: Arc<Mutex<Option<JoinHandle<()>>>>,
@@ -95,38 +108,49 @@ impl CaptureWriter {
             .open(path.into())
             .await?;
         let (tx, rx) = mpsc::channel(CAPTURE_CHANNEL_CAPACITY);
-        let join = tokio::spawn(writer_task(file, rx, include_body));
+        let (events, _) = broadcast::channel(LIVE_STREAM_CHANNEL_CAPACITY);
+        let join = tokio::spawn(writer_task(file, rx, events.clone(), include_body));
         Ok(Self {
             tx,
+            events,
             join: Arc::new(Mutex::new(Some(join))),
         })
     }
 
-    /// Queue a transaction for the writer task. Returns `Err` only if the task
-    /// is gone (e.g. after [`Self::shutdown`]); serialization and IO errors are
+    /// Subscribe to the live stream of capture records. Each record is delivered
+    /// as it is written to the file. The returned receiver is lossy under lag:
+    /// a slow consumer drops the oldest records rather than slowing the writer.
+    pub fn subscribe(&self) -> broadcast::Receiver<Arc<CaptureEnvelope>> {
+        self.events.subscribe()
+    }
+
+    /// Queue a record for the writer task. Returns `Err` only if the task is
+    /// gone (e.g. after [`Self::shutdown`]); serialization and IO errors are
     /// logged in the task, not returned here.
-    pub async fn write_transaction(
-        &self,
-        tx: crate::http_transaction::HttpTransaction,
-    ) -> anyhow::Result<()> {
-        let envelope = CaptureEnvelope::new(CaptureRecord::HttpTransaction(Box::new(tx)));
+    async fn queue(&self, record: CaptureRecord) -> anyhow::Result<()> {
+        let envelope = Arc::new(CaptureEnvelope::new(record));
         self.tx
             .send(CaptureMsg::Record(envelope))
             .await
             .map_err(|_| anyhow::anyhow!("capture writer task is gone"))
     }
 
-    /// Queue a WebSocket session record for the writer task. Returns `Err` only
-    /// if the task is gone.
+    /// Queue a transaction for the writer task.
+    pub async fn write_transaction(
+        &self,
+        tx: crate::http_transaction::HttpTransaction,
+    ) -> anyhow::Result<()> {
+        self.queue(CaptureRecord::HttpTransaction(Box::new(tx)))
+            .await
+    }
+
+    /// Queue a WebSocket session record for the writer task.
     pub async fn write_websocket_session(
         &self,
         session: crate::websocket_session::WebSocketSession,
     ) -> anyhow::Result<()> {
-        let envelope = CaptureEnvelope::new(CaptureRecord::WebsocketSession(Box::new(session)));
-        self.tx
-            .send(CaptureMsg::Record(envelope))
+        self.queue(CaptureRecord::WebsocketSession(Box::new(session)))
             .await
-            .map_err(|_| anyhow::anyhow!("capture writer task is gone"))
     }
 
     /// Block until every record queued so far is flushed and fsynced to disk.
@@ -163,6 +187,7 @@ impl CaptureWriter {
 async fn writer_task(
     file: tokio::fs::File,
     mut rx: mpsc::Receiver<CaptureMsg>,
+    events: broadcast::Sender<Arc<CaptureEnvelope>>,
     include_body: bool,
 ) {
     let mut writer = BufWriter::with_capacity(WRITE_BUFFER_BYTES, file);
@@ -177,6 +202,13 @@ async fn writer_task(
         while let Some(msg) = next {
             match msg {
                 CaptureMsg::Record(envelope) => {
+                    // Tee to live subscribers before the durable write. The clone
+                    // is a cheap `Arc` refcount bump; skip it (and the ring-buffer
+                    // push) when nobody is listening. `send` never blocks and a
+                    // lagging subscriber drops records rather than slowing us.
+                    if events.receiver_count() > 0 {
+                        let _ = events.send(envelope.clone());
+                    }
                     write_record(&mut writer, &envelope, include_body).await;
                 }
                 CaptureMsg::Flush(ack) => acks.push(ack),
@@ -211,7 +243,7 @@ async fn write_record(
     envelope: &CaptureEnvelope,
     include_body: bool,
 ) {
-    let line = match serialize_line(envelope, include_body) {
+    let line = match serialize_record(envelope, include_body) {
         Ok(line) => line,
         Err(e) => {
             warn!(error = %e, "failed to serialize capture record");
@@ -239,12 +271,16 @@ async fn flush_and_sync(writer: &mut BufWriter<tokio::fs::File>) {
     }
 }
 
-/// Serialize an envelope to a single JSONL line. For transaction records,
-/// request/response bodies are base64-injected when `include_body` is set and
-/// stripped otherwise (defensive — body fields are skipped by serde by
+/// Serialize an envelope to a single JSON object string. For transaction
+/// records, request/response bodies are base64-injected when `include_body` is
+/// set and stripped otherwise (defensive — body fields are skipped by serde by
 /// default). WebSocket sessions carry no separately-skipped bodies and
-/// serialize directly.
-fn serialize_line(envelope: &CaptureEnvelope, include_body: bool) -> serde_json::Result<String> {
+/// serialize directly. Shared by the file writer (one JSONL line) and the live
+/// SSE stream, so the on-disk and on-wire JSON shapes are identical.
+pub(crate) fn serialize_record(
+    envelope: &CaptureEnvelope,
+    include_body: bool,
+) -> serde_json::Result<String> {
     let tx = match &envelope.record {
         CaptureRecord::HttpTransaction(tx) => tx.as_ref(),
         CaptureRecord::WebsocketSession(_) => return serde_json::to_string(envelope),
@@ -736,6 +772,48 @@ mod tests {
             }
             other => panic!("expected websocket_session, got {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn subscribe_receives_written_record() -> anyhow::Result<()> {
+        let tmp = std::env::temp_dir().join(format!("lint_stream_sub_{}.jsonl", Uuid::new_v4()));
+        let cw = CaptureWriter::new(tmp.clone(), false).await?;
+
+        let mut rx = cw.subscribe();
+
+        use crate::test_helpers::make_test_transaction;
+        let tx = make_test_transaction();
+        let id = tx.id;
+        cw.write_transaction(tx).await?;
+        cw.flush().await?;
+
+        let env = rx.recv().await?;
+        match &env.record {
+            CaptureRecord::HttpTransaction(t) => assert_eq!(t.id, id),
+            other => panic!("expected http_transaction, got {other:?}"),
+        }
+
+        fs::remove_file(&tmp).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn write_without_subscriber_still_writes_file() -> anyhow::Result<()> {
+        let tmp = std::env::temp_dir().join(format!("lint_stream_nosub_{}.jsonl", Uuid::new_v4()));
+        let cw = CaptureWriter::new(tmp.clone(), false).await?;
+
+        // No `subscribe()` call: the broadcast tee must be skipped and the
+        // durable write must proceed unaffected.
+        use crate::test_helpers::make_test_transaction;
+        cw.write_transaction(make_test_transaction()).await?;
+        cw.flush().await?;
+
+        let s = fs::read_to_string(&tmp).await?;
+        let v: Value = serde_json::from_str(s.trim())?;
+        assert_eq!(v["request"]["method"].as_str(), Some("GET"));
+
+        fs::remove_file(&tmp).await?;
+        Ok(())
     }
 
     #[tokio::test]

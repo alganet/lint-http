@@ -79,6 +79,14 @@ pub struct GeneralConfig {
     /// Defaults to "localhost" when omitted. Clients must connect using this name.
     #[serde(default)]
     pub h3_server_name: Option<String>,
+
+    /// Whether the live capture stream endpoint (`GET /_lint_http/stream`, an
+    /// SSE feed of each transaction as it commits) is served. It exposes every
+    /// proxied transaction (and body prefixes when `captures_include_body` is
+    /// set) to anyone who can reach the proxy port, so it is opt-in: when
+    /// disabled the endpoint returns 404 (default: false).
+    #[serde(default = "default_live_stream_enabled")]
+    pub live_stream_enabled: bool,
 }
 
 fn default_ttl() -> u64 {
@@ -125,6 +133,10 @@ const fn default_captures_seed() -> bool {
     false
 }
 
+const fn default_live_stream_enabled() -> bool {
+    false
+}
+
 impl Default for GeneralConfig {
     fn default() -> Self {
         Self {
@@ -141,6 +153,7 @@ impl Default for GeneralConfig {
             shutdown_timeout_seconds: default_shutdown_timeout_seconds(),
             h3_listen: None,
             h3_server_name: None,
+            live_stream_enabled: default_live_stream_enabled(),
         }
     }
 }
