@@ -5,21 +5,21 @@
 //! WebSocket upgrade handshake and bidirectional frame relay.
 
 use bytes::Bytes;
-use http_body_util::Full;
+use http_body_util::{BodyExt, Full};
 use hyper::{Method, Request, Response, Uri};
 use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::time::Instant;
-use tracing::{error, warn};
+use tokio_util::sync::CancellationToken;
+use tracing::{debug, error};
 
 use crate::capture::CaptureWriter;
 
-use super::body::{collect_limited, CollectLimitedError};
 use super::exchange::record_error_transaction;
 use super::hop_by_hop::{format_http_version, parse_connection_tokens};
 use super::pipeline::ProtocolEventPipeline;
-use super::{boxed_full, ResponseBody, Shared};
+use super::{boxed_full, BoxError, ResponseBody, Shared};
 
 /// Check if a request is a WebSocket upgrade request.
 ///
@@ -118,7 +118,10 @@ pub(super) async fn handle_websocket_upgrade(
         status,
         version: resp_ver,
         headers: headers.clone(),
-        body_length: Some(0),
+        // A 101 has no body; a non-101 response body streams through to the
+        // client but is not captured here, so record it as unknown rather than
+        // falsely claiming zero length.
+        body_length: if status == 101 { Some(0) } else { None },
         trailers: None,
     });
     tx.timing = crate::http_transaction::TimingInfo {
@@ -153,11 +156,21 @@ pub(super) async fn handle_websocket_upgrade(
             .body(boxed_full(Bytes::new()))
             .unwrap_or_else(|_| Response::new(boxed_full(Bytes::new())));
 
-        // Spawn background relay task
+        // Spawn the background relay, holding a connection permit and a shutdown
+        // token for its lifetime: the permit counts the live session against
+        // `max_connections` (and makes the drain barrier wait for it), the token
+        // lets it close promptly on shutdown. The permit is best-effort —
+        // an already-upgraded connection can't be rejected if we're at capacity.
         let captures_clone = shared.captures.clone();
         let connection_id = conn_metadata.id;
         let pe_pipeline = shared.protocol_event_pipeline();
+        let relay_permit = shared.semaphore.clone().try_acquire_owned().ok();
+        if relay_permit.is_none() {
+            debug!("websocket relay starting without a connection permit (at capacity)");
+        }
+        let relay_shutdown = shared.shutdown.clone();
         tokio::spawn(async move {
+            let _relay_permit = relay_permit;
             // Wait for both sides to complete the upgrade
             let (client_io, server_io) = match tokio::try_join!(client_on_upgrade, server_upgraded)
             {
@@ -175,44 +188,30 @@ pub(super) async fn handle_websocket_upgrade(
                 captures_clone,
                 connection_id,
                 pe_pipeline,
+                relay_shutdown,
             )
             .await;
         });
 
         Ok(resp)
     } else {
-        // Upstream did not accept the upgrade; return the response normally,
-        // bounded by max_body_bytes.
-        let max_body_bytes = shared.cfg.general.max_body_bytes;
-        let resp_body = match collect_limited(upstream_resp.into_body(), max_body_bytes).await {
-            Ok((bytes, _trailers)) => bytes,
-            Err(CollectLimitedError::OverLimit) => {
-                warn!(
-                    "websocket non-101 response body exceeds max_body_bytes ({})",
-                    max_body_bytes
-                );
-                tx.response_body_over_limit = true;
-                if let Some(r) = tx.response.as_mut() {
-                    r.body_length = None;
-                }
-                shared.pipeline().commit(tx).await;
-                let msg = "upstream response exceeds max_body_bytes";
-                let resp = Response::builder()
-                    .status(502)
-                    .body(boxed_full(Bytes::from(msg)))
-                    .unwrap_or_else(|_| Response::new(boxed_full(Bytes::from(msg))));
-                return Ok(resp);
-            }
-            Err(CollectLimitedError::Other(_)) => Bytes::new(),
-        };
+        // Upstream did not accept the upgrade: it is a normal HTTP response.
+        // Stream it back to the client (no buffering, no over-limit 502) and
+        // commit the handshake transaction. The non-101 response body is not
+        // separately captured here (as before — only the handshake metadata is
+        // recorded), so a plain streaming forward suffices.
         shared.pipeline().commit(tx).await;
 
+        let inner = upstream_resp
+            .into_body()
+            .map_err(|e| -> BoxError { e.into() })
+            .boxed_unsync();
         let mut resp_builder = Response::builder().status(status);
         for (name, value) in super::exchange::filter_response_headers(&headers, status).iter() {
             resp_builder = resp_builder.header(name, value);
         }
         let resp = resp_builder
-            .body(boxed_full(resp_body))
+            .body(inner)
             .unwrap_or_else(|_| Response::new(boxed_full(Bytes::new())));
 
         Ok(resp)
@@ -353,6 +352,7 @@ async fn relay_websocket(
     captures: CaptureWriter,
     connection_id: uuid::Uuid,
     pipeline: ProtocolEventPipeline,
+    shutdown: CancellationToken,
 ) {
     use crate::websocket_session::{MessageDirection, WebSocketMessageInfo, WebSocketSession};
     use futures_util::{SinkExt, StreamExt};
@@ -436,10 +436,13 @@ async fn relay_websocket(
         }
     };
 
-    // Run both directions concurrently; when either finishes, the session is done.
+    // Run both directions concurrently; when either finishes, the session is
+    // done. On shutdown, break promptly (dropping the IO halves closes both
+    // sides) and still record the session below.
     tokio::select! {
         _ = c2s => {},
         _ = s2c => {},
+        _ = shutdown.cancelled() => {},
     }
 
     let duration_ms = start.elapsed().as_millis() as u64;
@@ -668,6 +671,7 @@ mod tests {
                 cw_clone,
                 uuid::Uuid::new_v4(),
                 test_pe_pipeline(),
+                tokio_util::sync::CancellationToken::new(),
             )
             .await;
         });
@@ -924,9 +928,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn handle_websocket_upgrade_non_101_over_limit_returns_502() -> anyhow::Result<()> {
-        // Plain HTTP server rejecting the upgrade with an 11-byte body, which
-        // exceeds the configured 4-byte limit.
+    async fn handle_websocket_upgrade_non_101_streams_response() -> anyhow::Result<()> {
+        // Plain HTTP server rejecting the upgrade with a body larger than the
+        // old `max_body_bytes` guard — it must now stream through (no 502).
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
         let port = listener.local_addr()?.port();
 
@@ -985,16 +989,17 @@ mod tests {
         )
         .await?;
 
-        assert_eq!(resp.status().as_u16(), 502);
+        // The upstream's non-101 status and body stream through unchanged — no 502.
+        assert_eq!(resp.status().as_u16(), 400);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(&body[..], b"Bad Request");
 
-        // The capture keeps the upstream's real status; the marker explains
-        // the missing body.
+        // The handshake transaction is captured with the upstream's real status.
         _cw.flush().await?;
         let content = tokio::fs::read_to_string(&tmp).await?;
         let v: serde_json::Value = serde_json::from_str(content.trim())?;
         assert_eq!(v["response"]["status"].as_u64(), Some(400));
-        assert_eq!(v["response_body_over_limit"].as_bool(), Some(true));
-        assert!(v["response"]["body_length"].is_null());
+        assert_eq!(v["response_body_over_limit"].as_bool(), Some(false));
 
         let _ = server_task.await;
         let _ = tokio::fs::remove_file(&tmp).await;
@@ -1024,6 +1029,7 @@ mod tests {
                 cw_clone,
                 uuid::Uuid::new_v4(),
                 test_pe_pipeline(),
+                tokio_util::sync::CancellationToken::new(),
             )
             .await;
         });
@@ -1114,6 +1120,7 @@ mod tests {
                 cw_clone,
                 uuid::Uuid::new_v4(),
                 test_pe_pipeline(),
+                tokio_util::sync::CancellationToken::new(),
             )
             .await;
         });
@@ -1130,6 +1137,58 @@ mod tests {
         cw.flush().await?;
 
         // Should still write a session record (with empty messages)
+        let content = tokio::fs::read_to_string(&p).await?;
+        let session: serde_json::Value = serde_json::from_str(content.trim())?;
+        assert_eq!(session["type"].as_str(), Some("websocket_session"));
+
+        let _ = tokio::fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn relay_websocket_closes_on_shutdown() -> anyhow::Result<()> {
+        // Both peers stay connected (no frames, no close), so the relay only
+        // ends when the shutdown token is cancelled — proving it observes it
+        // and closes gracefully rather than lingering to the drain timeout.
+        let (client_side, proxy_client_side) = tokio::io::duplex(4096);
+        let (proxy_server_side, server_side) = tokio::io::duplex(4096);
+        // Keep the peer ends alive so the relay's reads stay pending (not EOF).
+        let _client_side = client_side;
+        let _server_side = server_side;
+
+        let tx_id = Uuid::new_v4();
+        let tmp =
+            std::env::temp_dir().join(format!("lint_ws_shutdown_test_{}.jsonl", Uuid::new_v4()));
+        let p = tmp.to_str().unwrap().to_string();
+        let cw = CaptureWriter::new(p.clone(), false).await?;
+
+        let shutdown = tokio_util::sync::CancellationToken::new();
+        let cw_clone = cw.clone();
+        let shutdown_relay = shutdown.clone();
+        let relay_handle = tokio::spawn(async move {
+            relay_websocket(
+                proxy_client_side,
+                proxy_server_side,
+                tx_id,
+                cw_clone,
+                uuid::Uuid::new_v4(),
+                test_pe_pipeline(),
+                shutdown_relay,
+            )
+            .await;
+        });
+
+        // Let the relay start and block on its idle reads, then signal shutdown.
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        shutdown.cancel();
+
+        tokio::time::timeout(std::time::Duration::from_secs(5), relay_handle)
+            .await
+            .expect("relay did not stop on shutdown")
+            .expect("relay panicked");
+
+        // The session is still recorded on the shutdown path.
+        cw.flush().await?;
         let content = tokio::fs::read_to_string(&p).await?;
         let session: serde_json::Value = serde_json::from_str(content.trim())?;
         assert_eq!(session["type"].as_str(), Some("websocket_session"));
@@ -1294,6 +1353,7 @@ mod tests {
                 cw_clone,
                 uuid::Uuid::new_v4(),
                 test_pe_pipeline(),
+                tokio_util::sync::CancellationToken::new(),
             )
             .await;
         });

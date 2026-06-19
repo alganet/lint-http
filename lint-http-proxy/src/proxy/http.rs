@@ -179,9 +179,15 @@ where
     };
 
     // WebSocket handshakes buffer their (tiny) body for the dedicated upgrade
-    // path, which builds its own upstream connection; everything else streams
-    // the request body through the exchange core. The WebSocket arm always
-    // returns, so the request body is consumed exactly once.
+    // path, which builds its own upstream connection over a `Full<Bytes>` body;
+    // everything else streams the request body through the exchange core. The
+    // WebSocket arm always returns, so the request body is consumed exactly once.
+    //
+    // Because that upstream body must be buffered, `max_body_bytes` stays a real
+    // DoS guard here and over-limit handshakes are rejected with 413 — this is
+    // the one remaining path where `request_body_over_limit` keeps its original
+    // "rejected, body not captured" sense (cf. #17d). In practice WebSocket
+    // handshake requests carry no body, so the limit is near-vacuous.
     if is_ws_upgrade {
         if let Some(client_on_upgrade) = client_on_upgrade {
             let max_body_bytes = shared.cfg.general.max_body_bytes;
