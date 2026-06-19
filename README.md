@@ -64,6 +64,18 @@ lint-http run --config config.toml
 
 Refer to `docs/configuration.md` for full options, including TLS settings and rule configuration.
 
+## Browse the rule catalogue
+
+List every rule and its metadata — no proxy or config needed:
+
+```bash
+lint-http rules list                 # human-readable: id, scope, title
+lint-http rules list --format json   # full metadata (description, spec refs) for tooling
+```
+
+Regenerate the per-rule documentation from rule metadata with
+`lint-http gendocs [--out docs]`.
+
 ## Lint recorded captures (CI)
 
 Lint a JSONL capture file offline — no live proxy needed. It replays the

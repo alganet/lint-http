@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: ISC
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::net::SocketAddr;
 
-use lint_http::{capture, config, engine, lint, proxy, rules, state};
+use lint_http::{capture, config, engine, gendocs, lint, proxy, rules, state};
 
 #[derive(Parser, Debug)]
 #[command(name = "lint-http", version, about = "HTTP-linting forward proxy")]
@@ -24,6 +24,10 @@ enum Command {
     Run(RunArgs),
     /// Lint a recorded capture file, replaying its transactions through the rules.
     Lint(LintArgs),
+    /// Inspect the rule catalogue.
+    Rules(RulesArgs),
+    /// Regenerate the rule documentation under <out>/ from rule metadata.
+    Gendocs(GendocsArgs),
 }
 
 #[derive(clap::Args, Debug)]
@@ -42,6 +46,38 @@ struct LintArgs {
     /// JSONL capture file to lint.
     #[arg(value_name = "CAPTURES")]
     captures: String,
+}
+
+#[derive(clap::Args, Debug)]
+struct RulesArgs {
+    #[command(subcommand)]
+    command: RulesCommand,
+}
+
+#[derive(Subcommand, Debug)]
+enum RulesCommand {
+    /// List every rule and its metadata.
+    List(RulesListArgs),
+}
+
+#[derive(clap::Args, Debug)]
+struct RulesListArgs {
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    format: OutputFormat,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum OutputFormat {
+    Text,
+    Json,
+}
+
+#[derive(clap::Args, Debug)]
+struct GendocsArgs {
+    /// Output directory; `rules.md` and `rules/<id>.md` are written under it.
+    #[arg(long, default_value = "docs")]
+    out: std::path::PathBuf,
 }
 
 /// Load the config and validate every enabled rule's section, failing fast on a
@@ -102,6 +138,85 @@ fn severity_label(severity: lint::Severity) -> &'static str {
         lint::Severity::Info => "info",
         lint::Severity::Warn => "warn",
         lint::Severity::Error => "error",
+    }
+}
+
+/// Write to stdout, treating a closed pipe as a clean exit. Rust ignores
+/// `SIGPIPE`, so writing to a reader that has gone away (e.g. `rules list | head`)
+/// surfaces as a `BrokenPipe` error that `print!`/`println!` turn into a panic;
+/// the 184-line catalogue is routinely piped, so swallow that one error kind.
+fn write_stdout(s: &str) -> anyhow::Result<()> {
+    use std::io::Write;
+    match std::io::stdout().write_all(s.as_bytes()) {
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        other => Ok(other?),
+    }
+}
+
+fn scope_label(scope: rules::RuleScope) -> &'static str {
+    match scope {
+        rules::RuleScope::Client => "client",
+        rules::RuleScope::Server => "server",
+        rules::RuleScope::Both => "both",
+    }
+}
+
+/// One rule's metadata, flattened for `rules list --format json`. Protocol rules
+/// have no scope, so they are labelled `"protocol"`.
+#[derive(serde::Serialize)]
+struct RuleInfo {
+    id: &'static str,
+    kind: &'static str,
+    scope: &'static str,
+    title: Option<&'static str>,
+    description: &'static str,
+    rfc_references: &'static [&'static str],
+}
+
+/// Collect every transaction rule then every protocol rule, each already
+/// id-sorted by its `LazyLock` view.
+fn collect_rule_info() -> Vec<RuleInfo> {
+    let mut infos: Vec<RuleInfo> = rules::RULES
+        .iter()
+        .map(|r| RuleInfo {
+            id: r.id(),
+            kind: "transaction",
+            scope: scope_label(r.scope()),
+            title: r.title(),
+            description: r.description(),
+            rfc_references: r.rfc_references(),
+        })
+        .collect();
+    infos.extend(rules::PROTOCOL_RULES.iter().map(|r| RuleInfo {
+        id: r.id(),
+        kind: "protocol",
+        scope: "protocol",
+        title: r.title(),
+        description: r.description(),
+        rfc_references: r.rfc_references(),
+    }));
+    infos
+}
+
+/// Render the rule catalogue. Returns the output string so the dispatch arm can
+/// print it (and tests can assert on it). No config or proxy required.
+fn rules_list(format: OutputFormat) -> anyhow::Result<String> {
+    let infos = collect_rule_info();
+    match format {
+        OutputFormat::Json => Ok(serde_json::to_string_pretty(&infos)?),
+        OutputFormat::Text => {
+            use std::fmt::Write;
+            let mut out = String::new();
+            for info in &infos {
+                // Most rules have no title override; omit the field entirely so
+                // those lines don't carry a trailing space.
+                match info.title {
+                    Some(title) => writeln!(out, "{:<60} [{}] {}", info.id, info.scope, title)?,
+                    None => writeln!(out, "{:<60} [{}]", info.id, info.scope)?,
+                }
+            }
+            Ok(out)
+        }
     }
 }
 
@@ -171,6 +286,17 @@ async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
         Some(Command::Lint(args)) => {
             let found = lint_app(&args.config, &args.captures).await?;
             Ok(if found > 0 { 1 } else { 0 })
+        }
+        Some(Command::Rules(args)) => match args.command {
+            RulesCommand::List(a) => {
+                write_stdout(&rules_list(a.format)?)?;
+                Ok(0)
+            }
+        },
+        Some(Command::Gendocs(args)) => {
+            gendocs::write_all(&args.out)?;
+            eprintln!("Wrote rule docs to {}", args.out.display());
+            Ok(0)
         }
         // No subcommand: accept a bare `--config` as a deprecated alias for
         // `run`, otherwise point the user at the new form.
@@ -431,6 +557,91 @@ severity = "warn"
         let _ = fs::remove_file(&cfg).await;
         let _ = fs::remove_file(&caps).await;
         drop(l);
+        Ok(())
+    }
+
+    #[test]
+    fn cli_rules_list_parses_format() {
+        let cli = Cli::parse_from(["lint-http", "rules", "list", "--format", "json"]);
+        match cli.command {
+            Some(Command::Rules(args)) => match args.command {
+                RulesCommand::List(a) => assert!(matches!(a.format, OutputFormat::Json)),
+            },
+            other => panic!("expected Rules(List), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cli_rules_list_defaults_to_text() {
+        let cli = Cli::parse_from(["lint-http", "rules", "list"]);
+        match cli.command {
+            Some(Command::Rules(args)) => match args.command {
+                RulesCommand::List(a) => assert!(matches!(a.format, OutputFormat::Text)),
+            },
+            other => panic!("expected Rules(List), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cli_gendocs_parses_out() {
+        let cli = Cli::parse_from(["lint-http", "gendocs", "--out", "/tmp/x"]);
+        match cli.command {
+            Some(Command::Gendocs(args)) => {
+                assert_eq!(args.out, std::path::PathBuf::from("/tmp/x"))
+            }
+            other => panic!("expected Gendocs, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn scope_label_covers_all_variants() {
+        assert_eq!(scope_label(rules::RuleScope::Client), "client");
+        assert_eq!(scope_label(rules::RuleScope::Server), "server");
+        assert_eq!(scope_label(rules::RuleScope::Both), "both");
+    }
+
+    #[test]
+    fn rules_list_text_includes_a_known_rule() -> anyhow::Result<()> {
+        let out = rules_list(OutputFormat::Text)?;
+        // The catalogue lists transaction and protocol rules with a scope label.
+        assert!(out.contains("server_cache_control_present"));
+        assert!(out.contains("[server]"));
+        // Protocol rules are labelled `protocol`.
+        assert!(out.contains("[protocol]"));
+        Ok(())
+    }
+
+    #[test]
+    fn rules_list_json_is_an_array_of_metadata() -> anyhow::Result<()> {
+        let out = rules_list(OutputFormat::Json)?;
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
+        assert!(!parsed.is_empty());
+        let cc = parsed
+            .iter()
+            .find(|v| v["id"] == "server_cache_control_present")
+            .expect("known rule present in JSON output");
+        assert_eq!(cc["scope"], "server");
+        assert_eq!(cc["kind"], "transaction");
+        assert!(!cc["description"].as_str().unwrap_or("").is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn dispatch_rules_list_returns_0() -> anyhow::Result<()> {
+        let cli = Cli::parse_from(["lint-http", "rules", "list"]);
+        assert_eq!(dispatch(cli).await?, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn dispatch_gendocs_writes_and_returns_0() -> anyhow::Result<()> {
+        let out = std::env::temp_dir().join(format!("lint_gendocs_{}", Uuid::new_v4()));
+        let cli = Cli::parse_from(["lint-http", "gendocs", "--out", out.to_str().unwrap()]);
+        assert_eq!(dispatch(cli).await?, 0);
+        // gendocs writes the index + per-rule files under <out>/.
+        assert!(out.join("rules.md").exists());
+        assert!(out.join("rules").is_dir());
+        let _ = fs::remove_dir_all(&out).await;
         Ok(())
     }
 
