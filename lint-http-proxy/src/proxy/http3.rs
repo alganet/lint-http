@@ -4,21 +4,20 @@
 
 //! HTTP/3 (QUIC) accept loop and per-stream request handling.
 
-use bytes::Bytes;
 use http_body_util::BodyExt;
 use hyper::{Response, Uri};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, trace, warn};
+use tracing::{error, info, warn};
 
 use crate::ca::CertificateAuthority;
 
 use super::connect::AlwaysResolves;
-use super::exchange::{exchange, record_error_transaction, ProxiedRequest};
-use super::tee_body;
+use super::exchange::{exchange, ProxiedRequest};
 use super::Shared;
+use super::{http3_body, tee_body};
 
 /// QUIC transport parameter defaults for the HTTP/3 proxy.
 ///
@@ -103,8 +102,20 @@ pub(super) async fn run_h3_accept_loop(
     endpoint: quinn::Endpoint,
     shared: Arc<Shared>,
     shutdown: CancellationToken,
+    semaphore: Arc<tokio::sync::Semaphore>,
 ) {
     loop {
+        // Reserve a connection slot first, so H3 never exceeds `max_connections`
+        // (shared with TCP). The permit is held for the connection's lifetime by
+        // the spawned task, so it doubles as the shutdown drain barrier.
+        let permit = tokio::select! {
+            biased;
+            _ = shutdown.cancelled() => break,
+            permit = semaphore.clone().acquire_owned() => match permit {
+                Ok(p) => p,
+                Err(_) => break, // semaphore closed
+            },
+        };
         let incoming = tokio::select! {
             _ = shutdown.cancelled() => break,
             incoming = endpoint.accept() => match incoming {
@@ -114,6 +125,8 @@ pub(super) async fn run_h3_accept_loop(
         };
         let shared = shared.clone();
         tokio::spawn(async move {
+            // Released when this task ends; the drain waits on all permits.
+            let _permit = permit;
             match incoming.await {
                 Ok(conn) => {
                     let remote_addr = conn.remote_address();
@@ -260,13 +273,11 @@ fn emit_h3_protocol_event(
 /// upgrade/WebSocket handling is intentionally omitted here.
 async fn handle_h3_request(
     req: hyper::Request<()>,
-    mut stream: h3::server::RequestStream<h3_quinn::BidiStream<bytes::Bytes>, bytes::Bytes>,
+    stream: h3::server::RequestStream<h3_quinn::BidiStream<bytes::Bytes>, bytes::Bytes>,
     shared: Arc<Shared>,
     conn_metadata: Arc<crate::connection::ConnectionMetadata>,
     stream_id: u64,
 ) -> anyhow::Result<()> {
-    use bytes::Buf;
-
     let started = Instant::now();
 
     let method = req.method().clone();
@@ -280,65 +291,6 @@ async fn handle_h3_request(
         .unwrap_or("unknown")
         .to_string();
     let client_id = crate::state::ClientIdentifier::new(client_ip, user_agent);
-
-    // Collect the request body from the h3 stream, bounded by max_body_bytes.
-    let max_body_bytes = shared.cfg.general.max_body_bytes;
-    let mut req_body = Vec::new();
-    let mut req_body_over_limit = false;
-    'collect: while let Some(chunk) = stream.recv_data().await? {
-        let mut buf = chunk;
-        if req_body.len() + buf.remaining() > max_body_bytes {
-            req_body_over_limit = true;
-            break 'collect;
-        }
-        while buf.has_remaining() {
-            let bytes = buf.chunk();
-            req_body.extend_from_slice(bytes);
-            let len = bytes.len();
-            buf.advance(len);
-        }
-    }
-    if req_body_over_limit {
-        warn!(
-            "HTTP/3 request body exceeds max_body_bytes ({})",
-            max_body_bytes
-        );
-        let duration = started.elapsed().as_millis() as u64;
-        record_error_transaction(
-            &shared,
-            &client_id,
-            method.as_str(),
-            &uri_str,
-            &req_headers,
-            "HTTP/3",
-            413,
-            None,
-            duration,
-            None,
-            conn_metadata.id,
-            stream_id as u32,
-            true,
-            false,
-        )
-        .await;
-        let resp = Response::builder().status(413).body(()).unwrap();
-        stream.send_response(resp).await?;
-        stream
-            .send_data(Bytes::from("request body exceeds max_body_bytes"))
-            .await?;
-        stream.finish().await?;
-        return Ok(());
-    }
-    let req_body_bytes = Bytes::from(req_body);
-
-    // Collect request trailers (if the client sent any after the body)
-    let req_trailers = match stream.recv_trailers().await {
-        Ok(t) => t,
-        Err(e) => {
-            trace!("HTTP/3 request trailers error (non-fatal): {}", e);
-            None
-        }
-    };
 
     // Build the upstream URI from the :authority pseudo-header (falling back to
     // Host), defaulting to HTTPS since HTTP/3 is always over TLS.
@@ -368,12 +320,14 @@ async fn handle_h3_request(
             .unwrap_or_else(|_| Uri::from_static("https://localhost/"))
     };
 
-    // The H3 request body is already buffered (recv loop above); present it
-    // through the same streaming exchange interface with a pre-resolved capture
-    // (bounded to the same prefix cap as H1/H2). H3 request streaming is a
-    // follow-up.
+    // Split the bidirectional stream so the request body streams to the upstream
+    // (teed for capture) while the send half stays here to deliver the response.
+    // This mirrors the H1/H2 path: the body forwards in full and only the
+    // captured prefix is bounded by `captures_max_body_bytes` — no 413, no
+    // whole-body buffering.
+    let (mut send, recv) = stream.split();
     let prefix_cap = shared.cfg.general.captures_max_body_bytes;
-    let (body, body_done_rx) = tee_body::buffered(req_body_bytes, req_trailers, prefix_cap);
+    let (body, body_done_rx) = tee_body::tee(http3_body::boxed(recv), prefix_cap);
 
     // Run the shared exchange core (forward, collect, lint, capture).
     let pr = ProxiedRequest {
@@ -397,22 +351,22 @@ async fn handle_h3_request(
         resp_builder = resp_builder.header(name, value);
     }
     let h3_resp = resp_builder.body(()).unwrap();
-    stream.send_response(h3_resp).await?;
+    send.send_response(h3_resp).await?;
 
     // Drive the streaming response body frame-by-frame onto the QUIC stream.
     let mut body = proxied.body;
     while let Some(frame) = body.frame().await {
         let frame = frame.map_err(|e| anyhow::anyhow!("HTTP/3 response body error: {}", e))?;
         match frame.into_data() {
-            Ok(data) => stream.send_data(data).await?,
+            Ok(data) => send.send_data(data).await?,
             Err(frame) => {
                 if let Ok(trailers) = frame.into_trailers() {
-                    stream.send_trailers(trailers).await?;
+                    send.send_trailers(trailers).await?;
                 }
             }
         }
     }
-    stream.finish().await?;
+    send.finish().await?;
 
     Ok(())
 }

@@ -514,34 +514,46 @@ async fn h3_multiple_requests_on_same_connection_increment_sequence() -> anyhow:
 }
 
 #[tokio::test]
-async fn h3_request_body_over_limit_returns_413() -> anyhow::Result<()> {
+async fn h3_large_request_body_streams_and_truncates_capture() -> anyhow::Result<()> {
+    let mock = MockServer::start().await;
+    Mock::given(wiremock::matchers::method("POST"))
+        .and(wiremock::matchers::path("/upload"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
+        .mount(&mock)
+        .await;
+
     let (handle, _tcp_addr, h3_addr, captures_path, cert_path, key_path) =
         start_proxy_with_h3(Some(Box::new(|cfg| {
-            cfg.general.max_body_bytes = 16;
+            cfg.general.captures_max_body_bytes = 16;
         })))
         .await?;
 
     let endpoint = build_h3_client(&cert_path)?;
-    // The limit trips while collecting the request body, before any upstream
-    // contact, so no mock server is needed.
-    let (status, _body) =
-        h3_request_with_body(&endpoint, h3_addr, "http://127.0.0.1:9/upload", &[b'a'; 64]).await?;
-    assert_eq!(status, 413);
+    let uri = format!("http://127.0.0.1:{}/upload", mock.address().port());
+
+    // A 64-byte request body exceeds the 16-byte capture bound but must still
+    // be streamed to the upstream in full — no rejection, no 413.
+    let (status, _body) = h3_request_with_body(&endpoint, h3_addr, &uri, &[b'a'; 64]).await?;
+    assert_eq!(status, 200);
+
+    // The upstream received the entire body, not a truncated or rejected one.
+    let reqs = mock.received_requests().await.unwrap();
+    assert_eq!(reqs.len(), 1);
+    assert_eq!(reqs[0].body.len(), 64);
 
     tokio::time::sleep(Duration::from_millis(200)).await;
 
+    // The capture holds only the bounded prefix, marked truncated, while
+    // request body_length records the real streamed total.
     let content = tokio::fs::read_to_string(&captures_path).await?;
     let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
-    assert!(
-        !lines.is_empty(),
-        "over-limit transaction should be captured"
-    );
+    assert!(!lines.is_empty(), "transaction should be captured");
 
     let v: serde_json::Value = serde_json::from_str(lines[0])?;
-    assert_eq!(v["response"]["status"].as_u64(), Some(413));
-    assert_eq!(v["request_body_over_limit"].as_bool(), Some(true));
+    assert_eq!(v["response"]["status"].as_u64(), Some(200));
     assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3"));
-    assert!(v["request"]["body_length"].is_null());
+    assert_eq!(v["request_body_over_limit"].as_bool(), Some(true));
+    assert_eq!(v["request"]["body_length"].as_u64(), Some(64));
 
     endpoint.close(0u32.into(), b"done");
     handle.abort();
