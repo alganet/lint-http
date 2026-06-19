@@ -17,6 +17,11 @@ subcommand using the `--config` CLI argument.
   configuration file (mandatory).
 - `lint --config <PATH> <CAPTURES>`: Lint a recorded capture file offline
   (see below).
+- `rules list [--format text|json]`: List every rule and its metadata (id,
+  scope, title, and — in JSON — description and spec references). No config or
+  proxy needed; it prints the static catalogue.
+- `gendocs [--out <DIR>]`: Regenerate the per-rule docs (`rules.md` index +
+  `rules/<id>.md`) from rule metadata under `<DIR>` (default `docs`).
 - `-h, --help`: Print help (works on the binary and on each subcommand)
 - `-V, --version`: Print version
 
