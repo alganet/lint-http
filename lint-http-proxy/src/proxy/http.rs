@@ -233,33 +233,38 @@ where
                         return Ok(error_resp(500, "request body collect error"));
                     }
                 };
-            let upstream_req = match upstream_request_builder(&method, &uri, &req_headers, &shared)
-                .body(Full::new(body_bytes.clone()))
-            {
-                Ok(r) => r,
-                Err(e) => {
-                    error!("failed to build upstream request: {}", e);
-                    let duration = started.elapsed().as_millis() as u64;
-                    record_error_transaction(
-                        &shared,
-                        &client_id,
-                        method.as_str(),
-                        &uri_str,
-                        &req_headers,
-                        &req_version,
-                        500,
-                        None,
-                        duration,
-                        Some(body_bytes.clone()),
-                        conn_metadata.id,
-                        conn_metadata.next_sequence_number(),
-                        false,
-                        false,
-                    )
-                    .await;
-                    return Ok(error_resp(500, &format!("request build error: {}", e)));
-                }
-            };
+            // Preserve hop-by-hop headers for the upstream handshake: the
+            // WebSocket upgrade depends on `Connection`/`Upgrade` reaching the
+            // origin (the request-side analog of the 101 carve-out in
+            // `filter_response_headers`).
+            let upstream_req =
+                match upstream_request_builder(&method, &uri, &req_headers, &shared, false)
+                    .body(Full::new(body_bytes.clone()))
+                {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("failed to build upstream request: {}", e);
+                        let duration = started.elapsed().as_millis() as u64;
+                        record_error_transaction(
+                            &shared,
+                            &client_id,
+                            method.as_str(),
+                            &uri_str,
+                            &req_headers,
+                            &req_version,
+                            500,
+                            None,
+                            duration,
+                            Some(body_bytes.clone()),
+                            conn_metadata.id,
+                            conn_metadata.next_sequence_number(),
+                            false,
+                            false,
+                        )
+                        .await;
+                        return Ok(error_resp(500, &format!("request build error: {}", e)));
+                    }
+                };
             return handle_websocket_upgrade(
                 upstream_req,
                 client_on_upgrade,
