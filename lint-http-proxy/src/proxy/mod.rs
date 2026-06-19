@@ -81,6 +81,13 @@ pub(super) struct Shared {
     pub(super) protocol_event_store: Arc<crate::protocol_event_store::ProtocolEventStore>,
     pub(super) ca: Option<Arc<CertificateAuthority>>,
     pub(super) quic_transport_params: Option<crate::protocol_event::QuicTransportParameters>,
+    /// Connection bound, shared with the accept loops. The detached WebSocket
+    /// relay acquires a permit from this so live sessions are counted against
+    /// `max_connections` and waited on by the shutdown drain barrier.
+    pub(super) semaphore: Arc<Semaphore>,
+    /// Graceful-shutdown signal. Handed to the detached WebSocket relay so it
+    /// closes promptly on shutdown rather than only at the drain timeout.
+    pub(super) shutdown: CancellationToken,
 }
 
 pub async fn run_proxy(
@@ -225,6 +232,8 @@ async fn run_proxy_inner(
         protocol_event_store,
         ca,
         quic_transport_params,
+        semaphore: semaphore.clone(),
+        shutdown: shutdown.clone(),
     });
 
     // Start HTTP/3 (QUIC) accept loop if an endpoint was created. It shares the

@@ -54,6 +54,8 @@ pub(super) async fn make_shared_with_cfg(
         protocol_event_store,
         ca,
         quic_transport_params: None,
+        semaphore: StdArc::new(tokio::sync::Semaphore::new(1024)),
+        shutdown: tokio_util::sync::CancellationToken::new(),
     });
     Ok((shared, p, cw))
 }
