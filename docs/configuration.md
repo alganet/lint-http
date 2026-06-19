@@ -11,11 +11,13 @@ subcommand using the `--config` CLI argument.
 
 ## Command-Line Options
 
-`lint-http` uses subcommands; today the only one is `run`, which starts the
-intercepting proxy:
+`lint-http` uses subcommands:
 
-- `run --config <PATH>`: Path to TOML configuration file (mandatory)
-- `-h, --help`: Print help (works on the binary and on `run`)
+- `run --config <PATH>`: Start the intercepting proxy. `<PATH>` is the TOML
+  configuration file (mandatory).
+- `lint --config <PATH> <CAPTURES>`: Lint a recorded capture file offline
+  (see below).
+- `-h, --help`: Print help (works on the binary and on each subcommand)
 - `-V, --version`: Print version
 
 Example:
@@ -27,6 +29,30 @@ lint-http run --config config.toml
 For backwards compatibility, a bare `lint-http --config config.toml` is still
 accepted as a deprecated alias for `run` (it prints a warning); prefer the
 `run` form.
+
+## Linting recorded captures
+
+`lint-http lint --config <PATH> <CAPTURES>` replays a JSONL capture file (the
+`captures` file the proxy writes) through the rule engine without running a
+proxy — the CI story: lint recorded HTTP fixtures offline.
+
+```bash
+lint-http lint --config config.toml captures.jsonl
+```
+
+It replays the transactions in record order (each is linted against the history
+of prior transactions, exactly as it would be live, so stateful rules work),
+prints one block per offending transaction, and a summary line. The exit code is
+the signal for CI:
+
+- **0** — no violations found.
+- **1** — violations found, or an error occurred (e.g. missing capture file,
+  malformed config).
+
+The `--config` file is the same TOML used by `run`; `lint` reads only the
+`[rules]` toggles/severities and the `[general]` `ttl_seconds` / `max_history`
+(used to size the replay's history window). The `listen`, `captures`, and
+`[tls]` fields are ignored by `lint`.
 
 ## Configuration File Structure
 
