@@ -214,27 +214,47 @@ pub(super) async fn exchange(
     }
 }
 
-/// Build the upstream request line + headers (method, URI, client headers
-/// minus `suppress_headers`), leaving the body for the caller to attach — the
-/// exchange path uses a boxed [`ClientBody`], the WebSocket path a raw
-/// `Full<Bytes>` for its own upgrade connection.
+/// Build the upstream request line + headers (method, URI, client headers minus
+/// `suppress_headers`), leaving the body for the caller to attach — the exchange
+/// path uses a boxed [`ClientBody`], the WebSocket path a raw `Full<Bytes>` for
+/// its own upgrade connection.
+///
+/// When `strip_hop_by_hop` is set, RFC 7230 §6.1 hop-by-hop request headers
+/// (and any header the client names in `Connection:`) are dropped instead of
+/// relayed to the origin — the request-side mirror of [`filter_response_headers`].
+/// The WebSocket path passes `false`: its handshake relies on `Connection` /
+/// `Upgrade` reaching the upstream, exactly as the response side preserves them
+/// for a `101`.
 pub(super) fn upstream_request_builder(
     method: &Method,
     uri: &Uri,
     headers: &HeaderMap,
     shared: &Arc<Shared>,
+    strip_hop_by_hop: bool,
 ) -> hyper::http::request::Builder {
     let mut builder = Request::builder().method(method).uri(uri);
+    let connection_hop_headers = if strip_hop_by_hop {
+        parse_connection_tokens(headers.get(hyper::header::CONNECTION))
+    } else {
+        std::collections::HashSet::new()
+    };
     for (name, value) in headers.iter() {
-        if !shared
+        // `HeaderName::as_str()` is already lowercase, so it can be matched
+        // against the (lowercase) hop-by-hop set directly without normalizing.
+        let name_str = name.as_str();
+        if strip_hop_by_hop && is_hop_by_hop_header(name_str, &connection_hop_headers) {
+            continue;
+        }
+        if shared
             .cfg
             .tls
             .suppress_headers
             .iter()
-            .any(|h| h.eq_ignore_ascii_case(name.as_str()))
+            .any(|h| h.eq_ignore_ascii_case(name_str))
         {
-            builder = builder.header(name, value);
+            continue;
         }
+        builder = builder.header(name, value);
     }
     builder
 }
@@ -246,7 +266,7 @@ pub(super) fn build_upstream_request(
     body: ClientBody,
     shared: &Arc<Shared>,
 ) -> Result<Request<ClientBody>, hyper::http::Error> {
-    upstream_request_builder(method, uri, headers, shared).body(body)
+    upstream_request_builder(method, uri, headers, shared, true).body(body)
 }
 
 /// Filter response headers before returning them to the client. For 101
@@ -260,8 +280,8 @@ pub(super) fn filter_response_headers(headers: &HeaderMap, status: u16) -> Heade
     let connection_hop_headers = parse_connection_tokens(headers.get(hyper::header::CONNECTION));
     let mut out = HeaderMap::new();
     for (name, value) in headers.iter() {
-        let name_str = name.as_str().to_ascii_lowercase();
-        if is_hop_by_hop_header(&name_str, &connection_hop_headers) {
+        // `HeaderName::as_str()` is already lowercase (no normalization needed).
+        if is_hop_by_hop_header(name.as_str(), &connection_hop_headers) {
             continue;
         }
         out.append(name.clone(), value.clone());
