@@ -64,6 +64,16 @@ lint-http run --config config.toml
 
 Refer to `docs/configuration.md` for full options, including TLS settings and rule configuration.
 
+## Lint recorded captures (CI)
+
+Lint a JSONL capture file offline — no live proxy needed. It replays the
+recorded transactions through the rules and exits non-zero when any violations
+are found, so it drops straight into CI:
+
+```bash
+lint-http lint --config config.toml captures.jsonl
+```
+
 Example snippet:
 
 ```toml
