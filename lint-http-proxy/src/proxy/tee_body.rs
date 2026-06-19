@@ -7,7 +7,7 @@
 //! response/request body through the proxy without buffering it whole.
 
 use bytes::{Bytes, BytesMut};
-use http_body_util::{BodyExt, Full};
+use http_body_util::BodyExt;
 use hyper::body::{Body, Frame, SizeHint};
 use hyper::HeaderMap;
 use std::pin::Pin;
@@ -27,29 +27,6 @@ pub(super) fn tee(
 ) -> (InnerBody, oneshot::Receiver<CapturedBody>) {
     let (done, rx) = oneshot::channel();
     let body = TeeBody::new(inner, prefix_cap, done).boxed_unsync();
-    (body, rx)
-}
-
-/// Present an already-buffered body (e.g. the H3 request body) through the same
-/// streaming interface: a `Full` body plus an immediately-resolved capture
-/// bounded to the same prefix rule as [`TeeBody`].
-pub(super) fn buffered(
-    bytes: Bytes,
-    trailers: Option<HeaderMap>,
-    prefix_cap: usize,
-) -> (InnerBody, oneshot::Receiver<CapturedBody>) {
-    let total = bytes.len() as u64;
-    let truncated = bytes.len() > prefix_cap;
-    let prefix = bytes.slice(0..prefix_cap.min(bytes.len()));
-    let (done, rx) = oneshot::channel();
-    // The receiver is live (just created), so this never drops.
-    let _ = done.send(CapturedBody {
-        prefix,
-        total,
-        truncated,
-        trailers,
-    });
-    let body = Full::new(bytes).map_err(|e| match e {}).boxed_unsync();
     (body, rx)
 }
 
@@ -168,6 +145,7 @@ impl Drop for TeeBody {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use http_body_util::Full;
 
     fn boxed(bytes: &'static [u8]) -> InnerBody {
         Full::new(Bytes::from_static(bytes))
@@ -203,18 +181,6 @@ mod tests {
         assert_eq!(captured.prefix, Bytes::from_static(b"hi"));
         assert_eq!(captured.total, 2);
         assert!(!captured.truncated);
-    }
-
-    #[tokio::test]
-    async fn buffered_presents_full_body_with_bounded_capture() {
-        let (body, rx) = buffered(Bytes::from_static(b"hello world"), None, 5);
-        let forwarded = body.collect().await.unwrap().to_bytes();
-        assert_eq!(forwarded, Bytes::from_static(b"hello world"));
-
-        let captured = rx.await.unwrap();
-        assert_eq!(captured.prefix, Bytes::from_static(b"hello"));
-        assert_eq!(captured.total, 11);
-        assert!(captured.truncated);
     }
 
     #[tokio::test]

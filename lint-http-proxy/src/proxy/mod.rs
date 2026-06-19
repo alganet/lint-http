@@ -10,6 +10,7 @@ mod exchange;
 mod hop_by_hop;
 mod http;
 mod http3;
+mod http3_body;
 mod pipeline;
 mod stream;
 mod tee_body;
@@ -226,12 +227,15 @@ async fn run_proxy_inner(
         quic_transport_params,
     });
 
-    // Start HTTP/3 (QUIC) accept loop if an endpoint was created.
+    // Start HTTP/3 (QUIC) accept loop if an endpoint was created. It shares the
+    // same connection semaphore as TCP, so `max_connections` bounds both
+    // transports and the drain barrier below waits for live H3 connections too.
     let h3_handle = h3_endpoint.map(|endpoint| {
         let shared_h3 = shared.clone();
         let shutdown_h3 = shutdown.clone();
+        let semaphore_h3 = semaphore.clone();
         tokio::spawn(async move {
-            run_h3_accept_loop(endpoint, shared_h3, shutdown_h3).await;
+            run_h3_accept_loop(endpoint, shared_h3, shutdown_h3, semaphore_h3).await;
         })
     });
 
