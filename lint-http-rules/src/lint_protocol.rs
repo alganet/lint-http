@@ -9,23 +9,26 @@
 //! [`ProtocolEvent`](crate::protocol_event::ProtocolEvent) instances.
 
 use crate::config::Config;
+use crate::engine::PreparedEngine;
 use crate::lint::Violation;
 use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory};
 use crate::protocol_event_store::ProtocolEventStore;
 
-/// Lint a single protocol event against all enabled protocol rules.
-pub fn lint_protocol_event(
-    event: &ProtocolEvent,
-    cfg: &Config,
-    event_store: &ProtocolEventStore,
-) -> Vec<Violation> {
-    let mut out = Vec::new();
+impl PreparedEngine {
+    /// Lint a single protocol event against the enabled protocol rules
+    /// (disabled rules were filtered out when the engine was built).
+    pub fn lint_protocol_event(
+        &self,
+        event: &ProtocolEvent,
+        cfg: &Config,
+        event_store: &ProtocolEventStore,
+    ) -> Vec<Violation> {
+        let mut out = Vec::new();
 
-    // Lazily computed history for this connection.
-    let mut history_by_connection: Option<ProtocolEventHistory> = None;
+        // Lazily computed history for this connection.
+        let mut history_by_connection: Option<ProtocolEventHistory> = None;
 
-    for rule in crate::rules::PROTOCOL_RULES.iter() {
-        if cfg.is_enabled(rule.id()) {
+        for rule in &self.enabled_protocol {
             let history = history_by_connection.get_or_insert_with(|| {
                 let entries = event_store.get_history_for_connection(event.connection_id);
                 ProtocolEventHistory::new(entries)
@@ -33,9 +36,20 @@ pub fn lint_protocol_event(
 
             out.extend(rule.check_event(event, history, cfg));
         }
-    }
 
-    out
+        out
+    }
+}
+
+/// Lint a single protocol event against all enabled protocol rules.
+/// Convenience one-shot: builds a [`PreparedEngine`] for `cfg`; hot paths build
+/// one once and call [`PreparedEngine::lint_protocol_event`] instead.
+pub fn lint_protocol_event(
+    event: &ProtocolEvent,
+    cfg: &Config,
+    event_store: &ProtocolEventStore,
+) -> Vec<Violation> {
+    PreparedEngine::new(cfg).lint_protocol_event(event, cfg, event_store)
 }
 
 #[cfg(test)]

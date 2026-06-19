@@ -46,6 +46,7 @@ pub(super) async fn make_shared_with_cfg(
     let protocol_event_store = StdArc::new(crate::protocol_event_store::ProtocolEventStore::new(
         300, 100,
     ));
+    let engine = StdArc::new(crate::engine::PreparedEngine::new(&cfg));
     let shared = StdArc::new(Shared {
         client,
         captures: cw.clone(),
@@ -54,6 +55,7 @@ pub(super) async fn make_shared_with_cfg(
         protocol_event_store,
         ca,
         quic_transport_params: None,
+        engine,
         semaphore: StdArc::new(tokio::sync::Semaphore::new(1024)),
         shutdown: tokio_util::sync::CancellationToken::new(),
     });

@@ -239,10 +239,12 @@ async fn lint_app(config_path: &str, captures_path: &str) -> anyhow::Result<usiz
     }
     let transactions = capture::load_captures(captures_path).await?;
     let state = state::StateStore::new(cfg.general.ttl_seconds, cfg.general.max_history);
+    // Precompute the enabled rule set once, then reuse it across the replay.
+    let engine = engine::PreparedEngine::new(&cfg);
 
     let mut total = 0usize;
     for tx in &transactions {
-        let violations = engine::lint_transaction(tx, &cfg, &state);
+        let violations = engine.lint_transaction(tx, &cfg, &state);
         state.record_transaction(tx);
         if violations.is_empty() {
             continue;
