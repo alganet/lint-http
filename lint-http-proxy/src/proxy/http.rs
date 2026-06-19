@@ -84,6 +84,12 @@ where
         }
     }
 
+    // Live capture stream (SSE). Gated by general.live_stream_enabled; returns
+    // 404 when disabled, mirroring the cert endpoint's gating shape.
+    if req.uri().path() == "/_lint_http/stream" && req.method() == Method::GET {
+        return Ok(super::stream::stream_response(&shared));
+    }
+
     handle_http_logic(req, shared, conn_metadata, scheme).await
 }
 
@@ -109,7 +115,7 @@ where
 }
 
 /// Build a boxed plaintext error response (status + message body, no headers).
-fn error_resp(status: u16, msg: &str) -> Response<ResponseBody> {
+pub(super) fn error_resp(status: u16, msg: &str) -> Response<ResponseBody> {
     let body = Bytes::from(msg.to_string());
     Response::builder()
         .status(status)

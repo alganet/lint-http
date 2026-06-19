@@ -11,6 +11,7 @@ mod hop_by_hop;
 mod http;
 mod http3;
 mod pipeline;
+mod stream;
 mod tee_body;
 #[cfg(test)]
 mod test_support;

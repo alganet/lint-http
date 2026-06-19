@@ -46,6 +46,13 @@ curl http://localhost:3000/_lint_http/cert > lint-http-ca.crt
 curl -x http://localhost:3000 --cacert lint-http-ca.crt https://example.com
 ```
 
+4) Watch traffic live (set `general.live_stream_enabled = true` in the config):
+
+```bash
+# Server-Sent Events feed of each transaction as it commits
+curl -N http://localhost:3000/_lint_http/stream
+```
+
 Notes:
 - The proxy uses rustls; no system OpenSSL dependency is required for basic operation.
 - See `config_example.toml` for an example configuration.

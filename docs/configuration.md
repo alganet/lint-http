@@ -77,6 +77,7 @@ captures_include_body = false     # When true, captured bodies are included in t
 max_body_bytes = 67108864         # Max body bytes buffered per request/response. Default: 64 MiB
 max_connections = 1024            # Max simultaneous live TCP connections. Default: 1024
 shutdown_timeout_seconds = 30     # Seconds to drain in-flight handlers on Ctrl-C. Default: 30
+live_stream_enabled = false       # Serve the live capture SSE endpoint. Default: false
 ```
 
 - **listen**: The IP address and port the proxy should bind to.
@@ -90,6 +91,7 @@ shutdown_timeout_seconds = 30     # Seconds to drain in-flight handlers on Ctrl-
 - **captures_max_body_bytes**: Maximum number of body bytes captured into the transaction for lint rules and the captures file (default: 1 MiB). Bodies are forwarded in full regardless; only the captured copy is bounded to this prefix. When a body is larger, `request_body_over_limit` / `response_body_over_limit` mark the captured body as a truncated prefix, while `body_length` still records the real size. Rules that need the full body (e.g. multipart boundary checks, problem+json structure) skip content inspection on truncated bodies.
 - **max_connections**: Maximum number of simultaneous live TCP connections the proxy will serve (default: 1024). Additional connections wait for a slot rather than being accepted unboundedly, bounding resource use under burst load.
 - **shutdown_timeout_seconds**: On graceful shutdown (Ctrl-C), how many seconds to wait for in-flight handlers to drain before exiting anyway (default: 30). The capture file is flushed and fsynced as part of shutdown, so the last records are never truncated.
+- **live_stream_enabled**: When `true`, the proxy serves a live capture stream at `GET /_lint_http/stream` — a [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) feed that pushes each transaction (one `data:` JSON event) as it commits, replacing `tail -f` on the captures file. Each event has the same JSON shape as a captures-file line (bodies included as base64 only when `captures_include_body` is set). Because it exposes every proxied transaction to anyone who can reach the proxy port, it is opt-in: when disabled (the default) the endpoint returns `404`. Watch it with `curl -N http://127.0.0.1:3000/_lint_http/stream` (reachable over HTTP/1.1 and HTTP/2, not HTTP/3).
 
 ### TLS Configuration (Mandatory)
 
