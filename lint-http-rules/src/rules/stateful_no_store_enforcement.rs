@@ -300,7 +300,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.client = crate::test_helpers::make_test_client();
         tx.request.uri = "/resource".to_string();
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -322,7 +322,7 @@ mod tests {
         tx.request.uri = "/resource".to_string();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -346,7 +346,7 @@ mod tests {
         tx.request.uri = "/resource".to_string();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -374,7 +374,7 @@ mod tests {
             "if-modified-since",
             "Wed, 21 Oct 2015 07:28:00 GMT",
         )]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -396,7 +396,7 @@ mod tests {
         tx.request.uri = "/resource".to_string();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"b\"")]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -427,7 +427,7 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         let history =
-            crate::transaction_history::TransactionHistory::new(vec![prev2.clone(), prev1.clone()]);
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev2.clone(), prev1.clone()]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -461,7 +461,7 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-modified-since", lm)]);
         let history =
-            crate::transaction_history::TransactionHistory::new(vec![prev2.clone(), prev1.clone()]);
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev2.clone(), prev1.clone()]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -497,7 +497,7 @@ mod tests {
         // multiple values, one matching
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"x\", \"a\"")]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -521,7 +521,7 @@ mod tests {
         hm.append("if-none-match", "\"x\"".parse().unwrap());
         hm.append("if-none-match", "\"a\"".parse().unwrap());
         tx.request.headers = hm;
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -551,7 +551,7 @@ mod tests {
             "if-modified-since",
             "Sun, 06 Nov 1994 08:49:37 GMT",
         )]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,

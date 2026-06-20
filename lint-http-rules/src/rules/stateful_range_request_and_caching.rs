@@ -219,7 +219,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
@@ -246,7 +246,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
@@ -275,7 +275,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
@@ -304,7 +304,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
@@ -331,7 +331,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
@@ -356,7 +356,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
@@ -380,7 +380,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),
@@ -404,7 +404,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_range_request_and_caching",
             ]),

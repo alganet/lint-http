@@ -315,7 +315,7 @@ mod tests {
         let prev = make_resp_tx("https://example.com/", Some("a=1; Path=/"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/", Some("b=2"));
         tx.timestamp = ts + chrono::Duration::seconds(1);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -334,7 +334,7 @@ mod tests {
         let prev = make_resp_tx("https://example.com/", Some("a=1; Secure"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -352,7 +352,7 @@ mod tests {
         let prev = make_resp_tx("https://example.com/", Some("a=1; Max-Age=60"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(30);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -371,7 +371,7 @@ mod tests {
         let prev = make_resp_tx("https://example.com/", Some("a=1; Max-Age=1"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(5);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -396,7 +396,7 @@ mod tests {
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(20);
         let history =
-            crate::transaction_history::TransactionHistory::new(vec![prev2.clone(), prev1.clone()]);
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev2.clone(), prev1.clone()]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -415,7 +415,7 @@ mod tests {
         let prev = make_resp_tx("https://example.com/", Some("a=1; Secure"), Some(ts));
         let mut tx = make_tx_with_req("http://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -448,7 +448,7 @@ mod tests {
         );
         let mut tx = make_tx_with_req("http://example.com/specific", Some("a=2"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
-        let history = crate::transaction_history::TransactionHistory::new(vec![
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
             prev_nonsecure.clone(),
             prev_secure.clone(),
         ]);
@@ -472,7 +472,7 @@ mod tests {
         let prev = make_resp_tx("https://example.com/", Some("a=1; Path=/private"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/public", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -492,7 +492,7 @@ mod tests {
         let prev = make_resp_tx("https://example.com/", Some("a=1; Path=/foo"), Some(ts));
         let mut tx = make_tx_with_req("https://example.com/foobar", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -515,7 +515,7 @@ mod tests {
         );
         let mut tx = make_tx_with_req("https://other.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,

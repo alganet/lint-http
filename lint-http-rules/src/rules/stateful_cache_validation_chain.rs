@@ -269,7 +269,7 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "*")]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -286,7 +286,7 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -303,7 +303,7 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -320,7 +320,7 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "W/\"a\"")]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -337,7 +337,7 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "W/\"b\"")]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -354,7 +354,7 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "*")]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -371,7 +371,7 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"b\"")]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -389,7 +389,7 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"x\", \"a\"")]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -406,7 +406,7 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -425,7 +425,7 @@ mod tests {
         ]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -446,7 +446,7 @@ mod tests {
         )]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -465,7 +465,7 @@ mod tests {
         ]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -484,7 +484,7 @@ mod tests {
         )]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -501,7 +501,7 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-modified-since", "not-a-date")]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -521,7 +521,7 @@ mod tests {
         )]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -540,7 +540,7 @@ mod tests {
         ]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -559,7 +559,7 @@ mod tests {
         ]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),
@@ -578,7 +578,7 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev2, prev1]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev2, prev1]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_cache_validation_chain",
             ]),

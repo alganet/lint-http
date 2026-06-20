@@ -252,7 +252,7 @@ mod tests {
     fn callback_with_matching_state_ok() {
         let rule = StatefulOauth2CodeFlow;
         // initial auth request earlier in history
-        let history = crate::transaction_history::TransactionHistory::new(vec![make_tx(
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_tx(
             "https://idp.example.com/authorize?response_type=code&state=xyz",
         )]);
         let tx = make_tx("https://app.example.com/callback?code=abc&state=xyz");
@@ -288,7 +288,7 @@ mod tests {
     fn auth_and_callback_with_fragments_are_handled() {
         let rule = StatefulOauth2CodeFlow;
         // auth request has fragment after query, should still record state
-        let history = crate::transaction_history::TransactionHistory::new(vec![make_tx(
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_tx(
             "https://idp.example.com/authorize?response_type=code&state=foo#frag",
         )]);
         let tx = make_tx("https://app.example.com/callback?code=abc&state=foo#bar");
@@ -325,7 +325,7 @@ mod tests {
         let rule = StatefulOauth2CodeFlow;
         // auth request with empty state
         let tx1 = make_tx("https://idp.example.com/authorize?response_type=code&state=");
-        let history = crate::transaction_history::TransactionHistory::new(vec![tx1.clone()]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![tx1.clone()]);
         // callback with empty state should flag missing or empty
         let tx2 = make_tx("https://app.example.com/callback?code=123&state=");
         let v = rule

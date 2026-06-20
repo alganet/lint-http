@@ -178,7 +178,7 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         tx.timestamp = base + chrono::Duration::seconds(10);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -203,7 +203,7 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         tx.timestamp = base + chrono::Duration::seconds(6);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -222,7 +222,7 @@ mod tests {
         tx2.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         tx2.timestamp = base + chrono::Duration::seconds(4);
-        let history2 = crate::transaction_history::TransactionHistory::new(vec![prev2]);
+        let history2 = crate::transaction_history::TransactionHistory::from_transactions(vec![prev2]);
         assert!(rule
             .check_transaction(
                 &tx2,
@@ -253,7 +253,7 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"e\"")]);
         tx.timestamp = base + chrono::Duration::seconds(20);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -283,7 +283,7 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"e\"")]);
         tx.timestamp = base + chrono::Duration::seconds(10);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -313,7 +313,7 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"e\"")]);
         tx.timestamp = base + chrono::Duration::seconds(40);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -341,7 +341,7 @@ mod tests {
         tx.client = crate::test_helpers::make_test_client();
         tx.request.uri = "/resource".to_string();
         tx.timestamp = base + chrono::Duration::seconds(20);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -373,7 +373,7 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"e\"")]);
         tx.timestamp = base + chrono::Duration::seconds(5);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -404,7 +404,7 @@ mod tests {
         tx.timestamp = base - chrono::Duration::seconds(10);
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"e\"")]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         // age clamped to 0, so current_age=0 < s_max_age -> no violation even though
         // the conditional header is present
         assert!(rule

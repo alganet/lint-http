@@ -254,7 +254,7 @@ mod tests {
         }
 
         let history = match prev {
-            Some(p) => crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
+            Some(p) => crate::transaction_history::TransactionHistory::from_transactions(vec![p.clone()]),
             None => crate::transaction_history::TransactionHistory::empty(),
         };
         let v = rule.check_transaction(&tx, &history, &cfg);
@@ -296,7 +296,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &cfg,
         );
         assert!(v.is_none());
@@ -323,7 +323,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &cfg,
         );
         assert!(v.is_some());
@@ -350,7 +350,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &cfg,
         );
         assert!(v.is_some());
@@ -379,7 +379,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &cfg,
         );
         assert!(v.is_none());
@@ -406,7 +406,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &cfg,
         );
         assert!(v.is_none());
@@ -433,7 +433,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &cfg,
         );
         assert!(v.is_none());
@@ -460,7 +460,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &cfg,
         );
         assert!(v.is_none());
@@ -487,7 +487,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &cfg,
         );
         // whitespace-only header triggers empty token detection and thus a violation
@@ -516,7 +516,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &cfg,
         );
         assert!(v.is_some());
@@ -541,7 +541,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &cfg,
         );
         // malformed Content-Type is delegated to other rules; this rule should not emit a violation
@@ -576,7 +576,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &cfg,
         );
         assert!(v.is_some());
@@ -604,7 +604,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &cfg,
         );
         assert!(v.is_none());
@@ -629,7 +629,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &cfg,
         );
         assert!(v.is_none());

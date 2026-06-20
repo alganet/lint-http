@@ -236,7 +236,7 @@ mod tests {
         tx.request
             .headers
             .append("if-none-match", "\"a\"".parse().unwrap());
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -262,7 +262,7 @@ mod tests {
         tx.request
             .headers
             .append("if-none-match", "\"a\"".parse().unwrap());
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -289,7 +289,7 @@ mod tests {
         tx.request
             .headers
             .append("if-modified-since", lm.parse().unwrap());
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -314,7 +314,7 @@ mod tests {
         tx.request
             .headers
             .append("if-none-match", "\"a\"".parse().unwrap());
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,

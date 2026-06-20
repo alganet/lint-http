@@ -32,13 +32,18 @@ struct ResourceKey {
     resource: String,
 }
 
+/// A stored transaction, shared via `Arc` so the deques and every read clone a
+/// refcount bump rather than deep-copying the whole transaction. Reads hand
+/// these out; rules still observe `&HttpTransaction` through `TransactionHistory`.
+pub type SharedTransaction = Arc<crate::http_transaction::HttpTransaction>;
+
 /// Thread-safe store for transaction state with bounded history.
 ///
 /// Each `(client, resource)` key maps to a bounded ring-buffer of recent
 /// transactions (newest first).  The `queries` module reads from this store;
 /// lint rules never access it directly.
 pub struct StateStore {
-    store: Arc<RwLock<HashMap<ResourceKey, VecDeque<crate::http_transaction::HttpTransaction>>>>,
+    store: Arc<RwLock<HashMap<ResourceKey, VecDeque<SharedTransaction>>>>,
     /// Index mapping resource string to list of clients that have entries for
     /// that resource.  Used to efficiently support cross-client history
     /// queries without scanning every key in `store`.
@@ -78,7 +83,9 @@ impl StateStore {
             Ok(mut store) => {
                 let was_new = store.get(&key).is_none();
                 let deque = store.entry(key.clone()).or_insert_with(VecDeque::new);
-                deque.push_front(tx.clone());
+                // One deep clone into an `Arc`; every later read clones only the
+                // `Arc` (a refcount bump) instead of the whole transaction.
+                deque.push_front(Arc::new(tx.clone()));
                 if deque.len() > self.max_history {
                     deque.pop_back();
                 }
@@ -114,7 +121,7 @@ impl StateStore {
         &self,
         client: &ClientIdentifier,
         resource: &str,
-    ) -> Option<crate::http_transaction::HttpTransaction> {
+    ) -> Option<SharedTransaction> {
         let key = ResourceKey {
             client: client.clone(),
             resource: resource.to_string(),
@@ -130,11 +137,7 @@ impl StateStore {
     }
 
     /// Retrieve the full bounded history for this client+resource (newest first).
-    pub fn get_history(
-        &self,
-        client: &ClientIdentifier,
-        resource: &str,
-    ) -> Vec<crate::http_transaction::HttpTransaction> {
+    pub fn get_history(&self, client: &ClientIdentifier, resource: &str) -> Vec<SharedTransaction> {
         let key = ResourceKey {
             client: client.clone(),
             resource: resource.to_string(),
@@ -156,10 +159,7 @@ impl StateStore {
     /// timestamp.  This is useful for rules that need to observe behaviour that
     /// crosses client boundaries, such as ensuring `private` responses are not
     /// reused by other clients.
-    pub fn get_history_for_resource(
-        &self,
-        resource: &str,
-    ) -> Vec<crate::http_transaction::HttpTransaction> {
+    pub fn get_history_for_resource(&self, resource: &str) -> Vec<SharedTransaction> {
         // Clone the client list from the index first, then release the index
         // lock before acquiring the store lock to avoid lock-order inversion.
         let clients = match self.resource_index.read() {
@@ -192,10 +192,7 @@ impl StateStore {
     /// Collect all transactions for a given client across all resources (newest first per resource).
     ///
     /// Used by origin-based queries that need to scan across URIs.
-    pub fn collect_for_client(
-        &self,
-        client: &ClientIdentifier,
-    ) -> Vec<crate::http_transaction::HttpTransaction> {
+    pub fn collect_for_client(&self, client: &ClientIdentifier) -> Vec<SharedTransaction> {
         match self.store.read() {
             Ok(store) => store
                 .iter()
@@ -210,10 +207,7 @@ impl StateStore {
     }
 
     /// Retrieve all transactions that share the given `connection_id`.
-    pub fn get_history_for_connection(
-        &self,
-        connection_id: Uuid,
-    ) -> Vec<crate::http_transaction::HttpTransaction> {
+    pub fn get_history_for_connection(&self, connection_id: Uuid) -> Vec<SharedTransaction> {
         let keys = match self.connection_index.read() {
             Ok(idx) => match idx.get(&connection_id) {
                 Some(k) => k.clone(),
@@ -352,6 +346,7 @@ mod tests {
         let prev = prev.ok_or_else(|| anyhow::anyhow!("expected record to exist"))?;
         let resp = prev
             .response
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("expected response"))?;
         assert_eq!(resp.status, 200);
         assert_eq!(

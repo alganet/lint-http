@@ -228,7 +228,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_redirect_chain_validity",
             ]),
@@ -297,7 +297,7 @@ mod tests {
         // previous had non-redirect status -> should NOT trigger repeated-redirect violation
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_redirect_chain_validity",
             ]),

@@ -217,7 +217,7 @@ mod tests {
         tx.client = crate::test_helpers::make_test_client();
         tx.request.uri = "/resource".to_string();
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -241,7 +241,7 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -263,7 +263,7 @@ mod tests {
         tx.client = crate::test_helpers::make_test_client();
         tx.request.uri = "/resource".to_string();
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule
             .check_transaction(
                 &tx,

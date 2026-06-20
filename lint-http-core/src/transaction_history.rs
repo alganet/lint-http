@@ -10,15 +10,20 @@
 //! independently in the future.
 
 use crate::http_transaction::HttpTransaction;
+use std::sync::Arc;
 
 /// Pre-queried transaction history passed to rules.
 ///
 /// Contains zero or more previous transactions for a given query scope,
 /// ordered **newest first**.  Rules use the convenience helpers to inspect
 /// the history without knowing how it was produced.
+///
+/// Entries are held as `Arc<HttpTransaction>` so the state/query layer can hand
+/// out cheap refcounted clones instead of deep-copying each transaction; rules
+/// still observe `&HttpTransaction` through the helpers below.
 #[derive(Debug, Clone)]
 pub struct TransactionHistory {
-    entries: Vec<HttpTransaction>,
+    entries: Vec<Arc<HttpTransaction>>,
 }
 
 impl TransactionHistory {
@@ -30,7 +35,7 @@ impl TransactionHistory {
     }
 
     /// Create a history from a pre-sorted (newest-first) list of transactions.
-    pub fn new(entries: Vec<HttpTransaction>) -> Self {
+    pub fn new(entries: Vec<Arc<HttpTransaction>>) -> Self {
         // callers are expected to supply entries newest-first.  in debug
         // builds we check that invariant so regressions are caught early.
         #[cfg(debug_assertions)]
@@ -47,17 +52,25 @@ impl TransactionHistory {
         Self { entries }
     }
 
+    /// Build a history from owned transactions (newest-first), wrapping each in
+    /// an `Arc`. Convenience for callers that hold owned transactions (tests,
+    /// fixtures); the state/query layer uses [`Self::new`] with already-`Arc`'d
+    /// entries so reads never deep-copy.
+    pub fn from_transactions(entries: Vec<HttpTransaction>) -> Self {
+        Self::new(entries.into_iter().map(Arc::new).collect())
+    }
+
     /// Return the most recent previous transaction, if any.
     ///
     /// This is the direct replacement for the old `previous: Option<&HttpTransaction>`
     /// parameter that rules used to receive.
     pub fn previous(&self) -> Option<&HttpTransaction> {
-        self.entries.first()
+        self.entries.first().map(|tx| tx.as_ref())
     }
 
     /// Iterate over all entries, newest first.
     pub fn iter(&self) -> impl Iterator<Item = &HttpTransaction> {
-        self.entries.iter()
+        self.entries.iter().map(|tx| tx.as_ref())
     }
 
     /// Number of entries in the history.
@@ -92,7 +105,7 @@ mod tests {
         // timestamp than tx2.  This avoids debug assertions in debug builds.
         tx1.timestamp = tx2.timestamp + chrono::Duration::seconds(1);
 
-        let h = TransactionHistory::new(vec![tx1.clone(), tx2.clone()]);
+        let h = TransactionHistory::from_transactions(vec![tx1.clone(), tx2.clone()]);
 
         assert!(!h.is_empty());
         assert_eq!(h.len(), 2);
@@ -104,7 +117,7 @@ mod tests {
     #[test]
     fn previous_returns_first_entry() {
         let tx = crate::test_helpers::make_test_transaction();
-        let h = TransactionHistory::new(vec![tx.clone()]);
+        let h = TransactionHistory::from_transactions(vec![tx.clone()]);
         assert_eq!(h.previous().unwrap().id, tx.id);
     }
 }

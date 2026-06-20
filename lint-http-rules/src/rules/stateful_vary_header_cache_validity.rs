@@ -298,7 +298,7 @@ mod tests {
             ("Accept-Encoding", "deflate"),
         ]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![past]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -331,7 +331,7 @@ mod tests {
             ("Accept-Encoding", "deflate"),
         ]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![past]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -365,7 +365,7 @@ mod tests {
             ("Accept-Encoding", "gzip"),
         ]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![past]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -391,7 +391,7 @@ mod tests {
             ("Accept-Encoding", "deflate"),
         ]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![past]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -416,7 +416,7 @@ mod tests {
             ("Accept-Encoding", "gzip"),
         ]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![past]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -446,7 +446,7 @@ mod tests {
             ("Accept-Encoding", "deflate"),
         ]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![past]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -476,7 +476,7 @@ mod tests {
             // no Accept-Encoding header
         ]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![past]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -513,7 +513,7 @@ mod tests {
             ("X-Foo", "baz"),
         ]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![past]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -542,7 +542,7 @@ mod tests {
             ("X-Foo", "b"),
         ]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![past]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -571,7 +571,7 @@ mod tests {
             ("Accept-Encoding", "deflate"),
         ]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![past]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -601,7 +601,7 @@ mod tests {
             ("Accept-Encoding", "deflate"),
         ]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![past]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -646,7 +646,7 @@ mod tests {
         ]);
 
         // newest-first: later matching entry (good) must come first
-        let history = crate::transaction_history::TransactionHistory::new(vec![good, old]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![good, old]);
         let v = rule.check_transaction(
             &tx,
             &history,

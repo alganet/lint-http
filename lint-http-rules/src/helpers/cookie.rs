@@ -463,8 +463,10 @@ mod tests {
         let mut t2 = t2;
         t2.timestamp = ts - chrono::Duration::seconds(10);
         // history newest first order is provided by constructor
-        let history =
-            crate::transaction_history::TransactionHistory::new(vec![t2.clone(), t1.clone()]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            t2.clone(),
+            t1.clone(),
+        ]);
         let store = build_cookie_store(&history, ts);
         assert_eq!(store.len(), 1);
         assert_eq!(store[0].value, "two");
@@ -478,7 +480,7 @@ mod tests {
             &[("set-cookie", "b=1; Domain=example.com; Path=/foo")],
         );
         tx.timestamp = ts - chrono::Duration::seconds(10);
-        let history = crate::transaction_history::TransactionHistory::new(vec![tx]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![tx]);
         let store = build_cookie_store(&history, ts);
         assert_eq!(store.len(), 1);
         let c = &store[0];
@@ -530,7 +532,8 @@ mod tests {
         t2.timestamp = ts - chrono::Duration::seconds(5);
 
         // newest-first: t2 happened later than t1
-        let history = crate::transaction_history::TransactionHistory::new(vec![t2, t1]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![t2, t1]);
 
         let store = build_cookie_store(&history, ts);
         // second cookie expired immediately, so no live cookies remain
