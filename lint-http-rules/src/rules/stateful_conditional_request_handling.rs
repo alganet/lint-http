@@ -231,7 +231,7 @@ mod tests {
         let prev_empty = make_prev_with_headers(&[]);
         let v1 = rule.check_transaction(
             &tx1,
-            &crate::transaction_history::TransactionHistory::new(vec![prev_empty.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev_empty.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),
@@ -246,7 +246,7 @@ mod tests {
         )]);
         let v2 = rule.check_transaction(
             &tx2,
-            &crate::transaction_history::TransactionHistory::new(vec![prev_empty.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev_empty.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),
@@ -259,7 +259,7 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-match", "\"a\"")]);
         let v3 = rule.check_transaction(
             &tx3,
-            &crate::transaction_history::TransactionHistory::new(vec![prev_empty.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev_empty.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),
@@ -274,7 +274,7 @@ mod tests {
         )]);
         let v4 = rule.check_transaction(
             &tx4,
-            &crate::transaction_history::TransactionHistory::new(vec![prev_empty.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev_empty.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),
@@ -294,7 +294,7 @@ mod tests {
         let rule = StatefulConditionalRequestHandling;
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),
@@ -310,7 +310,7 @@ mod tests {
         let prev2 = make_prev_with_headers(&[("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")]);
         let v2 = rule.check_transaction(
             &tx2,
-            &crate::transaction_history::TransactionHistory::new(vec![prev2.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev2.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),
@@ -332,7 +332,7 @@ mod tests {
         // previous satisfies validator check
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),
@@ -358,7 +358,7 @@ mod tests {
         let rule = StatefulConditionalRequestHandling;
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),
@@ -381,7 +381,7 @@ mod tests {
         // response ETag doesn't match request conditional -> allowed
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),
@@ -401,7 +401,7 @@ mod tests {
         let rule = StatefulConditionalRequestHandling;
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),

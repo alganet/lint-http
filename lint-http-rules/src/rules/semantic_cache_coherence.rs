@@ -184,7 +184,7 @@ mod tests {
             &[("date", "Wed, 21 Oct 2015 08:28:00 GMT")],
         );
         curr.timestamp = prev.timestamp + chrono::Duration::seconds(1);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule.check_transaction(&curr, &history, &cfg,).is_none());
     }
 
@@ -203,7 +203,7 @@ mod tests {
             &[("date", "Wed, 21 Oct 2015 07:28:00 GMT")],
         );
         curr.timestamp = prev.timestamp + chrono::Duration::seconds(1);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(&curr, &history, &cfg);
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("appears stale"));
@@ -224,7 +224,7 @@ mod tests {
             &[("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")],
         );
         curr.timestamp = prev.timestamp + chrono::Duration::seconds(1);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(&curr, &history, &cfg);
         assert!(v.is_some());
     }
@@ -236,7 +236,7 @@ mod tests {
         let prev = make_resp_tx("https://example.com/foo", 200, &[]);
         let mut curr = make_resp_tx("https://example.com/foo", 200, &[]);
         curr.timestamp = prev.timestamp + chrono::Duration::seconds(1);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(rule.check_transaction(&curr, &history, &cfg,).is_none());
     }
 

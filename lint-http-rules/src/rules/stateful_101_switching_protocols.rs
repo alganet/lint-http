@@ -525,7 +525,7 @@ mod tests {
         current.connection_id = Some(conn_id);
         current.sequence_number = Some(1);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let rule = Stateful101SwitchingProtocols;
         let v = rule
             .check_transaction(
@@ -550,7 +550,7 @@ mod tests {
         );
         let current = crate::test_helpers::make_test_transaction_with_response(200, &[]);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let rule = Stateful101SwitchingProtocols;
         assert!(rule
             .check_transaction(
@@ -731,7 +731,7 @@ mod tests {
         current.connection_id = Some(conn_id);
         current.sequence_number = Some(1);
 
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let rule = Stateful101SwitchingProtocols;
         assert!(rule
             .check_transaction(

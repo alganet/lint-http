@@ -110,7 +110,7 @@ mod tests {
         tx3.request.uri = "https://example.com/admin".to_string();
 
         // supply history newest-first; tx3 is most recent
-        let history = crate::transaction_history::TransactionHistory::new(vec![tx3, tx2, tx1]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![tx3, tx2, tx1]);
 
         let v = rule.check_transaction(
             &tx,
@@ -135,7 +135,7 @@ mod tests {
         let tx4 = crate::test_helpers::make_test_transaction_with_response(401, &[]);
 
         // put newest transaction first (tx4) to satisfy TransactionHistory
-        let history = crate::transaction_history::TransactionHistory::new(vec![tx4, tx3, tx2, tx1]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![tx4, tx3, tx2, tx1]);
 
         let v = rule.check_transaction(
             &tx,
@@ -158,7 +158,7 @@ mod tests {
         let tx3 = crate::test_helpers::make_test_transaction_with_response(401, &[]);
 
         // newest-first history
-        let history = crate::transaction_history::TransactionHistory::new(vec![tx3, tx2, tx1]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![tx3, tx2, tx1]);
 
         let v = rule.check_transaction(
             &tx,

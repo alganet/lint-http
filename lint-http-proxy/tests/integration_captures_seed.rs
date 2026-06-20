@@ -78,7 +78,7 @@ enabled = false
     let prev = state.get_previous(&client, uri);
     if seed_enabled {
         assert!(prev.is_some(), "State should be seeded");
-        assert_eq!(prev.unwrap().response.unwrap().status, 200);
+        assert_eq!(prev.unwrap().response.as_ref().unwrap().status, 200);
     } else {
         assert!(prev.is_none(), "State should not be seeded");
     }

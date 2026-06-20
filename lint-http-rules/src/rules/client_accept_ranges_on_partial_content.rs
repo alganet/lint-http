@@ -175,7 +175,7 @@ mod tests {
                 let mut p = make_prev_resp(status, ar);
                 // set previous request URI to same resource to simulate stateful match
                 p.request.uri = tx.request.uri.clone();
-                crate::transaction_history::TransactionHistory::new(vec![p])
+                crate::transaction_history::TransactionHistory::from_transactions(vec![p])
             }
             None => crate::transaction_history::TransactionHistory::empty(),
         };
@@ -205,7 +205,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![p.clone()]),
             &cfg,
         );
         assert!(v.is_some());
@@ -274,7 +274,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![p.clone()]),
             &cfg,
         );
         assert!(v.is_some());
@@ -304,7 +304,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![p.clone()]),
             &cfg,
         );
         // Be lenient: if the request Range header is non-utf8, do not raise a violation when Accept-Ranges was present
@@ -333,7 +333,7 @@ mod tests {
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::new(vec![p.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![p.clone()]),
             &cfg,
         );
         // If Range header itself is not valid UTF-8, the rule should not emit a misleading violation about Accept-Ranges

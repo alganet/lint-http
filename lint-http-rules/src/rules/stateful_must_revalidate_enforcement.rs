@@ -213,7 +213,7 @@ mod tests {
     fn unrelated_history_ignored() {
         let rule = StatefulMustRevalidateEnforcement;
         let prev = make_prev(200, &[("cache-control", "max-age=60")]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let tx = crate::test_helpers::make_test_transaction();
         let v = rule.check_transaction(
             &tx,
@@ -272,7 +272,7 @@ mod tests {
         // set timestamp earlier to test clamp
         tx.timestamp = base - chrono::Duration::seconds(10);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         // current_age should equal age header (5) not negative elapsed
         let v = rule.check_transaction(
             &tx,
@@ -307,7 +307,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.timestamp = base + chrono::Duration::seconds(1);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev.clone()]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -342,7 +342,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.timestamp = base + chrono::Duration::seconds(1);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -365,7 +365,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -386,7 +386,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -412,7 +412,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.timestamp = base + chrono::Duration::seconds(10);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -438,7 +438,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -465,7 +465,7 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v\"")]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -492,7 +492,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.timestamp = base + chrono::Duration::seconds(5);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -518,7 +518,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.timestamp = base; // no elapsed time
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -544,7 +544,7 @@ mod tests {
         tx.timestamp = ts + chrono::Duration::seconds(10);
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"v\"")]);
-        let history = crate::transaction_history::TransactionHistory::new(vec![prev]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let v = rule.check_transaction(
             &tx,
             &history,
