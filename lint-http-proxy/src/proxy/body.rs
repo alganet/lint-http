@@ -2,10 +2,14 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! Bounded body collection shared by the proxy request handlers.
+//! Bounded full-body buffering for the WebSocket upgrade path.
 //!
-//! Interim guard until the body pipeline streams (#1b): bodies are still
-//! buffered fully in memory, but never beyond `general.max_body_bytes`.
+//! Since the streaming pipeline (#1b) shipped, H1/H2/H3 request and response
+//! bodies stream through `tee_body` (a bounded prefix is captured while the
+//! full body flows through) and are never buffered here. The one remaining
+//! caller is the WebSocket upgrade handshake, whose request must be replayed
+//! upstream as a single `Full<Bytes>`: it is collected into memory, capped at
+//! `general.max_body_bytes` (an over-limit handshake is rejected with 413).
 
 use bytes::Bytes;
 use http_body_util::{BodyExt, LengthLimitError, Limited};

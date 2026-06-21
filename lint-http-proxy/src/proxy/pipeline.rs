@@ -8,10 +8,12 @@
 //! otherwise the current transaction shows up in its own history. Both
 //! pipelines run lint themselves and `TransactionPipeline::commit` consumes
 //! the transaction, so callers that go through `commit` cannot reorder the
-//! steps, re-commit, or mutate the transaction after capture. The raw
-//! stores and capture writer remain reachable (the error-path helpers
-//! intentionally skip lint and state recording), so the pipeline
-//! centralizes the invariant rather than making bypass impossible.
+//! steps, re-commit, or mutate the transaction after capture. Error exchanges
+//! route through `commit` too (`record_error_transaction`), so they are linted
+//! and recorded like any other traffic. The raw stores and capture writer stay
+//! reachable for the records that are not `HttpTransaction`s (the WebSocket
+//! *session* capture writes directly), so the pipeline centralizes the
+//! invariant rather than making bypass impossible.
 
 use std::sync::Arc;
 
