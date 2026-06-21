@@ -231,7 +231,9 @@ mod tests {
         let prev_empty = make_prev_with_headers(&[]);
         let v1 = rule.check_transaction(
             &tx1,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev_empty.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![
+                prev_empty.clone()
+            ]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),
@@ -246,7 +248,9 @@ mod tests {
         )]);
         let v2 = rule.check_transaction(
             &tx2,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev_empty.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![
+                prev_empty.clone()
+            ]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),
@@ -259,7 +263,9 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-match", "\"a\"")]);
         let v3 = rule.check_transaction(
             &tx3,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev_empty.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![
+                prev_empty.clone()
+            ]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),
@@ -274,7 +280,9 @@ mod tests {
         )]);
         let v4 = rule.check_transaction(
             &tx4,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev_empty.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![
+                prev_empty.clone()
+            ]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "stateful_conditional_request_handling",
             ]),

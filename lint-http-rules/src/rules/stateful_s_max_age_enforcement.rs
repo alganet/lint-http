@@ -222,7 +222,8 @@ mod tests {
         tx2.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         tx2.timestamp = base + chrono::Duration::seconds(4);
-        let history2 = crate::transaction_history::TransactionHistory::from_transactions(vec![prev2]);
+        let history2 =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev2]);
         assert!(rule
             .check_transaction(
                 &tx2,

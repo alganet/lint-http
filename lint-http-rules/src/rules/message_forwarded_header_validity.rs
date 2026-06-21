@@ -28,7 +28,10 @@ fn validate_node_identifier(name: &str, value: &str) -> Option<String> {
         };
         let inside = &value[1..end];
         if inside.is_empty() {
-            return Some(format!("Empty IPv6 address in Forwarded '{}' parameter", name));
+            return Some(format!(
+                "Empty IPv6 address in Forwarded '{}' parameter",
+                name
+            ));
         }
         if inside.parse::<IpAddr>().is_err() {
             return Some(format!(

@@ -380,10 +380,9 @@ mod tests {
     #[test]
     fn opaque_mismatch() {
         let nonce1 = random_nonce();
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![tx_resp_with_challenge(
-                &make_challenge(&nonce1, Some("o1"), None),
-            )]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            tx_resp_with_challenge(&make_challenge(&nonce1, Some("o1"), None)),
+        ]);
         let tx = tx_req_with_auth(&make_auth(&nonce1, Some("00000001"), Some("o2")));
         let v = StatefulDigestAuthNonceHandling.check_transaction(
             &tx,
@@ -399,10 +398,9 @@ mod tests {
     #[test]
     fn missing_opaque_reports() {
         let nonce1 = random_nonce();
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![tx_resp_with_challenge(
-                &make_challenge(&nonce1, Some("o1"), None),
-            )]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            tx_resp_with_challenge(&make_challenge(&nonce1, Some("o1"), None)),
+        ]);
         let tx = tx_req_with_auth(&make_auth(&nonce1, Some("00000001"), None));
         let v = StatefulDigestAuthNonceHandling.check_transaction(
             &tx,
@@ -477,8 +475,10 @@ mod tests {
         // vector will be newest-first.
         let prev_challenge = tx_resp_with_challenge(&make_challenge(&nonce1, None, None));
         let prev_request = tx_req_with_auth(&auth1);
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![prev_request, prev_challenge]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            prev_request,
+            prev_challenge,
+        ]);
         let tx = tx_req_with_auth(&auth2);
         let v = StatefulDigestAuthNonceHandling.check_transaction(
             &tx,
@@ -496,10 +496,9 @@ mod tests {
         let nonce = random_nonce();
         // challenge with stale=true provides a new nonce value, which the client
         // must then reuse but reset nc to 1
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![tx_resp_with_challenge(
-                &make_challenge(&nonce, None, Some("true")),
-            )]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            tx_resp_with_challenge(&make_challenge(&nonce, None, Some("true"))),
+        ]);
         // client correctly uses same nonce but wrong nc
         let tx = tx_req_with_auth(&make_auth(&nonce, Some("00000005"), None));
         let v = StatefulDigestAuthNonceHandling.check_transaction(
@@ -520,8 +519,10 @@ mod tests {
         // increase and the list is newest-first.
         let prev_challenge = tx_resp_with_challenge(&make_challenge(&nonce1, Some("o1"), None));
         let prev_request = tx_req_with_auth(&make_auth(&nonce1, Some("00000001"), Some("o1")));
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![prev_request, prev_challenge]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            prev_request,
+            prev_challenge,
+        ]);
         let tx = tx_req_with_auth(&make_auth(&nonce1, Some("00000002"), Some("o1")));
         let v = StatefulDigestAuthNonceHandling.check_transaction(
             &tx,
@@ -537,10 +538,9 @@ mod tests {
     fn nonce_mismatch_without_stale_reports() {
         let nonce1 = random_nonce();
         let nonce2 = random_nonce();
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![tx_resp_with_challenge(
-                &make_challenge(&nonce1, None, None),
-            )]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            tx_resp_with_challenge(&make_challenge(&nonce1, None, None)),
+        ]);
         let tx = tx_req_with_auth(&make_auth(&nonce2, Some("00000001"), None));
         let v = StatefulDigestAuthNonceHandling.check_transaction(
             &tx,
@@ -556,10 +556,9 @@ mod tests {
     #[test]
     fn missing_opaque_reports_violation() {
         let nonce1 = random_nonce();
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![tx_resp_with_challenge(
-                &make_challenge(&nonce1, Some("o123"), None),
-            )]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            tx_resp_with_challenge(&make_challenge(&nonce1, Some("o123"), None)),
+        ]);
         // request omits opaque entirely
         let tx = tx_req_with_auth(&make_auth(&nonce1, Some("00000001"), None));
         let v = StatefulDigestAuthNonceHandling.check_transaction(
@@ -577,10 +576,9 @@ mod tests {
     fn stale_challenge_with_wrong_nonce_reports() {
         let nonce1 = random_nonce();
         let nonce2 = random_nonce();
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![tx_resp_with_challenge(
-                &make_challenge(&nonce1, None, Some("true")),
-            )]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            tx_resp_with_challenge(&make_challenge(&nonce1, None, Some("true"))),
+        ]);
         // client uses different nonce entirely
         let tx = tx_req_with_auth(&make_auth(&nonce2, Some("00000001"), None));
         let v = StatefulDigestAuthNonceHandling.check_transaction(
@@ -600,10 +598,9 @@ mod tests {
     #[test]
     fn request_without_nc_is_allowed() {
         let nonce1 = random_nonce();
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![tx_resp_with_challenge(
-                &make_challenge(&nonce1, None, None),
-            )]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            tx_resp_with_challenge(&make_challenge(&nonce1, None, None)),
+        ]);
         let tx = tx_req_with_auth(&make_auth(&nonce1, None, None));
         let v = StatefulDigestAuthNonceHandling.check_transaction(
             &tx,
@@ -618,10 +615,9 @@ mod tests {
     #[test]
     fn invalid_nc_value_reports() {
         let nonce1 = random_nonce();
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![tx_resp_with_challenge(
-                &make_challenge(&nonce1, None, None),
-            )]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            tx_resp_with_challenge(&make_challenge(&nonce1, None, None)),
+        ]);
         let tx = tx_req_with_auth(&make_auth(&nonce1, Some("GARBAGE"), None));
         let v = StatefulDigestAuthNonceHandling.check_transaction(
             &tx,
@@ -638,10 +634,9 @@ mod tests {
     fn stale_nonce_mismatch_reports() {
         let nonce1 = random_nonce();
         let nonce2 = random_nonce();
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![tx_resp_with_challenge(
-                &make_challenge(&nonce1, None, Some("true")),
-            )]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            tx_resp_with_challenge(&make_challenge(&nonce1, None, Some("true"))),
+        ]);
         let tx = tx_req_with_auth(&make_auth(&nonce2, Some("00000001"), None));
         let v = StatefulDigestAuthNonceHandling.check_transaction(
             &tx,
@@ -658,10 +653,9 @@ mod tests {
     #[test]
     fn stale_correct_reset_passes() {
         let nonce = random_nonce();
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![tx_resp_with_challenge(
-                &make_challenge(&nonce, None, Some("true")),
-            )]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            tx_resp_with_challenge(&make_challenge(&nonce, None, Some("true"))),
+        ]);
         // correct reset
         let tx = tx_req_with_auth(&make_auth(&nonce, Some("00000001"), None));
         let v = StatefulDigestAuthNonceHandling.check_transaction(
@@ -698,10 +692,9 @@ mod tests {
     #[test]
     fn no_nc_produced_no_violation() {
         let nonce = random_nonce();
-        let history =
-            crate::transaction_history::TransactionHistory::from_transactions(vec![tx_resp_with_challenge(
-                &make_challenge(&nonce, None, None),
-            )]);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            tx_resp_with_challenge(&make_challenge(&nonce, None, None)),
+        ]);
         let tx = tx_req_with_auth(&make_auth(&nonce, None, None));
         let v = StatefulDigestAuthNonceHandling.check_transaction(
             &tx,
