@@ -21,7 +21,7 @@ We maintain high standards for code quality and testing.
 
 ### Requirements
 
-- **Code Coverage**: Minimum **90%** test coverage is required (see `.cargo/config.toml` for the configured threshold/alias).
+- **Code Coverage**: Minimum **95%** test coverage is required (see `.cargo/config.toml` for the configured threshold/alias).
 - **Tests**: All tests must pass (`cargo test`).
 - **Linting**: Use `cargo lint` (alias in `.cargo/config.toml`) — clippy warnings are treated as errors.
 - **Formatting**: Code must be formatted with `cargo fmt` (`rustfmt`).

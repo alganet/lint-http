@@ -24,10 +24,13 @@ cognitive_complexity = "warn"
 lint-http-core = { path = "lint-http-core" }
 lint-http-rules = { path = "lint-http-rules" }
 
-# Shared third-party dependencies (versions kept in lockstep across crates)
-tokio = { version = "1.52", features = ["full"] }
+# Shared third-party dependencies (versions kept in lockstep across crates).
+# tokio/hyper carry no features here so each crate adds only what it uses
+# (you cannot subtract workspace features via `workspace = true`); the proxy
+# opts into `full`, while core/rules stay lean for standalone builds.
+tokio = { version = "1.52", default-features = false }
 tokio-util = { version = "0.7", features = ["rt"] }
-hyper = { version = "1.10.1", features = ["full"] }
+hyper = { version = "1.10.1", default-features = false }
 clap = { version = "4.6", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

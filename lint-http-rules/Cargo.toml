@@ -33,7 +33,8 @@ clap = { workspace = true }
 
 [dev-dependencies]
 lint-http-core = { workspace = true, features = ["test-utils"] }
-tokio = { workspace = true }
+# Test-only: `#[tokio::test]` + `tokio::fs` for the capture-file fixtures.
+tokio = { workspace = true, features = ["fs", "macros", "rt"] }
 rstest = { workspace = true }
 
 [lints]

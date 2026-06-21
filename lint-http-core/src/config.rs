@@ -40,12 +40,13 @@ pub struct GeneralConfig {
     #[serde(default = "default_captures_include_body")]
     pub captures_include_body: bool,
 
-    /// Maximum number of body bytes the proxy will buffer per request or
-    /// response (default: 64 MiB). Over-limit request bodies are rejected
-    /// with 413; over-limit response bodies abort the exchange with 502.
-    /// Either way the captured transaction is marked with
-    /// `request_body_over_limit` / `response_body_over_limit` and the body
-    /// itself is not captured.
+    /// Cap on the one body still buffered fully in memory: the WebSocket upgrade
+    /// handshake request, which must be replayed upstream as a single buffer
+    /// (default: 64 MiB). An over-limit handshake body is rejected with 413 and
+    /// marked `request_body_over_limit`, with the body not captured. Since the
+    /// streaming pipeline shipped, H1/H2/H3 request/response bodies are *not*
+    /// bounded by this — they stream through, and only the captured copy is
+    /// bounded, by `captures_max_body_bytes`.
     #[serde(default = "default_max_body_bytes")]
     pub max_body_bytes: usize,
 
