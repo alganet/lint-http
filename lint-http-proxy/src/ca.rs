@@ -8,7 +8,8 @@ use rcgen::{
     PKCS_ECDSA_P256_SHA256,
 };
 use rustls::crypto::aws_lc_rs::sign::any_supported_type as aws_any_supported_type;
-use rustls::pki_types::PrivateKeyDer as PrivateKey;
+use rustls::pki_types::pem::PemObject;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer as PrivateKey, PrivatePkcs8KeyDer};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
@@ -113,20 +114,13 @@ impl CertificateAuthority {
         let cert_pem = cert.pem();
         let key_pem = key_pair.serialize_pem();
 
-        let certs: Vec<_> =
-            rustls_pemfile::certs(&mut cert_pem.as_bytes()).collect::<Result<Vec<_>, _>>()?;
-        let leaf_cert = certs
-            .into_iter()
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("no certificates parsed from PEM"))?;
-
-        let keys: Vec<_> = rustls_pemfile::pkcs8_private_keys(&mut key_pem.as_bytes())
-            .collect::<Result<Vec<_>, _>>()?;
-        let leaf_key_bytes = keys
-            .into_iter()
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("no private keys parsed from PEM"))?;
-        let leaf_key_der = PrivateKey::from(leaf_key_bytes);
+        // Parse the leaf (first PEM object of each type) via rustls-pki-types'
+        // `PemObject`, which we already depend on through rustls.
+        let leaf_cert = CertificateDer::from_pem_slice(cert_pem.as_bytes())
+            .context("no certificates parsed from PEM")?;
+        let leaf_key = PrivatePkcs8KeyDer::from_pem_slice(key_pem.as_bytes())
+            .context("no private keys parsed from PEM")?;
+        let leaf_key_der = PrivateKey::from(leaf_key);
 
         let signer = aws_any_supported_type(&leaf_key_der)
             .map_err(|e| anyhow::anyhow!("failed to create leaf key signer: {}", e))?;

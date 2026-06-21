@@ -101,6 +101,22 @@ jobs:
       - name: Check formatting of rule files
         run: rustfmt --edition 2021 --check lint-http-rules/src/rules/*.rs
 
+  supply-chain:
+    name: Supply chain
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # First-party licensing: every file carries SPDX/REUSE metadata.
+      - name: REUSE compliance
+        run: pipx run reuse lint
+
+      # Third-party licensing + security advisories over the dependency tree.
+      - name: cargo-deny (advisories + licenses)
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories licenses
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest

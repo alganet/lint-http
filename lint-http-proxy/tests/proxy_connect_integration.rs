@@ -25,11 +25,9 @@ async fn perform_connect_and_tls_with_alpn_opt(
     inner_request: Option<&str>,
 ) -> anyhow::Result<(Option<String>, Option<Vec<u8>>)> {
     use rustls::client::ClientConfig;
-    use rustls::pki_types::ServerName;
+    use rustls::pki_types::pem::PemObject;
+    use rustls::pki_types::{CertificateDer, ServerName};
     use rustls::RootCertStore;
-    use rustls_pemfile;
-    use std::fs::File;
-    use std::io::BufReader;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     // Connect TCP
@@ -75,8 +73,8 @@ async fn perform_connect_and_tls_with_alpn_opt(
 
     // Setup TLS client config trusting ca_cert_path
     let mut root_store = RootCertStore::empty();
-    let mut f = BufReader::new(File::open(ca_cert_path)?);
-    let certs: Vec<_> = rustls_pemfile::certs(&mut f).collect::<Result<Vec<_>, _>>()?;
+    let certs: Vec<_> =
+        CertificateDer::pem_file_iter(ca_cert_path)?.collect::<Result<Vec<_>, _>>()?;
     // Pass the parsed certificate DER buffers directly to RootCertStore
     root_store.add_parsable_certificates(certs);
     let mut client_cfg = ClientConfig::builder()

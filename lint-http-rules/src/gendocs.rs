@@ -30,8 +30,15 @@ fn repo_root() -> PathBuf {
 /// Fixed license header prepended to every generated markdown file. Held
 /// constant (rather than stamped with the current date) so regenerated output
 /// is byte-for-byte stable.
+///
+/// The literal embeds an SPDX tag for the *generated* files; the
+/// `REUSE-IgnoreStart`/`REUSE-IgnoreEnd` markers stop `reuse lint` from reading
+/// it as a (malformed) license tag for this source file, whose own header is
+/// the ISC tag at the top.
+// REUSE-IgnoreStart
 const SPDX_HEADER: &str = "<!--\nSPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas \
 <alganet@gmail.com>\n\nSPDX-License-Identifier: ISC\n-->\n";
+// REUSE-IgnoreEnd
 
 /// Index sections, in render order, paired with the id prefix that selects a
 /// transaction rule into them. Protocol rules get their own trailing section;
