@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::ipv6::{parse_bracketed_ipv6, parse_port_str};
 use crate::lint::Violation;
 use crate::rules::Rule;
 use std::net::IpAddr;
@@ -18,37 +19,24 @@ fn validate_node_identifier(name: &str, value: &str) -> Option<String> {
         return None;
     }
 
-    // IPv6 in brackets: [2001:db8::1] or [2001:db8::1]:port
+    // IPv6 in brackets: [2001:db8::1] or [2001:db8::1]:port. `parse_bracketed_ipv6`
+    // (shared with the sibling header rules) owns the bracket/port *syntax*; the
+    // address is validated here and the port via `parse_port_str`.
     if value.starts_with('[') {
-        let Some(end) = value.find(']') else {
+        let Some((inside, port)) = parse_bracketed_ipv6(value) else {
             return Some(format!(
                 "Invalid IPv6 bracketed address in Forwarded '{}' parameter: {}",
                 name, value
             ));
         };
-        let inside = &value[1..end];
-        if inside.is_empty() {
-            return Some(format!(
-                "Empty IPv6 address in Forwarded '{}' parameter",
-                name
-            ));
-        }
         if inside.parse::<IpAddr>().is_err() {
             return Some(format!(
                 "Invalid IPv6 address in Forwarded '{}' parameter: {}",
                 name, inside
             ));
         }
-        // optionally validate port after ']' if present
-        let rest = &value[end + 1..];
-        if !rest.is_empty() && !rest.starts_with(':') {
-            return Some(format!(
-                "Invalid IPv6 port syntax in Forwarded '{}' parameter: {}",
-                name, value
-            ));
-        }
-        if let Some(port) = rest.strip_prefix(':') {
-            if port.is_empty() || port.parse::<u16>().is_err() {
+        if let Some(port) = port {
+            if parse_port_str(port).is_none() {
                 return Some(format!(
                     "Invalid port '{}' in Forwarded '{}' parameter",
                     port, name
@@ -62,7 +50,10 @@ fn validate_node_identifier(name: &str, value: &str) -> Option<String> {
     if let Some(idx) = value.rfind(':') {
         let (host, port_part) = value.split_at(idx);
         let port = &port_part[1..];
-        if !port.is_empty() && port.parse::<u16>().is_err() {
+        // An empty port (`ip:`) is treated as absent (RFC 3986) and accepted; a
+        // present port must pass `parse_port_str` (rejects 0, a leading '+', and
+        // out-of-range, matching the sibling header rules).
+        if !port.is_empty() && parse_port_str(port).is_none() {
             return Some(format!(
                 "Invalid port '{}' in Forwarded '{}' parameter",
                 port, name
@@ -112,31 +103,23 @@ fn validate_node_identifier(name: &str, value: &str) -> Option<String> {
 fn validate_host_param(value: &str) -> Option<String> {
     use crate::helpers::token::find_invalid_token_char;
 
-    // If bracketed IPv6, validate
+    // If bracketed IPv6, validate. `parse_bracketed_ipv6` owns the bracket/port
+    // syntax; the address is checked here and the port via `parse_port_str`.
     if value.starts_with('[') {
-        let Some(end) = value.find(']') else {
+        let Some((inside, port)) = parse_bracketed_ipv6(value) else {
             return Some(format!(
                 "Invalid IPv6 bracketed address in Forwarded 'host' parameter: {}",
                 value
             ));
         };
-        let inside = &value[1..end];
         if inside.parse::<IpAddr>().is_err() {
             return Some(format!(
                 "Invalid IPv6 address in Forwarded 'host' parameter: {}",
                 inside
             ));
         }
-        // optionally validate port
-        let rest = &value[end + 1..];
-        if !rest.is_empty() && !rest.starts_with(':') {
-            return Some(format!(
-                "Invalid host port syntax in Forwarded 'host' parameter: {}",
-                value
-            ));
-        }
-        if let Some(port) = rest.strip_prefix(':') {
-            if port.is_empty() || port.parse::<u16>().is_err() {
+        if let Some(port) = port {
+            if parse_port_str(port).is_none() {
                 return Some(format!(
                     "Invalid port '{}' in Forwarded 'host' parameter",
                     port
@@ -146,11 +129,12 @@ fn validate_host_param(value: &str) -> Option<String> {
         return None;
     }
 
-    // host may include port
+    // host may include port. Empty port (`host:`) is accepted as absent (RFC
+    // 3986); a present port must pass `parse_port_str`.
     if let Some(idx) = value.rfind(':') {
         let (host, port_part) = value.split_at(idx);
         let port = &port_part[1..];
-        if !port.is_empty() && port.parse::<u16>().is_err() {
+        if !port.is_empty() && parse_port_str(port).is_none() {
             return Some(format!(
                 "Invalid port '{}' in Forwarded 'host' parameter",
                 port
@@ -856,6 +840,40 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_some());
+    }
+
+    /// Run the rule against a single `Forwarded` value; return whether it
+    /// reported a violation. Keeps the port-acceptance cases below compact.
+    fn forwarded_has_violation(value: &str) -> bool {
+        let tx = make_tx_with_forwarded(value);
+        let rule = MessageForwardedHeaderValidity;
+        rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .is_some()
+    }
+
+    #[test]
+    fn forwarded_port_zero_and_plus_rejected() {
+        // Deliberate semantics change (#21): adopting `parse_port_str` rejects
+        // port `0` and a leading `+`, which the old inline `parse::<u16>()`
+        // accepted, across the `for`/`by`/`host` and bracketed-IPv6 paths.
+        assert!(forwarded_has_violation("for=192.0.2.1:0"));
+        assert!(forwarded_has_violation("by=192.0.2.1:+80"));
+        assert!(forwarded_has_violation("host=example.com:0"));
+        assert!(forwarded_has_violation("for=[2001:db8::1]:0"));
+        assert!(forwarded_has_violation("host=[2001:db8::1]:+80"));
+    }
+
+    #[test]
+    fn forwarded_valid_ports_still_accepted() {
+        // Controls: in-range ports (incl. leading zeros) remain valid.
+        assert!(!forwarded_has_violation("for=192.0.2.1:1"));
+        assert!(!forwarded_has_violation("for=192.0.2.1:65535"));
+        assert!(!forwarded_has_violation("for=192.0.2.1:080"));
+        assert!(!forwarded_has_violation("host=[2001:db8::1]:8080"));
     }
 
     #[test]
