@@ -16,6 +16,9 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 use lint_http::capture::CaptureWriter;
 use lint_http::config::Config;
 
+mod common;
+use common::startup_timeout;
+
 /// Build a quinn client endpoint that trusts the CA at `ca_cert_path` and
 /// advertises ALPN `h3`.
 fn build_h3_client(ca_cert_path: &std::path::Path) -> anyhow::Result<quinn::Endpoint> {
@@ -94,7 +97,7 @@ async fn start_proxy_with_h3(
     });
 
     // Wait for TCP listener
-    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let deadline = std::time::Instant::now() + startup_timeout();
     loop {
         if std::time::Instant::now() > deadline {
             return Err(anyhow::anyhow!("timeout waiting for proxy TCP"));
@@ -108,7 +111,7 @@ async fn start_proxy_with_h3(
     }
 
     // Wait for CA files
-    let deadline2 = std::time::Instant::now() + Duration::from_secs(5);
+    let deadline2 = std::time::Instant::now() + startup_timeout();
     loop {
         if cert_path.exists() && key_path.exists() {
             break;
@@ -121,7 +124,7 @@ async fn start_proxy_with_h3(
 
     // Wait for the H3/QUIC listener to be ready by probing with a connect attempt
     let probe_endpoint = build_h3_client(&cert_path)?;
-    let deadline3 = std::time::Instant::now() + Duration::from_secs(5);
+    let deadline3 = std::time::Instant::now() + startup_timeout();
     loop {
         if std::time::Instant::now() > deadline3 {
             return Err(anyhow::anyhow!("timeout waiting for H3/QUIC listener"));
