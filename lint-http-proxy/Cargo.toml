@@ -48,7 +48,6 @@ sha1 = { workspace = true }
 # TLS
 tokio-rustls = { workspace = true }
 rustls = { workspace = true }
-rustls-pemfile = { workspace = true }
 hyper-rustls = { workspace = true }
 hyper-util = { workspace = true }
 

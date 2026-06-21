@@ -19,13 +19,13 @@ use lint_http::config::Config;
 /// Build a quinn client endpoint that trusts the CA at `ca_cert_path` and
 /// advertises ALPN `h3`.
 fn build_h3_client(ca_cert_path: &std::path::Path) -> anyhow::Result<quinn::Endpoint> {
+    use rustls::pki_types::pem::PemObject;
+    use rustls::pki_types::CertificateDer;
     use rustls::RootCertStore;
-    use std::io::BufReader;
 
     let mut root_store = RootCertStore::empty();
-    let f = std::fs::File::open(ca_cert_path)?;
     let certs: Vec<_> =
-        rustls_pemfile::certs(&mut BufReader::new(f)).collect::<Result<Vec<_>, _>>()?;
+        CertificateDer::pem_file_iter(ca_cert_path)?.collect::<Result<Vec<_>, _>>()?;
     root_store.add_parsable_certificates(certs);
 
     let mut client_crypto = rustls::ClientConfig::builder()

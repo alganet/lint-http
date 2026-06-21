@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+
+# Supply-chain gate for `cargo deny check advisories licenses` (run in CI).
+
+[advisories]
+version = 2
+# RustSec advisory DB, default handling: vulnerable and yanked crates fail. Add
+# an advisory id to `ignore = [...]` here (with a comment) only when a fix is
+# pending and the exposure is understood.
+
+[licenses]
+version = 2
+# Minimal set of permissive licenses actually present in the dependency tree
+# (surveyed via `cargo metadata`). Every package's SPDX expression is satisfied
+# by one of these; anything new fails CI, forcing a deliberate decision.
+allow = ["MIT", "Apache-2.0", "ISC", "BSD-3-Clause", "Unicode-3.0", "Zlib"]
