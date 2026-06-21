@@ -111,7 +111,7 @@ pub(super) async fn exchange(
         }
     };
 
-    let resp = match shared.client.request(upstream_req).await {
+    let resp = match shared.upstream.client.request(upstream_req).await {
         Ok(r) => r,
         Err(e) => {
             let duration = started.elapsed().as_millis() as u64;

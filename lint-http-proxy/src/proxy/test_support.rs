@@ -9,9 +9,6 @@
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::Request;
-use hyper_rustls::HttpsConnectorBuilder;
-use hyper_util::client::legacy::Client as LegacyClient;
-use hyper_util::rt::TokioExecutor;
 use std::sync::Arc as StdArc;
 use uuid::Uuid;
 
@@ -34,21 +31,14 @@ pub(super) async fn make_shared_with_cfg(
         .to_string();
     let cw = CaptureWriter::new(p.clone(), false).await?;
 
-    let https = HttpsConnectorBuilder::new()
-        .with_native_roots()?
-        .https_or_http()
-        .enable_http1()
-        .enable_http2()
-        .build();
-    let client: LegacyClient<_, super::ClientBody> =
-        LegacyClient::builder(TokioExecutor::new()).build(https);
+    let upstream = super::upstream::Upstream::new()?;
     let state = StdArc::new(crate::state::StateStore::new(300, 10));
     let protocol_event_store = StdArc::new(crate::protocol_event_store::ProtocolEventStore::new(
         300, 100,
     ));
     let engine = StdArc::new(crate::engine::PreparedEngine::new(&cfg));
     let shared = StdArc::new(Shared {
-        client,
+        upstream,
         captures: cw.clone(),
         cfg,
         state,

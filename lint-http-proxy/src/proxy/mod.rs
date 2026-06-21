@@ -16,14 +16,13 @@ mod stream;
 mod tee_body;
 #[cfg(test)]
 mod test_support;
+mod upstream;
 mod websocket;
 
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use hyper::{service::service_fn, Request, Response};
-use hyper_rustls::HttpsConnectorBuilder;
-use hyper_util::client::legacy::Client as LegacyClient;
 use hyper_util::rt::TokioExecutor;
 use hyper_util::rt::TokioIo;
 use hyper_util::server::conn::auto::Builder as AutoConnBuilder;
@@ -71,10 +70,9 @@ pub(super) type BoxError = Box<dyn std::error::Error + Send + Sync>;
 pub(super) type ClientBody = http_body_util::combinators::UnsyncBoxBody<Bytes, BoxError>;
 
 pub(super) struct Shared {
-    pub(super) client: LegacyClient<
-        hyper_rustls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>,
-        ClientBody,
-    >,
+    /// Outbound resources (forwarding client + shared TLS config), built once
+    /// from a single trust-store load. See [`upstream::Upstream`].
+    pub(super) upstream: upstream::Upstream,
     pub(super) captures: CaptureWriter,
     pub(super) cfg: Arc<Config>,
     pub(super) state: Arc<crate::state::StateStore>,
@@ -152,14 +150,9 @@ async fn run_proxy_inner(
     accept_limit: Option<usize>,
     shutdown: CancellationToken,
 ) -> anyhow::Result<()> {
-    let https = HttpsConnectorBuilder::new()
-        .with_native_roots()?
-        .https_or_http()
-        .enable_http1()
-        .enable_http2()
-        .build();
-    let client: LegacyClient<_, ClientBody> =
-        LegacyClient::builder(TokioExecutor::new()).build(https);
+    // Load the platform trust store once; the forwarding client and the
+    // WebSocket-upgrade path share it.
+    let upstream = upstream::Upstream::new()?;
 
     let ca = if cfg.tls.enabled {
         let cert_path = cfg.tls.ca_cert_path.as_deref().unwrap_or("ca.crt");
@@ -232,7 +225,7 @@ async fn run_proxy_inner(
     let engine = Arc::new(crate::engine::PreparedEngine::new(&cfg));
 
     let shared = Arc::new(Shared {
-        client,
+        upstream,
         captures,
         cfg,
         state,
