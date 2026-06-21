@@ -270,11 +270,12 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
-            "https://example.com/",
-            Some("a=1; SameSite=Strict"),
-            Some(Utc::now()),
-        )]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
+                "https://example.com/",
+                Some("a=1; SameSite=Strict"),
+                Some(Utc::now()),
+            )]);
         assert!(rule
             .check_transaction(
                 &tx,
@@ -290,11 +291,12 @@ mod tests {
     fn fetch_site_none_skips() {
         let rule = StatefulCookieSameSiteEnforcement;
         let ts = Utc::now();
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
-            "https://example.com/",
-            Some("a=1; SameSite=Strict"),
-            Some(ts),
-        )]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
+                "https://example.com/",
+                Some("a=1; SameSite=Strict"),
+                Some(ts),
+            )]);
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.request
             .headers
@@ -314,11 +316,12 @@ mod tests {
     fn fetch_site_invalid_skips() {
         let rule = StatefulCookieSameSiteEnforcement;
         let ts = Utc::now();
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
-            "https://example.com/",
-            Some("a=1; SameSite=Strict"),
-            Some(ts),
-        )]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
+                "https://example.com/",
+                Some("a=1; SameSite=Strict"),
+                Some(ts),
+            )]);
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.request
             .headers
@@ -339,11 +342,12 @@ mod tests {
         let rule = StatefulCookieSameSiteEnforcement;
         let ts = Utc::now();
         // history sets cookie b; request sends cookie a
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
-            "https://example.com/",
-            Some("b=1; SameSite=Strict"),
-            Some(ts),
-        )]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
+                "https://example.com/",
+                Some("b=1; SameSite=Strict"),
+                Some(ts),
+            )]);
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.request
             .headers
@@ -363,11 +367,12 @@ mod tests {
     fn secure_cookie_over_http_ignored_for_samesite() {
         let rule = StatefulCookieSameSiteEnforcement;
         let ts = Utc::now();
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
-            "http://example.com/",
-            Some("a=1; SameSite=Strict; Secure"),
-            Some(ts),
-        )]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
+                "http://example.com/",
+                Some("a=1; SameSite=Strict; Secure"),
+                Some(ts),
+            )]);
         let mut tx = make_tx_with_req("http://example.com/", Some("a=1"));
         tx.request
             .headers
@@ -414,11 +419,12 @@ mod tests {
     fn lax_cookie_cross_site_non_nav_reports() {
         let rule = StatefulCookieSameSiteEnforcement;
         let ts = Utc::now();
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
-            "https://example.com/",
-            Some("a=1; SameSite=Lax"),
-            Some(ts),
-        )]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
+                "https://example.com/",
+                Some("a=1; SameSite=Lax"),
+                Some(ts),
+            )]);
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.request
             .headers
@@ -442,11 +448,12 @@ mod tests {
     fn lax_cookie_cross_site_nav_get_allowed() {
         let rule = StatefulCookieSameSiteEnforcement;
         let ts = Utc::now();
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
-            "https://example.com/",
-            Some("a=1; SameSite=Lax"),
-            Some(ts),
-        )]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
+                "https://example.com/",
+                Some("a=1; SameSite=Lax"),
+                Some(ts),
+            )]);
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.request
             .headers
@@ -470,11 +477,12 @@ mod tests {
     fn lax_cookie_cross_site_nav_head_allowed() {
         let rule = StatefulCookieSameSiteEnforcement;
         let ts = Utc::now();
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
-            "https://example.com/",
-            Some("a=1; SameSite=Lax"),
-            Some(ts),
-        )]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
+                "https://example.com/",
+                Some("a=1; SameSite=Lax"),
+                Some(ts),
+            )]);
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.request
             .headers
@@ -498,11 +506,12 @@ mod tests {
     fn none_cookie_cross_site_allowed() {
         let rule = StatefulCookieSameSiteEnforcement;
         let ts = Utc::now();
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
-            "https://example.com/",
-            Some("a=1; SameSite=None; Secure"),
-            Some(ts),
-        )]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
+                "https://example.com/",
+                Some("a=1; SameSite=None; Secure"),
+                Some(ts),
+            )]);
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.request
             .headers
@@ -522,11 +531,12 @@ mod tests {
     fn unspecified_treated_as_lax() {
         let rule = StatefulCookieSameSiteEnforcement;
         let ts = Utc::now();
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
-            "https://example.com/",
-            Some("a=1"),
-            Some(ts),
-        )]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
+                "https://example.com/",
+                Some("a=1"),
+                Some(ts),
+            )]);
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.request
             .headers
@@ -572,11 +582,12 @@ mod tests {
     fn same_site_context_allows_strict() {
         let rule = StatefulCookieSameSiteEnforcement;
         let ts = Utc::now();
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
-            "https://example.com/",
-            Some("a=1; SameSite=Strict"),
-            Some(ts),
-        )]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
+                "https://example.com/",
+                Some("a=1; SameSite=Strict"),
+                Some(ts),
+            )]);
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.request
             .headers
@@ -596,11 +607,12 @@ mod tests {
     fn mismatched_cookie_value_does_not_report() {
         let rule = StatefulCookieSameSiteEnforcement;
         let ts = Utc::now();
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
-            "https://example.com/",
-            Some("a=1; SameSite=Strict"),
-            Some(ts),
-        )]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![make_resp_tx(
+                "https://example.com/",
+                Some("a=1; SameSite=Strict"),
+                Some(ts),
+            )]);
         let mut tx = make_tx_with_req("https://example.com/", Some("a=2"));
         tx.request
             .headers

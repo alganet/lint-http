@@ -307,7 +307,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.timestamp = base + chrono::Duration::seconds(1);
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]);
         let v = rule.check_transaction(
             &tx,
             &history,

@@ -94,6 +94,13 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+      # `cargo fmt` does not reach the rule files: they enter the crate via a
+      # build.rs-generated `#[path = "rules/*.rs"]` include that rustfmt won't
+      # follow. Format them directly so drift in the largest part of the tree
+      # is gated too.
+      - name: Check formatting of rule files
+        run: rustfmt --edition 2021 --check lint-http-rules/src/rules/*.rs
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest

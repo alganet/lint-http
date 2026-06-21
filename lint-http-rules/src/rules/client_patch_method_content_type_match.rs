@@ -254,7 +254,9 @@ mod tests {
         }
 
         let history = match prev {
-            Some(p) => crate::transaction_history::TransactionHistory::from_transactions(vec![p.clone()]),
+            Some(p) => {
+                crate::transaction_history::TransactionHistory::from_transactions(vec![p.clone()])
+            }
             None => crate::transaction_history::TransactionHistory::empty(),
         };
         let v = rule.check_transaction(&tx, &history, &cfg);

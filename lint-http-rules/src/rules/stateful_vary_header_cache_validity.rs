@@ -646,7 +646,8 @@ mod tests {
         ]);
 
         // newest-first: later matching entry (good) must come first
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![good, old]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![good, old]);
         let v = rule.check_transaction(
             &tx,
             &history,

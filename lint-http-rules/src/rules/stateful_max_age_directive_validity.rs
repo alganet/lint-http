@@ -218,7 +218,8 @@ mod tests {
         tx.request.uri = "/resource".to_string();
         tx.timestamp = base + chrono::Duration::seconds(10);
 
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]);
         let v = rule.check_transaction(
             &tx,
             &history,
@@ -238,7 +239,8 @@ mod tests {
         tx2.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         tx2.timestamp = base + chrono::Duration::seconds(10);
-        let history2 = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let history2 =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(
             rule.check_transaction(
                 &tx2,
@@ -467,7 +469,8 @@ mod tests {
         tx.client = crate::test_helpers::make_test_client();
         tx.request.uri = "/resource".to_string();
         tx.timestamp = base;
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]);
         // age == max-age should be treated as stale; unconditional request
         // should therefore be flagged since validator exists.
         let v = rule.check_transaction(
@@ -486,7 +489,8 @@ mod tests {
         tx2.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         tx2.timestamp = base;
-        let history2 = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let history2 =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(
             rule.check_transaction(
                 &tx2,
