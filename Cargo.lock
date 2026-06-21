@@ -1053,6 +1053,7 @@ dependencies = [
  "chrono",
  "httpdate",
  "hyper",
+ "parking_lot",
  "rstest",
  "serde",
  "serde_json",

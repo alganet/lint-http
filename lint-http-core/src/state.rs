@@ -5,10 +5,11 @@
 //! State management for cross-transaction HTTP analysis.
 
 use chrono::Utc;
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::net::IpAddr;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -78,40 +79,34 @@ impl StateStore {
 
         // Update the main store first, then release its lock before updating
         // secondary indexes.  This avoids nested lock acquisition which could
-        // deadlock with readers that access indexes then the store.
-        let is_new = match self.store.write() {
-            Ok(mut store) => {
-                let was_new = store.get(&key).is_none();
-                let deque = store.entry(key.clone()).or_insert_with(VecDeque::new);
-                // One deep clone into an `Arc`; every later read clones only the
-                // `Arc` (a refcount bump) instead of the whole transaction.
-                deque.push_front(Arc::new(tx.clone()));
-                if deque.len() > self.max_history {
-                    deque.pop_back();
-                }
-                was_new
+        // deadlock with readers that access indexes then the store.  The block
+        // scopes the store guard so it drops before the index writes below.
+        let is_new = {
+            let mut store = self.store.write();
+            let was_new = store.get(&key).is_none();
+            let deque = store.entry(key.clone()).or_default();
+            // One deep clone into an `Arc`; every later read clones only the
+            // `Arc` (a refcount bump) instead of the whole transaction.
+            deque.push_front(Arc::new(tx.clone()));
+            if deque.len() > self.max_history {
+                deque.pop_back();
             }
-            Err(_) => {
-                tracing::warn!("StateStore lock poisoned during write");
-                return;
-            }
+            was_new
         };
 
         if is_new {
-            if let Ok(mut idx) = self.resource_index.write() {
-                let clients = idx.entry(key.resource.clone()).or_insert_with(Vec::new);
-                if !clients.iter().any(|c| c == &key.client) {
-                    clients.push(key.client.clone());
-                }
+            let mut idx = self.resource_index.write();
+            let clients = idx.entry(key.resource.clone()).or_default();
+            if !clients.iter().any(|c| c == &key.client) {
+                clients.push(key.client.clone());
             }
         }
 
         if let Some(conn_id) = tx.connection_id {
-            if let Ok(mut idx) = self.connection_index.write() {
-                let keys = idx.entry(conn_id).or_insert_with(Vec::new);
-                if !keys.contains(&key) {
-                    keys.push(key);
-                }
+            let mut idx = self.connection_index.write();
+            let keys = idx.entry(conn_id).or_default();
+            if !keys.contains(&key) {
+                keys.push(key);
             }
         }
     }
@@ -127,13 +122,10 @@ impl StateStore {
             resource: resource.to_string(),
         };
 
-        match self.store.read() {
-            Ok(store) => store.get(&key).and_then(|dq| dq.front().cloned()),
-            Err(_) => {
-                tracing::warn!("StateStore lock poisoned during read");
-                None
-            }
-        }
+        self.store
+            .read()
+            .get(&key)
+            .and_then(|dq| dq.front().cloned())
     }
 
     /// Retrieve the full bounded history for this client+resource (newest first).
@@ -143,16 +135,11 @@ impl StateStore {
             resource: resource.to_string(),
         };
 
-        match self.store.read() {
-            Ok(store) => store
-                .get(&key)
-                .map(|dq| dq.iter().cloned().collect())
-                .unwrap_or_default(),
-            Err(_) => {
-                tracing::warn!("StateStore lock poisoned during read");
-                Vec::new()
-            }
-        }
+        self.store
+            .read()
+            .get(&key)
+            .map(|dq| dq.iter().cloned().collect())
+            .unwrap_or_default()
     }
     /// Retrieve the full bounded history across **all clients** for the given
     /// resource string.  The returned vector is sorted newest-first by
@@ -162,16 +149,17 @@ impl StateStore {
     pub fn get_history_for_resource(&self, resource: &str) -> Vec<SharedTransaction> {
         // Clone the client list from the index first, then release the index
         // lock before acquiring the store lock to avoid lock-order inversion.
-        let clients = match self.resource_index.read() {
-            Ok(idx) => match idx.get(resource) {
+        let clients = {
+            let idx = self.resource_index.read();
+            match idx.get(resource) {
                 Some(c) => c.clone(),
                 None => return Vec::new(),
-            },
-            Err(_) => return Vec::new(),
+            }
         };
 
         let mut entries = Vec::new();
-        if let Ok(store) = self.store.read() {
+        {
+            let store = self.store.read();
             for client in &clients {
                 let key = ResourceKey {
                     client: client.clone(),
@@ -193,34 +181,27 @@ impl StateStore {
     ///
     /// Used by origin-based queries that need to scan across URIs.
     pub fn collect_for_client(&self, client: &ClientIdentifier) -> Vec<SharedTransaction> {
-        match self.store.read() {
-            Ok(store) => store
-                .iter()
-                .filter(|(k, _)| &k.client == client)
-                .flat_map(|(_, dq)| dq.iter().cloned())
-                .collect(),
-            Err(_) => {
-                tracing::warn!("StateStore lock poisoned during read");
-                Vec::new()
-            }
-        }
+        self.store
+            .read()
+            .iter()
+            .filter(|(k, _)| &k.client == client)
+            .flat_map(|(_, dq)| dq.iter().cloned())
+            .collect()
     }
 
     /// Retrieve all transactions that share the given `connection_id`.
     pub fn get_history_for_connection(&self, connection_id: Uuid) -> Vec<SharedTransaction> {
-        let keys = match self.connection_index.read() {
-            Ok(idx) => match idx.get(&connection_id) {
+        let keys = {
+            let idx = self.connection_index.read();
+            match idx.get(&connection_id) {
                 Some(k) => k.clone(),
                 None => return Vec::new(),
-            },
-            Err(_) => {
-                tracing::warn!("StateStore connection_index lock poisoned during read");
-                return Vec::new();
             }
         };
 
         let mut entries = Vec::new();
-        if let Ok(store) = self.store.read() {
+        {
+            let store = self.store.read();
             for key in &keys {
                 if let Some(dq) = store.get(key) {
                     for tx in dq.iter() {
@@ -238,7 +219,9 @@ impl StateStore {
     pub fn cleanup_expired(&self) {
         let mut removed_keys: Vec<ResourceKey> = Vec::new();
 
-        if let Ok(mut store) = self.store.write() {
+        // Scope the store guard so it drops before the index writes below.
+        {
+            let mut store = self.store.write();
             let ttl_chrono = chrono::Duration::from_std(self.ttl)
                 .unwrap_or_else(|_| chrono::Duration::seconds(0));
 
@@ -261,14 +244,12 @@ impl StateStore {
                     true
                 }
             });
-        } else {
-            tracing::warn!("StateStore lock poisoned during cleanup");
-            return;
         }
 
         // Update indexes outside the store lock scope to avoid nested locking.
         if !removed_keys.is_empty() {
-            if let Ok(mut idx) = self.resource_index.write() {
+            {
+                let mut idx = self.resource_index.write();
                 for key in &removed_keys {
                     if let Some(clients) = idx.get_mut(&key.resource) {
                         clients.retain(|c| c != &key.client);
@@ -279,7 +260,8 @@ impl StateStore {
                 }
             }
 
-            if let Ok(mut idx) = self.connection_index.write() {
+            {
+                let mut idx = self.connection_index.write();
                 idx.retain(|_conn_id, keys| {
                     keys.retain(|k| !removed_keys.contains(k));
                     !keys.is_empty()
@@ -467,7 +449,7 @@ mod tests {
         eprintln!("recorded");
         // index should contain mapping
         {
-            let idx = store.resource_index.read().unwrap();
+            let idx = store.resource_index.read();
             assert!(idx
                 .get(resource)
                 .map(|v| v.contains(&client))
@@ -483,7 +465,7 @@ mod tests {
         eprintln!("cleanup done");
         assert!(store.get_previous(&client, resource).is_none());
         // index should no longer have resource
-        let idx2 = store.resource_index.read().unwrap();
+        let idx2 = store.resource_index.read();
         assert!(!idx2.contains_key(resource));
         eprintln!("cleanup test end");
     }
@@ -643,25 +625,6 @@ mod tests {
     }
 
     #[test]
-    fn get_previous_handles_poisoned_lock() {
-        let store = StateStore::new(300, 10);
-        let client = make_client();
-        let resource = "http://example.com/resource";
-
-        // Poison the lock by panicking while holding a write lock in another thread.
-        let store_arc = store.store.clone();
-        let handle = thread::spawn(move || {
-            let _guard = store_arc.write().unwrap();
-            panic!("intentional panic to poison lock");
-        });
-        let _ = handle.join(); // ignore the panic result
-
-        // Now attempting to read should hit the poisoned branch and return None
-        let res = store.get_previous(&client, resource);
-        assert!(res.is_none());
-    }
-
-    #[test]
     fn bounded_history_evicts_oldest() {
         let store = StateStore::new(300, 3);
         let client = make_client();
@@ -797,96 +760,9 @@ mod tests {
         tx.connection_id = Some(conn_id);
         store.record_transaction(&tx);
 
-        let idx = store.connection_index.read().unwrap();
+        let idx = store.connection_index.read();
         assert!(idx.contains_key(&conn_id));
         assert!(!idx.get(&conn_id).unwrap().is_empty());
-    }
-
-    #[test]
-    fn get_history_for_connection_handles_poisoned_connection_index() {
-        let store = StateStore::new(300, 10);
-
-        // Poison the connection_index lock
-        let idx_arc = store.connection_index.clone();
-        let handle = thread::spawn(move || {
-            let _guard = idx_arc.write().unwrap();
-            panic!("intentional panic to poison connection_index lock");
-        });
-        let _ = handle.join();
-
-        // Should return empty vec instead of panicking
-        let history = store.get_history_for_connection(uuid::Uuid::new_v4());
-        assert!(history.is_empty());
-    }
-
-    #[test]
-    fn record_transaction_handles_poisoned_store_lock() {
-        let store = StateStore::new(300, 10);
-        let client = make_client();
-
-        // Poison the store lock
-        let store_arc = store.store.clone();
-        let handle = thread::spawn(move || {
-            let _guard = store_arc.write().unwrap();
-            panic!("intentional panic to poison store lock");
-        });
-        let _ = handle.join();
-
-        // Should not panic, just log warning
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.client = client.clone();
-        tx.request.uri = "http://example.com/x".to_string();
-        store.record_transaction(&tx);
-    }
-
-    #[test]
-    fn get_history_handles_poisoned_lock() {
-        let store = StateStore::new(300, 10);
-        let client = make_client();
-
-        // Poison the store lock
-        let store_arc = store.store.clone();
-        let handle = thread::spawn(move || {
-            let _guard = store_arc.write().unwrap();
-            panic!("intentional panic to poison store lock");
-        });
-        let _ = handle.join();
-
-        let history = store.get_history(&client, "http://example.com/x");
-        assert!(history.is_empty());
-    }
-
-    #[test]
-    fn collect_for_client_handles_poisoned_lock() {
-        let store = StateStore::new(300, 10);
-        let client = make_client();
-
-        // Poison the store lock
-        let store_arc = store.store.clone();
-        let handle = thread::spawn(move || {
-            let _guard = store_arc.write().unwrap();
-            panic!("intentional panic to poison store lock");
-        });
-        let _ = handle.join();
-
-        let results = store.collect_for_client(&client);
-        assert!(results.is_empty());
-    }
-
-    #[test]
-    fn cleanup_expired_handles_poisoned_lock() {
-        let store = StateStore::new(300, 10);
-
-        // Poison the store lock
-        let store_arc = store.store.clone();
-        let handle = thread::spawn(move || {
-            let _guard = store_arc.write().unwrap();
-            panic!("intentional panic to poison store lock");
-        });
-        let _ = handle.join();
-
-        // Should not panic
-        store.cleanup_expired();
     }
 
     #[test]
@@ -903,7 +779,7 @@ mod tests {
 
         // connection_index should have an entry
         {
-            let idx = store.connection_index.read().unwrap();
+            let idx = store.connection_index.read();
             assert!(idx.contains_key(&conn_id));
         }
 
@@ -912,7 +788,7 @@ mod tests {
         store.cleanup_expired();
 
         // connection_index should be pruned
-        let idx = store.connection_index.read().unwrap();
+        let idx = store.connection_index.read();
         assert!(
             !idx.contains_key(&conn_id),
             "connection_index should be pruned after cleanup"
@@ -934,7 +810,7 @@ mod tests {
             store.record_transaction(&tx);
         }
 
-        let idx = store.connection_index.read().unwrap();
+        let idx = store.connection_index.read();
         // Should only have one key entry (same resource key)
         assert_eq!(idx.get(&conn_id).unwrap().len(), 1);
     }
