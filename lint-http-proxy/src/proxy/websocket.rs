@@ -56,26 +56,28 @@ pub(super) async fn handle_websocket_upgrade(
     shared: Arc<Shared>,
     conn_metadata: Arc<crate::connection::ConnectionMetadata>,
 ) -> Result<Response<ResponseBody>, Infallible> {
-    // Connect directly to upstream with upgrade support
-    let (mut sender, _conn_handle) = match connect_upstream_for_upgrade(uri, scheme).await {
-        Ok(s) => s,
-        Err(e) => {
-            error!("websocket upstream connect error: {}", e);
-            record_handshake_failure(
-                &shared,
-                client_id,
-                method,
-                uri_str,
-                req_headers,
-                req_version,
-                &body_bytes,
-                &conn_metadata,
-                started,
-            )
-            .await;
-            return Ok(upstream_error_response(&e));
-        }
-    };
+    // Connect directly to upstream with upgrade support, reusing the shared
+    // outbound TLS config (loaded once at startup).
+    let (mut sender, _conn_handle) =
+        match connect_upstream_for_upgrade(uri, scheme, &shared.upstream.tls_config).await {
+            Ok(s) => s,
+            Err(e) => {
+                error!("websocket upstream connect error: {}", e);
+                record_handshake_failure(
+                    &shared,
+                    client_id,
+                    method,
+                    uri_str,
+                    req_headers,
+                    req_version,
+                    &body_bytes,
+                    &conn_metadata,
+                    started,
+                )
+                .await;
+                return Ok(upstream_error_response(&e));
+            }
+        };
 
     // Send the upgrade request to the upstream server
     let mut upstream_resp = match sender.send_request(upstream_req).await {
@@ -274,6 +276,7 @@ async fn record_handshake_failure(
 async fn connect_upstream_for_upgrade(
     uri: &Uri,
     fallback_scheme: &hyper::http::uri::Scheme,
+    tls_config: &Arc<rustls::ClientConfig>,
 ) -> anyhow::Result<(
     hyper::client::conn::http1::SendRequest<Full<Bytes>>,
     tokio::task::JoinHandle<Result<(), hyper::Error>>,
@@ -288,27 +291,9 @@ async fn connect_upstream_for_upgrade(
     let tcp = tokio::net::TcpStream::connect((host, port)).await?;
 
     if is_https {
-        let cert_result = rustls_native_certs::load_native_certs();
-        if !cert_result.errors.is_empty() {
-            tracing::warn!(
-                errors = ?cert_result.errors,
-                "encountered errors loading platform certificates"
-            );
-        }
-        if cert_result.certs.is_empty() {
-            return Err(anyhow::anyhow!(
-                "failed to load any platform certificates: {:?}",
-                cert_result.errors
-            ));
-        }
-        let mut root_store = rustls::RootCertStore::empty();
-        for cert in cert_result.certs {
-            root_store.add(cert).ok();
-        }
-        let tls_config = rustls::ClientConfig::builder()
-            .with_root_certificates(root_store)
-            .with_no_client_auth();
-        let connector = tokio_rustls::TlsConnector::from(Arc::new(tls_config));
+        // The trust store was loaded once at startup; reuse the shared config
+        // (an `Arc` bump) instead of re-reading native certs per upgrade.
+        let connector = tokio_rustls::TlsConnector::from(tls_config.clone());
         let server_name = rustls::pki_types::ServerName::try_from(host.to_string())?;
         let tls_stream = connector.connect(server_name, tcp).await?;
 
@@ -529,6 +514,16 @@ mod tests {
             StdArc::new(crate::protocol_event_store::ProtocolEventStore::new(
                 300, 100,
             )),
+        )
+    }
+
+    /// A trust-store-free client config for the `ws://` (non-TLS) tests below —
+    /// they never reach the HTTPS branch, so an empty root store is fine.
+    fn test_tls_config() -> StdArc<rustls::ClientConfig> {
+        StdArc::new(
+            rustls::ClientConfig::builder()
+                .with_root_certificates(rustls::RootCertStore::empty())
+                .with_no_client_auth(),
         )
     }
 
@@ -775,7 +770,9 @@ mod tests {
     #[tokio::test]
     async fn connect_upstream_for_upgrade_fails_without_host() {
         let uri: Uri = "/no-host".parse().unwrap();
-        let result = connect_upstream_for_upgrade(&uri, &hyper::http::uri::Scheme::HTTP).await;
+        let result =
+            connect_upstream_for_upgrade(&uri, &hyper::http::uri::Scheme::HTTP, &test_tls_config())
+                .await;
         assert!(result.is_err());
     }
 
@@ -786,7 +783,9 @@ mod tests {
         let port = l.local_addr().unwrap().port();
         drop(l);
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse().unwrap();
-        let result = connect_upstream_for_upgrade(&uri, &hyper::http::uri::Scheme::HTTP).await;
+        let result =
+            connect_upstream_for_upgrade(&uri, &hyper::http::uri::Scheme::HTTP, &test_tls_config())
+                .await;
         assert!(result.is_err());
     }
 
@@ -1240,7 +1239,8 @@ mod tests {
 
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
         let (mut sender, _handle) =
-            connect_upstream_for_upgrade(&uri, &hyper::http::uri::Scheme::HTTP).await?;
+            connect_upstream_for_upgrade(&uri, &hyper::http::uri::Scheme::HTTP, &test_tls_config())
+                .await?;
 
         // Verify we can send a request
         let req = Request::builder()
