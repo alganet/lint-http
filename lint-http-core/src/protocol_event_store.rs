@@ -11,8 +11,9 @@
 
 use crate::protocol_event::ProtocolEvent;
 use chrono::Utc;
+use parking_lot::RwLock;
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -39,62 +40,46 @@ impl ProtocolEventStore {
     /// The event is indexed by `connection_id`.  WebSocket frame events are
     /// additionally indexed by `session_id`.
     pub fn record_event(&self, event: &ProtocolEvent) {
-        // Index by connection_id
-        if let Ok(mut store) = self.by_connection.write() {
-            let deque = store
-                .entry(event.connection_id)
-                .or_insert_with(VecDeque::new);
+        // Index by connection_id. Scoped so the guard drops before we acquire
+        // the by_session lock below — the two are never held at once.
+        {
+            let mut store = self.by_connection.write();
+            let deque = store.entry(event.connection_id).or_default();
             deque.push_front(event.clone());
             if deque.len() > self.max_events_per_key {
                 deque.pop_back();
             }
-        } else {
-            tracing::warn!("ProtocolEventStore by_connection lock poisoned during write");
-            return;
         }
 
         // Additionally index WebSocket frame events by session_id
         if let crate::protocol_event::ProtocolEventKind::WebSocketFrame { session_id, .. } =
             &event.kind
         {
-            if let Ok(mut store) = self.by_session.write() {
-                let deque = store.entry(*session_id).or_insert_with(VecDeque::new);
-                deque.push_front(event.clone());
-                if deque.len() > self.max_events_per_key {
-                    deque.pop_back();
-                }
-            } else {
-                tracing::warn!("ProtocolEventStore by_session lock poisoned during write");
+            let mut store = self.by_session.write();
+            let deque = store.entry(*session_id).or_default();
+            deque.push_front(event.clone());
+            if deque.len() > self.max_events_per_key {
+                deque.pop_back();
             }
         }
     }
 
     /// Retrieve event history for a connection (newest first).
     pub fn get_history_for_connection(&self, connection_id: Uuid) -> Vec<ProtocolEvent> {
-        match self.by_connection.read() {
-            Ok(store) => store
-                .get(&connection_id)
-                .map(|dq| dq.iter().cloned().collect())
-                .unwrap_or_default(),
-            Err(_) => {
-                tracing::warn!("ProtocolEventStore by_connection lock poisoned during read");
-                Vec::new()
-            }
-        }
+        self.by_connection
+            .read()
+            .get(&connection_id)
+            .map(|dq| dq.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     /// Retrieve event history for a WebSocket session (newest first).
     pub fn get_history_for_session(&self, session_id: Uuid) -> Vec<ProtocolEvent> {
-        match self.by_session.read() {
-            Ok(store) => store
-                .get(&session_id)
-                .map(|dq| dq.iter().cloned().collect())
-                .unwrap_or_default(),
-            Err(_) => {
-                tracing::warn!("ProtocolEventStore by_session lock poisoned during read");
-                Vec::new()
-            }
-        }
+        self.by_session
+            .read()
+            .get(&session_id)
+            .map(|dq| dq.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     /// Remove expired events from the store.
@@ -110,20 +95,17 @@ impl ProtocolEventStore {
         map: &Arc<RwLock<HashMap<Uuid, VecDeque<ProtocolEvent>>>>,
         ttl: chrono::Duration,
     ) {
-        if let Ok(mut store) = map.write() {
-            for deque in store.values_mut() {
-                deque.retain(|evt| {
-                    let age = Utc::now().signed_duration_since(evt.timestamp);
-                    if age < chrono::Duration::zero() {
-                        return false;
-                    }
-                    age <= ttl
-                });
-            }
-            store.retain(|_, dq| !dq.is_empty());
-        } else {
-            tracing::warn!("ProtocolEventStore lock poisoned during cleanup");
+        let mut store = map.write();
+        for deque in store.values_mut() {
+            deque.retain(|evt| {
+                let age = Utc::now().signed_duration_since(evt.timestamp);
+                if age < chrono::Duration::zero() {
+                    return false;
+                }
+                age <= ttl
+            });
         }
+        store.retain(|_, dq| !dq.is_empty());
     }
 }
 
@@ -243,31 +225,5 @@ mod tests {
         h2.join().unwrap();
 
         assert!(!store.get_history_for_connection(conn).is_empty());
-    }
-
-    #[test]
-    fn poisoned_connection_lock_returns_empty() {
-        let store = ProtocolEventStore::new(300, 100);
-        let arc = store.by_connection.clone();
-        let handle = std::thread::spawn(move || {
-            let _guard = arc.write().unwrap();
-            panic!("intentional poison");
-        });
-        let _ = handle.join();
-
-        assert!(store.get_history_for_connection(Uuid::new_v4()).is_empty());
-    }
-
-    #[test]
-    fn poisoned_session_lock_returns_empty() {
-        let store = ProtocolEventStore::new(300, 100);
-        let arc = store.by_session.clone();
-        let handle = std::thread::spawn(move || {
-            let _guard = arc.write().unwrap();
-            panic!("intentional poison");
-        });
-        let _ = handle.join();
-
-        assert!(store.get_history_for_session(Uuid::new_v4()).is_empty());
     }
 }

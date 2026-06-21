@@ -42,6 +42,7 @@ bytes = "1"
 base64 = "0.22"
 sha1 = "0.11"
 linkme = "0.3"
+parking_lot = "0.12"
 
 # TLS Support
 tokio-rustls = "0.26.4"

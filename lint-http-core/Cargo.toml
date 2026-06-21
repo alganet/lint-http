@@ -30,6 +30,7 @@ base64 = { workspace = true }
 httpdate = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
+parking_lot = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
