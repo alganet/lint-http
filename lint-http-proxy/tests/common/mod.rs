@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: ISC
 
+// Shared integration-test helpers; each test binary uses a different subset.
+#![allow(dead_code)]
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -12,6 +15,18 @@ use tokio::time::sleep;
 use lint_http::capture::CaptureWriter;
 use lint_http::config::Config;
 use lint_http::proxy::run_proxy;
+
+/// Deadline budget for the integration-test startup polls. Generous by default
+/// because startup races a saturated CI/dev CPU (the spawned proxy task may not
+/// be scheduled for a while); override with `LINT_HTTP_TEST_STARTUP_TIMEOUT_SECS`
+/// on slower machines.
+pub fn startup_timeout() -> Duration {
+    let secs = std::env::var("LINT_HTTP_TEST_STARTUP_TIMEOUT_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(30);
+    Duration::from_secs(secs)
+}
 
 // Minimal helper: start run_proxy and wait until it is accepting and CA files exist
 pub async fn start_run_proxy_and_wait(
@@ -37,7 +52,7 @@ pub async fn start_run_proxy_and_wait(
     });
 
     // Wait for server to accept connections
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + startup_timeout();
     loop {
         if Instant::now() > deadline {
             return Err(anyhow::anyhow!("timeout waiting for proxy to start"));
@@ -63,7 +78,7 @@ pub async fn start_run_proxy_and_wait(
             .unwrap_or_else(|| "ca.key".into());
         let cert_path = std::path::PathBuf::from(cert_path);
         let key_path = std::path::PathBuf::from(key_path);
-        let deadline2 = Instant::now() + Duration::from_secs(5);
+        let deadline2 = Instant::now() + startup_timeout();
         loop {
             if cert_path.exists() && key_path.exists() {
                 break;
