@@ -434,7 +434,8 @@ mod tests {
     /// #11d drift gate: the committed `docs/rules/` files must equal what
     /// `gendocs` regenerates from rule metadata. This makes the docs a verified
     /// generated artifact — editing a rule (or `config_example.toml`) without
-    /// regenerating fails CI. Run `cargo run --bin gendocs` to fix drift.
+    /// regenerating fails CI. Run `cargo run -p lint-http-proxy -- gendocs` to
+    /// fix drift.
     #[test]
     fn docs_match_generated() {
         let root = repo_root();
@@ -446,7 +447,7 @@ mod tests {
                 .unwrap_or_else(|e| panic!("cannot read {}: {}", path.display(), e));
             assert!(
                 on_disk == expected,
-                "docs/rules/{}.md is out of date — run `cargo run --bin gendocs`",
+                "docs/rules/{}.md is out of date — run `cargo run -p lint-http-proxy -- gendocs`",
                 id
             );
         };
@@ -480,7 +481,7 @@ mod tests {
         let on_disk = std::fs::read_to_string(root.join("docs/rules.md")).expect("docs/rules.md");
         assert!(
             on_disk == index,
-            "docs/rules.md is out of date — run `cargo run --bin gendocs`"
+            "docs/rules.md is out of date — run `cargo run -p lint-http-proxy -- gendocs`"
         );
     }
 }
