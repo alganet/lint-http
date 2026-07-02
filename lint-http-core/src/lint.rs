@@ -18,8 +18,9 @@ pub struct Violation {
     pub message: String,
 }
 
-/// Severity level for a rule violation.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+/// Severity level for a rule violation. Ordered by increasing severity
+/// (`Info < Warn < Error`) so callers can gate on a minimum level.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
     Info,

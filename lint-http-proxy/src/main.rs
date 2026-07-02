@@ -43,9 +43,34 @@ struct LintArgs {
     /// state's `ttl_seconds` / `max_history`).
     #[arg(long)]
     config: String,
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    format: OutputFormat,
+    /// Only report findings at or above this severity; the exit code follows
+    /// the gated set (0 when everything below the gate is filtered out).
+    #[arg(long, value_enum, default_value_t = SeverityArg::Info)]
+    min_severity: SeverityArg,
     /// JSONL capture file to lint.
     #[arg(value_name = "CAPTURES")]
     captures: String,
+}
+
+/// CLI mirror of [`lint::Severity`] (which lives in core and doesn't know clap).
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum SeverityArg {
+    Info,
+    Warn,
+    Error,
+}
+
+impl From<SeverityArg> for lint::Severity {
+    fn from(arg: SeverityArg) -> Self {
+        match arg {
+            SeverityArg::Info => lint::Severity::Info,
+            SeverityArg::Warn => lint::Severity::Warn,
+            SeverityArg::Error => lint::Severity::Error,
+        }
+    }
 }
 
 #[derive(clap::Args, Debug)]
@@ -229,7 +254,12 @@ fn rules_list(format: OutputFormat) -> anyhow::Result<String> {
 /// same history they would live. The state store's TTL never evicts here (the
 /// read path applies no age filter and `cleanup_expired` is never called), so the
 /// whole file is visible regardless of how old the records are.
-async fn lint_app(config_path: &str, captures_path: &str) -> anyhow::Result<usize> {
+async fn lint_app(
+    config_path: &str,
+    captures_path: &str,
+    format: OutputFormat,
+    min_severity: lint::Severity,
+) -> anyhow::Result<usize> {
     let cfg = load_validated_config(config_path).await?;
     // `load_captures` tolerates a missing file (it backs the proxy's optional
     // cold-start seeding). For an explicit `lint <file>` a missing path is a user
@@ -242,35 +272,82 @@ async fn lint_app(config_path: &str, captures_path: &str) -> anyhow::Result<usiz
     // Precompute the enabled rule set once, then reuse it across the replay.
     let engine = engine::PreparedEngine::new(&cfg);
 
-    let mut total = 0usize;
+    let mut findings = Vec::new();
     for tx in &transactions {
-        let violations = engine.lint_transaction(tx, &cfg, &state);
+        let mut violations = engine.lint_transaction(tx, &cfg, &state);
+        // Record *before* gating: stateful rules must see every transaction in
+        // the file regardless of what the report includes.
         state.record_transaction(tx);
+        violations.retain(|v| v.severity >= min_severity);
         if violations.is_empty() {
             continue;
         }
-        let status = tx
-            .response
-            .as_ref()
-            .map(|r| r.status.to_string())
-            .unwrap_or_else(|| "-".to_string());
-        println!("{} {} -> {}", tx.request.method, tx.request.uri, status);
-        for v in &violations {
-            println!(
-                "  {:<5} {}  {}",
-                severity_label(v.severity),
-                v.rule,
-                v.message
-            );
-        }
-        total += violations.len();
+        findings.push(TransactionFindings {
+            method: tx.request.method.clone(),
+            uri: tx.request.uri.clone(),
+            status: tx.response.as_ref().map(|r| r.status),
+            violations,
+        });
     }
 
-    println!(
-        "\n{total} violation(s) in {} transaction(s)",
-        transactions.len()
-    );
+    let total = findings.iter().map(|f| f.violations.len()).sum();
+    write_stdout(&render_lint_report(
+        &findings,
+        total,
+        transactions.len(),
+        format,
+    )?)?;
     Ok(total)
+}
+
+/// One transaction's surviving findings, for `lint` output. The JSON form
+/// mirrors the text block: request line fields plus the violation list
+/// (`status` is `null` for transactions that never got a response).
+#[derive(serde::Serialize)]
+struct TransactionFindings {
+    method: String,
+    uri: String,
+    status: Option<u16>,
+    violations: Vec<lint::Violation>,
+}
+
+/// Render the `lint` report: the text form ends with a human summary line; the
+/// JSON form is a bare array of [`TransactionFindings`] so it stays
+/// machine-parseable.
+fn render_lint_report(
+    findings: &[TransactionFindings],
+    total: usize,
+    transaction_count: usize,
+    format: OutputFormat,
+) -> anyhow::Result<String> {
+    match format {
+        OutputFormat::Json => Ok(format!("{}\n", serde_json::to_string_pretty(findings)?)),
+        OutputFormat::Text => {
+            use std::fmt::Write;
+            let mut out = String::new();
+            for f in findings {
+                let status = f
+                    .status
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "-".to_string());
+                writeln!(out, "{} {} -> {}", f.method, f.uri, status)?;
+                for v in &f.violations {
+                    writeln!(
+                        out,
+                        "  {:<5} {}  {}",
+                        severity_label(v.severity),
+                        v.rule,
+                        v.message
+                    )?;
+                }
+            }
+            writeln!(
+                out,
+                "\n{total} violation(s) in {transaction_count} transaction(s)"
+            )?;
+            Ok(out)
+        }
+    }
 }
 
 /// Run the selected subcommand and return the process exit code (`0` success,
@@ -286,7 +363,13 @@ async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
         // Non-zero exit when findings exist, so CI fails on a dirty capture;
         // real errors (bad config / missing file) still bubble up as `Err`.
         Some(Command::Lint(args)) => {
-            let found = lint_app(&args.config, &args.captures).await?;
+            let found = lint_app(
+                &args.config,
+                &args.captures,
+                args.format,
+                args.min_severity.into(),
+            )
+            .await?;
             Ok(if found > 0 { 1 } else { 0 })
         }
         Some(Command::Rules(args)) => match args.command {
@@ -411,7 +494,13 @@ severity = "warn"
         // 200 without Cache-Control -> one violation.
         let caps = write_capture_file(&[make_test_transaction_with_response(200, &[])]).await?;
 
-        let found = lint_app(cfg.to_str().unwrap(), caps.to_str().unwrap()).await?;
+        let found = lint_app(
+            cfg.to_str().unwrap(),
+            caps.to_str().unwrap(),
+            OutputFormat::Text,
+            lint::Severity::Info,
+        )
+        .await?;
         assert_eq!(found, 1);
 
         fs::remove_file(&cfg).await?;
@@ -431,7 +520,13 @@ severity = "warn"
         )])
         .await?;
 
-        let found = lint_app(cfg.to_str().unwrap(), caps.to_str().unwrap()).await?;
+        let found = lint_app(
+            cfg.to_str().unwrap(),
+            caps.to_str().unwrap(),
+            OutputFormat::Text,
+            lint::Severity::Info,
+        )
+        .await?;
         assert_eq!(found, 0);
 
         fs::remove_file(&cfg).await?;
@@ -445,7 +540,13 @@ severity = "warn"
         let caps = std::env::temp_dir().join(format!("lint_lint_empty_{}.jsonl", Uuid::new_v4()));
         fs::write(&caps, "").await?;
 
-        let found = lint_app(cfg.to_str().unwrap(), caps.to_str().unwrap()).await?;
+        let found = lint_app(
+            cfg.to_str().unwrap(),
+            caps.to_str().unwrap(),
+            OutputFormat::Text,
+            lint::Severity::Info,
+        )
+        .await?;
         assert_eq!(found, 0);
 
         fs::remove_file(&cfg).await?;
@@ -456,10 +557,129 @@ severity = "warn"
     #[tokio::test]
     async fn lint_missing_capture_file_errors() -> anyhow::Result<()> {
         let cfg = write_cache_control_config().await?;
-        let result = lint_app(cfg.to_str().unwrap(), "/nonexistent/does-not-exist.jsonl").await;
+        let result = lint_app(
+            cfg.to_str().unwrap(),
+            "/nonexistent/does-not-exist.jsonl",
+            OutputFormat::Text,
+            lint::Severity::Info,
+        )
+        .await;
         assert!(result.is_err());
 
         fs::remove_file(&cfg).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn lint_min_severity_gates_findings_and_exit_code() -> anyhow::Result<()> {
+        use lint_http_core::test_helpers::make_test_transaction_with_response;
+
+        // The config rates the rule `warn`, so an `error` gate filters it out…
+        let cfg = write_cache_control_config().await?;
+        let caps = write_capture_file(&[make_test_transaction_with_response(200, &[])]).await?;
+
+        let found = lint_app(
+            cfg.to_str().unwrap(),
+            caps.to_str().unwrap(),
+            OutputFormat::Text,
+            lint::Severity::Error,
+        )
+        .await?;
+        assert_eq!(found, 0, "warn finding must not survive an error gate");
+
+        // …while a `warn` gate keeps it.
+        let found = lint_app(
+            cfg.to_str().unwrap(),
+            caps.to_str().unwrap(),
+            OutputFormat::Text,
+            lint::Severity::Warn,
+        )
+        .await?;
+        assert_eq!(found, 1);
+
+        fs::remove_file(&cfg).await?;
+        fs::remove_file(&caps).await?;
+        Ok(())
+    }
+
+    #[test]
+    fn cli_lint_parses_format_and_min_severity() {
+        let cli = Cli::parse_from([
+            "lint-http",
+            "lint",
+            "--config",
+            "c.toml",
+            "--format",
+            "json",
+            "--min-severity",
+            "warn",
+            "caps.jsonl",
+        ]);
+        match cli.command {
+            Some(Command::Lint(args)) => {
+                assert!(matches!(args.format, OutputFormat::Json));
+                assert!(matches!(args.min_severity, SeverityArg::Warn));
+            }
+            other => panic!("expected Lint, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cli_lint_defaults_to_text_and_info() {
+        let cli = Cli::parse_from(["lint-http", "lint", "--config", "c.toml", "caps.jsonl"]);
+        match cli.command {
+            Some(Command::Lint(args)) => {
+                assert!(matches!(args.format, OutputFormat::Text));
+                assert!(matches!(args.min_severity, SeverityArg::Info));
+            }
+            other => panic!("expected Lint, got {other:?}"),
+        }
+    }
+
+    fn sample_findings() -> Vec<TransactionFindings> {
+        vec![TransactionFindings {
+            method: "GET".to_string(),
+            uri: "http://example.test/".to_string(),
+            status: Some(200),
+            violations: vec![lint::Violation {
+                rule: "server_cache_control_present".to_string(),
+                severity: lint::Severity::Warn,
+                message: "missing Cache-Control".to_string(),
+            }],
+        }]
+    }
+
+    #[test]
+    fn render_lint_report_json_mirrors_the_text_block() -> anyhow::Result<()> {
+        let out = render_lint_report(&sample_findings(), 1, 3, OutputFormat::Json)?;
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0]["method"], "GET");
+        assert_eq!(parsed[0]["status"], 200);
+        assert_eq!(
+            parsed[0]["violations"][0]["rule"],
+            "server_cache_control_present"
+        );
+        assert_eq!(parsed[0]["violations"][0]["severity"], "warn");
+        Ok(())
+    }
+
+    #[test]
+    fn render_lint_report_json_null_status_for_no_response() -> anyhow::Result<()> {
+        let mut findings = sample_findings();
+        findings[0].status = None;
+        let out = render_lint_report(&findings, 1, 1, OutputFormat::Json)?;
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
+        assert!(parsed[0]["status"].is_null());
+        Ok(())
+    }
+
+    #[test]
+    fn render_lint_report_text_has_summary_line() -> anyhow::Result<()> {
+        let out = render_lint_report(&sample_findings(), 1, 3, OutputFormat::Text)?;
+        assert!(out.contains("GET http://example.test/ -> 200"));
+        assert!(out.contains("warn  server_cache_control_present"));
+        assert!(out.ends_with("1 violation(s) in 3 transaction(s)\n"));
         Ok(())
     }
 

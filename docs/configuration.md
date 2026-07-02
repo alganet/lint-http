@@ -15,8 +15,8 @@ subcommand using the `--config` CLI argument.
 
 - `run --config <PATH>`: Start the intercepting proxy. `<PATH>` is the TOML
   configuration file (mandatory).
-- `lint --config <PATH> <CAPTURES>`: Lint a recorded capture file offline
-  (see below).
+- `lint --config <PATH> [--format text|json] [--min-severity info|warn|error]
+  <CAPTURES>`: Lint a recorded capture file offline (see below).
 - `rules list [--format text|json]`: List every rule and its metadata (id,
   scope, title, and — in JSON — description and spec references). No config or
   proxy needed; it prints the static catalogue.
@@ -53,6 +53,17 @@ the signal for CI:
 - **0** — no violations found.
 - **1** — violations found, or an error occurred (e.g. missing capture file,
   malformed config).
+
+Two flags shape the report:
+
+- `--format text|json` (default `text`): `json` emits a machine-parseable array
+  with one object per offending transaction (`method`, `uri`, `status` —
+  `null` when the transaction got no response — and its `violations`, each with
+  `rule`, `severity`, `message`).
+- `--min-severity info|warn|error` (default `info`): drop findings below the
+  given severity from the report *and* from the exit-code decision — with
+  `--min-severity error`, warn-level findings no longer fail CI. Stateful rules
+  still see every transaction; only the reporting is gated.
 
 The `--config` file is the same TOML used by `run`; `lint` reads only the
 `[rules]` toggles/severities and the `[general]` `ttl_seconds` / `max_history`
