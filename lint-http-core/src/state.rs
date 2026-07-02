@@ -52,6 +52,10 @@ pub struct StateStore {
     /// Index mapping connection UUID to the resource keys whose entries belong
     /// to that connection.  Used by `get_history_for_connection`.
     connection_index: Arc<RwLock<HashMap<Uuid, Vec<ResourceKey>>>>,
+    /// Index mapping client to the resource strings it has entries for.  Lets
+    /// `collect_for_client` (behind the origin-scoped queries) read just that
+    /// client's keys instead of scanning every key in `store`.
+    client_index: Arc<RwLock<HashMap<ClientIdentifier, Vec<String>>>>,
     ttl: Duration,
     max_history: usize,
 }
@@ -62,6 +66,7 @@ impl StateStore {
             store: Arc::new(RwLock::new(HashMap::new())),
             resource_index: Arc::new(RwLock::new(HashMap::new())),
             connection_index: Arc::new(RwLock::new(HashMap::new())),
+            client_index: Arc::new(RwLock::new(HashMap::new())),
             ttl: Duration::from_secs(ttl_seconds),
             max_history,
         }
@@ -95,10 +100,19 @@ impl StateStore {
         };
 
         if is_new {
-            let mut idx = self.resource_index.write();
-            let clients = idx.entry(key.resource.clone()).or_default();
-            if !clients.iter().any(|c| c == &key.client) {
-                clients.push(key.client.clone());
+            {
+                let mut idx = self.resource_index.write();
+                let clients = idx.entry(key.resource.clone()).or_default();
+                if !clients.iter().any(|c| c == &key.client) {
+                    clients.push(key.client.clone());
+                }
+            }
+            {
+                let mut idx = self.client_index.write();
+                let resources = idx.entry(key.client.clone()).or_default();
+                if !resources.iter().any(|r| r == &key.resource) {
+                    resources.push(key.resource.clone());
+                }
             }
         }
 
@@ -179,14 +193,32 @@ impl StateStore {
     }
     /// Collect all transactions for a given client across all resources (newest first per resource).
     ///
-    /// Used by origin-based queries that need to scan across URIs.
+    /// Used by origin-based queries that need to scan across URIs. Reads the
+    /// client's resource list from `client_index`, so the cost scales with that
+    /// client's history rather than the whole store.
     pub fn collect_for_client(&self, client: &ClientIdentifier) -> Vec<SharedTransaction> {
-        self.store
-            .read()
-            .iter()
-            .filter(|(k, _)| &k.client == client)
-            .flat_map(|(_, dq)| dq.iter().cloned())
-            .collect()
+        // Clone the resource list first, then release the index lock before
+        // acquiring the store lock to avoid lock-order inversion.
+        let resources = {
+            let idx = self.client_index.read();
+            match idx.get(client) {
+                Some(r) => r.clone(),
+                None => return Vec::new(),
+            }
+        };
+
+        let store = self.store.read();
+        let mut entries = Vec::new();
+        for resource in resources {
+            let key = ResourceKey {
+                client: client.clone(),
+                resource,
+            };
+            if let Some(dq) = store.get(&key) {
+                entries.extend(dq.iter().cloned());
+            }
+        }
+        entries
     }
 
     /// Retrieve all transactions that share the given `connection_id`.
@@ -266,6 +298,18 @@ impl StateStore {
                     keys.retain(|k| !removed_keys.contains(k));
                     !keys.is_empty()
                 });
+            }
+
+            {
+                let mut idx = self.client_index.write();
+                for key in &removed_keys {
+                    if let Some(resources) = idx.get_mut(&key.client) {
+                        resources.retain(|r| r != &key.resource);
+                        if resources.is_empty() {
+                            idx.remove(&key.client);
+                        }
+                    }
+                }
             }
         }
     }
@@ -793,6 +837,53 @@ mod tests {
             !idx.contains_key(&conn_id),
             "connection_index should be pruned after cleanup"
         );
+    }
+
+    #[test]
+    fn cleanup_expired_prunes_client_index() {
+        let store = StateStore::new(1, 10); // 1-second TTL
+        let client = make_client();
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.client = client.clone();
+        tx.request.uri = "http://example.com/client-cleanup".to_string();
+        store.record_transaction(&tx);
+
+        {
+            let idx = store.client_index.read();
+            assert!(idx.contains_key(&client));
+        }
+
+        // Wait for expiry
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        store.cleanup_expired();
+
+        let idx = store.client_index.read();
+        assert!(
+            !idx.contains_key(&client),
+            "client_index should be pruned after cleanup"
+        );
+        drop(idx);
+        assert!(store.collect_for_client(&client).is_empty());
+    }
+
+    #[test]
+    fn client_index_no_duplicate_resources() {
+        let store = StateStore::new(300, 10);
+        let client = make_client();
+
+        // Two transactions on the same resource → one index entry.
+        for i in 0..2u16 {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200 + i, &[]);
+            tx.client = client.clone();
+            tx.request.uri = "http://example.com/dup".to_string();
+            store.record_transaction(&tx);
+        }
+
+        let idx = store.client_index.read();
+        assert_eq!(idx.get(&client).map(|r| r.len()), Some(1));
+        drop(idx);
+        assert_eq!(store.collect_for_client(&client).len(), 2);
     }
 
     #[test]
