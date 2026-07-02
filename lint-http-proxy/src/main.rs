@@ -5,7 +5,10 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use std::net::SocketAddr;
 
-use lint_http::{capture, config, engine, gendocs, lint, proxy, rules, state};
+use lint_http::{
+    capture, config, engine, gendocs, lint, protocol_event, protocol_event_store, proxy, rules,
+    state,
+};
 
 #[derive(Parser, Debug)]
 #[command(name = "lint-http", version, about = "HTTP-linting forward proxy")]
@@ -22,7 +25,8 @@ struct Cli {
 enum Command {
     /// Run the intercepting proxy (config-driven).
     Run(RunArgs),
-    /// Lint a recorded capture file, replaying its transactions through the rules.
+    /// Lint a recorded capture file, replaying its transactions and WebSocket
+    /// sessions through the rules.
     Lint(LintArgs),
     /// Inspect the rule catalogue.
     Rules(RulesArgs),
@@ -286,15 +290,18 @@ fn rules_list(format: OutputFormat, cfg: Option<&config::Config>) -> anyhow::Res
     }
 }
 
-/// Lint a recorded capture file by replaying its transactions through the rule
+/// Lint a recorded capture file by replaying its records through the rule
 /// engine, printing violations to stdout. Returns the number of violations found
 /// so the caller can map it to an exit code.
 ///
 /// The replay mirrors the live proxy pipeline: each transaction is linted against
 /// the history of prior transactions, then recorded — so stateful rules see the
-/// same history they would live. The state store's TTL never evicts here (the
-/// read path applies no age filter and `cleanup_expired` is never called), so the
-/// whole file is visible regardless of how old the records are.
+/// same history they would live. WebSocket session records are replayed
+/// per-message through the protocol rules (rebuilding the frame events the live
+/// relay emits); their live-recorded `violations` field is ignored — replay
+/// re-lints from the message metadata under the *current* config. The stores'
+/// TTLs never evict here (the read paths apply no age filter and cleanup is
+/// never called), so the whole file is visible regardless of record age.
 async fn lint_app(
     config_path: &str,
     captures_path: &str,
@@ -302,43 +309,122 @@ async fn lint_app(
     min_severity: lint::Severity,
 ) -> anyhow::Result<usize> {
     let cfg = load_validated_config(config_path).await?;
-    // `load_captures` tolerates a missing file (it backs the proxy's optional
-    // cold-start seeding). For an explicit `lint <file>` a missing path is a user
-    // error — fail loudly rather than letting CI pass green on a typo'd path.
+    // `load_capture_records` tolerates a missing file (it backs the proxy's
+    // optional cold-start seeding). For an explicit `lint <file>` a missing path
+    // is a user error — fail loudly rather than letting CI pass green on a
+    // typo'd path.
     if !tokio::fs::try_exists(captures_path).await.unwrap_or(false) {
         anyhow::bail!("capture file not found: {captures_path}");
     }
-    let transactions = capture::load_captures(captures_path).await?;
+    let records = capture::load_capture_records(captures_path).await?;
     let state = state::StateStore::new(cfg.general.ttl_seconds, cfg.general.max_history);
+    let event_store =
+        protocol_event_store::ProtocolEventStore::new(cfg.general.ttl_seconds, EVENTS_PER_SESSION);
     // Precompute the enabled rule set once, then reuse it across the replay.
     let engine = engine::PreparedEngine::new(&cfg);
 
     let mut findings = Vec::new();
-    for tx in &transactions {
-        let mut violations = engine.lint_transaction(tx, &cfg, &state);
-        // Record *before* gating: stateful rules must see every transaction in
-        // the file regardless of what the report includes.
-        state.record_transaction(tx);
-        violations.retain(|v| v.severity >= min_severity);
-        if violations.is_empty() {
-            continue;
+    let mut tx_count = 0usize;
+    let mut ws_count = 0usize;
+    for record in &records {
+        match record {
+            capture::CaptureRecord::HttpTransaction(tx) => {
+                tx_count += 1;
+                let mut violations = engine.lint_transaction(tx, &cfg, &state);
+                // Record *before* gating: stateful rules must see every
+                // transaction in the file regardless of what the report includes.
+                state.record_transaction(tx);
+                violations.retain(|v| v.severity >= min_severity);
+                if violations.is_empty() {
+                    continue;
+                }
+                findings.push(FindingsBlock::HttpTransaction(TransactionFindings {
+                    method: tx.request.method.clone(),
+                    uri: tx.request.uri.clone(),
+                    status: tx.response.as_ref().map(|r| r.status),
+                    violations,
+                }));
+            }
+            capture::CaptureRecord::WebsocketSession(session) => {
+                ws_count += 1;
+                let mut violations = lint_websocket_session(session, &cfg, &engine, &event_store);
+                violations.retain(|v| v.severity >= min_severity);
+                if violations.is_empty() {
+                    continue;
+                }
+                findings.push(FindingsBlock::WebsocketSession(WebsocketFindings {
+                    session_id: session.id,
+                    transaction_id: session.transaction_id,
+                    close_code: session.close_code,
+                    violations,
+                }));
+            }
         }
-        findings.push(TransactionFindings {
-            method: tx.request.method.clone(),
-            uri: tx.request.uri.clone(),
-            status: tx.response.as_ref().map(|r| r.status),
-            violations,
-        });
     }
 
-    let total = findings.iter().map(|f| f.violations.len()).sum();
+    let total = findings.iter().map(|f| f.violations().len()).sum();
     write_stdout(&render_lint_report(
-        &findings,
-        total,
-        transactions.len(),
-        format,
+        &findings, total, tx_count, ws_count, format,
     )?)?;
     Ok(total)
+}
+
+/// Cap on protocol events retained per replay key. A capture's session record
+/// bounds its own message list, so this only guards against a pathological
+/// hand-edited file; sized to keep whole realistic sessions visible to the
+/// sequence rules.
+const EVENTS_PER_SESSION: usize = 10_000;
+
+/// Replay one captured WebSocket session through the protocol rules, mirroring
+/// the live relay: each message becomes the frame event `ws_frame_event` would
+/// have built, is linted against the session's prior events, then recorded.
+/// The captured session has no connection id, so the session id stands in as
+/// the history key — live grouping is per connection, but the WebSocket
+/// sequence rules already filter history by `session_id`, so the narrower key
+/// changes nothing for them.
+fn lint_websocket_session(
+    session: &lint_http::websocket_session::WebSocketSession,
+    cfg: &config::Config,
+    engine: &engine::PreparedEngine,
+    event_store: &protocol_event_store::ProtocolEventStore,
+) -> Vec<lint::Violation> {
+    let mut violations = Vec::new();
+    for msg in &session.messages {
+        let event = protocol_event::ProtocolEvent {
+            // Per-message timestamps aren't captured; the session's stands in.
+            timestamp: session.timestamp,
+            connection_id: session.id,
+            kind: protocol_event::ProtocolEventKind::WebSocketFrame {
+                session_id: session.id,
+                direction: msg.direction,
+                fin: msg.fin,
+                opcode: msg.opcode,
+                rsv: msg.rsv,
+                payload_length: msg.payload_length,
+            },
+        };
+        violations.extend(engine.lint_protocol_event(&event, cfg, event_store));
+        event_store.record_event(&event);
+    }
+    violations
+}
+
+/// One capture record's surviving findings, tagged by record kind in the JSON
+/// output (`"kind": "http_transaction" | "websocket_session"`).
+#[derive(serde::Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum FindingsBlock {
+    HttpTransaction(TransactionFindings),
+    WebsocketSession(WebsocketFindings),
+}
+
+impl FindingsBlock {
+    fn violations(&self) -> &[lint::Violation] {
+        match self {
+            FindingsBlock::HttpTransaction(f) => &f.violations,
+            FindingsBlock::WebsocketSession(f) => &f.violations,
+        }
+    }
 }
 
 /// One transaction's surviving findings, for `lint` output. The JSON form
@@ -352,13 +438,25 @@ struct TransactionFindings {
     violations: Vec<lint::Violation>,
 }
 
+/// One replayed WebSocket session's surviving findings (`close_code` is `null`
+/// when the session ended without a Close frame).
+#[derive(serde::Serialize)]
+struct WebsocketFindings {
+    session_id: uuid::Uuid,
+    transaction_id: uuid::Uuid,
+    close_code: Option<u16>,
+    violations: Vec<lint::Violation>,
+}
+
 /// Render the `lint` report: the text form ends with a human summary line; the
-/// JSON form is a bare array of [`TransactionFindings`] so it stays
-/// machine-parseable.
+/// JSON form is a bare array of [`FindingsBlock`]s so it stays
+/// machine-parseable. The summary mentions websocket sessions only when the
+/// capture had any, so pure-HTTP output is unchanged.
 fn render_lint_report(
-    findings: &[TransactionFindings],
+    findings: &[FindingsBlock],
     total: usize,
     transaction_count: usize,
+    websocket_count: usize,
     format: OutputFormat,
 ) -> anyhow::Result<String> {
     match format {
@@ -366,13 +464,28 @@ fn render_lint_report(
         OutputFormat::Text => {
             use std::fmt::Write;
             let mut out = String::new();
-            for f in findings {
-                let status = f
-                    .status
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| "-".to_string());
-                writeln!(out, "{} {} -> {}", f.method, f.uri, status)?;
-                for v in &f.violations {
+            for block in findings {
+                match block {
+                    FindingsBlock::HttpTransaction(f) => {
+                        let status = f
+                            .status
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| "-".to_string());
+                        writeln!(out, "{} {} -> {}", f.method, f.uri, status)?;
+                    }
+                    FindingsBlock::WebsocketSession(f) => {
+                        let close = f
+                            .close_code
+                            .map(|c| c.to_string())
+                            .unwrap_or_else(|| "-".to_string());
+                        writeln!(
+                            out,
+                            "websocket session {} (upgrade {}) -> close {}",
+                            f.session_id, f.transaction_id, close
+                        )?;
+                    }
+                }
+                for v in block.violations() {
                     writeln!(
                         out,
                         "  {:<5} {}  {}",
@@ -382,10 +495,14 @@ fn render_lint_report(
                     )?;
                 }
             }
-            writeln!(
+            write!(
                 out,
                 "\n{total} violation(s) in {transaction_count} transaction(s)"
             )?;
+            if websocket_count > 0 {
+                write!(out, " and {websocket_count} websocket session(s)")?;
+            }
+            out.push('\n');
             Ok(out)
         }
     }
@@ -615,6 +732,141 @@ severity = "warn"
         Ok(())
     }
 
+    // Write a config that enables only the WebSocket opcode-sequence protocol
+    // rule and return its temp path.
+    async fn write_ws_opcode_config() -> anyhow::Result<std::path::PathBuf> {
+        let tmp = std::env::temp_dir().join(format!("lint_ws_cfg_{}.toml", Uuid::new_v4()));
+        let toml = r#"[general]
+listen = "127.0.0.1:3000"
+captures = "captures.jsonl"
+
+[tls]
+enabled = false
+
+[rules.stateful_websocket_frame_opcode_sequence]
+enabled = true
+severity = "warn"
+"#;
+        fs::write(&tmp, toml).await?;
+        Ok(tmp)
+    }
+
+    fn ws_message(
+        direction: lint_http::websocket_session::MessageDirection,
+        opcode: u8,
+        payload_length: u64,
+    ) -> lint_http::websocket_session::WebSocketMessageInfo {
+        lint_http::websocket_session::WebSocketMessageInfo {
+            direction,
+            opcode,
+            payload_length,
+            fin: true,
+            rsv: 0,
+        }
+    }
+
+    // Serialize a WebSocket session into a JSONL capture file the way the
+    // proxy's CaptureWriter would, and return its temp path.
+    async fn write_ws_capture_file(
+        session: lint_http::websocket_session::WebSocketSession,
+    ) -> anyhow::Result<std::path::PathBuf> {
+        let tmp = std::env::temp_dir().join(format!("lint_ws_caps_{}.jsonl", Uuid::new_v4()));
+        let envelope = capture::CaptureEnvelope::new(capture::CaptureRecord::WebsocketSession(
+            Box::new(session),
+        ));
+        fs::write(&tmp, format!("{}\n", serde_json::to_string(&envelope)?)).await?;
+        Ok(tmp)
+    }
+
+    #[tokio::test]
+    async fn lint_replays_websocket_sessions_through_protocol_rules() -> anyhow::Result<()> {
+        use lint_http::websocket_session::{MessageDirection, WebSocketSession};
+
+        let cfg = write_ws_opcode_config().await?;
+        // Reserved opcode 3 → one violation from the opcode-sequence rule.
+        let mut session = WebSocketSession::new(Uuid::new_v4());
+        session
+            .messages
+            .push(ws_message(MessageDirection::Client, 3, 5));
+        let caps = write_ws_capture_file(session).await?;
+
+        let found = lint_app(
+            cfg.to_str().unwrap(),
+            caps.to_str().unwrap(),
+            OutputFormat::Text,
+            lint::Severity::Info,
+        )
+        .await?;
+        assert_eq!(found, 1);
+
+        fs::remove_file(&cfg).await?;
+        fs::remove_file(&caps).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn lint_websocket_data_after_close_is_flagged_statefully() -> anyhow::Result<()> {
+        use lint_http::websocket_session::{MessageDirection, WebSocketSession};
+
+        let cfg = write_ws_opcode_config().await?;
+        // Close then a data frame in the same direction — only detectable when
+        // the replay feeds prior frames into the session history.
+        let mut session = WebSocketSession::new(Uuid::new_v4());
+        session
+            .messages
+            .push(ws_message(MessageDirection::Client, 8, 2));
+        session
+            .messages
+            .push(ws_message(MessageDirection::Client, 1, 4));
+        session.close_code = Some(1000);
+        let caps = write_ws_capture_file(session).await?;
+
+        let found = lint_app(
+            cfg.to_str().unwrap(),
+            caps.to_str().unwrap(),
+            OutputFormat::Text,
+            lint::Severity::Info,
+        )
+        .await?;
+        assert_eq!(found, 1);
+
+        fs::remove_file(&cfg).await?;
+        fs::remove_file(&caps).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn lint_clean_websocket_session_reports_zero() -> anyhow::Result<()> {
+        use lint_http::websocket_session::{MessageDirection, WebSocketSession};
+
+        let cfg = write_ws_opcode_config().await?;
+        let mut session = WebSocketSession::new(Uuid::new_v4());
+        session
+            .messages
+            .push(ws_message(MessageDirection::Client, 1, 5));
+        session
+            .messages
+            .push(ws_message(MessageDirection::Server, 1, 7));
+        session
+            .messages
+            .push(ws_message(MessageDirection::Client, 8, 2));
+        session.close_code = Some(1000);
+        let caps = write_ws_capture_file(session).await?;
+
+        let found = lint_app(
+            cfg.to_str().unwrap(),
+            caps.to_str().unwrap(),
+            OutputFormat::Text,
+            lint::Severity::Info,
+        )
+        .await?;
+        assert_eq!(found, 0);
+
+        fs::remove_file(&cfg).await?;
+        fs::remove_file(&caps).await?;
+        Ok(())
+    }
+
     #[tokio::test]
     async fn lint_min_severity_gates_findings_and_exit_code() -> anyhow::Result<()> {
         use lint_http_core::test_helpers::make_test_transaction_with_response;
@@ -681,24 +933,29 @@ severity = "warn"
         }
     }
 
-    fn sample_findings() -> Vec<TransactionFindings> {
-        vec![TransactionFindings {
+    fn sample_violation() -> lint::Violation {
+        lint::Violation {
+            rule: "server_cache_control_present".to_string(),
+            severity: lint::Severity::Warn,
+            message: "missing Cache-Control".to_string(),
+        }
+    }
+
+    fn sample_findings() -> Vec<FindingsBlock> {
+        vec![FindingsBlock::HttpTransaction(TransactionFindings {
             method: "GET".to_string(),
             uri: "http://example.test/".to_string(),
             status: Some(200),
-            violations: vec![lint::Violation {
-                rule: "server_cache_control_present".to_string(),
-                severity: lint::Severity::Warn,
-                message: "missing Cache-Control".to_string(),
-            }],
-        }]
+            violations: vec![sample_violation()],
+        })]
     }
 
     #[test]
     fn render_lint_report_json_mirrors_the_text_block() -> anyhow::Result<()> {
-        let out = render_lint_report(&sample_findings(), 1, 3, OutputFormat::Json)?;
+        let out = render_lint_report(&sample_findings(), 1, 3, 0, OutputFormat::Json)?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
         assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0]["kind"], "http_transaction");
         assert_eq!(parsed[0]["method"], "GET");
         assert_eq!(parsed[0]["status"], 200);
         assert_eq!(
@@ -711,9 +968,13 @@ severity = "warn"
 
     #[test]
     fn render_lint_report_json_null_status_for_no_response() -> anyhow::Result<()> {
-        let mut findings = sample_findings();
-        findings[0].status = None;
-        let out = render_lint_report(&findings, 1, 1, OutputFormat::Json)?;
+        let findings = vec![FindingsBlock::HttpTransaction(TransactionFindings {
+            method: "GET".to_string(),
+            uri: "http://example.test/".to_string(),
+            status: None,
+            violations: vec![sample_violation()],
+        })];
+        let out = render_lint_report(&findings, 1, 1, 0, OutputFormat::Json)?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
         assert!(parsed[0]["status"].is_null());
         Ok(())
@@ -721,10 +982,36 @@ severity = "warn"
 
     #[test]
     fn render_lint_report_text_has_summary_line() -> anyhow::Result<()> {
-        let out = render_lint_report(&sample_findings(), 1, 3, OutputFormat::Text)?;
+        let out = render_lint_report(&sample_findings(), 1, 3, 0, OutputFormat::Text)?;
         assert!(out.contains("GET http://example.test/ -> 200"));
         assert!(out.contains("warn  server_cache_control_present"));
+        // No websocket sessions in the capture → summary is the pure-HTTP form.
         assert!(out.ends_with("1 violation(s) in 3 transaction(s)\n"));
+        Ok(())
+    }
+
+    #[test]
+    fn render_lint_report_websocket_block_in_both_formats() -> anyhow::Result<()> {
+        let session_id = Uuid::new_v4();
+        let transaction_id = Uuid::new_v4();
+        let findings = vec![FindingsBlock::WebsocketSession(WebsocketFindings {
+            session_id,
+            transaction_id,
+            close_code: Some(1000),
+            violations: vec![sample_violation()],
+        })];
+
+        let text = render_lint_report(&findings, 1, 0, 2, OutputFormat::Text)?;
+        assert!(text.contains(&format!(
+            "websocket session {session_id} (upgrade {transaction_id}) -> close 1000"
+        )));
+        assert!(text.ends_with("1 violation(s) in 0 transaction(s) and 2 websocket session(s)\n"));
+
+        let json = render_lint_report(&findings, 1, 0, 2, OutputFormat::Json)?;
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&json)?;
+        assert_eq!(parsed[0]["kind"], "websocket_session");
+        assert_eq!(parsed[0]["session_id"], session_id.to_string());
+        assert_eq!(parsed[0]["close_code"], 1000);
         Ok(())
     }
 
