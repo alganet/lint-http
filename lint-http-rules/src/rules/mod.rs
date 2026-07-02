@@ -36,7 +36,10 @@ pub enum RuleScope {
 
 /// Whether an [`Example`] illustrates traffic the rule accepts or rejects.
 /// Maps to the ✅ Good / ❌ Bad sections of `docs/rules/TEMPLATE.md`.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// Serializes as `"compliant"` / `"non_compliant"` for
+/// `rules list --format json`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Compliance {
     /// Traffic the rule accepts (a "✅ Good" docs example).
     Compliant,
@@ -48,7 +51,7 @@ pub enum Compliance {
 /// whether the rule accepts or rejects it. Consumed by the docs generator
 /// (#11b) and `rules list` (#18c). Intrinsic to the rule, so it lives in the
 /// rule crate alongside the trait rather than in downstream tooling.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, serde::Serialize)]
 pub struct Example {
     pub compliance: Compliance,
     /// Optional heading suffix, rendered after `Good`/`Bad` in the doc

@@ -6,8 +6,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use std::net::SocketAddr;
 
 use lint_http::{
-    capture, config, engine, gendocs, lint, protocol_event, protocol_event_store, proxy, rules,
-    state,
+    capture, config, engine, gendocs, lint, protocol_event_store, proxy, rules, state,
 };
 
 #[derive(Parser, Debug)]
@@ -206,61 +205,53 @@ struct RuleInfo {
     title: Option<&'static str>,
     description: &'static str,
     rfc_references: &'static [&'static str],
-    examples: Vec<ExampleInfo>,
+    examples: &'static [rules::Example],
     #[serde(skip_serializing_if = "Option::is_none")]
     enabled: Option<bool>,
 }
 
-/// serde mirror of [`rules::Example`] (which lives below the serialization
-/// boundary and doesn't derive it).
-#[derive(serde::Serialize)]
-struct ExampleInfo {
-    compliance: &'static str,
-    label: Option<&'static str>,
-    snippet: &'static str,
-}
-
-fn example_info(examples: &'static [rules::Example]) -> Vec<ExampleInfo> {
-    examples
-        .iter()
-        .map(|e| ExampleInfo {
-            compliance: match e.compliance {
-                rules::Compliance::Compliant => "compliant",
-                rules::Compliance::NonCompliant => "non_compliant",
-            },
-            label: e.label,
-            snippet: e.snippet,
-        })
-        .collect()
-}
-
 /// Collect every transaction rule then every protocol rule, each already
 /// id-sorted by its `LazyLock` view. `cfg` (from `--config`) fills `enabled`.
+/// The two rule traits share their metadata surface, so each iterator only
+/// extracts a tuple and the `RuleInfo` literal exists once.
 fn collect_rule_info(cfg: Option<&config::Config>) -> Vec<RuleInfo> {
-    let mut infos: Vec<RuleInfo> = rules::RULES
-        .iter()
-        .map(|r| RuleInfo {
-            id: r.id(),
-            kind: "transaction",
-            scope: scope_label(r.scope()),
-            title: r.title(),
-            description: r.description(),
-            rfc_references: r.rfc_references(),
-            examples: example_info(r.examples()),
-            enabled: cfg.map(|c| c.is_enabled(r.id())),
-        })
-        .collect();
-    infos.extend(rules::PROTOCOL_RULES.iter().map(|r| RuleInfo {
-        id: r.id(),
-        kind: "protocol",
-        scope: "protocol",
-        title: r.title(),
-        description: r.description(),
-        rfc_references: r.rfc_references(),
-        examples: example_info(r.examples()),
-        enabled: cfg.map(|c| c.is_enabled(r.id())),
-    }));
-    infos
+    let transaction = rules::RULES.iter().map(|r| {
+        (
+            r.id(),
+            "transaction",
+            scope_label(r.scope()),
+            r.title(),
+            r.description(),
+            r.rfc_references(),
+            r.examples(),
+        )
+    });
+    let protocol = rules::PROTOCOL_RULES.iter().map(|r| {
+        (
+            r.id(),
+            "protocol",
+            "protocol",
+            r.title(),
+            r.description(),
+            r.rfc_references(),
+            r.examples(),
+        )
+    });
+    transaction
+        .chain(protocol)
+        .map(
+            |(id, kind, scope, title, description, rfc_references, examples)| RuleInfo {
+                id,
+                kind,
+                scope,
+                title,
+                description,
+                rfc_references,
+                examples,
+                enabled: cfg.map(|c| c.is_enabled(id)),
+            },
+        )
+        .collect()
 }
 
 /// Render the rule catalogue. Returns the output string so the dispatch arm can
@@ -318,36 +309,35 @@ async fn lint_app(
     }
     let records = capture::load_capture_records(captures_path).await?;
     let state = state::StateStore::new(cfg.general.ttl_seconds, cfg.general.max_history);
-    let event_store =
-        protocol_event_store::ProtocolEventStore::new(cfg.general.ttl_seconds, EVENTS_PER_SESSION);
     // Precompute the enabled rule set once, then reuse it across the replay.
     let engine = engine::PreparedEngine::new(&cfg);
 
     let mut findings = Vec::new();
     let mut tx_count = 0usize;
     let mut ws_count = 0usize;
-    for record in &records {
+    for record in records {
         match record {
             capture::CaptureRecord::HttpTransaction(tx) => {
                 tx_count += 1;
-                let mut violations = engine.lint_transaction(tx, &cfg, &state);
+                let mut violations = engine.lint_transaction(&tx, &cfg, &state);
                 // Record *before* gating: stateful rules must see every
                 // transaction in the file regardless of what the report includes.
-                state.record_transaction(tx);
+                state.record_transaction(&tx);
                 violations.retain(|v| v.severity >= min_severity);
                 if violations.is_empty() {
                     continue;
                 }
+                // The record is owned, so the report fields move out of it.
                 findings.push(FindingsBlock::HttpTransaction(TransactionFindings {
-                    method: tx.request.method.clone(),
-                    uri: tx.request.uri.clone(),
                     status: tx.response.as_ref().map(|r| r.status),
+                    method: tx.request.method,
+                    uri: tx.request.uri,
                     violations,
                 }));
             }
             capture::CaptureRecord::WebsocketSession(session) => {
                 ws_count += 1;
-                let mut violations = lint_websocket_session(session, &cfg, &engine, &event_store);
+                let mut violations = lint_websocket_session(&session, &cfg, &engine);
                 violations.retain(|v| v.severity >= min_severity);
                 if violations.is_empty() {
                     continue;
@@ -363,47 +353,37 @@ async fn lint_app(
     }
 
     let total = findings.iter().map(|f| f.violations().len()).sum();
-    write_stdout(&render_lint_report(
-        &findings, total, tx_count, ws_count, format,
-    )?)?;
+    write_stdout(&render_lint_report(&findings, tx_count, ws_count, format)?)?;
     Ok(total)
 }
 
-/// Cap on protocol events retained per replay key. A capture's session record
-/// bounds its own message list, so this only guards against a pathological
-/// hand-edited file; sized to keep whole realistic sessions visible to the
-/// sequence rules.
-const EVENTS_PER_SESSION: usize = 10_000;
-
 /// Replay one captured WebSocket session through the protocol rules, mirroring
-/// the live relay: each message becomes the frame event `ws_frame_event` would
-/// have built, is linted against the session's prior events, then recorded.
-/// The captured session has no connection id, so the session id stands in as
-/// the history key — live grouping is per connection, but the WebSocket
-/// sequence rules already filter history by `session_id`, so the narrower key
-/// changes nothing for them.
+/// the live relay: each message becomes the frame event the relay would have
+/// built (via the shared [`WebSocketMessageInfo::frame_event`] mapping, stamped
+/// with the session timestamp since per-message times aren't captured), is
+/// linted against the session's prior events, then recorded.
+///
+/// Each session gets a **fresh** event store bounded by the same
+/// `max_protocol_event_history` the live pipeline uses, so replay eviction
+/// mirrors live eviction and a session record appearing twice in one capture
+/// (e.g. concatenated files) can't contaminate its second replay with the
+/// first's history. The captured session has no connection id, so the session
+/// id stands in as the history key — live grouping is per connection, but the
+/// WebSocket sequence rules already filter history by `session_id`, so the
+/// narrower key changes nothing for them.
 fn lint_websocket_session(
     session: &lint_http::websocket_session::WebSocketSession,
     cfg: &config::Config,
     engine: &engine::PreparedEngine,
-    event_store: &protocol_event_store::ProtocolEventStore,
 ) -> Vec<lint::Violation> {
+    let event_store = protocol_event_store::ProtocolEventStore::new(
+        cfg.general.ttl_seconds,
+        cfg.general.max_protocol_event_history,
+    );
     let mut violations = Vec::new();
     for msg in &session.messages {
-        let event = protocol_event::ProtocolEvent {
-            // Per-message timestamps aren't captured; the session's stands in.
-            timestamp: session.timestamp,
-            connection_id: session.id,
-            kind: protocol_event::ProtocolEventKind::WebSocketFrame {
-                session_id: session.id,
-                direction: msg.direction,
-                fin: msg.fin,
-                opcode: msg.opcode,
-                rsv: msg.rsv,
-                payload_length: msg.payload_length,
-            },
-        };
-        violations.extend(engine.lint_protocol_event(&event, cfg, event_store));
+        let event = msg.frame_event(session.timestamp, session.id, session.id);
+        violations.extend(engine.lint_protocol_event(&event, cfg, &event_store));
         event_store.record_event(&event);
     }
     violations
@@ -448,13 +428,14 @@ struct WebsocketFindings {
     violations: Vec<lint::Violation>,
 }
 
-/// Render the `lint` report: the text form ends with a human summary line; the
-/// JSON form is a bare array of [`FindingsBlock`]s so it stays
-/// machine-parseable. The summary mentions websocket sessions only when the
-/// capture had any, so pure-HTTP output is unchanged.
+/// Render the `lint` report: the text form ends with a human summary line
+/// (whose violation count is derived from `findings`, so it can't disagree
+/// with the blocks above it); the JSON form is a bare array of
+/// [`FindingsBlock`]s so it stays machine-parseable. The summary mentions
+/// websocket sessions only when the capture had any, so pure-HTTP output is
+/// unchanged.
 fn render_lint_report(
     findings: &[FindingsBlock],
-    total: usize,
     transaction_count: usize,
     websocket_count: usize,
     format: OutputFormat,
@@ -495,6 +476,7 @@ fn render_lint_report(
                     )?;
                 }
             }
+            let total: usize = findings.iter().map(|f| f.violations().len()).sum();
             write!(
                 out,
                 "\n{total} violation(s) in {transaction_count} transaction(s)"
@@ -610,23 +592,31 @@ mod tests {
         }
     }
 
-    // Write a config that enables `server_cache_control_present` (fires on a 200
-    // response without a Cache-Control header) and return its temp path.
-    async fn write_cache_control_config() -> anyhow::Result<std::path::PathBuf> {
+    // Write a minimal config that enables exactly one rule at `warn` and return
+    // its temp path.
+    async fn write_config_enabling(rule_id: &str) -> anyhow::Result<std::path::PathBuf> {
         let tmp = std::env::temp_dir().join(format!("lint_lint_cfg_{}.toml", Uuid::new_v4()));
-        let toml = r#"[general]
+        let toml = format!(
+            r#"[general]
 listen = "127.0.0.1:3000"
 captures = "captures.jsonl"
 
 [tls]
 enabled = false
 
-[rules.server_cache_control_present]
+[rules.{rule_id}]
 enabled = true
 severity = "warn"
-"#;
+"#
+        );
         fs::write(&tmp, toml).await?;
         Ok(tmp)
+    }
+
+    // Enables `server_cache_control_present` (fires on a 200 response without a
+    // Cache-Control header).
+    async fn write_cache_control_config() -> anyhow::Result<std::path::PathBuf> {
+        write_config_enabling("server_cache_control_present").await
     }
 
     // Serialize transactions into a JSONL capture file (one versioned envelope per
@@ -732,23 +722,9 @@ severity = "warn"
         Ok(())
     }
 
-    // Write a config that enables only the WebSocket opcode-sequence protocol
-    // rule and return its temp path.
+    // Enables only the WebSocket opcode-sequence protocol rule.
     async fn write_ws_opcode_config() -> anyhow::Result<std::path::PathBuf> {
-        let tmp = std::env::temp_dir().join(format!("lint_ws_cfg_{}.toml", Uuid::new_v4()));
-        let toml = r#"[general]
-listen = "127.0.0.1:3000"
-captures = "captures.jsonl"
-
-[tls]
-enabled = false
-
-[rules.stateful_websocket_frame_opcode_sequence]
-enabled = true
-severity = "warn"
-"#;
-        fs::write(&tmp, toml).await?;
-        Ok(tmp)
+        write_config_enabling("stateful_websocket_frame_opcode_sequence").await
     }
 
     fn ws_message(
@@ -868,6 +844,45 @@ severity = "warn"
     }
 
     #[tokio::test]
+    async fn lint_duplicate_session_records_do_not_contaminate() -> anyhow::Result<()> {
+        use lint_http::websocket_session::{MessageDirection, WebSocketSession};
+
+        let cfg = write_ws_opcode_config().await?;
+        // A clean session (text then close) recorded TWICE in one capture —
+        // e.g. concatenated capture files. Each replay must start from a fresh
+        // history: the first replay's Close frame must not make the second
+        // replay's text frame look like data-after-close.
+        let mut session = WebSocketSession::new(Uuid::new_v4());
+        session
+            .messages
+            .push(ws_message(MessageDirection::Client, 1, 5));
+        session
+            .messages
+            .push(ws_message(MessageDirection::Client, 8, 2));
+        session.close_code = Some(1000);
+
+        let tmp = std::env::temp_dir().join(format!("lint_ws_dup_{}.jsonl", Uuid::new_v4()));
+        let envelope = capture::CaptureEnvelope::new(capture::CaptureRecord::WebsocketSession(
+            Box::new(session),
+        ));
+        let line = serde_json::to_string(&envelope)?;
+        fs::write(&tmp, format!("{line}\n{line}\n")).await?;
+
+        let found = lint_app(
+            cfg.to_str().unwrap(),
+            tmp.to_str().unwrap(),
+            OutputFormat::Text,
+            lint::Severity::Info,
+        )
+        .await?;
+        assert_eq!(found, 0);
+
+        fs::remove_file(&cfg).await?;
+        fs::remove_file(&tmp).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn lint_min_severity_gates_findings_and_exit_code() -> anyhow::Result<()> {
         use lint_http_core::test_helpers::make_test_transaction_with_response;
 
@@ -952,7 +967,7 @@ severity = "warn"
 
     #[test]
     fn render_lint_report_json_mirrors_the_text_block() -> anyhow::Result<()> {
-        let out = render_lint_report(&sample_findings(), 1, 3, 0, OutputFormat::Json)?;
+        let out = render_lint_report(&sample_findings(), 3, 0, OutputFormat::Json)?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0]["kind"], "http_transaction");
@@ -974,7 +989,7 @@ severity = "warn"
             status: None,
             violations: vec![sample_violation()],
         })];
-        let out = render_lint_report(&findings, 1, 1, 0, OutputFormat::Json)?;
+        let out = render_lint_report(&findings, 1, 0, OutputFormat::Json)?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
         assert!(parsed[0]["status"].is_null());
         Ok(())
@@ -982,7 +997,7 @@ severity = "warn"
 
     #[test]
     fn render_lint_report_text_has_summary_line() -> anyhow::Result<()> {
-        let out = render_lint_report(&sample_findings(), 1, 3, 0, OutputFormat::Text)?;
+        let out = render_lint_report(&sample_findings(), 3, 0, OutputFormat::Text)?;
         assert!(out.contains("GET http://example.test/ -> 200"));
         assert!(out.contains("warn  server_cache_control_present"));
         // No websocket sessions in the capture → summary is the pure-HTTP form.
@@ -1001,13 +1016,13 @@ severity = "warn"
             violations: vec![sample_violation()],
         })];
 
-        let text = render_lint_report(&findings, 1, 0, 2, OutputFormat::Text)?;
+        let text = render_lint_report(&findings, 0, 2, OutputFormat::Text)?;
         assert!(text.contains(&format!(
             "websocket session {session_id} (upgrade {transaction_id}) -> close 1000"
         )));
         assert!(text.ends_with("1 violation(s) in 0 transaction(s) and 2 websocket session(s)\n"));
 
-        let json = render_lint_report(&findings, 1, 0, 2, OutputFormat::Json)?;
+        let json = render_lint_report(&findings, 0, 2, OutputFormat::Json)?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&json)?;
         assert_eq!(parsed[0]["kind"], "websocket_session");
         assert_eq!(parsed[0]["session_id"], session_id.to_string());

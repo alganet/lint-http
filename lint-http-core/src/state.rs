@@ -7,7 +7,7 @@
 use chrono::Utc;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -38,24 +38,33 @@ struct ResourceKey {
 /// these out; rules still observe `&HttpTransaction` through `TransactionHistory`.
 pub type SharedTransaction = Arc<crate::http_transaction::HttpTransaction>;
 
+/// The store map plus its secondary indexes, guarded by a **single** lock so
+/// every mutation updates all of them atomically. With separate locks, a
+/// `cleanup_expired` racing a `record_transaction` that re-creates a
+/// just-removed key could prune the fresh index entry and leave live store
+/// data invisible to the index-backed reads.
+struct Inner {
+    store: HashMap<ResourceKey, VecDeque<SharedTransaction>>,
+    /// Index mapping resource string to list of clients that have entries for
+    /// that resource.  Used to efficiently support cross-client history
+    /// queries without scanning every key in `store`.
+    resource_index: HashMap<String, Vec<ClientIdentifier>>,
+    /// Index mapping connection UUID to the resource keys whose entries belong
+    /// to that connection.  Used by `get_history_for_connection`.
+    connection_index: HashMap<Uuid, Vec<ResourceKey>>,
+    /// Index mapping client to the resource strings it has entries for.  Lets
+    /// `collect_for_client` (behind the origin-scoped queries) read just that
+    /// client's keys instead of scanning every key in `store`.
+    client_index: HashMap<ClientIdentifier, HashSet<String>>,
+}
+
 /// Thread-safe store for transaction state with bounded history.
 ///
 /// Each `(client, resource)` key maps to a bounded ring-buffer of recent
 /// transactions (newest first).  The `queries` module reads from this store;
 /// lint rules never access it directly.
 pub struct StateStore {
-    store: Arc<RwLock<HashMap<ResourceKey, VecDeque<SharedTransaction>>>>,
-    /// Index mapping resource string to list of clients that have entries for
-    /// that resource.  Used to efficiently support cross-client history
-    /// queries without scanning every key in `store`.
-    resource_index: Arc<RwLock<HashMap<String, Vec<ClientIdentifier>>>>,
-    /// Index mapping connection UUID to the resource keys whose entries belong
-    /// to that connection.  Used by `get_history_for_connection`.
-    connection_index: Arc<RwLock<HashMap<Uuid, Vec<ResourceKey>>>>,
-    /// Index mapping client to the resource strings it has entries for.  Lets
-    /// `collect_for_client` (behind the origin-scoped queries) read just that
-    /// client's keys instead of scanning every key in `store`.
-    client_index: Arc<RwLock<HashMap<ClientIdentifier, Vec<String>>>>,
+    inner: Arc<RwLock<Inner>>,
     ttl: Duration,
     max_history: usize,
 }
@@ -63,10 +72,12 @@ pub struct StateStore {
 impl StateStore {
     pub fn new(ttl_seconds: u64, max_history: usize) -> Self {
         Self {
-            store: Arc::new(RwLock::new(HashMap::new())),
-            resource_index: Arc::new(RwLock::new(HashMap::new())),
-            connection_index: Arc::new(RwLock::new(HashMap::new())),
-            client_index: Arc::new(RwLock::new(HashMap::new())),
+            inner: Arc::new(RwLock::new(Inner {
+                store: HashMap::new(),
+                resource_index: HashMap::new(),
+                connection_index: HashMap::new(),
+                client_index: HashMap::new(),
+            })),
             ttl: Duration::from_secs(ttl_seconds),
             max_history,
         }
@@ -82,43 +93,34 @@ impl StateStore {
             resource: tx.request.uri.clone(),
         };
 
-        // Update the main store first, then release its lock before updating
-        // secondary indexes.  This avoids nested lock acquisition which could
-        // deadlock with readers that access indexes then the store.  The block
-        // scopes the store guard so it drops before the index writes below.
-        let is_new = {
-            let mut store = self.store.write();
-            let was_new = store.get(&key).is_none();
-            let deque = store.entry(key.clone()).or_default();
-            // One deep clone into an `Arc`; every later read clones only the
-            // `Arc` (a refcount bump) instead of the whole transaction.
-            deque.push_front(Arc::new(tx.clone()));
-            if deque.len() > self.max_history {
-                deque.pop_back();
-            }
-            was_new
-        };
+        let mut inner = self.inner.write();
+
+        let is_new = !inner.store.contains_key(&key);
+        let deque = inner.store.entry(key.clone()).or_default();
+        // One deep clone into an `Arc`; every later read clones only the
+        // `Arc` (a refcount bump) instead of the whole transaction.
+        deque.push_front(Arc::new(tx.clone()));
+        if deque.len() > self.max_history {
+            deque.pop_back();
+        }
 
         if is_new {
-            {
-                let mut idx = self.resource_index.write();
-                let clients = idx.entry(key.resource.clone()).or_default();
-                if !clients.iter().any(|c| c == &key.client) {
-                    clients.push(key.client.clone());
-                }
+            let clients = inner
+                .resource_index
+                .entry(key.resource.clone())
+                .or_default();
+            if !clients.iter().any(|c| c == &key.client) {
+                clients.push(key.client.clone());
             }
-            {
-                let mut idx = self.client_index.write();
-                let resources = idx.entry(key.client.clone()).or_default();
-                if !resources.iter().any(|r| r == &key.resource) {
-                    resources.push(key.resource.clone());
-                }
-            }
+            inner
+                .client_index
+                .entry(key.client.clone())
+                .or_default()
+                .insert(key.resource.clone());
         }
 
         if let Some(conn_id) = tx.connection_id {
-            let mut idx = self.connection_index.write();
-            let keys = idx.entry(conn_id).or_default();
+            let keys = inner.connection_index.entry(conn_id).or_default();
             if !keys.contains(&key) {
                 keys.push(key);
             }
@@ -136,8 +138,9 @@ impl StateStore {
             resource: resource.to_string(),
         };
 
-        self.store
+        self.inner
             .read()
+            .store
             .get(&key)
             .and_then(|dq| dq.front().cloned())
     }
@@ -149,8 +152,9 @@ impl StateStore {
             resource: resource.to_string(),
         };
 
-        self.store
+        self.inner
             .read()
+            .store
             .get(&key)
             .map(|dq| dq.iter().cloned().collect())
             .unwrap_or_default()
@@ -161,25 +165,18 @@ impl StateStore {
     /// crosses client boundaries, such as ensuring `private` responses are not
     /// reused by other clients.
     pub fn get_history_for_resource(&self, resource: &str) -> Vec<SharedTransaction> {
-        // Clone the client list from the index first, then release the index
-        // lock before acquiring the store lock to avoid lock-order inversion.
-        let clients = {
-            let idx = self.resource_index.read();
-            match idx.get(resource) {
-                Some(c) => c.clone(),
-                None => return Vec::new(),
-            }
-        };
-
         let mut entries = Vec::new();
         {
-            let store = self.store.read();
-            for client in &clients {
+            let inner = self.inner.read();
+            let Some(clients) = inner.resource_index.get(resource) else {
+                return Vec::new();
+            };
+            for client in clients {
                 let key = ResourceKey {
                     client: client.clone(),
                     resource: resource.to_string(),
                 };
-                if let Some(dq) = store.get(&key) {
+                if let Some(dq) = inner.store.get(&key) {
                     for tx in dq.iter() {
                         entries.push(tx.clone());
                     }
@@ -197,24 +194,21 @@ impl StateStore {
     /// client's resource list from `client_index`, so the cost scales with that
     /// client's history rather than the whole store.
     pub fn collect_for_client(&self, client: &ClientIdentifier) -> Vec<SharedTransaction> {
-        // Clone the resource list first, then release the index lock before
-        // acquiring the store lock to avoid lock-order inversion.
-        let resources = {
-            let idx = self.client_index.read();
-            match idx.get(client) {
-                Some(r) => r.clone(),
-                None => return Vec::new(),
-            }
+        let inner = self.inner.read();
+        let Some(resources) = inner.client_index.get(client) else {
+            return Vec::new();
         };
 
-        let store = self.store.read();
         let mut entries = Vec::new();
+        // One reusable key: the client is cloned once and each resource string
+        // is copied into the same buffer, instead of a fresh key per lookup.
+        let mut key = ResourceKey {
+            client: client.clone(),
+            resource: String::new(),
+        };
         for resource in resources {
-            let key = ResourceKey {
-                client: client.clone(),
-                resource,
-            };
-            if let Some(dq) = store.get(&key) {
+            key.resource.clone_from(resource);
+            if let Some(dq) = inner.store.get(&key) {
                 entries.extend(dq.iter().cloned());
             }
         }
@@ -223,23 +217,17 @@ impl StateStore {
 
     /// Retrieve all transactions that share the given `connection_id`.
     pub fn get_history_for_connection(&self, connection_id: Uuid) -> Vec<SharedTransaction> {
-        let keys = {
-            let idx = self.connection_index.read();
-            match idx.get(&connection_id) {
-                Some(k) => k.clone(),
-                None => return Vec::new(),
-            }
+        let inner = self.inner.read();
+        let Some(keys) = inner.connection_index.get(&connection_id) else {
+            return Vec::new();
         };
 
         let mut entries = Vec::new();
-        {
-            let store = self.store.read();
-            for key in &keys {
-                if let Some(dq) = store.get(key) {
-                    for tx in dq.iter() {
-                        if tx.connection_id == Some(connection_id) {
-                            entries.push(tx.clone());
-                        }
+        for key in keys {
+            if let Some(dq) = inner.store.get(key) {
+                for tx in dq.iter() {
+                    if tx.connection_id == Some(connection_id) {
+                        entries.push(tx.clone());
                     }
                 }
             }
@@ -251,66 +239,56 @@ impl StateStore {
     pub fn cleanup_expired(&self) {
         let mut removed_keys: Vec<ResourceKey> = Vec::new();
 
-        // Scope the store guard so it drops before the index writes below.
-        {
-            let mut store = self.store.write();
-            let ttl_chrono = chrono::Duration::from_std(self.ttl)
-                .unwrap_or_else(|_| chrono::Duration::seconds(0));
+        // One write lock across expiry and index pruning: a record_transaction
+        // interleaved between the two could otherwise re-create a key whose
+        // fresh index entries this pass then wrongly prunes.
+        let mut inner = self.inner.write();
+        let ttl_chrono =
+            chrono::Duration::from_std(self.ttl).unwrap_or_else(|_| chrono::Duration::seconds(0));
 
-            for (_key, deque) in store.iter_mut() {
-                deque.retain(|tx| {
-                    let age = Utc::now().signed_duration_since(tx.timestamp);
-                    // If timestamp is in the future (age < 0), treat as expired (remove)
-                    if age < chrono::Duration::zero() {
-                        return false;
-                    }
-                    age <= ttl_chrono
-                });
-            }
-            // identify empties so we can update indexes after removal
-            store.retain(|key, dq| {
-                if dq.is_empty() {
-                    removed_keys.push(key.clone());
-                    false
-                } else {
-                    true
+        for (_key, deque) in inner.store.iter_mut() {
+            deque.retain(|tx| {
+                let age = Utc::now().signed_duration_since(tx.timestamp);
+                // If timestamp is in the future (age < 0), treat as expired (remove)
+                if age < chrono::Duration::zero() {
+                    return false;
                 }
+                age <= ttl_chrono
             });
         }
+        // identify empties so we can update indexes after removal
+        inner.store.retain(|key, dq| {
+            if dq.is_empty() {
+                removed_keys.push(key.clone());
+                false
+            } else {
+                true
+            }
+        });
 
-        // Update indexes outside the store lock scope to avoid nested locking.
         if !removed_keys.is_empty() {
-            {
-                let mut idx = self.resource_index.write();
-                for key in &removed_keys {
-                    if let Some(clients) = idx.get_mut(&key.resource) {
-                        clients.retain(|c| c != &key.client);
-                        if clients.is_empty() {
-                            idx.remove(&key.resource);
-                        }
+            for key in &removed_keys {
+                if let Some(clients) = inner.resource_index.get_mut(&key.resource) {
+                    clients.retain(|c| c != &key.client);
+                    if clients.is_empty() {
+                        inner.resource_index.remove(&key.resource);
+                    }
+                }
+                if let Some(resources) = inner.client_index.get_mut(&key.client) {
+                    resources.remove(&key.resource);
+                    if resources.is_empty() {
+                        inner.client_index.remove(&key.client);
                     }
                 }
             }
 
-            {
-                let mut idx = self.connection_index.write();
-                idx.retain(|_conn_id, keys| {
-                    keys.retain(|k| !removed_keys.contains(k));
-                    !keys.is_empty()
-                });
-            }
-
-            {
-                let mut idx = self.client_index.write();
-                for key in &removed_keys {
-                    if let Some(resources) = idx.get_mut(&key.client) {
-                        resources.retain(|r| r != &key.resource);
-                        if resources.is_empty() {
-                            idx.remove(&key.client);
-                        }
-                    }
-                }
-            }
+            // Set lookup keeps this prune O(entries) instead of
+            // O(entries × removed).
+            let removed: HashSet<&ResourceKey> = removed_keys.iter().collect();
+            inner.connection_index.retain(|_conn_id, keys| {
+                keys.retain(|k| !removed.contains(k));
+                !keys.is_empty()
+            });
         }
     }
 
@@ -493,8 +471,9 @@ mod tests {
         eprintln!("recorded");
         // index should contain mapping
         {
-            let idx = store.resource_index.read();
-            assert!(idx
+            let inner = store.inner.read();
+            assert!(inner
+                .resource_index
                 .get(resource)
                 .map(|v| v.contains(&client))
                 .unwrap_or(false));
@@ -509,8 +488,8 @@ mod tests {
         eprintln!("cleanup done");
         assert!(store.get_previous(&client, resource).is_none());
         // index should no longer have resource
-        let idx2 = store.resource_index.read();
-        assert!(!idx2.contains_key(resource));
+        let inner2 = store.inner.read();
+        assert!(!inner2.resource_index.contains_key(resource));
         eprintln!("cleanup test end");
     }
 
@@ -804,9 +783,9 @@ mod tests {
         tx.connection_id = Some(conn_id);
         store.record_transaction(&tx);
 
-        let idx = store.connection_index.read();
-        assert!(idx.contains_key(&conn_id));
-        assert!(!idx.get(&conn_id).unwrap().is_empty());
+        let inner = store.inner.read();
+        assert!(inner.connection_index.contains_key(&conn_id));
+        assert!(!inner.connection_index.get(&conn_id).unwrap().is_empty());
     }
 
     #[test]
@@ -823,8 +802,8 @@ mod tests {
 
         // connection_index should have an entry
         {
-            let idx = store.connection_index.read();
-            assert!(idx.contains_key(&conn_id));
+            let inner = store.inner.read();
+            assert!(inner.connection_index.contains_key(&conn_id));
         }
 
         // Wait for expiry
@@ -832,9 +811,9 @@ mod tests {
         store.cleanup_expired();
 
         // connection_index should be pruned
-        let idx = store.connection_index.read();
+        let inner = store.inner.read();
         assert!(
-            !idx.contains_key(&conn_id),
+            !inner.connection_index.contains_key(&conn_id),
             "connection_index should be pruned after cleanup"
         );
     }
@@ -850,20 +829,20 @@ mod tests {
         store.record_transaction(&tx);
 
         {
-            let idx = store.client_index.read();
-            assert!(idx.contains_key(&client));
+            let inner = store.inner.read();
+            assert!(inner.client_index.contains_key(&client));
         }
 
         // Wait for expiry
         std::thread::sleep(std::time::Duration::from_secs(2));
         store.cleanup_expired();
 
-        let idx = store.client_index.read();
+        let inner = store.inner.read();
         assert!(
-            !idx.contains_key(&client),
+            !inner.client_index.contains_key(&client),
             "client_index should be pruned after cleanup"
         );
-        drop(idx);
+        drop(inner);
         assert!(store.collect_for_client(&client).is_empty());
     }
 
@@ -880,9 +859,9 @@ mod tests {
             store.record_transaction(&tx);
         }
 
-        let idx = store.client_index.read();
-        assert_eq!(idx.get(&client).map(|r| r.len()), Some(1));
-        drop(idx);
+        let inner = store.inner.read();
+        assert_eq!(inner.client_index.get(&client).map(|r| r.len()), Some(1));
+        drop(inner);
         assert_eq!(store.collect_for_client(&client).len(), 2);
     }
 
@@ -901,8 +880,8 @@ mod tests {
             store.record_transaction(&tx);
         }
 
-        let idx = store.connection_index.read();
+        let inner = store.inner.read();
         // Should only have one key entry (same resource key)
-        assert_eq!(idx.get(&conn_id).unwrap().len(), 1);
+        assert_eq!(inner.connection_index.get(&conn_id).unwrap().len(), 1);
     }
 }
