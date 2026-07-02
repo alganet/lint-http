@@ -308,24 +308,16 @@ async fn connect_upstream_for_upgrade(
     }
 }
 
-/// Build the protocol event for a single relayed WebSocket frame.
+/// Build the protocol event for a single relayed WebSocket frame, stamped with
+/// its arrival time. Thin wrapper over the shared
+/// [`WebSocketMessageInfo::frame_event`] mapping so live and offline replay
+/// can't drift.
 fn ws_frame_event(
     connection_id: uuid::Uuid,
     session_id: uuid::Uuid,
     info: &crate::websocket_session::WebSocketMessageInfo,
 ) -> crate::protocol_event::ProtocolEvent {
-    crate::protocol_event::ProtocolEvent {
-        timestamp: chrono::Utc::now(),
-        connection_id,
-        kind: crate::protocol_event::ProtocolEventKind::WebSocketFrame {
-            session_id,
-            direction: info.direction,
-            fin: info.fin,
-            opcode: info.opcode,
-            rsv: info.rsv,
-            payload_length: info.payload_length,
-        },
-    }
+    info.frame_event(chrono::Utc::now(), connection_id, session_id)
 }
 
 /// Relay WebSocket messages between client and server, recording each message

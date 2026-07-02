@@ -42,6 +42,34 @@ fn default_fin() -> bool {
     true
 }
 
+impl WebSocketMessageInfo {
+    /// Build the [`ProtocolEvent`](crate::protocol_event::ProtocolEvent) this
+    /// message contributes to WebSocket linting. The single source of the
+    /// message→frame-event field mapping: the live relay stamps each frame with
+    /// its arrival time, offline replay (the `lint` subcommand) with the
+    /// session timestamp — everything else must stay identical or replay
+    /// results drift from live ones.
+    pub fn frame_event(
+        &self,
+        timestamp: DateTime<Utc>,
+        connection_id: Uuid,
+        session_id: Uuid,
+    ) -> crate::protocol_event::ProtocolEvent {
+        crate::protocol_event::ProtocolEvent {
+            timestamp,
+            connection_id,
+            kind: crate::protocol_event::ProtocolEventKind::WebSocketFrame {
+                session_id,
+                direction: self.direction,
+                fin: self.fin,
+                opcode: self.opcode,
+                rsv: self.rsv,
+                payload_length: self.payload_length,
+            },
+        }
+    }
+}
+
 /// A captured WebSocket session linking back to the 101 upgrade transaction.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WebSocketSession {
