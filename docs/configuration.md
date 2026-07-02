@@ -17,9 +17,12 @@ subcommand using the `--config` CLI argument.
   configuration file (mandatory).
 - `lint --config <PATH> [--format text|json] [--min-severity info|warn|error]
   <CAPTURES>`: Lint a recorded capture file offline (see below).
-- `rules list [--format text|json]`: List every rule and its metadata (id,
-  scope, title, and — in JSON — description and spec references). No config or
-  proxy needed; it prints the static catalogue.
+- `rules list [--format text|json] [--config <PATH>]`: List every rule and its
+  metadata (id, scope, title, and — in JSON — description, spec references, and
+  documentation examples). No config or proxy needed; it prints the static
+  catalogue. With `--config`, each rule is additionally annotated with whether
+  that config enables it (an `enabled`/`disabled` text column, an `enabled`
+  JSON field).
 - `gendocs [--out <DIR>]`: Regenerate the per-rule docs (`rules.md` index +
   `rules/<id>.md`) from rule metadata under `<DIR>` (default `docs`).
 - `-h, --help`: Print help (works on the binary and on each subcommand)
