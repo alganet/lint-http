@@ -48,10 +48,13 @@ proxy — the CI story: lint recorded HTTP fixtures offline.
 lint-http lint --config config.toml captures.jsonl
 ```
 
-It replays the transactions in record order (each is linted against the history
-of prior transactions, exactly as it would be live, so stateful rules work),
-prints one block per offending transaction, and a summary line. The exit code is
-the signal for CI:
+It replays the records in file order. Each transaction is linted against the
+history of prior transactions, exactly as it would be live, so stateful rules
+work. WebSocket session records are replayed per-message through the protocol
+rules (the frame events the live relay emits are rebuilt from the captured
+message metadata); the session's live-recorded `violations` field is ignored —
+replay re-lints under the current config. It prints one block per offending
+record and a summary line. The exit code is the signal for CI:
 
 - **0** — no violations found.
 - **1** — violations found, or an error occurred (e.g. missing capture file,
@@ -60,9 +63,12 @@ the signal for CI:
 Two flags shape the report:
 
 - `--format text|json` (default `text`): `json` emits a machine-parseable array
-  with one object per offending transaction (`method`, `uri`, `status` —
-  `null` when the transaction got no response — and its `violations`, each with
-  `rule`, `severity`, `message`).
+  with one object per offending record, tagged by `kind`. Transactions
+  (`"kind": "http_transaction"`) carry `method`, `uri`, `status` (`null` when
+  the transaction got no response); WebSocket sessions
+  (`"kind": "websocket_session"`) carry `session_id`, `transaction_id`,
+  `close_code`. Both carry `violations`, each with `rule`, `severity`,
+  `message`.
 - `--min-severity info|warn|error` (default `info`): drop findings below the
   given severity from the report *and* from the exit-code decision — with
   `--min-severity error`, warn-level findings no longer fail CI. Stateful rules

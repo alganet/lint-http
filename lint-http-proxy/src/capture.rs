@@ -341,10 +341,12 @@ pub(crate) fn serialize_record(
     serde_json::to_string(&v)
 }
 
-/// Load capture records from a JSONL file. Skips malformed lines with warnings.
-pub async fn load_captures<P: AsRef<std::path::Path>>(
+/// Load every capture record from a JSONL file, in file order. Skips malformed
+/// lines with warnings. Missing file → empty (callers that require the file to
+/// exist check first).
+pub async fn load_capture_records<P: AsRef<std::path::Path>>(
     path: P,
-) -> anyhow::Result<Vec<crate::http_transaction::HttpTransaction>> {
+) -> anyhow::Result<Vec<CaptureRecord>> {
     use tokio::io::AsyncBufReadExt;
 
     let path_ref = path.as_ref();
@@ -367,15 +369,9 @@ pub async fn load_captures<P: AsRef<std::path::Path>>(
             continue;
         }
 
-        // Parse the tagged, versioned envelope. Non-transaction records
-        // (e.g. websocket_session) and unknown types are skipped.
+        // Parse the tagged, versioned envelope. Unknown types are skipped.
         match serde_json::from_str::<CaptureEnvelope>(trimmed) {
-            Ok(envelope) => match envelope.record {
-                CaptureRecord::HttpTransaction(tx) => records.push(*tx),
-                CaptureRecord::WebsocketSession(_) => {
-                    tracing::debug!(line = line_num, "skipping non-transaction capture record");
-                }
-            },
+            Ok(envelope) => records.push(envelope.record),
             Err(e) => {
                 tracing::warn!(line = line_num, error = %e, "failed to parse capture record, skipping");
             }
@@ -383,6 +379,22 @@ pub async fn load_captures<P: AsRef<std::path::Path>>(
     }
 
     Ok(records)
+}
+
+/// Load only the HTTP transactions from a JSONL capture file (other record
+/// types are dropped). Backs the proxy's cold-start state seeding; `lint`
+/// replays every record via [`load_capture_records`].
+pub async fn load_captures<P: AsRef<std::path::Path>>(
+    path: P,
+) -> anyhow::Result<Vec<crate::http_transaction::HttpTransaction>> {
+    Ok(load_capture_records(path)
+        .await?
+        .into_iter()
+        .filter_map(|record| match record {
+            CaptureRecord::HttpTransaction(tx) => Some(*tx),
+            CaptureRecord::WebsocketSession(_) => None,
+        })
+        .collect())
 }
 
 #[cfg(test)]
@@ -548,6 +560,35 @@ mod tests {
         assert_eq!(records[0].request.uri, "http://example/test");
         assert_eq!(records[0].timing.duration_ms, 100);
         assert!(records[0].response.is_some());
+
+        fs::remove_file(&tmp).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn load_capture_records_keeps_all_kinds_in_file_order() -> anyhow::Result<()> {
+        let tmp = std::env::temp_dir().join(format!("lint_load_all_{}.jsonl", Uuid::new_v4()));
+        let p = tmp
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
+            .to_string();
+
+        let cw = CaptureWriter::new(p.clone(), false).await?;
+        use crate::test_helpers::make_test_transaction_with_response;
+        cw.write_transaction(make_test_transaction_with_response(200, &[]))
+            .await?;
+        let session = crate::websocket_session::WebSocketSession::new(Uuid::new_v4());
+        cw.write_websocket_session(session).await?;
+        cw.flush().await?;
+
+        let records = load_capture_records(&tmp).await?;
+        assert_eq!(records.len(), 2);
+        assert!(matches!(records[0], CaptureRecord::HttpTransaction(_)));
+        assert!(matches!(records[1], CaptureRecord::WebsocketSession(_)));
+
+        // The transaction-only view still filters the session out.
+        let txs = load_captures(&tmp).await?;
+        assert_eq!(txs.len(), 1);
 
         fs::remove_file(&tmp).await?;
         Ok(())
