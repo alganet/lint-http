@@ -90,6 +90,10 @@ struct RulesListArgs {
     /// Output format.
     #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
     format: OutputFormat,
+    /// Config TOML path; when given, each rule is annotated with whether that
+    /// config enables it (a text column / JSON `enabled` field).
+    #[arg(long, value_name = "PATH")]
+    config: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -187,7 +191,9 @@ fn scope_label(scope: rules::RuleScope) -> &'static str {
 }
 
 /// One rule's metadata, flattened for `rules list --format json`. Protocol rules
-/// have no scope, so they are labelled `"protocol"`.
+/// have no scope, so they are labelled `"protocol"`. `enabled` is populated only
+/// when the caller supplied a `--config` to consult (and omitted from the JSON
+/// otherwise, so the config-less output is unchanged).
 #[derive(serde::Serialize)]
 struct RuleInfo {
     id: &'static str,
@@ -196,11 +202,37 @@ struct RuleInfo {
     title: Option<&'static str>,
     description: &'static str,
     rfc_references: &'static [&'static str],
+    examples: Vec<ExampleInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    enabled: Option<bool>,
+}
+
+/// serde mirror of [`rules::Example`] (which lives below the serialization
+/// boundary and doesn't derive it).
+#[derive(serde::Serialize)]
+struct ExampleInfo {
+    compliance: &'static str,
+    label: Option<&'static str>,
+    snippet: &'static str,
+}
+
+fn example_info(examples: &'static [rules::Example]) -> Vec<ExampleInfo> {
+    examples
+        .iter()
+        .map(|e| ExampleInfo {
+            compliance: match e.compliance {
+                rules::Compliance::Compliant => "compliant",
+                rules::Compliance::NonCompliant => "non_compliant",
+            },
+            label: e.label,
+            snippet: e.snippet,
+        })
+        .collect()
 }
 
 /// Collect every transaction rule then every protocol rule, each already
-/// id-sorted by its `LazyLock` view.
-fn collect_rule_info() -> Vec<RuleInfo> {
+/// id-sorted by its `LazyLock` view. `cfg` (from `--config`) fills `enabled`.
+fn collect_rule_info(cfg: Option<&config::Config>) -> Vec<RuleInfo> {
     let mut infos: Vec<RuleInfo> = rules::RULES
         .iter()
         .map(|r| RuleInfo {
@@ -210,6 +242,8 @@ fn collect_rule_info() -> Vec<RuleInfo> {
             title: r.title(),
             description: r.description(),
             rfc_references: r.rfc_references(),
+            examples: example_info(r.examples()),
+            enabled: cfg.map(|c| c.is_enabled(r.id())),
         })
         .collect();
     infos.extend(rules::PROTOCOL_RULES.iter().map(|r| RuleInfo {
@@ -219,25 +253,32 @@ fn collect_rule_info() -> Vec<RuleInfo> {
         title: r.title(),
         description: r.description(),
         rfc_references: r.rfc_references(),
+        examples: example_info(r.examples()),
+        enabled: cfg.map(|c| c.is_enabled(r.id())),
     }));
     infos
 }
 
 /// Render the rule catalogue. Returns the output string so the dispatch arm can
-/// print it (and tests can assert on it). No config or proxy required.
-fn rules_list(format: OutputFormat) -> anyhow::Result<String> {
-    let infos = collect_rule_info();
+/// print it (and tests can assert on it). Needs no proxy; `cfg` is present only
+/// when the user asked for the enabled/disabled annotation.
+fn rules_list(format: OutputFormat, cfg: Option<&config::Config>) -> anyhow::Result<String> {
+    let infos = collect_rule_info(cfg);
     match format {
         OutputFormat::Json => Ok(serde_json::to_string_pretty(&infos)?),
         OutputFormat::Text => {
             use std::fmt::Write;
             let mut out = String::new();
             for info in &infos {
+                write!(out, "{:<60}", info.id)?;
+                if let Some(enabled) = info.enabled {
+                    write!(out, " {:<8}", if enabled { "enabled" } else { "disabled" })?;
+                }
                 // Most rules have no title override; omit the field entirely so
                 // those lines don't carry a trailing space.
                 match info.title {
-                    Some(title) => writeln!(out, "{:<60} [{}] {}", info.id, info.scope, title)?,
-                    None => writeln!(out, "{:<60} [{}]", info.id, info.scope)?,
+                    Some(title) => writeln!(out, " [{}] {}", info.scope, title)?,
+                    None => writeln!(out, " [{}]", info.scope)?,
                 }
             }
             Ok(out)
@@ -374,7 +415,11 @@ async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
         }
         Some(Command::Rules(args)) => match args.command {
             RulesCommand::List(a) => {
-                write_stdout(&rules_list(a.format)?)?;
+                let cfg = match &a.config {
+                    Some(path) => Some(load_validated_config(path).await?),
+                    None => None,
+                };
+                write_stdout(&rules_list(a.format, cfg.as_deref())?)?;
                 Ok(0)
             }
         },
@@ -824,18 +869,20 @@ severity = "warn"
 
     #[test]
     fn rules_list_text_includes_a_known_rule() -> anyhow::Result<()> {
-        let out = rules_list(OutputFormat::Text)?;
+        let out = rules_list(OutputFormat::Text, None)?;
         // The catalogue lists transaction and protocol rules with a scope label.
         assert!(out.contains("server_cache_control_present"));
         assert!(out.contains("[server]"));
         // Protocol rules are labelled `protocol`.
         assert!(out.contains("[protocol]"));
+        // Without a config there is no enabled/disabled column.
+        assert!(!out.contains("enabled"));
         Ok(())
     }
 
     #[test]
     fn rules_list_json_is_an_array_of_metadata() -> anyhow::Result<()> {
-        let out = rules_list(OutputFormat::Json)?;
+        let out = rules_list(OutputFormat::Json, None)?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
         assert!(!parsed.is_empty());
         let cc = parsed
@@ -845,7 +892,66 @@ severity = "warn"
         assert_eq!(cc["scope"], "server");
         assert_eq!(cc["kind"], "transaction");
         assert!(!cc["description"].as_str().unwrap_or("").is_empty());
+        // Examples are always present (possibly empty); `enabled` only with --config.
+        assert!(cc["examples"].is_array());
+        assert!(cc.get("enabled").is_none());
         Ok(())
+    }
+
+    #[test]
+    fn rules_list_json_examples_carry_compliance_and_snippet() -> anyhow::Result<()> {
+        let out = rules_list(OutputFormat::Json, None)?;
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
+        // At least one rule in the catalogue documents examples.
+        let with_examples = parsed
+            .iter()
+            .find(|v| !v["examples"].as_array().unwrap().is_empty())
+            .expect("some rule has examples");
+        let example = &with_examples["examples"][0];
+        assert!(matches!(
+            example["compliance"].as_str(),
+            Some("compliant") | Some("non_compliant")
+        ));
+        assert!(!example["snippet"].as_str().unwrap_or("").is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn rules_list_with_config_annotates_enabled() -> anyhow::Result<()> {
+        // The fixture config enables exactly `server_cache_control_present`.
+        let cfg_path = write_cache_control_config().await?;
+        let cfg = load_validated_config(cfg_path.to_str().unwrap()).await?;
+
+        let text = rules_list(OutputFormat::Text, Some(&cfg))?;
+        let line = text
+            .lines()
+            .find(|l| l.starts_with("server_cache_control_present"))
+            .expect("rule line present");
+        assert!(line.contains(" enabled "));
+        assert!(text.contains(" disabled "));
+
+        let json = rules_list(OutputFormat::Json, Some(&cfg))?;
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&json)?;
+        let cc = parsed
+            .iter()
+            .find(|v| v["id"] == "server_cache_control_present")
+            .expect("known rule present");
+        assert_eq!(cc["enabled"], true);
+        assert!(parsed.iter().any(|v| v["enabled"] == false));
+
+        fs::remove_file(&cfg_path).await?;
+        Ok(())
+    }
+
+    #[test]
+    fn cli_rules_list_parses_optional_config() {
+        let cli = Cli::parse_from(["lint-http", "rules", "list", "--config", "c.toml"]);
+        match cli.command {
+            Some(Command::Rules(args)) => match args.command {
+                RulesCommand::List(a) => assert_eq!(a.config.as_deref(), Some("c.toml")),
+            },
+            other => panic!("expected Rules(List), got {other:?}"),
+        }
     }
 
     #[tokio::test]
