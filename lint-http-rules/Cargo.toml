@@ -11,10 +11,6 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
-[[bin]]
-name = "gendocs"
-path = "src/bin/gendocs.rs"
-
 [dependencies]
 lint-http-core = { workspace = true }
 serde = { workspace = true }
@@ -29,7 +25,6 @@ httpdate = { workspace = true }
 base64 = { workspace = true }
 sha1 = { workspace = true }
 linkme = { workspace = true }
-clap = { workspace = true }
 
 [dev-dependencies]
 lint-http-core = { workspace = true, features = ["test-utils"] }

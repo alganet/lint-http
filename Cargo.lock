@@ -1111,7 +1111,6 @@ dependencies = [
  "base64",
  "bytes",
  "chrono",
- "clap",
  "httpdate",
  "hyper",
  "linkme",
