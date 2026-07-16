@@ -27,10 +27,7 @@ impl Rule for ServerMustRevalidateAndImmutableMismatch {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // Collect all cache-control directive tokens across header fields
         let mut found_must_revalidate = false;

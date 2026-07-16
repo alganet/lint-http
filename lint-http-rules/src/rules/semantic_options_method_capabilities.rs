@@ -28,10 +28,7 @@ impl Rule for SemanticOptionsMethodCapabilities {
             return None;
         }
 
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // RFC 9110 §9.3.7: "A server generating a successful response to OPTIONS
         // SHOULD send any header that might indicate optional features

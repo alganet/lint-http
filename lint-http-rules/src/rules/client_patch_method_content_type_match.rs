@@ -32,10 +32,7 @@ impl Rule for ClientPatchMethodContentTypeMatch {
 
         // Need a previous response to discover Accept-Patch advertisement
         let prev = history.previous()?;
-        let resp = match &prev.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = prev.response.as_ref()?;
 
         // Collect valid media-types advertised in Accept-Patch
         let mut advertised: Vec<String> = Vec::new();

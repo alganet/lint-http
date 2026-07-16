@@ -246,7 +246,7 @@ impl StateStore {
         let ttl_chrono =
             chrono::Duration::from_std(self.ttl).unwrap_or_else(|_| chrono::Duration::seconds(0));
 
-        for (_key, deque) in inner.store.iter_mut() {
+        for deque in inner.store.values_mut() {
             deque.retain(|tx| {
                 let age = Utc::now().signed_duration_since(tx.timestamp);
                 // If timestamp is in the future (age < 0), treat as expired (remove)

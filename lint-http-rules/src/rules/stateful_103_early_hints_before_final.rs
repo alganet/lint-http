@@ -27,10 +27,7 @@ impl Rule for Stateful103EarlyHintsBeforeFinal {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to responses with status 103
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
         if resp.status != 103 {
             return None;
         }

@@ -28,10 +28,7 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // If either header is missing, nothing to check
         let mut has_expires = false;

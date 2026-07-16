@@ -27,10 +27,7 @@ impl Rule for SemanticOriginMatchingForCors {
         let headers = &req.headers;
 
         // Nothing to do if request did not include Origin header
-        let origin = match crate::helpers::headers::get_header_str(headers, "origin") {
-            Some(o) => o.trim(),
-            None => return None,
-        };
+        let origin = crate::helpers::headers::get_header_str(headers, "origin")?.trim();
 
         // Validate origin syntax using shared helper (handles "null" and serialized origins).
         if let Some(reason) = crate::helpers::uri::validate_origin_value(origin) {
@@ -41,10 +38,7 @@ impl Rule for SemanticOriginMatchingForCors {
             });
         }
 
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // Check for Access-Control-Allow-Origin header in response
         let mut acao_values: Vec<String> = Vec::new();

@@ -24,10 +24,7 @@ impl Rule for MessageStrictTransportSecurityValidity {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applicable to responses
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         for hv in resp.headers.get_all("strict-transport-security").iter() {
             let v = match hv.to_str() {

@@ -24,10 +24,7 @@ impl Rule for MessageLinkHeaderValidity {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check response headers (Link is meaningful on responses / 103 Early Hints)
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         for hv in resp.headers.get_all("link").iter() {
             let val = match hv.to_str() {

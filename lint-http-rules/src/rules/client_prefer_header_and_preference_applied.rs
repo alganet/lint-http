@@ -36,10 +36,7 @@ impl Rule for ClientPreferHeaderAndPreferenceApplied {
             return None;
         }
 
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // If a Preference-Applied header exists (even if non-UTF8), treat as present
         if resp

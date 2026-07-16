@@ -48,10 +48,7 @@ impl Rule for StatefulWebsocketHandshakeValidity {
         }
 
         // If there's no response, nothing to validate here
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // Response status must be 101
         if resp.status != 101 {

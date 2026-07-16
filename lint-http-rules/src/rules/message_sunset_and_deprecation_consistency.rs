@@ -26,10 +26,7 @@ impl Rule for MessageSunsetAndDeprecationConsistency {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // only applies to responses
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // Get Sunset header (HTTP-date) if present and parseable
         let sunset_opt = match crate::helpers::headers::get_header_str(&resp.headers, "sunset") {

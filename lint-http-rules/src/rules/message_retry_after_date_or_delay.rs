@@ -24,10 +24,7 @@ impl Rule for MessageRetryAfterDateOrDelay {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Applies to responses only
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // Iterate all Retry-After header occurrences; each value must be either
         // a non-negative integer (delta-seconds) or an IMF-fixdate (HTTP-date)

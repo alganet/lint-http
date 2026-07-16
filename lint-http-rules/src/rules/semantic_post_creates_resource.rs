@@ -27,10 +27,7 @@ impl Rule for SemanticPostCreatesResource {
         if !tx.request.method.eq_ignore_ascii_case("POST") {
             return None;
         }
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         let status = resp.status;
         // only worry about successful (2xx) responses; other statuses have independent semantics

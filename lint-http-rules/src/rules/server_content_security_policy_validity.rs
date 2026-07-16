@@ -30,10 +30,7 @@ impl Rule for ServerContentSecurityPolicyValidity {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check responses
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         use crate::helpers::token::find_invalid_token_char;
 

@@ -25,10 +25,7 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only inspect responses (server header)
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         for hv in resp.headers.get_all("permissions-policy").iter() {
             // Non-UTF8 value is a violation

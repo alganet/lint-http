@@ -24,10 +24,7 @@ impl Rule for MessageAgeHeaderNumeric {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Applies to responses only
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         for val in resp.headers.get_all("age").iter() {
             let s = match val.to_str() {

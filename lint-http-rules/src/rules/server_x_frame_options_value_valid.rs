@@ -24,10 +24,7 @@ impl Rule for ServerXFrameOptionsValueValid {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check response headers
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         let headers = &resp.headers;
 
