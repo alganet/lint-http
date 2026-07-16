@@ -23,10 +23,7 @@ impl Rule for Server200Vs204BodyConsistency {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // Only consider 200 responses
         if resp.status != 200 {

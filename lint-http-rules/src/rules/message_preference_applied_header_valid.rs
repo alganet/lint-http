@@ -24,10 +24,7 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only meaningful when a response is present
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // Build a map of preferences from the request (name -> optional value)
         let mut req_prefs = std::collections::HashMap::<String, Option<String>>::new();

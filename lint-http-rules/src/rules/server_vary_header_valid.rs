@@ -25,10 +25,7 @@ impl Rule for ServerVaryHeaderValid {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // Track whether '*' appears and count effective tokens across all header fields
         let mut saw_star = false;

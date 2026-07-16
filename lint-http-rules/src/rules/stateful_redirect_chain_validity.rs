@@ -34,10 +34,7 @@ impl Rule for StatefulRedirectChainValidity {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         let status = resp.status;
         // Consider redirection/creation status codes that may include Location
@@ -47,18 +44,15 @@ impl Rule for StatefulRedirectChainValidity {
 
         // No Location -> nothing to validate here (other rules handle presence)
         let mut loc_iter = resp.headers.get_all("location").iter();
-        let first_loc = match loc_iter.next() {
-            Some(hv) => match hv.to_str() {
-                Ok(s) => s.trim().to_string(),
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Location header value is not valid UTF-8".into(),
-                    })
-                }
-            },
-            None => return None,
+        let first_loc = match loc_iter.next()?.to_str() {
+            Ok(s) => s.trim().to_string(),
+            Err(_) => {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Location header value is not valid UTF-8".into(),
+                })
+            }
         };
 
         // Helper: compare request-target path+query (if present) with a Location

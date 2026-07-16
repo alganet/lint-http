@@ -24,10 +24,7 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to responses
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // Collect tokens from ALL header fields (multiple header fields should be considered)
         let mut ce_set = std::collections::HashSet::new();

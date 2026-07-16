@@ -60,10 +60,7 @@ impl Rule for SemanticTraceMethodEcho {
             });
         }
 
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // RFC 9110 §9.3.8 uses SHOULD for successful TRACE responses.
         // Do not enforce message/http for non-success responses.

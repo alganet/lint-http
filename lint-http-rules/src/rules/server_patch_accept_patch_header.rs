@@ -30,10 +30,7 @@ impl Rule for ServerPatchAcceptPatchHeader {
             return None;
         }
 
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // If Accept-Patch header absent -> warn
         let mut found = false;

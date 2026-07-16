@@ -24,10 +24,7 @@ impl Rule for MessageContentSecurityPolicyAndFrameOptionsConsistency {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check responses
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         // Collect CSP frame-ancestors info across header fields
         let mut csp_found = false;
@@ -103,11 +100,9 @@ impl Rule for MessageContentSecurityPolicyAndFrameOptionsConsistency {
             return None;
         }
 
+        // Absent or non-utf8 -> let the dedicated rule report it.
         let xfo_val =
-            match crate::helpers::headers::get_header_str(&resp.headers, "x-frame-options") {
-                Some(v) => v.trim(),
-                None => return None, // non-utf8 -> let dedicated rule report
-            };
+            crate::helpers::headers::get_header_str(&resp.headers, "x-frame-options")?.trim();
 
         // Recognize canonical forms
         if xfo_val.eq_ignore_ascii_case("DENY") {

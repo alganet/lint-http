@@ -87,10 +87,7 @@ impl Rule for SemanticHeadResponseHeadersMatchGet {
             return None;
         }
 
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         let prev = history.previous()?;
         if !prev.request.method.eq_ignore_ascii_case("GET") {
@@ -102,10 +99,7 @@ impl Rule for SemanticHeadResponseHeadersMatchGet {
             return None;
         }
 
-        let prev_resp = match &prev.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let prev_resp = prev.response.as_ref()?;
 
         // Parse config only after the cheap method/response/history guards above —
         // non-HEAD transactions (the common case) skip the allocation entirely.

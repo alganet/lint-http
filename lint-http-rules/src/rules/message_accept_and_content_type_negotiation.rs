@@ -25,10 +25,7 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check when request has Accept and response has Content-Type
         let accept = crate::helpers::headers::get_header_str(&tx.request.headers, "accept");
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
         let content_type = crate::helpers::headers::get_header_str(&resp.headers, "content-type")?;
 
         // If server already returned 406 Not Acceptable, don't flag

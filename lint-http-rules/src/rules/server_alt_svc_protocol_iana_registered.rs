@@ -82,10 +82,7 @@ impl Rule for ServerAltSvcProtocolIanaRegistered {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = parse_allowed_config(cfg, self.id()).ok()?;
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         for hv in resp.headers.get_all("alt-svc").iter() {
             let s = match hv.to_str() {

@@ -59,13 +59,10 @@ impl Rule for StatefulRangeRequestAndCaching {
             }
         });
 
-        let prev_resp = match prev_206 {
-            Some(p) => match &p.response {
-                Some(r) => r,
-                None => return None, // should not happen but be safe
-            },
-            None => return None,
-        };
+        // The second `?` should never fire: `prev_206` was found by matching a 206
+        // status, which it could not have done without a response. It stays as a
+        // guard rather than an unwrap.
+        let prev_resp = prev_206?.response.as_ref()?;
 
         // determine if the prior 206 had a validator we could use
         // ignore weak ETags since they cannot be placed in If-Range.

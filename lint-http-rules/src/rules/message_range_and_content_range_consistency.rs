@@ -23,10 +23,7 @@ impl Rule for MessageRangeAndContentRangeConsistency {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        let resp = match &tx.response {
-            Some(r) => r,
-            None => return None,
-        };
+        let resp = tx.response.as_ref()?;
 
         let status = resp.status;
         let has_range_request = tx.request.headers.get("range").is_some();
