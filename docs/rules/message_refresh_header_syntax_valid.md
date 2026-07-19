@@ -8,13 +8,14 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate syntax of the non-standard `Refresh` response header. The header is commonly used to perform a delayed redirect or refresh using a `delta-seconds` value optionally followed by a `url=<URI>` parameter (e.g., `5; url=/new`). This rule flags malformed values such as non-numeric delays, missing `url` values, unrecognized parameters, and invalid URI syntax in the `url` parameter.
+Validate syntax of the `Refresh` response header. Long treated as non-standard, it is now specified by the HTML Standard as the HTTP equivalent of a `meta` element in the Refresh state, and takes the same value: a `delta-seconds` value optionally followed by a `url=<URI>` parameter (e.g., `5; url=/new`). This rule flags malformed values such as non-numeric delays, missing `url` values, unrecognized parameters, and invalid URI syntax in the `url` parameter.
 
 Note: this rule rejects comma-separated field-values (i.e., the header must be a single value). As a consequence, URLs containing commas will be flagged because commas are treated as list separators by this check.
 
 ## Specifications
 
-- [MDN Refresh](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Refresh): non-standard header commonly used for delayed redirects
+- [HTML Speculative Loading](https://html.spec.whatwg.org/multipage/speculative-loading.html): The `Refresh` header — the HTTP equivalent of a `meta` element in the Refresh state. The standard caught up with the header; this reference had not
+- [MDN Refresh](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Refresh): `Refresh` header, with browser support notes
 
 ## Configuration
 

@@ -64,6 +64,7 @@ impl Rule for MessageOriginIsolatedHeaderValidity {
         }
 
         // Accept only structured-headers boolean true value '?1' to signal origin isolation
+        // cite(Origin Isolation Explainer): "boolean "true" value ?1, indicates that any documents derived from that origin should be separated from other cross-origin documents"
         if val.eq("?1") {
             return None;
         }

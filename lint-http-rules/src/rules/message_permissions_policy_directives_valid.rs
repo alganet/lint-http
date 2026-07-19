@@ -48,6 +48,7 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
                 });
             }
 
+            // cite(Permissions Policy): "The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client."
             if let Some(msg) = validate_permissions_policy(s) {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -68,9 +69,9 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
         &[
             crate::rules::SpecRef {
                 spec: "Permissions Policy",
-                section: Some("5.2"),
+                section: None,
                 url: "https://w3c.github.io/webappsec-permissions-policy/#permissions-policy-http-header-field",
-                note: "Permissions-Policy HTTP header (directive syntax and serialization)",
+                note: "Permissions-Policy HTTP header (directive syntax and serialization). No section: an editor's draft renumbers — this reference said §5.2, the header field is now §6.1",
             },
             crate::rules::SpecRef {
                 spec: "RFC 8941",

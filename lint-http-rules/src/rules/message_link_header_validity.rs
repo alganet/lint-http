@@ -55,6 +55,7 @@ impl Rule for MessageLinkHeaderValidity {
                 let m = member.trim();
 
                 // Expect <URI-reference> at start
+                // cite(RFC 8288 § 3): "link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )"
                 if !m.starts_with('<') {
                     return Some(Violation {
                         rule: self.id().into(),

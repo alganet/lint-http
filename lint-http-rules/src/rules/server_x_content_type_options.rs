@@ -93,6 +93,7 @@ impl Rule for ServerXContentTypeOptions {
             });
 
         if let Some(content_type) = content_type_header {
+            // cite(Fetch): "The `X-Content-Type-Options` response header can be used to require checking of a response’s `Content-Type` header against the destination of a request."
             if (200..300).contains(&resp.status)
                 && config.content_types.contains(&content_type)
                 && !resp.headers.contains_key("x-content-type-options")
@@ -117,6 +118,12 @@ impl Rule for ServerXContentTypeOptions {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
+            crate::rules::SpecRef {
+                spec: "Fetch",
+                section: None,
+                url: "https://fetch.spec.whatwg.org/",
+                note: "`X-Content-Type-Options` and the `nosniff` check — where the header is actually specified. This rule cited only documentation of it",
+            },
             crate::rules::SpecRef {
                 spec: "MDN X-Content-Type-Options",
                 section: None,

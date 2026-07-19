@@ -52,6 +52,11 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
       line: 123
+  - label: server_x_content_type_options
+    snippet: The `X-Content-Type-Options` response header can be used to require checking of a response’s `Content-Type` header against the destination of a request.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_x_content_type_options.rs
+      line: 96
 - label: HTML
   url: https://html.spec.whatwg.org/multipage/browsers.html
   type: text/html
@@ -66,6 +71,43 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_cross_origin_opener_policy_valid.rs
       line: 73
+- label: HTML Speculative Loading
+  url: https://html.spec.whatwg.org/multipage/speculative-loading.html
+  type: text/html
+  fragments:
+  - label: message_content_security_policy_and_frame_options_consistency
+    snippet: The `X-Frame-Options` HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_security_policy_and_frame_options_consistency.rs
+      line: 97
+  - label: message_refresh_header_syntax_valid
+    snippet: The `Refresh` HTTP response header is the HTTP-equivalent to a meta element with an http-equiv attribute in the Refresh state.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
+      line: 44
+- label: CSP3
+  url: https://www.w3.org/TR/CSP3/
+  type: text/html
+  fragments:
+  - label: message_content_security_policy_and_frame_options_consistency
+    snippet: The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_security_policy_and_frame_options_consistency.rs
+      line: 96
+  - label: server_content_security_policy_validity
+    snippet: serialized-directive = directive-name [ required-ascii-whitespace directive-value ] directive-name = 1*( ALPHA / DIGIT / "-" )
+    cited_by:
+    - file: lint-http-rules/src/rules/server_content_security_policy_validity.rs
+      line: 80
+- label: Clear-Site-Data
+  url: https://www.w3.org/TR/clear-site-data/
+  type: text/html
+  fragments:
+  - label: server_clear_site_data
+    snippet: The Clear-Site-Data HTTP response header field sends a signal to the user agent that it ought to remove all data of a certain set of types.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_clear_site_data.rs
+      line: 124
 - label: Fetch Metadata
   url: https://www.w3.org/TR/fetch-metadata/
   type: text/html
@@ -104,6 +146,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
       line: 63
+- label: Server Timing
+  url: https://www.w3.org/TR/server-timing/
+  type: text/html
+  fragments:
+  - label: server_server_timing_header_syntax
+    snippet: 'Server-Timing = #server-timing-metric server-timing-metric = metric-name *( OWS ";" OWS server-timing-param ) metric-name = token'
+    cited_by:
+    - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
+      line: 55
+- label: Permissions Policy
+  url: https://w3c.github.io/webappsec-permissions-policy/
+  type: text/html
+  fragments:
+  - label: message_permissions_policy_directives_valid
+    snippet: The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
+      line: 51
 - label: draft-ietf-httpbis-rfc6265bis
   url: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
   type: text/html
@@ -128,6 +188,31 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cookie_same_site_enforcement.rs
       line: 142
+- label: MDN Content-Type
+  url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type
+  fragments:
+  - label: server_charset_specification
+    snippet: Indicates the character encoding standard used. The value is case insensitive but lowercase is preferred.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_charset_specification.rs
+      line: 47
+- label: MDN X-XSS-Protection
+  url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection
+  fragments:
+  - label: server_x_xss_protection_value_valid
+    snippet: Even though this feature can protect users of older web browsers that don't support CSP, in some cases, X-XSS-Protection can create XSS vulnerabilities in otherwise safe websites.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
+      line: 58
+- label: Origin Isolation Explainer
+  url: https://github.com/davidben/origin-isolation/blob/master/README.md
+  type: text/html
+  fragments:
+  - label: message_origin_isolated_header_validity
+    snippet: boolean "true" value ?1, indicates that any documents derived from that origin should be separated from other cross-origin documents
+    cited_by:
+    - file: lint-http-rules/src/rules/message_origin_isolated_header_validity.rs
+      line: 67
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.txt
   type: text/plain
@@ -270,6 +355,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 247
+- label: RFC 8288
+  url: https://www.rfc-editor.org/rfc/rfc8288.txt
+  type: text/plain
+  fragments:
+  - label: message_link_header_validity
+    section: § 3
+    snippet: link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )
+    cited_by:
+    - file: lint-http-rules/src/rules/message_link_header_validity.rs
+      line: 58
 - label: RFC 9110
   url: https://www.rfc-editor.org/rfc/rfc9110.txt
   type: text/plain

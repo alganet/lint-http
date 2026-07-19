@@ -14,6 +14,7 @@ This security header prevents browsers from "MIME-sniffing" a response away from
 
 ## Specifications
 
+- [Fetch](https://fetch.spec.whatwg.org/): `X-Content-Type-Options` and the `nosniff` check — where the header is actually specified. This rule cited only documentation of it
 - [MDN X-Content-Type-Options](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options): Web Docs: X-Content-Type-Options
 
 ## Configuration

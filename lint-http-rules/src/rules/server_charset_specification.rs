@@ -39,6 +39,12 @@ impl Rule for ServerCharsetSpecification {
                             .unwrap_or(false)
                     });
 
+                    // No specification requires `charset` on a `text/*` response — searched
+                    // for, not found. RFC 9110 mentions the parameter twice and mandates
+                    // nothing; MDN defines it and stops there. Requiring it is this linter's
+                    // policy, and the cite is the definition it rests on, not a MUST it does
+                    // not have.
+                    // cite(MDN Content-Type): "Indicates the character encoding standard used. The value is case insensitive but lowercase is preferred."
                     if !has_charset {
                         return Some(Violation {
                             rule: self.id().into(),

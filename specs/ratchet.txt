@@ -38,7 +38,6 @@ lint-http-rules/src/rules/message_content_length.rs
 lint-http-rules/src/rules/message_content_length_vs_transfer_encoding.rs
 lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
 lint-http-rules/src/rules/message_content_md5_vs_digest_preference.rs
-lint-http-rules/src/rules/message_content_security_policy_and_frame_options_consistency.rs
 lint-http-rules/src/rules/message_content_transfer_encoding_valid.rs
 lint-http-rules/src/rules/message_content_type_iana_registered.rs
 lint-http-rules/src/rules/message_content_type_well_formed.rs
@@ -62,13 +61,10 @@ lint-http-rules/src/rules/message_if_modified_since_date_format.rs
 lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
 lint-http-rules/src/rules/message_if_unmodified_since_date_format.rs
 lint-http-rules/src/rules/message_language_tag_format_valid.rs
-lint-http-rules/src/rules/message_link_header_validity.rs
 lint-http-rules/src/rules/message_max_forwards_numeric.rs
 lint-http-rules/src/rules/message_media_type_suffix_validity.rs
 lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
 lint-http-rules/src/rules/message_multipart_content_type_and_body_consistency.rs
-lint-http-rules/src/rules/message_origin_isolated_header_validity.rs
-lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
 lint-http-rules/src/rules/message_pragma_token_valid.rs
 lint-http-rules/src/rules/message_prefer_header_valid.rs
 lint-http-rules/src/rules/message_preference_applied_header_valid.rs
@@ -76,7 +72,6 @@ lint-http-rules/src/rules/message_priority_header_syntax.rs
 lint-http-rules/src/rules/message_problem_details_structure.rs
 lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
 lint-http-rules/src/rules/message_referer_uri_valid.rs
-lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
 lint-http-rules/src/rules/message_request_body_length_accuracy.rs
 lint-http-rules/src/rules/message_response_body_length_accuracy.rs
 lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
@@ -108,9 +103,6 @@ lint-http-rules/src/rules/server_alt_svc_h3_advertisement_valid.rs
 lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
 lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
 lint-http-rules/src/rules/server_cache_control_present.rs
-lint-http-rules/src/rules/server_charset_specification.rs
-lint-http-rules/src/rules/server_clear_site_data.rs
-lint-http-rules/src/rules/server_content_security_policy_validity.rs
 lint-http-rules/src/rules/server_content_type_present.rs
 lint-http-rules/src/rules/server_deprecation_header_syntax.rs
 lint-http-rules/src/rules/server_etag_or_last_modified.rs
@@ -128,14 +120,11 @@ lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
 lint-http-rules/src/rules/server_response_405_allow.rs
 lint-http-rules/src/rules/server_response_location_on_redirect.rs
 lint-http-rules/src/rules/server_retry_after_status_validity.rs
-lint-http-rules/src/rules/server_server_timing_header_syntax.rs
 lint-http-rules/src/rules/server_status_and_caching_semantics.rs
 lint-http-rules/src/rules/server_status_code_valid_range.rs
 lint-http-rules/src/rules/server_vary_and_cache_consistency.rs
 lint-http-rules/src/rules/server_vary_header_valid.rs
-lint-http-rules/src/rules/server_x_content_type_options.rs
 lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
-lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
 lint-http-rules/src/rules/stateful_101_switching_protocols.rs
 lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
 lint-http-rules/src/rules/stateful_cache_validation_chain.rs

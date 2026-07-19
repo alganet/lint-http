@@ -52,6 +52,10 @@ impl Rule for ServerXXssProtectionValueValid {
         };
 
         // Accept exactly "0" or "1;mode=block" (allow whitespace around separators, case-insensitive)
+        // `1` and `1; report=<uri>` are documented values that this rule rejects anyway.
+        // That is a policy, not a reading of a grammar: the filter these values enable is
+        // the thing the quote below warns about, and `0` is the one safe setting.
+        // cite(MDN X-XSS-Protection): "Even though this feature can protect users of older web browsers that don't support CSP, in some cases, X-XSS-Protection can create XSS vulnerabilities in otherwise safe websites."
         if val.eq_ignore_ascii_case("0") {
             return None;
         }
