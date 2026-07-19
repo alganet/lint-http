@@ -4,3 +4,10 @@ version = 1
 path = [ ".github/PULL_REQUEST_TEMPLATE.md", ".github/ISSUE_TEMPLATE/**", ".github/FUNDING.yml" ]
 SPDX-FileCopyrightText = "Alexandre Gomes Gaigalas <alganet@gmail.com>"
 SPDX-License-Identifier = "ISC"
+
+# Written by apycite, not by hand. A header we added would be removed by the next
+# `apycite extract`, and `--frozen` would then fail on a file nobody edited.
+[[annotations]]
+path = [ "specs/specs_generated.yaml", "specs/ratchet.txt" ]
+SPDX-FileCopyrightText = "Alexandre Gomes Gaigalas <alganet@gmail.com>"
+SPDX-License-Identifier = "ISC"

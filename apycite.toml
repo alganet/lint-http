@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+
+[apycite]
+# Only the code. Design notes quote the cite grammar in prose, and the spike's
+# prototype carries it in a docstring — apycite is right to refuse to call those
+# files clean, so they are simply not in scope. Nothing outside these roots
+# enforces a normative sentence.
+roots = [
+    "lint-http-rules/src",
+    "lint-http-core/src",
+    "lint-http-proxy/src",
+]
+output = "specs/specs_generated.yaml"
+
+# Every non-RFC document a cite may name. `RFC 9110` needs no entry — it resolves
+# by pattern to rfc-editor. An unknown source name is a hard error, never a guess.
+sources = "specs/sources.yaml"
+
+# A cite in src/rules/<id>.rs is labelled by the rule id — one rule per file, so
+# the label routes a failure straight to the rule. Shared code keeps its path:
+# helpers serve many rules, and pretending otherwise would name the wrong one.
+[[labels]]
+match = "lint-http-rules/src/rules/*.rs"
+label = "{stem}"
+
+[[labels]]
+match = "**/*"
+label = "{path}"
+
+# The migration, made monotone. The baseline lists the rule files that carry no
+# cite yet; CI fails if a file *enters* it — a new rule without a citation, or a
+# migrated rule that regressed. `--write` may only remove lines, so putting a file
+# back takes a human edit that a reviewer sees. The baseline only ever shrinks,
+# and shrinking it is the migration. When it is empty, the ratchet *is* the
+# permanent rule, with no second mechanism to keep in step.
+[ratchet]
+scope = "lint-http-rules/src/rules/*.rs"
+baseline = "specs/ratchet.txt"

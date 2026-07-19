@@ -1,0 +1,27 @@
+sources:
+- label: RFC 9110
+  url: https://www.rfc-editor.org/rfc/rfc9110.txt
+  type: text/plain
+  fragments:
+  - label: client_host_header
+    section: § 7.2
+    snippet: A user agent MUST generate a Host header field in a request unless it sends that information as an ":authority" pseudo-header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_host_header.rs
+      line: 30
+  - label: message_trailer_fields_validity
+    section: § 6.5.1
+    snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
+      line: 14
+- label: RFC 9112
+  url: https://www.rfc-editor.org/rfc/rfc9112.txt
+  type: text/plain
+  fragments:
+  - label: client_host_header
+    section: § 3.2
+    snippet: A client MUST send a Host header field (Section 7.2 of [HTTP]) in all HTTP/1.1 request messages.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_host_header.rs
+      line: 29

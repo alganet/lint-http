@@ -31,6 +31,12 @@ Thumbs.db
 .env
 .env.local
 
+# The citation toolchain (apycite + apysource) and the documents it caches.
+# Python, dev-only, never a runtime dependency of the linter.
+.venv/
+data/cache/
+data/sources/
+
 # Coverage
 *.profraw
 *.profdata
