@@ -1,4 +1,72 @@
 sources:
+- label: Fetch
+  url: https://fetch.spec.whatwg.org/
+  type: text/html
+  fragments:
+  - label: client_request_origin_header_present_for_cors
+    snippet: It is used for all HTTP fetches whose request’s response tainting is "cors", as well as those where request’s method is neither `GET` nor `HEAD`.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_origin_header_present_for_cors.rs
+      line: 32
+  - label: client_request_origin_header_present_for_cors (2)
+    snippet: The `Origin` request header indicates where a fetch originates from.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_origin_header_present_for_cors.rs
+      line: 69
+  - label: message_access_control_allow_credentials_when_origin
+    snippet: If credentials is `true`, then return success.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_access_control_allow_credentials_when_origin.rs
+      line: 88
+  - label: message_access_control_allow_credentials_when_origin (2)
+    snippet: If request’s credentials mode is not "include" and origin is `*`, then return success.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_access_control_allow_credentials_when_origin.rs
+      line: 87
+    - file: lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
+      line: 91
+  - label: message_access_control_allow_origin_valid
+    snippet: Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_access_control_allow_origin_valid.rs
+      line: 40
+    - file: lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
+      line: 62
+  - label: semantic_origin_matching_for_cors
+    snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
+      line: 123
+- label: Resource Timing
+  url: https://www.w3.org/TR/resource-timing/
+  type: text/html
+  fragments:
+  - label: message_timing_allow_origin_validity
+    snippet: The sender MAY generate multiple Timing-Allow-Origin header fields.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 38
+  - label: message_timing_allow_origin_validity (2)
+    snippet: Timing-Allow-Origin = 1#( origin-or-null / wildcard )
+    cited_by:
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 63
+- label: RFC 6454
+  url: https://www.rfc-editor.org/rfc/rfc6454.txt
+  type: text/plain
+  fragments:
+  - label: lint-http-rules/src/helpers/uri.rs
+    section: § 7.1
+    snippet: origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 94
+  - label: lint-http-rules/src/helpers/uri.rs (2)
+    section: § 7.1
+    snippet: serialized-origin = scheme "://" host [ ":" port ]
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 101
 - label: RFC 6750
   url: https://www.rfc-editor.org/rfc/rfc6750.txt
   type: text/plain

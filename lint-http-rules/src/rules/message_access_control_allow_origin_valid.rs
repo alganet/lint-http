@@ -35,7 +35,9 @@ impl Rule for MessageAccessControlAllowOriginValid {
             return None;
         }
 
-        // Multiple header fields are not allowed for Access-Control-Allow-Origin.
+        // Multiple header fields are not allowed for Access-Control-Allow-Origin: the
+        // header carries one value — an echoed origin, `null`, or `*` — not a list.
+        // cite(Fetch): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
         if acao_count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
@@ -112,13 +114,7 @@ impl Rule for MessageAccessControlAllowOriginValid {
                 spec: "Fetch",
                 section: None,
                 url: "https://fetch.spec.whatwg.org/",
-                note: "CORS spec (W3C): Cross-Origin Resource Sharing (CORS)",
-            },
-            crate::rules::SpecRef {
-                spec: "Fetch",
-                section: None,
-                url: "https://fetch.spec.whatwg.org/",
-                note: "Fetch Standard (CORS semantics)",
+                note: "CORS protocol — `Access-Control-Allow-Origin` carries one value: an echoed origin, `null`, or `*`",
             },
         ]
     }

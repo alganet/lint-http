@@ -32,7 +32,10 @@ impl Rule for MessageTimingAllowOriginValidity {
             return None;
         }
 
-        // Combine members across multiple header fields; parse_list_header handles commas & whitespace
+        // Combine members across multiple header fields; parse_list_header handles commas & whitespace.
+        // Several header fields are explicitly allowed, so this rule checks the members,
+        // not the field count — unlike Access-Control-Allow-Origin, which carries one value.
+        // cite(Resource Timing): "The sender MAY generate multiple Timing-Allow-Origin header fields."
         for hv in headers.get_all("timing-allow-origin").iter() {
             let s =
                 match hv.to_str() {
@@ -56,6 +59,8 @@ impl Rule for MessageTimingAllowOriginValidity {
             }
 
             // Detect empty list members caused by consecutive commas or leading empty members.
+            // `1#` is a non-empty list of non-empty members.
+            // cite(Resource Timing): "Timing-Allow-Origin = 1#( origin-or-null / wildcard )"
             // Trailing empty members (e.g., "https://a, ") are tolerated.
             let parts: Vec<&str> = s.split(',').collect();
             for (i, raw_member) in parts.iter().enumerate() {

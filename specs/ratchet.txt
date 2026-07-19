@@ -8,7 +8,6 @@ lint-http-rules/src/rules/client_patch_method_content_type_match.rs
 lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
 lint-http-rules/src/rules/client_range_header_syntax_valid.rs
 lint-http-rules/src/rules/client_request_method_token_valid.rs
-lint-http-rules/src/rules/client_request_origin_header_present_for_cors.rs
 lint-http-rules/src/rules/client_request_target_form_checks.rs
 lint-http-rules/src/rules/client_request_target_no_fragment.rs
 lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
@@ -20,8 +19,6 @@ lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
 lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
 lint-http-rules/src/rules/message_accept_language_weight_validity.rs
 lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
-lint-http-rules/src/rules/message_access_control_allow_credentials_when_origin.rs
-lint-http-rules/src/rules/message_access_control_allow_origin_valid.rs
 lint-http-rules/src/rules/message_age_header_numeric.rs
 lint-http-rules/src/rules/message_allow_header_method_tokens.rs
 lint-http-rules/src/rules/message_cache_control_and_pragma_consistency.rs
@@ -98,7 +95,6 @@ lint-http-rules/src/rules/message_strict_transport_security_validity.rs
 lint-http-rules/src/rules/message_structured_headers_validity.rs
 lint-http-rules/src/rules/message_sunset_and_deprecation_consistency.rs
 lint-http-rules/src/rules/message_te_header_constraints.rs
-lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
 lint-http-rules/src/rules/message_trailer_headers_valid.rs
 lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
 lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
@@ -111,7 +107,6 @@ lint-http-rules/src/rules/mod.rs
 lint-http-rules/src/rules/semantic_cache_coherence.rs
 lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
 lint-http-rules/src/rules/semantic_options_method_capabilities.rs
-lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
 lint-http-rules/src/rules/semantic_patch_partial_update.rs
 lint-http-rules/src/rules/semantic_post_creates_resource.rs
 lint-http-rules/src/rules/semantic_status_code_semantics.rs

@@ -59,6 +59,7 @@ impl Rule for SemanticOriginMatchingForCors {
         }
 
         // Multiple header fields are not permitted; treat as violation early
+        // cite(Fetch): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
         if acao_values.len() > 1 {
             return Some(Violation {
                 rule: self.id().into(),
@@ -83,7 +84,11 @@ impl Rule for SemanticOriginMatchingForCors {
 
         let acao_val = members.into_iter().next().unwrap().trim().to_string();
 
-        // `*` is permitted only when credentials are not allowed
+        // `*` is permitted only when credentials are not allowed. The CORS check short-
+        // circuits on `*` *only* for a request that does not carry credentials; a
+        // credentialed one falls through to the byte-serialized comparison below, which
+        // `*` can never satisfy.
+        // cite(Fetch): "If request’s credentials mode is not "include" and origin is `*`, then return success."
         if acao_val == "*" {
             if let Some(cred) = crate::helpers::headers::get_header_str(
                 &resp.headers,
@@ -115,6 +120,7 @@ impl Rule for SemanticOriginMatchingForCors {
             origin.to_string()
         };
 
+        // cite(Fetch): "If the result of byte-serializing a request origin with request is not origin, then return failure."
         if acao_norm != origin_norm {
             return Some(Violation {
                 rule: self.id().into(),
