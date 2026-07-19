@@ -1,0 +1,190 @@
+# SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+#
+# The source registry: every non-RFC document a `// cite(...)` may name.
+#
+# This is an ordinary apysource sources file, not a format of apycite's own. A
+# cite names an entry here by its `label`; apysource does the rest — claiming the
+# URL for a repo, parsing the format, resolving `§ N` and `#anchor` targeting.
+#
+# RFCs are deliberately absent. `RFC 9110` resolves by pattern to
+# rfc-editor.org/rfc/rfc9110.txt, so this file holds only what a pattern cannot
+# mint: documents with a biography. That is also where the catalogue's
+# rfc-editor / datatracker host mixing ends — an RFC on datatracker is cited as
+# `RFC 6454`, and comes from one place.
+#
+# THE URLS HERE ARE CANONICAL, AND CHECKED (2026-07-13). The catalogue they were
+# drawn from was not: of the 40 documents cited by the 185 rules, 22 were stale,
+# dead, or superseded. A registry that wrote those down would have made the rot
+# permanent and called it configuration. What changed, and why, is recorded
+# against each entry — an entry that moved without a note is an entry nobody
+# checked.
+
+sources:
+  # ── WHATWG living standards ───────────────────────────────────────────
+  #
+  # The living standards absorbed three W3C specifications the rules still cite.
+  # These are not renames: the W3C document is retired and the text now lives in
+  # Fetch or HTML, so the citation must move, not just its URL.
+
+  - label: Fetch
+    url: https://fetch.spec.whatwg.org/
+    type: text/html
+    # Also the home of CORS (www.w3.org/TR/cors/ now redirects here — the W3C
+    # CORS REC is retired) and of Cross-Origin-Resource-Policy, whose editor's
+    # draft (w3c.github.io/webappsec-corp/) is a 404.
+
+  - label: HTML
+    url: https://html.spec.whatwg.org/multipage/browsers.html
+    type: text/html
+    # multipage/origin.html redirects here. This section is also where COOP and
+    # COEP ended up: www.w3.org/TR/cross-origin-opener-policy/ and
+    # w3c.github.io/webappsec-coep/ are both 404s.
+
+  - label: HTML Links
+    url: https://html.spec.whatwg.org/multipage/links.html
+    type: text/html
+    # Preload: www.w3.org/TR/preload/ redirects to #link-type-preload here.
+
+  - label: HTML Speculative Loading
+    url: https://html.spec.whatwg.org/multipage/speculative-loading.html
+    type: text/html
+
+  # ── W3C ───────────────────────────────────────────────────────────────
+
+  - label: CSP3
+    url: https://www.w3.org/TR/CSP3/
+    type: text/html
+
+  - label: Clear-Site-Data
+    url: https://www.w3.org/TR/clear-site-data/
+    type: text/html
+
+  - label: Fetch Metadata
+    url: https://www.w3.org/TR/fetch-metadata/
+    type: text/html
+
+  - label: Resource Timing
+    url: https://www.w3.org/TR/resource-timing/
+    type: text/html
+
+  - label: Server Timing
+    url: https://www.w3.org/TR/server-timing/
+    type: text/html
+    # The rules cite the editor's draft (w3c.github.io/server-timing/), which is
+    # live; the TR is the stable rendition and is preferred for the same reason
+    # rfc-editor is preferred over datatracker.
+
+  - label: Permissions Policy
+    url: https://w3c.github.io/webappsec-permissions-policy/
+    type: text/html
+    # Editor's draft on purpose: this one has no TR rendition.
+
+  # ── IANA registries ───────────────────────────────────────────────────
+
+  - label: IANA HTTP Field Name Registry
+    url: https://www.iana.org/assignments/http-fields/http-fields.xhtml
+    type: text/html
+    # The cited http-field-names/http-field-names.xhtml is a 404. RFC 9110 § 18.4
+    # renamed the registry, and the catalogue kept the old name.
+
+  - label: IANA HTTP Parameters
+    url: https://www.iana.org/assignments/http-parameters/http-parameters.xhtml
+    type: text/html
+
+  - label: IANA HTTP Authentication Schemes
+    url: https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml
+    type: text/html
+
+  - label: IANA Media Types
+    url: https://www.iana.org/assignments/media-types/media-types.xhtml
+    type: text/html
+
+  - label: IANA Media Type Structured Suffixes
+    url: https://www.iana.org/assignments/media-type-structured-suffix/media-type-structured-suffix.xhtml
+    type: text/html
+
+  - label: IANA Character Sets
+    url: https://www.iana.org/assignments/character-sets/character-sets.xhtml
+    type: text/html
+
+  # ── Internet-Drafts ───────────────────────────────────────────────────
+  #
+  # A draft is a moving target by definition, which is the case for verifying a
+  # quote against it rather than trusting one written months ago.
+
+  - label: draft-ietf-httpbis-rfc6265bis
+    url: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
+    type: text/html
+
+  # ── MDN ───────────────────────────────────────────────────────────────
+  #
+  # MdnRepo claims these URLs and verifies against the authored markdown in
+  # mdn/content, so a moved page fails loudly instead of following a 301.
+  #
+  # Every one of the 14 MDN URLs in the catalogue is the pre-redirect
+  # /Web/HTTP/Headers/ form, which MDN moved to /Web/HTTP/Reference/Headers/.
+  # They all still verify green through a plain fetcher — which is exactly the
+  # redirect-rot that made MdnRepo worth building.
+
+  - label: MDN Access-Control-Allow-Credentials
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials
+
+  - label: MDN Access-Control-Allow-Origin
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin
+
+  - label: MDN Clear-Site-Data
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Clear-Site-Data
+
+  - label: MDN Content-Security-Policy
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy
+
+  - label: MDN Content-Type
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type
+
+  - label: MDN Cross-Origin-Embedder-Policy
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy
+
+  - label: MDN Cross-Origin-Opener-Policy
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Opener-Policy
+
+  - label: MDN Cross-Origin-Resource-Policy
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Resource-Policy
+
+  - label: MDN Origin
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Origin
+
+  - label: MDN Refresh
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Refresh
+
+  - label: MDN Set-Cookie
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie
+    # The rules cite .../Headers/Set-Cookie/SameSite, which no longer exists as a
+    # page: it was folded into Set-Cookie. Not a move — a merge. A cite wanting
+    # the SameSite text targets a section of this page.
+
+  - label: MDN X-Content-Type-Options
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options
+
+  - label: MDN X-Frame-Options
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Frame-Options
+
+  - label: MDN X-XSS-Protection
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection
+
+  # ── Not specifications ────────────────────────────────────────────────
+  #
+  # Cited by rules as background. They justify no normative sentence, so nothing
+  # should ever `// cite(...)` them — they are here so the catalogue's URLs have
+  # one home, and so the dead one below is recorded rather than quietly dropped.
+
+  - label: OWASP Secure Headers
+    url: https://owasp.org/www-project-secure-headers/
+    type: text/html
+    # owasp.org/www-community/controls/Response_Headers, which the rules cite, is
+    # a 404. This is the live project that replaced it.
+
+  - label: Origin Isolation Explainer
+    url: https://github.com/davidben/origin-isolation/blob/master/README.md
+    type: text/html

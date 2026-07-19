@@ -26,6 +26,8 @@ impl Rule for ClientHostHeader {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let host_values = tx.request.headers.get_all("host");
         let host_count = host_values.iter().count();
+        // cite(RFC 9112 § 3.2): "A client MUST send a Host header field (Section 7.2 of [HTTP]) in all HTTP/1.1 request messages."
+        // cite(RFC 9110 § 7.2): "A user agent MUST generate a Host header field in a request unless it sends that information as an ":authority" pseudo-header field."
         if host_count == 0 {
             return Some(Violation {
                 rule: self.id().into(),

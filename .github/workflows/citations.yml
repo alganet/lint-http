@@ -1,0 +1,80 @@
+# SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+
+name: Citations
+
+permissions:
+  contents: read
+
+# Two jobs, two cadences. `citations` is offline — it fetches nothing and only
+# asks whether the tree and the committed citations file agree — so it runs on
+# every push and pull request to main. `verify` fetches the real documents, so it
+# runs nightly, and on manual dispatch. `pip install apycite` brings apycite and
+# its apysource dependency from PyPI.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: "17 4 * * *"      # nightly, for the `verify` job below
+  workflow_dispatch:
+
+jobs:
+  # Offline, fast, and safe to run on every pull request: it fetches nothing and
+  # only asks whether the tree and the committed citations file agree.
+  citations:
+    name: Citations are current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install apycite
+        run: pip install apycite
+
+      # The committed specs/specs_generated.yaml is what the tree actually says.
+      # --frozen re-derives it and diffs; it never writes.
+      - name: Citations file is current
+        run: apycite extract --frozen
+
+      # No new rule lands without a citation, and no migrated rule regresses.
+      - name: Ratchet
+        run: apycite ratchet
+
+  # Fetches the real documents, so it runs nightly rather than per-push: the
+  # answer changes when a *specification* changes, not when we do. --refresh
+  # defeats the cache, which is the whole point — a cached copy cannot tell you
+  # that upstream edited the sentence you are quoting.
+  verify:
+    name: The sources still say this
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install apycite
+        run: pip install apycite
+
+      - name: Cache fetched documents
+        uses: actions/cache@v6
+        with:
+          path: |
+            data/cache
+            data/sources
+          key: ${{ runner.os }}-apysource-${{ hashFiles('specs/specs_generated.yaml') }}
+          restore-keys: ${{ runner.os }}-apysource-
+
+      # --strict-redirects turns a moved source into a failure. The catalogue this
+      # replaced had 14 MDN URLs that a plain fetcher followed a 301 to and passed
+      # green; that silence is the thing being bought out here.
+      - name: Verify every quote against its source
+        run: apycite verify --refresh --strict-redirects

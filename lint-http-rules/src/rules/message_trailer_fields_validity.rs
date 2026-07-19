@@ -11,6 +11,7 @@ use crate::rules::Rule;
 /// (controls and conditionals), authentication, response control data, and
 /// fields that determine how to process the payload.
 const PROHIBITED_TRAILER_FIELDS: &[&str] = &[
+    // cite(RFC 9110 § 6.5.1): "Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format."
     // Message framing (RFC 9110 §6.5.1)
     "content-length",
     "transfer-encoding",
