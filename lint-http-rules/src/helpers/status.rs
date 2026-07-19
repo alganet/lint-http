@@ -4,6 +4,7 @@
 
 /// Returns true if `status` is a redirection status (3xx).
 pub fn is_redirection_status(status: u16) -> bool {
+    // cite(RFC 9110 § 15.4): "The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request."
     (300..=399).contains(&status)
 }
 

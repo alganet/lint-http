@@ -25,6 +25,7 @@ pub fn compute_accept(key: &str) -> Option<String> {
     let key_trim = key.trim();
     // decode key to ensure it is 16 bytes long
     match base64::engine::general_purpose::STANDARD.decode(key_trim) {
+        // cite(RFC 6455 § 4.1): "The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded"
         Ok(bytes) if bytes.len() == 16 => {
             let mut hasher = sha1::Sha1::new();
             hasher.update(key_trim.as_bytes());
