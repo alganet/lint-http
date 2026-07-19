@@ -295,6 +295,14 @@ sources:
       line: 106
     - file: lint-http-rules/src/rules/stateful_cookie_domain_matching.rs
       line: 108
+  - label: lint-http-rules/src/helpers/cookie.rs (3)
+    section: § 5.2.4
+    snippet: 'If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):'
+    cited_by:
+    - file: lint-http-rules/src/helpers/cookie.rs
+      line: 174
+    - file: lint-http-rules/src/rules/message_cookie_path_validity.rs
+      line: 56
   - label: message_cookie_attribute_consistency
     section: § 4.1.1
     snippet: cookie-pair       = cookie-name "=" cookie-value cookie-name       = token
@@ -331,12 +339,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_cookie_domain_validity.rs
       line: 50
-  - label: message_cookie_path_validity
-    section: § 5.2.4
-    snippet: 'If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):'
-    cited_by:
-    - file: lint-http-rules/src/rules/message_cookie_path_validity.rs
-      line: 56
   - label: stateful_cookie_lifecycle
     section: § 4.1.2.5
     snippet: The Secure attribute limits the scope of the cookie to "secure" channels
@@ -745,6 +747,14 @@ sources:
       line: 28
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
       line: 39
+  - label: lint-http-proxy/src/proxy/exchange.rs
+    section: § 15.2.2
+    snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
+    cited_by:
+    - file: lint-http-proxy/src/proxy/exchange.rs
+      line: 280
+    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+      line: 42
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 11.1
     snippet: It uses a case-insensitive token to identify the authentication scheme
@@ -1137,12 +1147,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_vary_header_valid.rs
       line: 34
-  - label: stateful_101_switching_protocols
-    section: § 15.2.2
-    snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
-      line: 42
   - label: stateful_authentication_failure_loop
     section: § 15.5.2
     snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
@@ -1289,10 +1293,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
       line: 29
-  - label: client_request_target_form_checks
+  - label: lint-http-rules/src/helpers/uri.rs
     section: § 3.2
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
     cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 143
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 206
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 30
   - label: message_content_length_vs_transfer_encoding
@@ -1347,6 +1355,22 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc9114.txt
   type: text/plain
   fragments:
+  - label: lint-http-proxy/src/h3_instrument.rs
+    section: § 7.2.4
+    snippet: The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate
+    cited_by:
+    - file: lint-http-proxy/src/h3_instrument.rs
+      line: 125
+    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
+      line: 48
+  - label: lint-http-proxy/src/h3_instrument.rs (2)
+    section: § 7.2.7
+    snippet: The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate.
+    cited_by:
+    - file: lint-http-proxy/src/h3_instrument.rs
+      line: 128
+    - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
+      line: 40
   - label: message_http3_host_authority_consistency
     section: § 4.3
     snippet: Pseudo-header fields are not HTTP fields.
@@ -1369,18 +1393,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
       line: 31
-  - label: stateful_http3_max_push_id
-    section: § 7.2.7
-    snippet: The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
-      line: 40
-  - label: stateful_http3_settings_frame
-    section: § 7.2.4
-    snippet: The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 48
 - label: RFC 9218
   url: https://www.rfc-editor.org/rfc/rfc9218.txt
   type: text/plain

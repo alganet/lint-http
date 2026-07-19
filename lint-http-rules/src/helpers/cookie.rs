@@ -168,10 +168,10 @@ pub fn parse_set_cookie(
             }
             "path" => {
                 if let Some(v) = val_opt {
-                    // RFC 6265 §5.2.4: if the attribute-value does not start
-                    // with "/", the user agent SHOULD ignore the attribute and
-                    // use the default-path instead.  We mirror that behaviour by
-                    // only assigning when the value is syntactically valid.
+                    // The user agent ignores such an attribute and uses the
+                    // default-path instead.  We mirror that by only assigning
+                    // when the value is syntactically valid.
+                    // cite(RFC 6265 § 5.2.4): "If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):"
                     if v.starts_with('/') {
                         path_attr = Some(v.to_string());
                     }
