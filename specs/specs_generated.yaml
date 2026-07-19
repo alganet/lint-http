@@ -32,11 +32,64 @@ sources:
       line: 40
     - file: lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
       line: 62
+  - label: message_cross_origin_resource_policy_valid
+    snippet: Cross-Origin-Resource-Policy = %s"same-origin" / %s"same-site" / %s"cross-origin" ; case-sensitive
+    cited_by:
+    - file: lint-http-rules/src/rules/message_cross_origin_resource_policy_valid.rs
+      line: 78
+  - label: message_cross_origin_resource_policy_valid (2)
+    snippet: If policy is neither `same-origin`, `same-site`, nor `cross-origin`, then set policy to null.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_cross_origin_resource_policy_valid.rs
+      line: 79
+  - label: message_sec_fetch_dest_value_valid
+    snippet: 'A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt".'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
+      line: 84
   - label: semantic_origin_matching_for_cors
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
       line: 123
+- label: HTML
+  url: https://html.spec.whatwg.org/multipage/browsers.html
+  type: text/html
+  fragments:
+  - label: message_cross_origin_embedder_policy_valid
+    snippet: An embedder policy value is one of three strings that controls the fetching of cross-origin resources without explicit permission from resource owners.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_cross_origin_embedder_policy_valid.rs
+      line: 78
+  - label: message_cross_origin_opener_policy_valid
+    snippet: 'The possible values are: "unsafe-none"This is the (current) default and means that the document will occupy the same top-level browsing context as its predecessor, unless that document specified a different opener policy.'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_cross_origin_opener_policy_valid.rs
+      line: 73
+- label: Fetch Metadata
+  url: https://www.w3.org/TR/fetch-metadata/
+  type: text/html
+  fragments:
+  - label: message_sec_fetch_dest_value_valid
+    snippet: Valid Sec-Fetch-Dest values include the set of valid request destinations defined by [Fetch].
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
+      line: 83
+  - label: message_sec_fetch_mode_value_valid
+    snippet: Valid Sec-Fetch-Mode values include "cors", "navigate", "no-cors", "same-origin", and "websocket".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
+      line: 77
+  - label: message_sec_fetch_site_value_valid
+    snippet: Valid Sec-Fetch-Site values include "cross-site", "same-origin", "same-site", and "none".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sec_fetch_site_value_valid.rs
+      line: 77
+  - label: message_sec_fetch_user_value_valid
+    snippet: 'Sec-Fetch-User = sf-boolean Note: The header is delivered only for navigation requests, and only when its value is true.'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sec_fetch_user_value_valid.rs
+      line: 66
 - label: Resource Timing
   url: https://www.w3.org/TR/resource-timing/
   type: text/html

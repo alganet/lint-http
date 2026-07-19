@@ -70,11 +70,14 @@ impl Rule for MessageCrossOriginResourcePolicyValid {
             });
         }
 
-        // Acceptable values: same-site, same-origin, cross-origin (case-insensitive)
-        if val.eq_ignore_ascii_case("same-site")
-            || val.eq_ignore_ascii_case("same-origin")
-            || val.eq_ignore_ascii_case("cross-origin")
-        {
+        // Acceptable values: same-site, same-origin, cross-origin — and the ABNF says
+        // case-sensitive, so this comparison is too. It used to be case-insensitive, which
+        // called `SAME-ORIGIN` valid; a user agent does not. It sets an unrecognized policy
+        // to null and fetches the resource as if the header were never sent, so accepting
+        // the miscased form told the operator a protection was on while it was off.
+        // cite(Fetch): "Cross-Origin-Resource-Policy = %s"same-origin" / %s"same-site" / %s"cross-origin" ; case-sensitive"
+        // cite(Fetch): "If policy is neither `same-origin`, `same-site`, nor `cross-origin`, then set policy to null."
+        if val == "same-site" || val == "same-origin" || val == "cross-origin" {
             return None;
         }
 
@@ -93,7 +96,7 @@ impl Rule for MessageCrossOriginResourcePolicyValid {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks the `Cross-Origin-Resource-Policy` response header value and ensures it is one of the allowed tokens: **`same-site`**, **`same-origin`**, or **`cross-origin`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. This header is response-only per the W3C Cross-Origin Resource Policy specification; the rule applies to server responses (RuleScope::Server)."
+        "This rule checks the `Cross-Origin-Resource-Policy` response header value and ensures it is one of the allowed tokens: **`same-site`**, **`same-origin`**, or **`cross-origin`**. The comparison is **case-sensitive**, as the Fetch Standard's ABNF requires: a user agent that does not recognize the value sets the policy to null and serves the resource as though the header were never sent, so a miscased `SAME-ORIGIN` is not a weaker protection but no protection at all. Surrounding whitespace is still tolerated. The header must be a single value and must not contain comma-separated lists or multiple header fields. This header is response-only; the rule applies to server responses (RuleScope::Server)."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -155,8 +158,13 @@ mod tests {
     #[case(Some("same-site"), false)]
     #[case(Some("same-origin"), false)]
     #[case(Some("cross-origin"), false)]
-    #[case(Some(" SAME-ORIGIN "), false)]
+    // Surrounding whitespace is still stripped, but the token itself is case-sensitive:
+    // a user agent sets `SAME-ORIGIN` to null and serves the resource unprotected, so
+    // calling it valid would report a protection that is not there.
+    #[case(Some(" same-origin "), false)]
     // invalid
+    #[case(Some(" SAME-ORIGIN "), true)]
+    #[case(Some("Same-Origin"), true)]
     #[case(Some(""), true)]
     #[case(Some("other"), true)]
     #[case(Some("same-origin, cross-origin"), true)]

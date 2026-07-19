@@ -77,12 +77,17 @@ impl Rule for MessageSecFetchDestValueValid {
             });
         }
 
+        // The value set is not Fetch Metadata's own — it defers to Fetch, which grows as
+        // new destinations are defined. `"text"` was added to Fetch and missing here until
+        // the citation below was written against the live document.
+        // cite(Fetch Metadata): "Valid Sec-Fetch-Dest values include the set of valid request destinations defined by [Fetch]."
+        // cite(Fetch): "A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt"."
         let lower = val.to_ascii_lowercase();
         match lower.as_str() {
             "empty" | "audio" | "audioworklet" | "document" | "embed" | "font" | "frame"
             | "iframe" | "image" | "json" | "manifest" | "object" | "paintworklet" | "report"
-            | "script" | "serviceworker" | "sharedworker" | "style" | "track" | "video"
-            | "webidentity" | "worker" | "xslt" => None,
+            | "script" | "serviceworker" | "sharedworker" | "style" | "text" | "track"
+            | "video" | "webidentity" | "worker" | "xslt" => None,
             _ => Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
@@ -158,6 +163,9 @@ mod tests {
     #[case(Some("serviceworker"), false)]
     #[case(Some("sharedworker"), false)]
     #[case(Some("style"), false)]
+    // A destination Fetch added after this rule was written, and rejected here until the
+    // citation was checked against the live standard.
+    #[case(Some("text"), false)]
     #[case(Some("track"), false)]
     #[case(Some("video"), false)]
     #[case(Some("webidentity"), false)]

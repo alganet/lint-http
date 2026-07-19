@@ -66,8 +66,14 @@ impl Rule for MessageCrossOriginOpenerPolicyValid {
         }
 
         // Acceptable values: same-origin, same-origin-allow-popups, unsafe-none (case-insensitive)
+        // `noopener-allow-popups` was added to the opener policy values and was missing
+        // here — a valid, deployable header this rule used to reject. `same-origin-plus-COEP`
+        // is deliberately absent: it is a policy value, but the standard says it cannot be
+        // set through this header, so a response carrying it *is* wrong.
+        // cite(HTML): "The possible values are: "unsafe-none"This is the (current) default and means that the document will occupy the same top-level browsing context as its predecessor, unless that document specified a different opener policy."
         if val.eq_ignore_ascii_case("same-origin")
             || val.eq_ignore_ascii_case("same-origin-allow-popups")
+            || val.eq_ignore_ascii_case("noopener-allow-popups")
             || val.eq_ignore_ascii_case("unsafe-none")
         {
             return None;
@@ -88,7 +94,7 @@ impl Rule for MessageCrossOriginOpenerPolicyValid {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks the `Cross-Origin-Opener-Policy` response header value and ensures it is one of the allowed tokens: **`same-origin`**, **`same-origin-allow-popups`**, or **`unsafe-none`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. This header is response-only per the HTML and W3C Cross-Origin-Opener-Policy specifications; the rule applies to server responses (RuleScope::Server)."
+        "This rule checks the `Cross-Origin-Opener-Policy` response header value and ensures it is one of the allowed tokens: **`same-origin`**, **`same-origin-allow-popups`**, **`noopener-allow-popups`**, or **`unsafe-none`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `same-origin-plus-COEP` is an opener policy value, but the HTML Standard states it cannot be set directly through this header — it results from combining `same-origin` with a compatible `Cross-Origin-Embedder-Policy` — so a response carrying it is flagged. This header is response-only; the rule applies to server responses (RuleScope::Server)."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -160,11 +166,15 @@ mod tests {
     #[rstest]
     #[case(Some("same-origin"), false)]
     #[case(Some("same-origin-allow-popups"), false)]
+    #[case(Some("noopener-allow-popups"), false)]
     #[case(Some("unsafe-none"), false)]
     #[case(Some(" SAME-ORIGIN "), false)]
     // invalid
     #[case(Some(""), true)]
     #[case(Some("other"), true)]
+    // A real opener policy value, but not one this header can carry: it results from
+    // combining `same-origin` with a COEP header, and cannot be set directly.
+    #[case(Some("same-origin-plus-COEP"), true)]
     #[case(Some("same-origin, unsafe-none"), true)]
     fn check_values(#[case] val: Option<&str>, #[case] expect_violation: bool) {
         let rule = MessageCrossOriginOpenerPolicyValid;

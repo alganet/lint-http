@@ -42,9 +42,6 @@ lint-http-rules/src/rules/message_content_security_policy_and_frame_options_cons
 lint-http-rules/src/rules/message_content_transfer_encoding_valid.rs
 lint-http-rules/src/rules/message_content_type_iana_registered.rs
 lint-http-rules/src/rules/message_content_type_well_formed.rs
-lint-http-rules/src/rules/message_cross_origin_embedder_policy_valid.rs
-lint-http-rules/src/rules/message_cross_origin_opener_policy_valid.rs
-lint-http-rules/src/rules/message_cross_origin_resource_policy_valid.rs
 lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
 lint-http-rules/src/rules/message_digest_header_syntax.rs
 lint-http-rules/src/rules/message_early_data_header_safe_method.rs
@@ -83,10 +80,6 @@ lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
 lint-http-rules/src/rules/message_request_body_length_accuracy.rs
 lint-http-rules/src/rules/message_response_body_length_accuracy.rs
 lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
-lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
-lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
-lint-http-rules/src/rules/message_sec_fetch_site_value_valid.rs
-lint-http-rules/src/rules/message_sec_fetch_user_value_valid.rs
 lint-http-rules/src/rules/message_server_header_product_valid.rs
 lint-http-rules/src/rules/message_strict_transport_security_validity.rs
 lint-http-rules/src/rules/message_structured_headers_validity.rs

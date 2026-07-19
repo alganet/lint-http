@@ -74,6 +74,7 @@ impl Rule for MessageSecFetchSiteValueValid {
             });
         }
 
+        // cite(Fetch Metadata): "Valid Sec-Fetch-Site values include "cross-site", "same-origin", "same-site", and "none"."
         let lower = val.to_ascii_lowercase();
         match lower.as_str() {
             "cross-site" | "same-origin" | "same-site" | "none" => None,
