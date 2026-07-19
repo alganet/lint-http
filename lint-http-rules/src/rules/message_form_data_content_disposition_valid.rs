@@ -34,6 +34,7 @@ impl Rule for MessageFormDataContentDispositionValid {
             let dispo = parts.next().unwrap().trim();
             let params_part = parts.next().map(|p| p.trim()).unwrap_or("");
 
+            // cite(RFC 7578 § 4.2): "Each part MUST contain a Content-Disposition header field"
             if !dispo.eq_ignore_ascii_case("form-data") {
                 return None; // only applies to form-data dispositions
             }

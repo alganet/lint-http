@@ -75,6 +75,7 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                             let v = val.unwrap();
 
                             if name.eq_ignore_ascii_case("q") {
+                                // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
                                 if !crate::helpers::headers::valid_qvalue(v) {
                                     return Some(Violation {
                                         rule: self.id().into(),

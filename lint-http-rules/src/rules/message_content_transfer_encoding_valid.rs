@@ -39,6 +39,7 @@ impl Rule for MessageContentTransferEncodingValid {
 
             // RFC 2045 defines a single token value here; if commas are present it's likely malformed
             let parts: Vec<&str> = crate::helpers::headers::parse_list_header(s).collect();
+            // cite(RFC 2045 § 6.1): "mechanism := "7bit" / "8bit" / "binary" / "quoted-printable" / "base64" / ietf-token / x-token"
             if parts.len() > 1 {
                 return Some(Violation {
                     rule: self.id().into(),

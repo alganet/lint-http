@@ -12,7 +12,7 @@ Validate `Accept` header media-range syntax. Each member must be a valid media-r
 
 ## Specifications
 
-- [RFC 9110 §7.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1): Accept header field and media-range syntax
+- [RFC 9110 §12.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1): Accept header field and media-range syntax
 
 ## Configuration
 

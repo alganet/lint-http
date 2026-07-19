@@ -12,7 +12,7 @@ Validate `Content-Encoding` and `Accept-Encoding` header values to ensure conten
 
 ## Specifications
 
-- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Content Coding
+- [RFC 9110 §8.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4): Content Coding
 - [IANA HTTP Parameters](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding): IANA Content Coding registry
 
 ## Configuration

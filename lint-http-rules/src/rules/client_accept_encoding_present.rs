@@ -23,6 +23,10 @@ impl Rule for ClientAcceptEncodingPresent {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // Nothing requires a client to send `Accept-Encoding`. Its absence means "identity
+        // only" by default, which is a legal choice and usually an unintended one; this
+        // rule is advice, and the grammar it cites is what the advice is about.
+        // cite(RFC 9110 § 12.5.3): "Accept-Encoding = #( codings [ weight ] )"
         if !tx.request.headers.contains_key("accept-encoding") {
             Some(Violation {
                 rule: self.id().into(),

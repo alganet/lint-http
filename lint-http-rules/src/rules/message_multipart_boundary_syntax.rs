@@ -24,6 +24,8 @@ impl Rule for MessageMultipartBoundarySyntax {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check request Content-Type
+        // cite(RFC 2046 § 5.1.1): "The Content-Type field for multipart entities requires one parameter, "boundary"."
+        // cite(RFC 2046 § 5.1.1): "boundary := 0*69<bchars> bcharsnospace"
         if let Some(hv) = tx.request.headers.get("content-type") {
             if let Ok(s) = hv.to_str() {
                 if let Some(v) = check_multipart_boundary("request", s, &config) {

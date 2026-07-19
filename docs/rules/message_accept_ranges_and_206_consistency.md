@@ -12,8 +12,8 @@ When a server returns a 206 (Partial Content) response it indicates that the req
 
 ## Specifications
 
-- [RFC 7233 §4.1](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1): 206 Partial Content: single-part 206 responses MUST include a `Content-Range` header describing the enclosed range
-- [RFC 9110 §7.3.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4): `Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`
+- [RFC 9110 §15.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7): `206 Partial Content`: a single-part 206 MUST include a `Content-Range`. RFC 7233 §4.1 defined it; RFC 9110 obsoleted RFC 7233
+- [RFC 9110 §14.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3): `Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`
 
 ## Configuration
 

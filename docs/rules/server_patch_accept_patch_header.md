@@ -12,7 +12,7 @@ Servers SHOULD include `Accept-Patch` in responses to `PATCH` requests to advert
 
 ## Specifications
 
-- [RFC 5789 §2.2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2): PATCH and Accept-Patch header
+- [RFC 5789 §3.1](https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1): The `Accept-Patch` header. This reference said §2.2, which is Error Handling
 
 ## Configuration
 

@@ -12,8 +12,8 @@ Validate `Content-Encoding` header members for common correctness issues: member
 
 ## Specifications
 
-- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Content Coding
-- [RFC 9110 §6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.3): Message Body and status codes (1xx, 204, 304)
+- [RFC 9110 §8.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4): Content Coding
+- [RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Message Body and status codes (1xx, 204, 304)
 
 ## Configuration
 

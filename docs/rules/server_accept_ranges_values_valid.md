@@ -16,7 +16,7 @@ Validate the `Accept-Ranges` response header. This rule enforces that:
 
 ## Specifications
 
-- [RFC 9110 §7.3.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4): Accept-Ranges header
+- [RFC 9110 §14.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3): Accept-Ranges header
 
 ## Configuration
 

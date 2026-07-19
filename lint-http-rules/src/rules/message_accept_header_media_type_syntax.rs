@@ -61,6 +61,7 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                         });
                     }
 
+                    // cite(RFC 9110 § 12.5.1): "Accept = #( media-range [ weight ] )"
                     if let Ok(parsed) = crate::helpers::headers::parse_media_type(media) {
                         // validate type and subtype tokens (allow '*' as subtype)
                         if let Some(c) =
@@ -192,8 +193,8 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
             spec: "RFC 9110",
-            section: Some("7.2.1"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1",
+            section: Some("12.5.1"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
             note: "Accept header field and media-range syntax",
         }]
     }

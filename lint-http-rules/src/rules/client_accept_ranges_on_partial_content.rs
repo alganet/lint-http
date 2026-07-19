@@ -48,6 +48,7 @@ impl Rule for ClientAcceptRangesOnPartialContent {
             if let Ok(s) = hv.to_str() {
                 any_accept_ranges_present = true;
                 for token in crate::helpers::headers::parse_list_header(s) {
+                    // cite(RFC 9110 § 14.3): "The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource."
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -106,15 +107,15 @@ impl Rule for ClientAcceptRangesOnPartialContent {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.3.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4",
+                section: Some("14.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3",
                 note: "`Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`",
             },
             crate::rules::SpecRef {
-                spec: "RFC 7233",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1",
-                note: "`206 Partial Content` and `Content-Range`",
+                spec: "RFC 9110",
+                section: Some("15.3.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
+                note: "`206 Partial Content` and `Content-Range`. RFC 7233 §4.1 defined them; RFC 9110 obsoleted RFC 7233",
             },
         ]
     }

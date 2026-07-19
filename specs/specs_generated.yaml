@@ -213,6 +213,46 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_origin_isolated_header_validity.rs
       line: 67
+- label: RFC 2045
+  url: https://www.rfc-editor.org/rfc/rfc2045.txt
+  type: text/plain
+  fragments:
+  - label: message_content_transfer_encoding_valid
+    section: § 6.1
+    snippet: mechanism := "7bit" / "8bit" / "binary" / "quoted-printable" / "base64" / ietf-token / x-token
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_transfer_encoding_valid.rs
+      line: 42
+- label: RFC 2046
+  url: https://www.rfc-editor.org/rfc/rfc2046.txt
+  type: text/plain
+  fragments:
+  - label: message_multipart_boundary_syntax
+    section: § 5.1.1
+    snippet: The Content-Type field for multipart entities requires one parameter, "boundary".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
+      line: 27
+    - file: lint-http-rules/src/rules/message_multipart_content_type_and_body_consistency.rs
+      line: 27
+  - label: message_multipart_boundary_syntax (2)
+    section: § 5.1.1
+    snippet: boundary := 0*69<bchars> bcharsnospace
+    cited_by:
+    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
+      line: 28
+- label: RFC 5789
+  url: https://www.rfc-editor.org/rfc/rfc5789.txt
+  type: text/plain
+  fragments:
+  - label: client_patch_method_content_type_match
+    section: § 3.1
+    snippet: This specification introduces a new response header Accept-Patch used to specify the patch document formats accepted by the server.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 41
+    - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
+      line: 37
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.txt
   type: text/plain
@@ -287,6 +327,22 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cookie_lifecycle.rs
       line: 180
+- label: RFC 6266
+  url: https://www.rfc-editor.org/rfc/rfc6266.txt
+  type: text/plain
+  fragments:
+  - label: message_content_disposition_parameter_validity
+    section: § 4
+    snippet: The Content-Disposition response header field is used to convey additional information about how to process the response payload
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_disposition_parameter_validity.rs
+      line: 42
+  - label: message_content_disposition_token_valid
+    section: § 4.1
+    snippet: disposition-type = "inline" | "attachment" | disp-ext-type
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_disposition_token_valid.rs
+      line: 39
 - label: RFC 6454
   url: https://www.rfc-editor.org/rfc/rfc6454.txt
   type: text/plain
@@ -315,6 +371,26 @@ sources:
       line: 295
     - file: lint-http-rules/src/rules/message_bearer_token_format_validity.rs
       line: 51
+- label: RFC 6838
+  url: https://www.rfc-editor.org/rfc/rfc6838.txt
+  type: text/plain
+  fragments:
+  - label: message_media_type_suffix_validity
+    section: § 4.2.8
+    snippet: Media types that make use of a named structured syntax SHOULD use the appropriate registered "+suffix" for that structured syntax
+    cited_by:
+    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
+      line: 88
+- label: RFC 7578
+  url: https://www.rfc-editor.org/rfc/rfc7578.txt
+  type: text/plain
+  fragments:
+  - label: message_form_data_content_disposition_valid
+    section: § 4.2
+    snippet: Each part MUST contain a Content-Disposition header field
+    cited_by:
+    - file: lint-http-rules/src/rules/message_form_data_content_disposition_valid.rs
+      line: 37
 - label: RFC 7616
   url: https://www.rfc-editor.org/rfc/rfc7616.txt
   type: text/plain
@@ -355,6 +431,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 247
+- label: RFC 7807
+  url: https://www.rfc-editor.org/rfc/rfc7807.txt
+  type: text/plain
+  fragments:
+  - label: server_problem_details_content_type
+    section: § 3
+    snippet: When serialized as a JSON document, that format is identified with the "application/problem+json" media type.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 29
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
@@ -389,6 +475,18 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc9110.txt
   type: text/plain
   fragments:
+  - label: client_accept_encoding_present
+    section: § 12.5.3
+    snippet: 'Accept-Encoding = #( codings [ weight ] )'
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
+      line: 29
+  - label: client_accept_ranges_on_partial_content
+    section: § 14.3
+    snippet: The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 51
   - label: client_host_header
     section: § 7.2
     snippet: A user agent MUST generate a Host header field in a request unless it sends that information as an ":authority" pseudo-header field.
@@ -413,6 +511,38 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 210
+  - label: message_accept_and_content_type_negotiation
+    section: § 15.5.7
+    snippet: The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 32
+  - label: message_accept_encoding_parameter_validity
+    section: § 12.4.2
+    snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 78
+    - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
+      line: 65
+  - label: message_accept_header_media_type_syntax
+    section: § 12.5.1
+    snippet: 'Accept = #( media-range [ weight ] )'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
+      line: 64
+  - label: message_accept_language_weight_validity
+    section: § 12.5.4
+    snippet: 'Accept-Language = #( language-range [ weight ] )'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
+      line: 66
+  - label: message_accept_ranges_and_206_consistency
+    section: § 15.3.7.1
+    snippet: If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 42
   - label: message_auth_scheme_iana_registered
     section: § 16.4.1
     snippet: The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials.
@@ -425,6 +555,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_authorization_credentials_present.rs
       line: 29
+  - label: message_charset_iana_registered
+    section: § 8.3.2
+    snippet: Charset names ought to be registered in the IANA "Character Sets" registry
+    cited_by:
+    - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
+      line: 90
   - label: message_conditional_headers_consistency
     section: § 13.1.3
     snippet: A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field
@@ -437,6 +573,36 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
       line: 50
+  - label: message_content_encoding_and_type_consistency
+    section: § 8.4
+    snippet: 'Content-Encoding = #content-coding'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_encoding_and_type_consistency.rs
+      line: 33
+  - label: message_content_encoding_iana_registered
+    section: § 8.4.1
+    snippet: All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry",
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
+      line: 103
+  - label: message_content_location_and_uri_consistency
+    section: § 8.7
+    snippet: Content-Location = absolute-URI / partial-URI
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 48
+  - label: message_content_type_iana_registered
+    section: § 8.3.1
+    snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
+      line: 90
+  - label: message_content_type_well_formed
+    section: § 8.3.1
+    snippet: media-type = type "/" subtype parameters
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 90
   - label: message_date_and_time_headers_consistency
     section: § 5.6.7
     snippet: An HTTP-date value represents time as an instance of Coordinated Universal Time (UTC).
@@ -499,12 +665,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_www_authenticate_challenge_syntax.rs
       line: 32
+  - label: server_accept_ranges_values_valid
+    section: § 14.3
+    snippet: Accept-Ranges     = acceptable-ranges acceptable-ranges = 1#range-unit
+    cited_by:
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 35
   - label: server_authentication_challenge_validity
     section: § 11.5
     snippet: These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database.
     cited_by:
     - file: lint-http-rules/src/rules/server_authentication_challenge_validity.rs
       line: 82
+  - label: server_content_type_present
+    section: § 8.3
+    snippet: Content-Type = media-type
+    cited_by:
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 57
   - label: server_etag_or_last_modified
     section: § 8.8.2
     snippet: An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined
