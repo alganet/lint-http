@@ -118,6 +118,10 @@ impl Rule for ServerClearSiteData {
         // Check if resource path matches any configured path
         let is_logout_path = config.paths.contains(&resource_path);
 
+        // Which paths are logout endpoints is configuration, not specification — no
+        // document knows that. What the specification supplies is what the header is for,
+        // and the reason a sign-out that omits it leaves the session's data behind.
+        // cite(Clear-Site-Data): "The Clear-Site-Data HTTP response header field sends a signal to the user agent that it ought to remove all data of a certain set of types."
         if is_logout_path && !resp.headers.contains_key("clear-site-data") {
             Some(Violation {
                 rule: self.id().into(),

@@ -52,6 +52,7 @@ impl Rule for ServerServerTimingHeaderSyntax {
                 }
             }
 
+            // cite(Server Timing): "Server-Timing = #server-timing-metric server-timing-metric = metric-name *( OWS ";" OWS server-timing-param ) metric-name = token"
             for metric in crate::helpers::headers::parse_list_header(s) {
                 // Metric has form: name *(";" param)
                 let mut parts = metric.split(';');

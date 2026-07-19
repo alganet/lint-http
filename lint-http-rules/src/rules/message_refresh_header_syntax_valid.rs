@@ -38,7 +38,10 @@ impl Rule for MessageRefreshHeaderSyntaxValid {
                 }
             };
 
-            // Common error: comma-separated values (multi-value in single field) is invalid
+            // Common error: comma-separated values (multi-value in single field) is invalid.
+            // `Refresh` takes the value of the `meta` http-equiv it mirrors, and that is a
+            // single time-and-URL, not a list.
+            // cite(HTML Speculative Loading): "The `Refresh` HTTP response header is the HTTP-equivalent to a meta element with an http-equiv attribute in the Refresh state."
             if s.contains(',') {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -135,16 +138,24 @@ impl Rule for MessageRefreshHeaderSyntaxValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validate syntax of the non-standard `Refresh` response header. The header is commonly used to perform a delayed redirect or refresh using a `delta-seconds` value optionally followed by a `url=<URI>` parameter (e.g., `5; url=/new`). This rule flags malformed values such as non-numeric delays, missing `url` values, unrecognized parameters, and invalid URI syntax in the `url` parameter.\n\nNote: this rule rejects comma-separated field-values (i.e., the header must be a single value). As a consequence, URLs containing commas will be flagged because commas are treated as list separators by this check."
+        "Validate syntax of the `Refresh` response header. Long treated as non-standard, it is now specified by the HTML Standard as the HTTP equivalent of a `meta` element in the Refresh state, and takes the same value: a `delta-seconds` value optionally followed by a `url=<URI>` parameter (e.g., `5; url=/new`). This rule flags malformed values such as non-numeric delays, missing `url` values, unrecognized parameters, and invalid URI syntax in the `url` parameter.\n\nNote: this rule rejects comma-separated field-values (i.e., the header must be a single value). As a consequence, URLs containing commas will be flagged because commas are treated as list separators by this check."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "MDN Refresh",
-            section: None,
-            url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Refresh",
-            note: "non-standard header commonly used for delayed redirects",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "HTML Speculative Loading",
+                section: None,
+                url: "https://html.spec.whatwg.org/multipage/speculative-loading.html",
+                note: "The `Refresh` header — the HTTP equivalent of a `meta` element in the Refresh state. The standard caught up with the header; this reference had not",
+            },
+            crate::rules::SpecRef {
+                spec: "MDN Refresh",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Refresh",
+                note: "`Refresh` header, with browser support notes",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

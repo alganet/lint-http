@@ -77,6 +77,7 @@ impl Rule for ServerContentSecurityPolicyValidity {
                     .next()
                     .expect("split_whitespace yields at least one item since dir is not empty");
 
+                // cite(CSP3): "serialized-directive = directive-name [ required-ascii-whitespace directive-value ] directive-name = 1*( ALPHA / DIGIT / "-" )"
                 if let Some(c) = find_invalid_token_char(name) {
                     return Some(Violation {
                         rule: self.id().into(),
