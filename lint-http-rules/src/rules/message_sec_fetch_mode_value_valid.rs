@@ -74,6 +74,7 @@ impl Rule for MessageSecFetchModeValueValid {
             });
         }
 
+        // cite(Fetch Metadata): "Valid Sec-Fetch-Mode values include "cors", "navigate", "no-cors", "same-origin", and "websocket"."
         let lower = val.to_ascii_lowercase();
         match lower.as_str() {
             "cors" | "no-cors" | "same-origin" | "navigate" | "websocket" => None,

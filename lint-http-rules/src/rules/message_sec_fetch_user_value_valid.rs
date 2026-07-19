@@ -60,7 +60,10 @@ impl Rule for MessageSecFetchUserValueValid {
             });
         }
 
-        // The canonical serialization for a structured-boolean true is `?1`.
+        // The canonical serialization for a structured-boolean true is `?1`. `?0` is a
+        // well-formed sf-boolean but never a well-formed *Sec-Fetch-User*: the header is
+        // only ever sent when it is true, so its presence carrying anything else is wrong.
+        // cite(Fetch Metadata): "Sec-Fetch-User = sf-boolean Note: The header is delivered only for navigation requests, and only when its value is true."
         if val != "?1" {
             return Some(Violation {
                 rule: self.id().into(),

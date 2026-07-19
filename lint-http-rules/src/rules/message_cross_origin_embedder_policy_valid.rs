@@ -70,7 +70,12 @@ impl Rule for MessageCrossOriginEmbedderPolicyValid {
             });
         }
 
-        // Acceptable values for our correctness check: require-corp or credentialless (case-insensitive)
+        // Acceptable values for our correctness check: require-corp or credentialless
+        // (case-insensitive). `unsafe-none` is rejected on purpose, and the quote below is
+        // why: it is a *valid* value, and it is the one that turns the protection off. This
+        // rule is stricter than the grammar by choice, which is a thing a linter may be —
+        // as long as it says so, which is what this cite makes it do.
+        // cite(HTML): "An embedder policy value is one of three strings that controls the fetching of cross-origin resources without explicit permission from resource owners."
         if val.eq_ignore_ascii_case("require-corp") || val.eq_ignore_ascii_case("credentialless") {
             return None;
         }
