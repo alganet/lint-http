@@ -425,6 +425,68 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_authorization_credentials_present.rs
       line: 29
+  - label: message_conditional_headers_consistency
+    section: § 13.1.3
+    snippet: A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field
+    cited_by:
+    - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
+      line: 39
+  - label: message_conditional_headers_consistency (2)
+    section: § 13.1.4
+    snippet: A recipient MUST ignore If-Unmodified-Since if the request contains an If-Match header field
+    cited_by:
+    - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
+      line: 50
+  - label: message_date_and_time_headers_consistency
+    section: § 5.6.7
+    snippet: An HTTP-date value represents time as an instance of Coordinated Universal Time (UTC).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
+      line: 37
+    - file: lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
+      line: 32
+  - label: message_date_and_time_headers_consistency (2)
+    section: § 6.6.1
+    snippet: The "Date" header field represents the date and time at which the message was originated
+    cited_by:
+    - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
+      line: 36
+  - label: message_etag_syntax
+    section: § 8.8.3
+    snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
+    cited_by:
+    - file: lint-http-rules/src/rules/message_etag_syntax.rs
+      line: 58
+  - label: message_if_match_etag_syntax
+    section: § 13.1.1
+    snippet: An origin server MUST use the strong comparison function when comparing entity tags for If-Match
+    cited_by:
+    - file: lint-http-rules/src/rules/message_if_match_etag_syntax.rs
+      line: 47
+  - label: message_if_modified_since_date_format
+    section: § 13.1.3
+    snippet: If-Modified-Since = HTTP-date
+    cited_by:
+    - file: lint-http-rules/src/rules/message_if_modified_since_date_format.rs
+      line: 48
+  - label: message_if_none_match_etag_syntax
+    section: § 13.1.2
+    snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
+    cited_by:
+    - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
+      line: 44
+  - label: message_if_unmodified_since_date_format
+    section: § 13.1.4
+    snippet: If-Unmodified-Since = HTTP-date
+    cited_by:
+    - file: lint-http-rules/src/rules/message_if_unmodified_since_date_format.rs
+      line: 49
+  - label: message_retry_after_date_or_delay
+    section: § 10.2.3
+    snippet: Retry-After = HTTP-date / delay-seconds
+    cited_by:
+    - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
+      line: 49
   - label: message_trailer_fields_validity
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
@@ -443,12 +505,50 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_authentication_challenge_validity.rs
       line: 82
+  - label: server_etag_or_last_modified
+    section: § 8.8.2
+    snippet: An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined
+    cited_by:
+    - file: lint-http-rules/src/rules/server_etag_or_last_modified.rs
+      line: 32
+  - label: server_etag_or_last_modified (2)
+    section: § 8.8.3
+    snippet: An entity tag is an opaque validator for differentiating between multiple representations of the same resource
+    cited_by:
+    - file: lint-http-rules/src/rules/server_etag_or_last_modified.rs
+      line: 33
+    - file: lint-http-rules/src/rules/stateful_conditional_request_handling.rs
+      line: 63
+  - label: server_last_modified_rfc1123_format
+    section: § 8.8.2
+    snippet: Last-Modified = HTTP-date
+    cited_by:
+    - file: lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
+      line: 31
+  - label: server_no_body_for_1xx_204_304
+    section: § 6.4.1
+    snippet: 1xx (Informational), 204 (No Content), and 304 (Not Modified) responses do not include content.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 37
+  - label: server_retry_after_status_validity
+    section: § 10.2.3
+    snippet: the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_retry_after_status_validity.rs
+      line: 40
   - label: stateful_authentication_failure_loop
     section: § 15.5.2
     snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
       line: 50
+  - label: stateful_conditional_request_handling
+    section: § 8.8.2
+    snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_conditional_request_handling.rs
+      line: 72
 - label: RFC 9111
   url: https://www.rfc-editor.org/rfc/rfc9111.txt
   type: text/plain

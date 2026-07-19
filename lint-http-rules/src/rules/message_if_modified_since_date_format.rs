@@ -5,7 +5,7 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-/// `If-Modified-Since` header must be a valid HTTP-date (IMF-fixdate) as defined by RFC 9110 §7.8.1.
+/// `If-Modified-Since` header must be a valid HTTP-date (IMF-fixdate) as defined by RFC 9110 §13.1.3.
 pub struct MessageIfModifiedSinceDateFormat;
 
 impl Rule for MessageIfModifiedSinceDateFormat {
@@ -45,12 +45,13 @@ impl Rule for MessageIfModifiedSinceDateFormat {
                 });
             }
 
+            // cite(RFC 9110 § 13.1.3): "If-Modified-Since = HTTP-date"
             if !crate::http_date::is_valid_http_date(s.trim()) {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
                     message:
-                        "If-Modified-Since header is not a valid IMF-fixdate (RFC 9110 §7.8.1)"
+                        "If-Modified-Since header is not a valid IMF-fixdate (RFC 9110 §13.1.3)"
                             .into(),
                 });
             }
@@ -70,8 +71,8 @@ impl Rule for MessageIfModifiedSinceDateFormat {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
             spec: "RFC 9110",
-            section: Some("7.8.1"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.1",
+            section: Some("13.1.3"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
             note: "If-Modified-Since header",
         }]
     }

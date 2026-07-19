@@ -46,6 +46,7 @@ impl Rule for MessageRetryAfterDateOrDelay {
             }
 
             // Try parse HTTP-date (IMF-fixdate) using shared helper
+            // cite(RFC 9110 § 10.2.3): "Retry-After = HTTP-date / delay-seconds"
             if crate::http_date::is_valid_http_date(s) {
                 continue;
             }

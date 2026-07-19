@@ -34,6 +34,10 @@ impl Rule for ServerRetryAfterStatusValidity {
             return None;
         }
 
+        // The specification names the statuses that give `Retry-After` a meaning. On any
+        // other status there is nothing for the client to wait *for*, so the header is a
+        // sender's mistake rather than an instruction.
+        // cite(RFC 9110 § 10.2.3): "the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
         Some(Violation {
             rule: self.id().into(),
             severity: config.severity,

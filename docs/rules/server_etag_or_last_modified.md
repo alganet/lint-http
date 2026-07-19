@@ -14,7 +14,7 @@ These headers act as validators, allowing clients to perform conditional request
 
 ## Specifications
 
-- [RFC 9110 §8.8.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.1): Last-Modified header
+- [RFC 9110 §8.8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2): Last-Modified header
 - [RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): ETag header
 
 ## Configuration

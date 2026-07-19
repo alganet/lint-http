@@ -291,8 +291,8 @@ impl Rule for MessageCookieAttributeConsistency {
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1",
+                section: Some("5.6.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7",
                 note: "HTTP-date (IMF-fixdate) — used for the `Expires` attribute",
             },
         ]

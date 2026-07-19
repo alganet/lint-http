@@ -33,6 +33,8 @@ impl Rule for MessageDateAndTimeHeadersConsistency {
         // Check Date header (request or response)
         if let Some(hv) = tx.request.headers.get_all("date").iter().next() {
             if let Ok(s) = hv.to_str() {
+                // cite(RFC 9110 § 6.6.1): "The "Date" header field represents the date and time at which the message was originated"
+                // cite(RFC 9110 § 5.6.7): "An HTTP-date value represents time as an instance of Coordinated Universal Time (UTC)."
                 if crate::http_date::parse_http_date_to_datetime(s).is_err() {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -204,20 +206,20 @@ impl Rule for MessageDateAndTimeHeadersConsistency {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1",
+                section: Some("6.6.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1",
                 note: "`Date` header (IMF-fixdate)",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.7",
+                section: Some("8.8.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2",
                 note: "`Last-Modified` header",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.8.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.1",
+                section: Some("13.1.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
                 note: "`If-Modified-Since` (conditional requests)",
             },
             crate::rules::SpecRef {

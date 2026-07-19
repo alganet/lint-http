@@ -12,7 +12,7 @@ The `If-Unmodified-Since` request header, when present, MUST be a valid HTTP-dat
 
 ## Specifications
 
-- [RFC 9110 §7.8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.2): If-Unmodified-Since header
+- [RFC 9110 §13.1.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.4): If-Unmodified-Since header
 
 ## Configuration
 

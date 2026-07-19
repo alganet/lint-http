@@ -14,8 +14,8 @@ Warn when conditional requests are used without a prior validator (ETag / Last-M
 
 - [RFC 9110 §13.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1): Preconditions
 - [RFC 9110 §13.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2): Evaluation of Preconditions (precedence rules)
-- [RFC 9110 §7.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6): ETag header field
-- [RFC 9110 §7.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.7): Last-Modified header field
+- [RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): ETag header field
+- [RFC 9110 §8.8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2): Last-Modified header field
 
 ## Configuration
 

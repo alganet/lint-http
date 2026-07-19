@@ -12,7 +12,7 @@ The `If-Modified-Since` request header, when present, MUST be a valid HTTP-date 
 
 ## Specifications
 
-- [RFC 9110 §7.8.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.1): If-Modified-Since header
+- [RFC 9110 §13.1.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3): If-Modified-Since header
 
 ## Configuration
 

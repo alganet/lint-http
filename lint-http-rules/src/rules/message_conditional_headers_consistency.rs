@@ -36,6 +36,7 @@ impl Rule for MessageConditionalHeadersConsistency {
 
         let has_if_none_match = req.headers.get("if-none-match").is_some();
         let has_if_modified_since = req.headers.get("if-modified-since").is_some();
+        // cite(RFC 9110 § 13.1.3): "A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field"
         if has_if_none_match && has_if_modified_since {
             return Some(Violation {
                 rule: self.id().into(),
@@ -46,6 +47,7 @@ impl Rule for MessageConditionalHeadersConsistency {
 
         let has_if_match = req.headers.get("if-match").is_some();
         let has_if_unmodified_since = req.headers.get("if-unmodified-since").is_some();
+        // cite(RFC 9110 § 13.1.4): "A recipient MUST ignore If-Unmodified-Since if the request contains an If-Match header field"
         if has_if_match && has_if_unmodified_since {
             return Some(Violation {
                 rule: self.id().into(),

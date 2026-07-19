@@ -57,6 +57,10 @@ impl Rule for StatefulConditionalRequestHandling {
         // Previous transaction must include a response with validators when
         // entity-tag/date conditionals are used.
         if let Some(resp) = &prev.response {
+            // An entity-tag precondition is only meaningful against a validator the client
+            // was actually given. Without an ETag on the earlier response there is nothing
+            // for the comparison function to compare.
+            // cite(RFC 9110 § 8.8.3): "An entity tag is an opaque validator for differentiating between multiple representations of the same resource"
             if (has_inm || has_imatch) && resp.headers.get("etag").is_none() {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -65,6 +69,7 @@ impl Rule for StatefulConditionalRequestHandling {
                 });
             }
 
+            // cite(RFC 9110 § 8.8.2): "The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified"
             if (has_ifm || has_iunmod) && resp.headers.get("last-modified").is_none() {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -171,14 +176,14 @@ impl Rule for StatefulConditionalRequestHandling {
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6",
+                section: Some("8.8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
                 note: "ETag header field",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.7",
+                section: Some("8.8.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2",
                 note: "Last-Modified header field",
             },
         ]
