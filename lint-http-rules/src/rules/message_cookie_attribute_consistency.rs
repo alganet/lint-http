@@ -59,6 +59,7 @@ impl Rule for MessageCookieAttributeConsistency {
                 });
             }
 
+            // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
             if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -83,7 +84,9 @@ impl Rule for MessageCookieAttributeConsistency {
                 let val_opt = av.next().map(|v| v.trim());
 
                 if key.eq_ignore_ascii_case("secure") {
-                    // Secure must be a flag (no '=') per RFC; consider 'Secure=...' invalid
+                    // Secure must be a flag (no '=') per RFC; consider 'Secure=...' invalid.
+                    // The grammar admits no "=" — the attribute is its own presence.
+                    // cite(RFC 6265 § 4.1.1): "secure-av         = "Secure""
                     if val_opt.is_some() && !val_opt.unwrap().is_empty() {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -96,6 +99,7 @@ impl Rule for MessageCookieAttributeConsistency {
                 }
 
                 if key.eq_ignore_ascii_case("httponly") {
+                    // cite(RFC 6265 § 4.1.1): "httponly-av       = "HttpOnly""
                     if val_opt.is_some() && !val_opt.unwrap().is_empty() {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -118,6 +122,7 @@ impl Rule for MessageCookieAttributeConsistency {
                         }
                     };
                     // Accept Strict, Lax, None (case-insensitive)
+                    // cite(draft-ietf-httpbis-rfc6265bis): "samesite-value = "Strict" / "Lax" / "None""
                     let vnorm = v.trim().to_ascii_lowercase();
                     if vnorm != "strict" && vnorm != "lax" && vnorm != "none" {
                         return Some(Violation {
@@ -145,6 +150,10 @@ impl Rule for MessageCookieAttributeConsistency {
                             })
                         }
                     };
+                    // A leading "-" is accepted on purpose: the ABNF says non-zero-digit
+                    // *DIGIT, but the parsing algorithm the ABNF is a summary of admits a
+                    // sign, and a negative Max-Age is how a cookie is deleted.
+                    // cite(RFC 6265 § 5.2.2): "If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av."
                     if v.parse::<i64>().is_err() {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -171,6 +180,7 @@ impl Rule for MessageCookieAttributeConsistency {
                             })
                         }
                     };
+                    // cite(RFC 6265 § 4.1.1): "expires-av        = "Expires=" sane-cookie-date"
                     if !crate::http_date::is_valid_http_date(v) {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -243,6 +253,10 @@ impl Rule for MessageCookieAttributeConsistency {
                 // Unknown attribute: don't flag by default
             }
 
+            // `SameSite=None` without `Secure` is not a cookie with a weaker policy — it is
+            // a cookie the user agent throws away. That is why this is a violation and not
+            // a suggestion.
+            // cite(draft-ietf-httpbis-rfc6265bis): "If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true."
             if let Some(sv) = samesite_value {
                 if sv == "none" && !secure_present {
                     return Some(Violation {

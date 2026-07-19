@@ -53,6 +53,7 @@ impl Rule for MessageCookiePathValidity {
                 let val_opt = av.next().map(|v| v.trim());
 
                 if key.eq_ignore_ascii_case("path") {
+                    // cite(RFC 6265 § 5.2.4): "If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):"
                     let v = match val_opt {
                         Some(v) => v,
                         None => {

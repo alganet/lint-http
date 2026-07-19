@@ -93,6 +93,7 @@ impl Rule for StatefulCookieDomainMatching {
                 continue;
             }
 
+            // cite(RFC 6265 § 5.1.3): "A string domain-matches a given domain string if at least one of the following conditions hold"
             if domain_mismatch {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -104,6 +105,7 @@ impl Rule for StatefulCookieDomainMatching {
                 });
             }
 
+            // cite(RFC 6265 § 5.1.4): "A request-path path-matches a given cookie-path if at least one of the following conditions holds"
             if path_mismatch {
                 return Some(Violation {
                     rule: self.id().into(),

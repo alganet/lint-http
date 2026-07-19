@@ -90,6 +90,7 @@ impl Cookie {
 
     /// Simple domain-match check following RFC 6265 §5.1.3.  Only the host
     /// portion of the request URI should be supplied (no port).
+    // cite(RFC 6265 § 5.1.3): "A string domain-matches a given domain string if at least one of the following conditions hold"
     pub fn domain_matches(&self, request_host: &str) -> bool {
         let req = request_host.to_ascii_lowercase();
         let dom = self.domain.as_str();
@@ -102,6 +103,7 @@ impl Cookie {
 
     /// Path-match per RFC 6265 §5.1.4.  `request_path` should be the path
     /// component extracted from the request-target (leading '/' or "/").
+    // cite(RFC 6265 § 5.1.4): "A request-path path-matches a given cookie-path if at least one of the following conditions holds"
     pub fn path_matches(&self, request_path: &str) -> bool {
         let cookie_path = self.path.as_str();
         // RFC 6265 §5.1.4:

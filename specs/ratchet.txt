@@ -42,9 +42,6 @@ lint-http-rules/src/rules/message_content_security_policy_and_frame_options_cons
 lint-http-rules/src/rules/message_content_transfer_encoding_valid.rs
 lint-http-rules/src/rules/message_content_type_iana_registered.rs
 lint-http-rules/src/rules/message_content_type_well_formed.rs
-lint-http-rules/src/rules/message_cookie_attribute_consistency.rs
-lint-http-rules/src/rules/message_cookie_domain_validity.rs
-lint-http-rules/src/rules/message_cookie_path_validity.rs
 lint-http-rules/src/rules/message_cross_origin_embedder_policy_valid.rs
 lint-http-rules/src/rules/message_cross_origin_opener_policy_valid.rs
 lint-http-rules/src/rules/message_cross_origin_resource_policy_valid.rs
@@ -150,9 +147,6 @@ lint-http-rules/src/rules/stateful_101_switching_protocols.rs
 lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
 lint-http-rules/src/rules/stateful_cache_validation_chain.rs
 lint-http-rules/src/rules/stateful_conditional_request_handling.rs
-lint-http-rules/src/rules/stateful_cookie_domain_matching.rs
-lint-http-rules/src/rules/stateful_cookie_lifecycle.rs
-lint-http-rules/src/rules/stateful_cookie_same_site_enforcement.rs
 lint-http-rules/src/rules/stateful_digest_auth_nonce_handling.rs
 lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
 lint-http-rules/src/rules/stateful_http3_max_push_id.rs
