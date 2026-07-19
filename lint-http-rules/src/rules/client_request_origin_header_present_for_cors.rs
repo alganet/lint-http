@@ -27,7 +27,9 @@ impl Rule for ClientRequestOriginHeaderPresentForCors {
         let headers = &req.headers;
 
         // If this looks like a CORS preflight (OPTIONS with Access-Control-Request-Method)
-        // then Origin header MUST be present and syntactically valid.
+        // then Origin header MUST be present and syntactically valid. A preflight is an
+        // `OPTIONS` — neither GET nor HEAD — so it falls in the sentence below twice over.
+        // cite(Fetch): "It is used for all HTTP fetches whose request’s response tainting is "cors", as well as those where request’s method is neither `GET` nor `HEAD`."
         if req.method == "OPTIONS"
             && (headers.get("access-control-request-method").is_some()
                 || headers.get("access-control-request-headers").is_some())
@@ -64,6 +66,7 @@ impl Rule for ClientRequestOriginHeaderPresentForCors {
                     let target_authority = &target_origin[delimiter_pos + 3..];
                     if !target_authority.eq_ignore_ascii_case(host_authority) {
                         // they differ; require Origin header
+                        // cite(Fetch): "The `Origin` request header indicates where a fetch originates from."
                         if crate::helpers::headers::get_header_str(headers, "origin").is_none() {
                             return Some(Violation {
                                 rule: self.id().into(),

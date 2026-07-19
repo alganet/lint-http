@@ -91,10 +91,14 @@ pub fn extract_origin_if_absolute(s: &str) -> Option<String> {
 /// `Some(msg)` describing the problem.
 pub fn validate_origin_value(s: &str) -> Option<String> {
     let s_trim = s.trim();
+    // cite(RFC 6454 § 7.1): "origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list"
     if s_trim.eq_ignore_ascii_case("null") {
         return None;
     }
-    // Must be an origin (absolute with no path)
+    // Must be an origin (absolute with no path). The grammar has no path component,
+    // which is the whole point of the header: an origin reveals where a request came
+    // from without revealing what it was reading.
+    // cite(RFC 6454 § 7.1): "serialized-origin = scheme "://" host [ ":" port ]"
     if let Some(colon_pos) = s_trim.find("://") {
         // no path allowed
         if s_trim[colon_pos + 3..].contains('/') {
