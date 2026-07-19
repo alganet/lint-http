@@ -27,6 +27,7 @@ impl Rule for ServerLocationHeaderUriValid {
             return None;
         };
 
+        // cite(RFC 9110 § 10.2.2): "The "Location" header field is used in some responses to refer to a specific resource in relation to the response."
         for hv in resp.headers.get_all("location") {
             let Ok(s) = hv.to_str() else {
                 return Some(Violation {
@@ -84,8 +85,8 @@ impl Rule for ServerLocationHeaderUriValid {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.5.2",
+                section: Some("10.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
                 note: "",
             },
             crate::rules::SpecRef {

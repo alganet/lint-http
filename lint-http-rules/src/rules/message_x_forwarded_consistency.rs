@@ -26,6 +26,10 @@ impl Rule for MessageXForwardedConsistency {
         use crate::helpers::headers::parse_list_header;
 
         let check_xff = |val: &str| -> Option<Violation> {
+            // `X-Forwarded-*` is not specified anywhere; RFC 7239 standardised `Forwarded`
+            // as its replacement, and that is the sentence this rule can honestly cite. The
+            // checks themselves encode the de facto conventions, which no document defines.
+            // cite(RFC 7239 § 4): "The "Forwarded" HTTP header field is an OPTIONAL header field"
             for token in parse_list_header(val) {
                 let t = token;
                 if t.eq_ignore_ascii_case("unknown") {

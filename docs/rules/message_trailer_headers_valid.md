@@ -12,8 +12,8 @@ Validate `Trailer` header members are syntactically valid header field-names and
 
 ## Specifications
 
-- [RFC 7230 §4.1.2](https://www.rfc-editor.org/rfc/rfc7230.html#section-4.1.2): Connection header and hop-by-hop semantics
-- [RFC 7230 §6.1](https://www.rfc-editor.org/rfc/rfc7230.html#section-6.1): Message framing and trailer fields
+- [RFC 9112 §7.1.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1.2): Chunked trailer section. This said RFC 7230 §4.1.2 — the right section of an obsoleted document, under the *other* entry's note
+- [RFC 9110 §7.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1): `Connection` and hop-by-hop semantics. This said RFC 7230 §6.1 — likewise, with the two notes swapped between them
 
 ## Configuration
 

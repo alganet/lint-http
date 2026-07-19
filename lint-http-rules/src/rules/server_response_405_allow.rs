@@ -24,6 +24,7 @@ impl Rule for ServerResponse405Allow {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         if let Some(resp) = &tx.response {
+            // cite(RFC 9110 § 15.5.6): "The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods."
             if resp.status == 405 && !resp.headers.contains_key("allow") {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -43,8 +44,8 @@ impl Rule for ServerResponse405Allow {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("10.5.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.5.6",
+                section: Some("15.5.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.6",
                 note: "405 Method Not Allowed",
             },
             crate::rules::SpecRef {

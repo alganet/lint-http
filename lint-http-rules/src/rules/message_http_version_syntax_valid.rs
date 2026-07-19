@@ -24,6 +24,7 @@ impl Rule for MessageHttpVersionSyntaxValid {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check request version token (now required)
+        // cite(RFC 9112 § 2.3): "HTTP-version  = HTTP-name "/" DIGIT "." DIGIT"
         if let Some(msg) = check_version_token(&tx.request.version) {
             return Some(Violation {
                 rule: self.id().into(),

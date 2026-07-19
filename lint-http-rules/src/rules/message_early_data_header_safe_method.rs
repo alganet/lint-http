@@ -30,6 +30,7 @@ impl Rule for MessageEarlyDataHeaderSafeMethod {
         // instance whose value is "1" indicates the request may have been sent in
         // early data and must therefore be restricted to safe methods. Iterate over
         // all header instances and consider any valid UTF-8 value equal to "1".
+        // cite(RFC 8470 § 4): "Absent other information, clients MAY send requests with safe HTTP methods ([RFC7231], Section 4.2.1) in early data when it is available and MUST NOT send unsafe methods (or methods whose safety is not known) in early data."
         for hv in tx.request.headers.get_all("early-data").iter() {
             if let Ok(s) = hv.to_str() {
                 if s.trim() == "1" {

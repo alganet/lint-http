@@ -29,6 +29,7 @@ impl Rule for SemanticStatusCodeSemantics {
 
         // 401/WWW-Authenticate semantics (RFC 9110 §15.5.1)
         let has_www = resp.headers.contains_key("www-authenticate");
+        // cite(RFC 9110 § 15.5.2): "The server generating a 401 response MUST send a WWW-Authenticate header field"
         if status == 401 && !has_www {
             return Some(Violation {
                 rule: self.id().into(),

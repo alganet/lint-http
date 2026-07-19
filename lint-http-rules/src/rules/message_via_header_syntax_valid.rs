@@ -27,6 +27,7 @@ impl Rule for MessageViaHeaderSyntaxValid {
 
         // Helper to validate Via headers in a HeaderMap (reduces duplication)
         fn check_headers(hm: &HeaderMap, config: &crate::rules::RuleConfig) -> Option<Violation> {
+            // cite(RFC 9110 § 7.6.3): "The "Via" header field indicates the presence of intermediate protocols and recipients"
             for (k, v) in hm.iter() {
                 if k.as_str().eq_ignore_ascii_case("via") {
                     if let Ok(vv) = v.to_str() {

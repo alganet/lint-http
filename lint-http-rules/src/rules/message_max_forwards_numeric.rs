@@ -25,6 +25,7 @@ impl Rule for MessageMaxForwardsNumeric {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to requests
+        // cite(RFC 9110 § 7.6.2): "Max-Forwards = 1*DIGIT"
         for val in tx.request.headers.get_all("max-forwards").iter() {
             let s = match val.to_str() {
                 Ok(s) => s.trim(),

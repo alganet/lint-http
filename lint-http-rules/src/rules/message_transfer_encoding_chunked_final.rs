@@ -25,6 +25,7 @@ impl Rule for MessageTransferEncodingChunkedFinal {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
             let mut codings: Vec<String> = Vec::new();
+            // cite(RFC 9112 § 6.1): "A sender MUST NOT apply the chunked transfer coding more than once to a message body"
             for hv in headers.get_all(hyper::header::TRANSFER_ENCODING).iter() {
                 let s = match hv.to_str() {
                     Ok(v) => v,

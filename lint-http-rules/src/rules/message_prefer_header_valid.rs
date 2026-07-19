@@ -26,6 +26,7 @@ impl Rule for MessagePreferHeaderValid {
         // Applies to requests only
         let req = &tx.request;
 
+        // cite(RFC 7240 § 2): "The Prefer request header field is used to indicate that particular server behaviors are preferred by the client"
         for val in req.headers.get_all("prefer").iter() {
             let s = match val.to_str() {
                 Ok(s) => s.trim(),

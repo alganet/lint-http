@@ -27,6 +27,7 @@ impl Rule for ClientRequestTargetFormChecks {
         let target = tx.request.uri.as_str();
 
         // Asterisk-form is only valid for OPTIONS
+        // cite(RFC 9112 § 3.2): "request-target = origin-form / absolute-form / authority-form / asterisk-form"
         if target == "*" && method != "OPTIONS" {
             return Some(Violation {
                 rule: self.id().into(),

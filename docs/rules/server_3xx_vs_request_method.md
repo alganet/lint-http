@@ -12,7 +12,7 @@ Servers should use redirect status codes that unambiguously express whether the 
 
 ## Specifications
 
-- [RFC 9110 §6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4): Redirection status codes and method-preserving semantics
+- [RFC 9110 §15.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4): Redirection status codes and method-preserving semantics
 
 ## Configuration
 

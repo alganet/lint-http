@@ -23,6 +23,7 @@ impl Rule for SemanticTraceMethodEcho {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // cite(RFC 9110 § 9.3.8): "A client MUST NOT send content in a TRACE request."
         if !tx.request.method.eq_ignore_ascii_case("TRACE") {
             return None;
         }

@@ -26,6 +26,8 @@ impl Rule for Server200Vs204BodyConsistency {
         let resp = tx.response.as_ref()?;
 
         // Only consider 200 responses
+        // cite(RFC 9110 § 15.3.1): "The 200 (OK) status code indicates that the request has succeeded."
+        // cite(RFC 9110 § 15.3.5): "The 204 (No Content) status code indicates that the server has successfully fulfilled the request and that there is no additional content to send in the response content."
         if resp.status != 200 {
             return None;
         }

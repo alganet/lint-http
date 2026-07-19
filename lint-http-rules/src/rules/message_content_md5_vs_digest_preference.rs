@@ -28,6 +28,7 @@ impl Rule for MessageContentMd5VsDigestPreference {
             let has_new = headers.get_all("content-digest").iter().next().is_some();
             let has_md5 = headers.get_all("content-md5").iter().next().is_some();
 
+            // cite(RFC 9530 § 2): "The Content-Digest HTTP field can be used in requests and responses"
             if has_new && has_md5 {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -66,10 +67,10 @@ impl Rule for MessageContentMd5VsDigestPreference {
                 note: "Content-Digest and related structured fields",
             },
             crate::rules::SpecRef {
-                spec: "RFC 7231",
-                section: Some("3.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc7231.html#section-3.3.2",
-                note: "Content-MD5 (historical reference)",
+                spec: "RFC 2616",
+                section: Some("14.15"),
+                url: "https://www.rfc-editor.org/rfc/rfc2616.html#section-14.15",
+                note: "`Content-MD5`, where it was defined — and from where RFC 7231 removed it. This reference said RFC 7231 §3.3.2, a section that does not exist in RFC 7231",
             },
         ]
     }

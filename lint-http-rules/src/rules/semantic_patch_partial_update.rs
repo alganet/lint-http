@@ -28,6 +28,7 @@ impl Rule for SemanticPatchPartialUpdate {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // cite(RFC 5789 § 2): "The PATCH method requests that a set of changes described in the request entity be applied to the resource"
         if !tx.request.method.eq_ignore_ascii_case("PATCH") {
             return None;
         }

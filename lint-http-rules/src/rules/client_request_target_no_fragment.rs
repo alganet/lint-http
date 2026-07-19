@@ -23,6 +23,7 @@ impl Rule for ClientRequestTargetNoFragment {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // cite(RFC 3986 § 3.5): "The fragment identifier component of a URI allows indirect identification of a secondary resource"
         if tx.request.uri.contains('#') {
             return Some(Violation {
                 rule: self.id().into(),

@@ -36,6 +36,8 @@ impl Rule for MessageTrailerHeadersValid {
 
         // Helper to validate Trailer header(s) in a set of headers
         let check_headers = |hdrs: &hyper::HeaderMap| -> Option<Violation> {
+            // cite(RFC 9112 § 7.1.2): "trailer-section   = *( field-line CRLF )"
+            // cite(RFC 9110 § 7.6.1): "The "Connection" header field allows the sender to list desired control options for the current connection."
             for hv in hdrs.get_all("trailer").iter() {
                 let val = match hv.to_str() {
                     Ok(s) => s,
@@ -111,16 +113,16 @@ impl Rule for MessageTrailerHeadersValid {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
-                spec: "RFC 7230",
-                section: Some("4.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc7230.html#section-4.1.2",
-                note: "Connection header and hop-by-hop semantics",
+                spec: "RFC 9112",
+                section: Some("7.1.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1.2",
+                note: "Chunked trailer section. This said RFC 7230 §4.1.2 — the right section of an obsoleted document, under the *other* entry's note",
             },
             crate::rules::SpecRef {
-                spec: "RFC 7230",
-                section: Some("6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7230.html#section-6.1",
-                note: "Message framing and trailer fields",
+                spec: "RFC 9110",
+                section: Some("7.6.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
+                note: "`Connection` and hop-by-hop semantics. This said RFC 7230 §6.1 — likewise, with the two notes swapped between them",
             },
         ]
     }

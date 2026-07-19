@@ -12,7 +12,7 @@ HTTP request methods are tokens and must conform to the `token` (tchar) grammar.
 
 ## Specifications
 
-- [RFC 9112 §5.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-5.1): Methods
+- [RFC 9112 §3.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.1): `method = token`. This reference said §5.1, which is Field Line Parsing
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens (tchar)
 
 ## Configuration

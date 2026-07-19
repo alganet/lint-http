@@ -28,6 +28,7 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
 
         // Build a map of preferences from the request (name -> optional value)
         let mut req_prefs = std::collections::HashMap::<String, Option<String>>::new();
+        // cite(RFC 7240 § 3): "The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server"
         for hv in tx.request.headers.get_all("prefer").iter() {
             let s = match hv.to_str() {
                 Ok(s) => s,

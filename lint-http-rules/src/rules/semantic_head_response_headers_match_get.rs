@@ -83,6 +83,7 @@ impl Rule for SemanticHeadResponseHeadersMatchGet {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         // Only applies to HEAD responses with a previous GET on the same URI
+        // cite(RFC 9110 § 9.3.2): "The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET."
         if !tx.request.method.eq_ignore_ascii_case("HEAD") {
             return None;
         }
