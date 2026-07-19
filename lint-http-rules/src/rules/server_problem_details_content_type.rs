@@ -26,6 +26,7 @@ impl Rule for ServerProblemDetailsContentType {
         let resp = tx.response.as_ref()?;
 
         // Only consider responses that indicate an error or problem (4xx/5xx)
+        // cite(RFC 7807 § 3): "When serialized as a JSON document, that format is identified with the "application/problem+json" media type."
         if resp.status < 400 {
             return None;
         }

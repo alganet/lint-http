@@ -34,6 +34,7 @@ impl Rule for ServerPatchAcceptPatchHeader {
 
         // If Accept-Patch header absent -> warn
         let mut found = false;
+        // cite(RFC 5789 § 3.1): "This specification introduces a new response header Accept-Patch used to specify the patch document formats accepted by the server."
         for hv in resp.headers.get_all("accept-patch").iter() {
             let s = match hv.to_str() {
                 Ok(s) => s,
@@ -103,9 +104,9 @@ impl Rule for ServerPatchAcceptPatchHeader {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
             spec: "RFC 5789",
-            section: Some("2.2"),
-            url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2",
-            note: "PATCH and Accept-Patch header",
+            section: Some("3.1"),
+            url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
+            note: "The `Accept-Patch` header. This reference said §2.2, which is Error Handling",
         }]
     }
 

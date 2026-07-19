@@ -24,6 +24,7 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check request body when Content-Type is multipart
+        // cite(RFC 2046 § 5.1.1): "The Content-Type field for multipart entities requires one parameter, "boundary"."
         if let Some(hv) = tx.request.headers.get("content-type") {
             if let Ok(s) = hv.to_str() {
                 if let Some(boundary) = crate::helpers::headers::extract_multipart_boundary(s) {

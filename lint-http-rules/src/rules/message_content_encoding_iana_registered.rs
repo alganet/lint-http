@@ -100,6 +100,7 @@ impl Rule for MessageContentEncodingIanaRegistered {
                         message: format!("Invalid token '{}' in {} header", c, hdr_name),
                     });
                 }
+                // cite(RFC 9110 § 8.4.1): "All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry","
                 if !allowed.contains(&token.to_ascii_lowercase()) {
                     return Some(Violation {
                         rule: "message_content_encoding_iana_registered".into(),
@@ -145,8 +146,8 @@ impl Rule for MessageContentEncodingIanaRegistered {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+                section: Some("8.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
                 note: "Content Coding",
             },
             crate::rules::SpecRef {

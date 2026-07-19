@@ -107,14 +107,14 @@ impl Rule for MessageLanguageTagFormatValid {
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.2.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.5",
+                section: Some("12.5.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.4",
                 note: "Accept-Language — Accept-Language uses language-tags from RFC 5646",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.3.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.5",
+                section: Some("8.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.5",
                 note: "Content-Language — Content-Language uses language-tags from RFC 5646",
             },
         ]

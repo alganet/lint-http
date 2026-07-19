@@ -87,6 +87,7 @@ impl Rule for MessageContentTypeIanaRegistered {
         let check_media_type =
             |hdr_name: &str, val: &str, allowed: &Vec<String>| -> Option<Violation> {
                 // Parse media-type; if it fails, let other rules (well-formed) report it.
+                // cite(RFC 9110 § 8.3.1): "Media types ought to be registered with IANA according to the procedures defined in [BCP13]."
                 let parsed = match crate::helpers::headers::parse_media_type(val) {
                     Ok(p) => p,
                     Err(_) => return None,

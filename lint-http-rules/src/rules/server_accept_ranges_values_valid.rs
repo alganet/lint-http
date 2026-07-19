@@ -32,6 +32,7 @@ impl Rule for ServerAcceptRangesValuesValid {
         let mut saw_none = false;
         for token in crate::helpers::headers::parse_list_header(val) {
             // validate token characters
+            // cite(RFC 9110 § 14.3): "Accept-Ranges     = acceptable-ranges acceptable-ranges = 1#range-unit"
             if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -82,8 +83,8 @@ impl Rule for ServerAcceptRangesValuesValid {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
             spec: "RFC 9110",
-            section: Some("7.3.4"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4",
+            section: Some("14.3"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3",
             note: "Accept-Ranges header",
         }]
     }

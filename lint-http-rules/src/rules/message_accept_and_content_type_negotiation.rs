@@ -29,6 +29,7 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
         let content_type = crate::helpers::headers::get_header_str(&resp.headers, "content-type")?;
 
         // If server already returned 406 Not Acceptable, don't flag
+        // cite(RFC 9110 § 15.5.7): "The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent"
         if resp.status == 406 {
             return None;
         }

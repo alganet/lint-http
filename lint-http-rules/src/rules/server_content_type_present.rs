@@ -54,6 +54,7 @@ impl Rule for ServerContentTypePresent {
             || has_transfer_encoding
             || ((200..300).contains(&status) && !resp.headers.contains_key("content-length"));
 
+        // cite(RFC 9110 § 8.3): "Content-Type = media-type"
         if likely_has_body {
             return Some(Violation {
                 rule: self.id().into(),

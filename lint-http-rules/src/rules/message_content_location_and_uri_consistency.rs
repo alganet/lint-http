@@ -45,6 +45,7 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 });
             }
 
+            // cite(RFC 9110 § 8.7): "Content-Location = absolute-URI / partial-URI"
             if crate::helpers::uri::contains_whitespace(s) {
                 return Some(Violation {
                     rule: self.id().into(),

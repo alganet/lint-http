@@ -62,6 +62,8 @@ impl Rule for MessageAcceptLanguageWeightValidity {
                     let val = val_opt.unwrap();
 
                     if name.eq_ignore_ascii_case("q") {
+                        // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
+                        // cite(RFC 9110 § 12.5.4): "Accept-Language = #( language-range [ weight ] )"
                         if !crate::helpers::headers::valid_qvalue(val) {
                             return Some(Violation {
                                 rule: self.id().into(),
@@ -142,8 +144,8 @@ impl Rule for MessageAcceptLanguageWeightValidity {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.2.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.5",
+                section: Some("12.5.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.4",
                 note: "Accept-Language",
             },
             crate::rules::SpecRef {

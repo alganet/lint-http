@@ -39,6 +39,7 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
             if let Ok(s) = hv.to_str() {
                 any_accept_ranges_present = true;
                 for token in crate::helpers::headers::parse_list_header(s) {
+                    // cite(RFC 9110 § 15.3.7.1): "If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range."
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -100,15 +101,15 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
-                spec: "RFC 7233",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1",
-                note: "206 Partial Content: single-part 206 responses MUST include a `Content-Range` header describing the enclosed range",
+                spec: "RFC 9110",
+                section: Some("15.3.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
+                note: "`206 Partial Content`: a single-part 206 MUST include a `Content-Range`. RFC 7233 §4.1 defined it; RFC 9110 obsoleted RFC 7233",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.3.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4",
+                section: Some("14.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3",
                 note: "`Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`",
             },
         ]

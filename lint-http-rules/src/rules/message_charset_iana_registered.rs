@@ -85,6 +85,9 @@ impl Rule for MessageCharsetIanaRegistered {
         let config = parse_allowed_config(cfg, self.id()).ok()?;
         use crate::helpers::headers::parse_media_type;
 
+        // "ought to", not "MUST" — so this rule enforces a convention the specification
+        // recommends, and the cite says which one rather than implying a requirement.
+        // cite(RFC 9110 § 8.3.2): "Charset names ought to be registered in the IANA "Character Sets" registry"
         let check_header = |which: &str, val: &str| -> Option<Violation> {
             let parsed = match parse_media_type(val) {
                 Ok(p) => p,
@@ -203,8 +206,8 @@ impl Rule for MessageCharsetIanaRegistered {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("6.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
+                section: Some("8.3.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2",
                 note: "Media Type `charset` parameter semantics",
             },
             crate::rules::SpecRef {

@@ -12,7 +12,7 @@ The `Accept-Language` header allows clients to specify languages and optional `q
 
 ## Specifications
 
-- [RFC 9110 §7.2.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.5): Accept-Language
+- [RFC 9110 §12.5.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.4): Accept-Language
 - [RFC 9110 §12.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2): Quality Values (q)
 - [RFC 9110 §5.6.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6): Parameters (token / quoted-string) The rule follows the same `q`/parameter validation semantics used across other headers in this project (0..1 with up to three decimals for `q`; parameter names must be `token`; parameter values must be `token` or `quoted-string`)
 

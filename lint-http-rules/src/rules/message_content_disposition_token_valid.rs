@@ -36,6 +36,7 @@ impl Rule for MessageContentDispositionTokenValid {
             }
 
             let dispo = s.split(';').next().unwrap().trim();
+            // cite(RFC 6266 § 4.1): "disposition-type = "inline" | "attachment" | disp-ext-type"
             if dispo.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),

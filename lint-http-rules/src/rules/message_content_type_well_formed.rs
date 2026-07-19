@@ -87,6 +87,7 @@ fn check_content_type(
 ) -> Option<Violation> {
     use crate::helpers::headers::parse_media_type;
 
+    // cite(RFC 9110 § 8.3.1): "media-type = type "/" subtype parameters"
     let parsed = match parse_media_type(val) {
         Ok(p) => p,
         Err(msg) => {

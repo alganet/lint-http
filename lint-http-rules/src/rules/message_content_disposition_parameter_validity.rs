@@ -39,6 +39,7 @@ impl Rule for MessageContentDispositionParameterValidity {
             let dispo = parts.next().unwrap().trim();
             let params_part = parts.next().map(|p| p.trim()).unwrap_or("");
 
+            // cite(RFC 6266 § 4): "The Content-Disposition response header field is used to convey additional information about how to process the response payload"
             if dispo.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),

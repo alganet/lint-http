@@ -30,6 +30,7 @@ impl Rule for MessageContentEncodingAndTypeConsistency {
                                      val: &str,
                                      seen: &mut std::collections::HashSet<String>|
          -> Option<Violation> {
+            // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
             for part in crate::helpers::headers::parse_list_header(val) {
                 // Strip parameters (not expected for Content-Encoding but be forgiving)
                 let token = part.split(';').next().unwrap().trim();
@@ -130,14 +131,14 @@ impl Rule for MessageContentEncodingAndTypeConsistency {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+                section: Some("8.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
                 note: "Content Coding",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.3",
+                section: Some("8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
                 note: "Message Body and status codes (1xx, 204, 304)",
             },
         ]

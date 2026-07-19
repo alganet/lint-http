@@ -38,6 +38,7 @@ impl Rule for ClientPatchMethodContentTypeMatch {
         let mut advertised: Vec<String> = Vec::new();
         let mut any_accept_patch_present = false;
 
+        // cite(RFC 5789 § 3.1): "This specification introduces a new response header Accept-Patch used to specify the patch document formats accepted by the server."
         for hv in resp.headers.get_all("accept-patch").iter() {
             any_accept_patch_present = true;
             let s = match hv.to_str() {
@@ -162,9 +163,9 @@ impl Rule for ClientPatchMethodContentTypeMatch {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 5789",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2",
-                note: "`PATCH` and `Accept-Patch` header; Accept-Patch advertises supported patch media types",
+                section: Some("3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
+                note: "The `Accept-Patch` header — advertises the patch media types a server accepts. This reference said §2.2, which is Error Handling",
             },
         ]
     }

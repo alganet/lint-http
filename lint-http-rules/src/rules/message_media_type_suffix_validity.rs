@@ -85,6 +85,7 @@ impl Rule for MessageMediaTypeSuffixValidity {
                 Err(_) => return None, // let well-formed rules handle syntax
             };
             let subtype = parsed.subtype.trim();
+            // cite(RFC 6838 § 4.2.8): "Media types that make use of a named structured syntax SHOULD use the appropriate registered "+suffix" for that structured syntax"
             if let Some(suffix) = crate::helpers::headers::media_type_subtype_suffix(subtype) {
                 let suffix = suffix.to_ascii_lowercase();
                 if suffix.is_empty() {
