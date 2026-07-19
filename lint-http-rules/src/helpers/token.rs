@@ -4,6 +4,7 @@
 
 /// Helpers for RFC `token` (tchar) validation used by multiple rules.
 pub fn is_tchar(c: char) -> bool {
+    // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
     c.is_ascii_alphanumeric()
         || matches!(
             c,
