@@ -58,10 +58,13 @@ impl Rule for MessageContentLengthVsTransferEncoding {
         "This rule flags messages (requests or responses) that include both `Content-Length` and `Transfer-Encoding` headers, which can lead to ambiguous or unsafe interpretations of message length."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): Content-Length MUST NOT be sent when Transfer-Encoding is present",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9112",
+            section: Some("6.2"),
+            url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
+            note: "Content-Length MUST NOT be sent when Transfer-Encoding is present",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

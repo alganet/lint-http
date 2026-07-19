@@ -99,10 +99,20 @@ impl Rule for ServerVaryAndCacheConsistency {
         "When a response includes `Vary: *`, caches cannot select that stored response for subsequent requests (a `Vary: *` always fails to match). If the same response advertises explicit cacheability directives (such as `Cache-Control: max-age`/`s-maxage` or `public`), those directives are likely ineffective for reuse by caches. This rule flags cases where `Vary: *` and explicit cacheability directives are both present."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 7234 §4.1](https://www.rfc-editor.org/rfc/rfc7234.html#section-4.1) — Calculating Secondary Keys with Vary (Vary semantics)",
-            "[RFC 7234 §3](https://www.rfc-editor.org/rfc/rfc7234.html#section-3) — Storing Responses in Caches (cacheability requirements)",
+            crate::rules::SpecRef {
+                spec: "RFC 7234",
+                section: Some("4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc7234.html#section-4.1",
+                note: "Calculating Secondary Keys with Vary (Vary semantics)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7234",
+                section: Some("3"),
+                url: "https://www.rfc-editor.org/rfc/rfc7234.html#section-3",
+                note: "Storing Responses in Caches (cacheability requirements)",
+            },
         ]
     }
 

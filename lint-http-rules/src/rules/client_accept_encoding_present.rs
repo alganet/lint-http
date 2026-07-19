@@ -42,10 +42,13 @@ impl Rule for ClientAcceptEncodingPresent {
         "This rule checks if the client sends an `Accept-Encoding` header in the request.\n\nModern HTTP clients should support compression (gzip, brotli, etc.) to reduce bandwidth usage and improve performance. Omitting this header usually implies the client does not support compression, or it was manually disabled."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §12.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3): Accept-Encoding header",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("12.5.3"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3",
+            note: "Accept-Encoding header",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

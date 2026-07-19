@@ -189,10 +189,13 @@ impl Rule for StatefulVaryHeaderCacheValidity {
         "Caches use the response's `Vary` header to decide which request header values must be incorporated into their cache key.  When a cached representation is reused (for example via conditional requests using `If-None-Match` or `If-Modified-Since`), the values of *all* headers listed in `Vary` **must** be identical to those that produced the stored response.  Otherwise the cache is effectively using an incomplete key and may send a stale or incorrect representation to the server or client.\n\nThis rule inspects conditional requests and attempts to pair them with the prior response whose validator is being reused.  If that earlier response included a `Vary` header, the rule compares the request header values from the two transactions.  Any difference is reported as a violation because it indicates the cache key omitted a required dimension.\n\nThe rule is intentionally forgiving:\n\n* It only applies when a previous validator matching the current conditional header can be located.\n* `Vary: *` is ignored, since it precludes reuse and offers no explicit fields to compare.\n* When no `Vary` header is present on the candidate response, no check is performed."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9111 §4.1 \"How a Cache Calculates a Secondary Key\"](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1)",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9111",
+            section: Some("4.1"),
+            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
+            note: "\"How a Cache Calculates a Secondary Key\"",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

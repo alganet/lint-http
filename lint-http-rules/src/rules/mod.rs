@@ -62,6 +62,51 @@ pub struct Example {
     pub snippet: &'static str,
 }
 
+/// A reference to the specification text a rule enforces.
+///
+/// This used to be a free-form markdown bullet — a display string, not data —
+/// and five spellings of it had grown up side by side, across three spellings of
+/// the same host. Nothing could be checked, because there was nothing to check:
+/// no field held the URL, so no tool could fetch it.
+///
+/// `spec` names the document in **exactly the vocabulary `specs/sources.yaml`
+/// uses**. That is the point of it: a `SpecRef` and a `// cite` comment name one
+/// source the same way, so the rule's metadata and the verified quote inside its
+/// code cannot drift into describing different documents.
+///
+/// What is deliberately absent is the quoted sentence. A rule emits violations
+/// from several branches, and a quote on the *rule* cannot say which branch
+/// implements which normative sentence. Quotes live at the statement that
+/// enforces them, as a `// cite` comment.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct SpecRef {
+    /// The document: `"RFC 9110"`, `"Fetch"`, `"MDN Origin"`.
+    pub spec: &'static str,
+    /// The section within it: `"7.2"`. `None` when the reference names the
+    /// document as a whole (a registry, an explainer).
+    pub section: Option<&'static str>,
+    /// Where to read it. Canonical: one host per document, always.
+    pub url: &'static str,
+    /// What this reference contributes to *this* rule. May be empty when the
+    /// section title already says it.
+    pub note: &'static str,
+}
+
+impl std::fmt::Display for SpecRef {
+    /// The markdown bullet body the docs render. One spelling now, derived —
+    /// which is what retires the format drift rather than merely tidying it.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.section {
+            Some(section) => write!(f, "[{} §{}]({})", self.spec, section, self.url)?,
+            None => write!(f, "[{}]({})", self.spec, self.url)?,
+        }
+        if !self.note.is_empty() {
+            write!(f, ": {}", self.note)?;
+        }
+        Ok(())
+    }
+}
+
 pub trait Rule: Send + Sync {
     fn id(&self) -> &'static str;
 
@@ -114,11 +159,9 @@ pub trait Rule: Send + Sync {
         ""
     }
 
-    /// Canonical specification references (e.g. "RFC 9110 §5.2"), one per
-    /// bullet. Each entry is a full markdown bullet body (link + text, no
-    /// leading `- `). Renders into the "Specifications" section of the
-    /// generated doc; empty by default.
-    fn rfc_references(&self) -> &'static [&'static str] {
+    /// The specification text this rule enforces. Renders into the
+    /// "Specifications" section of the generated doc; empty by default.
+    fn specifications(&self) -> &'static [SpecRef] {
         &[]
     }
 
@@ -304,11 +347,9 @@ pub trait ProtocolRule: Send + Sync {
         ""
     }
 
-    /// Canonical specification references (e.g. "RFC 9000 §18.2"), one per
-    /// bullet. Each entry is a full markdown bullet body (link + text, no
-    /// leading `- `). Renders into the "Specifications" section of the
-    /// generated doc; empty by default.
-    fn rfc_references(&self) -> &'static [&'static str] {
+    /// The specification text this rule enforces. Renders into the
+    /// "Specifications" section of the generated doc; empty by default.
+    fn specifications(&self) -> &'static [SpecRef] {
         &[]
     }
 
@@ -702,8 +743,8 @@ severity = "warn"
                 r.id()
             );
             assert!(
-                !r.rfc_references().is_empty(),
-                "{} missing rfc_references",
+                !r.specifications().is_empty(),
+                "{} missing specifications",
                 r.id()
             );
             let _ = r.examples();
@@ -716,8 +757,8 @@ severity = "warn"
                 r.id()
             );
             assert!(
-                !r.rfc_references().is_empty(),
-                "{} missing rfc_references",
+                !r.specifications().is_empty(),
+                "{} missing specifications",
                 r.id()
             );
             let _ = r.examples();

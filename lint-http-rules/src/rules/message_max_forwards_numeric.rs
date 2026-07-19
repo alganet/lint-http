@@ -57,10 +57,13 @@ impl Rule for MessageMaxForwardsNumeric {
         "Validate that the `Max-Forwards` request header value is a decimal integer consisting of one or more digits (ABNF: `Max-Forwards = 1*DIGIT`). This header is used by `TRACE` and `OPTIONS` to limit forwarding by intermediaries; invalid values can break proxy forwarding semantics."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §7.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2) — Max-Forwards header.",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("7.6.2"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2",
+            note: "Max-Forwards header",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

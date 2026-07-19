@@ -5,7 +5,7 @@
 //! Documentation generator: renders `docs/rules/<id>.md` and the
 //! `docs/rules.md` index from rule metadata
 //! ([`Rule::description`](crate::rules::Rule::description),
-//! [`rfc_references`](crate::rules::Rule::rfc_references),
+//! [`specifications`](crate::rules::Rule::specifications),
 //! [`examples`](crate::rules::Rule::examples),
 //! [`title`](crate::rules::Rule::title)) plus the per-rule `[rules.<id>]`
 //! section pulled from `config_example.toml`.
@@ -14,7 +14,7 @@
 //! (`docs_match_generated` test) can diff regenerated output against the
 //! checked-in docs.
 
-use crate::rules::{Compliance, Example, ProtocolRule, Rule};
+use crate::rules::{Compliance, Example, ProtocolRule, Rule, SpecRef};
 use std::path::{Path, PathBuf};
 
 /// The workspace root, derived from this crate's manifest dir. `config_example.toml`
@@ -70,14 +70,14 @@ pub fn title_from_id(id: &str) -> String {
 }
 
 /// Render a single per-rule markdown document from its metadata. Sections that
-/// have no content (Specifications when `rfc_references` is empty, Examples when
+/// have no content (Specifications when `specifications` is empty, Examples when
 /// `examples` is empty, Configuration when `config_block` is `None`) are omitted
 /// entirely. `title` overrides the id-derived heading when `Some`.
 pub fn render_doc(
     id: &str,
     title: Option<&str>,
     description: &str,
-    rfc_references: &[&str],
+    specifications: &[SpecRef],
     examples: &[Example],
     config_block: Option<&str>,
 ) -> String {
@@ -96,10 +96,10 @@ pub fn render_doc(
         out.push('\n');
     }
 
-    if !rfc_references.is_empty() {
+    if !specifications.is_empty() {
         out.push_str("\n## Specifications\n\n");
-        for reference in rfc_references {
-            out.push_str(&format!("- {}\n", reference));
+        for spec in specifications {
+            out.push_str(&format!("- {}\n", spec));
         }
     }
 
@@ -244,7 +244,7 @@ pub fn write_all(out_dir: &Path) -> anyhow::Result<()> {
             rule.id(),
             rule.title(),
             rule.description(),
-            rule.rfc_references(),
+            rule.specifications(),
             rule.examples(),
             config_block_for(rule.id(), &config_toml).as_deref(),
         );
@@ -255,7 +255,7 @@ pub fn write_all(out_dir: &Path) -> anyhow::Result<()> {
             rule.id(),
             rule.title(),
             rule.description(),
-            rule.rfc_references(),
+            rule.specifications(),
             rule.examples(),
             config_block_for(rule.id(), &config_toml).as_deref(),
         );
@@ -299,7 +299,20 @@ mod tests {
             "client_user_agent_present",
             Some("Client User-Agent Present"),
             "Requests should carry a User-Agent header.",
-            &["RFC 9110 §10.1.5", "RFC 9110 §5.5"],
+            &[
+                SpecRef {
+                    spec: "RFC 9110",
+                    section: Some("10.1.5"),
+                    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
+                    note: "User-Agent",
+                },
+                SpecRef {
+                    spec: "RFC 9110",
+                    section: Some("5.5"),
+                    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
+                    note: "",
+                },
+            ],
             &examples,
             Some("[rules.client_user_agent_present]\nenabled = true\nseverity = \"warn\""),
         );
@@ -308,7 +321,14 @@ mod tests {
         // `title` override preserves header casing the id can't reproduce.
         assert!(doc.contains("# Client User-Agent Present"));
         assert!(doc.contains("## Description\n\nRequests should carry a User-Agent header."));
-        assert!(doc.contains("## Specifications\n\n- RFC 9110 §10.1.5\n- RFC 9110 §5.5\n"));
+        // The bullet is *derived* from the fields now, not stored as prose — which
+        // is what ended the five spellings. Both arms of `Display` are pinned here:
+        // a note renders after a colon, and an empty note renders no colon at all.
+        assert!(doc.contains(
+            "## Specifications\n\n\
+             - [RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5): User-Agent\n\
+             - [RFC 9110 §5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5)\n"
+        ));
         assert!(doc.contains(
             "## Configuration\n\n```toml\n[rules.client_user_agent_present]\nenabled = true\n\
              severity = \"warn\"\n```"
@@ -336,7 +356,7 @@ mod tests {
         // Render every rule in-memory; must not touch the real docs/ tree.
         let config_toml = std::fs::read_to_string(repo_root().join("config_example.toml"))
             .expect("config_example.toml");
-        let render = |id: &str, title, desc, refs: &[&str], ex: &[Example]| {
+        let render = |id: &str, title, desc, refs: &[SpecRef], ex: &[Example]| {
             render_doc(
                 id,
                 title,
@@ -351,7 +371,7 @@ mod tests {
                 rule.id(),
                 rule.title(),
                 rule.description(),
-                rule.rfc_references(),
+                rule.specifications(),
                 rule.examples(),
             );
             assert!(
@@ -370,7 +390,7 @@ mod tests {
                 rule.id(),
                 rule.title(),
                 rule.description(),
-                rule.rfc_references(),
+                rule.specifications(),
                 rule.examples(),
             );
             assert!(
@@ -431,6 +451,88 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// Every `SpecRef` must name a document `specs/sources.yaml` knows, at the
+    /// URL that file calls canonical. Without this, the two halves of a reference
+    /// drift apart silently: a rule can point at a host the registry retired, and
+    /// nothing notices, because `apycite` only ever fetches what a `// cite`
+    /// quotes — never the reference list. RFCs are absent from the registry by
+    /// design (they resolve by pattern), so they are checked against the pattern.
+    #[test]
+    fn spec_refs_use_the_source_registry() {
+        let registry = std::fs::read_to_string(repo_root().join("specs/sources.yaml"))
+            .expect("specs/sources.yaml");
+        // A two-line scan, not a YAML parse: the registry is a flat list of
+        // `- label:` / `url:` pairs, and a dependency to read two keys would cost
+        // more than it explains.
+        let mut canonical: Vec<(&str, &str)> = Vec::new();
+        let mut lines = registry.lines().peekable();
+        while let Some(line) = lines.next() {
+            if let Some(label) = line.trim().strip_prefix("- label: ") {
+                let url = lines
+                    .peek()
+                    .and_then(|l| l.trim().strip_prefix("url: "))
+                    .unwrap_or_else(|| {
+                        panic!("registry entry {} has no url on the next line", label)
+                    });
+                canonical.push((label, url));
+            }
+        }
+        assert!(
+            !canonical.is_empty(),
+            "read no entries from specs/sources.yaml"
+        );
+
+        fn base(url: &str) -> &str {
+            url.split('#').next().unwrap_or(url).trim_end_matches('/')
+        }
+        let check = |id: &str, specs: &[SpecRef]| {
+            for s in specs {
+                assert!(!s.url.is_empty(), "{}: {} has no url", id, s.spec);
+                match s.spec.strip_prefix("RFC ") {
+                    // The pattern that keeps rfc-editor / datatracker from
+                    // splitting one RFC across two hosts again.
+                    Some(number) => {
+                        let expected = format!("https://www.rfc-editor.org/rfc/rfc{}.html", number);
+                        assert_eq!(
+                            base(s.url),
+                            expected,
+                            "{}: {} must cite {} (canonical), not {}",
+                            id,
+                            s.spec,
+                            expected,
+                            s.url
+                        );
+                    }
+                    None => {
+                        let entry = canonical.iter().find(|(label, _)| *label == s.spec);
+                        let (_, url) = entry.unwrap_or_else(|| {
+                            panic!(
+                                "{}: {:?} is not a label in specs/sources.yaml — add it there, \
+                                 or spell it the way the registry does",
+                                id, s.spec
+                            )
+                        });
+                        assert_eq!(
+                            base(s.url),
+                            base(url),
+                            "{}: {} points at {}, but the registry calls {} canonical",
+                            id,
+                            s.spec,
+                            s.url,
+                            url
+                        );
+                    }
+                }
+            }
+        };
+        for rule in crate::rules::RULES.iter() {
+            check(rule.id(), rule.specifications());
+        }
+        for rule in crate::rules::PROTOCOL_RULES.iter() {
+            check(rule.id(), rule.specifications());
+        }
+    }
+
     /// #11d drift gate: the committed `docs/rules/` files must equal what
     /// `gendocs` regenerates from rule metadata. This makes the docs a verified
     /// generated artifact — editing a rule (or `config_example.toml`) without
@@ -458,7 +560,7 @@ mod tests {
                     rule.id(),
                     rule.title(),
                     rule.description(),
-                    rule.rfc_references(),
+                    rule.specifications(),
                     rule.examples(),
                     config_block_for(rule.id(), &config_toml).as_deref(),
                 ),
@@ -471,7 +573,7 @@ mod tests {
                     rule.id(),
                     rule.title(),
                     rule.description(),
-                    rule.rfc_references(),
+                    rule.specifications(),
                     rule.examples(),
                     config_block_for(rule.id(), &config_toml).as_deref(),
                 ),

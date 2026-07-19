@@ -21,8 +21,8 @@ their responses with the semantics defined in RFC 9110 §9.3.3 and §10.2.2.
 
 ## Specifications
 
-- [RFC 9110 §9.3.3 — POST](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3) describes the semantics for `POST` responses and notes that "If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server **SHOULD** send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created."
-- [RFC 9110 §10.2.2 — Location](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2) specifies that for `201 (Created)` responses the `Location` value refers to the primary resource created by the request.
+- [RFC 9110 §9.3.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3): POST describes the semantics for `POST` responses and notes that "If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server **SHOULD** send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created."
+- [RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2): Location specifies that for `201 (Created)` responses the `Location` value refers to the primary resource created by the request
 
 ## Configuration
 

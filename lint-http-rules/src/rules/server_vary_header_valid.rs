@@ -100,10 +100,13 @@ impl Rule for ServerVaryHeaderValid {
         "Validate the `Vary` response header. This rule enforces that:\n\n- When present, `Vary` MUST be either `*` or a comma-separated list of header field-names.\n- Each field-name must conform to the `token` grammar (RFC `tchar`).\n- `*` MUST NOT be combined with other field-names (across the header value or multiple header fields)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §7.3.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.6) — Vary header",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("7.3.6"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.6",
+            note: "Vary header",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

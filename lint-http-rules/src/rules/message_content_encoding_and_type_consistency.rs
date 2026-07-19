@@ -126,10 +126,20 @@ impl Rule for MessageContentEncodingAndTypeConsistency {
         "Validate `Content-Encoding` header members for common correctness issues: members must be valid `token`s, duplicate codings are likely a mistake and are flagged, and responses that must not carry a message body (1xx, 204, 304) MUST NOT include a `Content-Encoding` header."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §5.3 — Content Coding](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3)",
-            "[RFC 9110 §6.3 — Message Body and status codes (1xx, 204, 304)](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.3)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+                note: "Content Coding",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("6.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.3",
+                note: "Message Body and status codes (1xx, 204, 304)",
+            },
         ]
     }
 

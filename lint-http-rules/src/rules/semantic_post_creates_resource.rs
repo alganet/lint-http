@@ -67,10 +67,20 @@ impl Rule for SemanticPostCreatesResource {
         "When a `POST` request results in the origin server creating one or more new\nresources, the server **should** respond with `201 Created` and include a\n`Location` header field identifying the primary resource that was created.\nSending a `Location` header on any other 2xx response implies a resource was\ncreated, yet the proper status code was not used. Likewise, a `201` response\nwithout a `Location` header fails to provide the identifier of the newly\ncreated resource.\n\nThis rule flags both situations so that implementers are encouraged to align\ntheir responses with the semantics defined in RFC 9110 §9.3.3 and §10.2.2."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §9.3.3 — POST](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3) describes the semantics for `POST` responses and notes that \"If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server **SHOULD** send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created.\"",
-            "[RFC 9110 §10.2.2 — Location](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2) specifies that for `201 (Created)` responses the `Location` value refers to the primary resource created by the request.",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.3.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3",
+                note: "POST describes the semantics for `POST` responses and notes that \"If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server **SHOULD** send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created.\"",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("10.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
+                note: "Location specifies that for `201 (Created)` responses the `Location` value refers to the primary resource created by the request",
+            },
         ]
     }
 

@@ -139,10 +139,20 @@ impl Rule for MessageStructuredHeadersValidity {
         "Validate that specified header fields are valid RFC 8941 Structured Field values (Item, List, or Dictionary). This rule checks for syntactic correctness (tokens, quoted-strings, numbers, booleans, byte-sequences, and simple parameters) and reports malformed header values. It is intentionally conservative and focuses on common syntactic errors."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 8941 — Structured Field Values for HTTP](https://www.rfc-editor.org/rfc/rfc8941.html)",
-            "[RFC 8941 §3–§5 — Items, Lists, Dictionaries](https://www.rfc-editor.org/rfc/rfc8941.html#section-3)",
+            crate::rules::SpecRef {
+                spec: "RFC 8941",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc8941.html",
+                note: "Structured Field Values for HTTP",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 8941",
+                section: Some("3"),
+                url: "https://www.rfc-editor.org/rfc/rfc8941.html#section-3",
+                note: "Items, Lists, Dictionaries",
+            },
         ]
     }
 

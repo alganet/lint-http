@@ -14,7 +14,7 @@ This security header prevents browsers from "MIME-sniffing" a response away from
 
 ## Specifications
 
-- [MDN Web Docs: X-Content-Type-Options](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options)
+- [MDN X-Content-Type-Options](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options): Web Docs: X-Content-Type-Options
 
 ## Configuration
 

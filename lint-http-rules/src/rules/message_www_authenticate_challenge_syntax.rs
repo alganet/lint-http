@@ -61,10 +61,20 @@ impl Rule for MessageWwwAuthenticateChallengeSyntax {
         "The `WWW-Authenticate` response header advertises authentication schemes that the server supports. Each challenge consists of an `auth-scheme` (a `token`) followed by optional parameters (`auth-param`) or a `token68` value.\n\nThis rule validates that each challenge:\n\n- Begins with a valid `auth-scheme` token (no illegal characters).\n- If parameters are present, each parameter is of the form `token=token` or `token=\"quoted-string\"` and quoted-strings are well-formed.\n- Token68 values are accepted as a single token-like remainder (no control characters)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §7.2.1 — WWW-Authenticate](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1)",
-            "[RFC 7235 §2.1 — Challenge and `token68`](https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1",
+                note: "WWW-Authenticate",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7235",
+                section: Some("2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1",
+                note: "Challenge and `token68`",
+            },
         ]
     }
 

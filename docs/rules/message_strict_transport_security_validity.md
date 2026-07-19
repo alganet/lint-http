@@ -12,10 +12,11 @@ The `Strict-Transport-Security` response header signals HSTS policies. This rule
 
 ## Specifications
 
-- [RFC 6797 §6.1 — Strict-Transport-Security header](https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1)
-- [RFC 6797 §6.1.1 — The max-age Directive](https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.1)
-- [RFC 6797 §6.1.2 — The includeSubDomains Directive](https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.2)
-- Token / quoted-string syntax: [RFC 9110 §5.6.2 — Tokens](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2) and [RFC 9110 §5.6.4 — Quoted Strings](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4)
+- [RFC 6797 §6.1](https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1): Strict-Transport-Security header
+- [RFC 6797 §6.1.1](https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.1): The max-age Directive
+- [RFC 6797 §6.1.2](https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.2): The includeSubDomains Directive
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token` syntax for directive names
+- [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): Quoted Strings — `quoted-string` syntax for directive values
 
 ## Configuration
 

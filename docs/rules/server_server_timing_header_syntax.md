@@ -12,7 +12,7 @@ The `Server-Timing` response header communicates server-side performance metrics
 
 ## Specifications
 
-- W3C Server-Timing Header Field — Section "The `Server-Timing` Header Field" (syntax and examples): https://w3c.github.io/server-timing/#the-server-timing-header-field
+- [Server Timing](https://www.w3.org/TR/server-timing/#the-server-timing-header-field): W3C Server-Timing Header Field — Section "The `Server-Timing` Header Field" (syntax and examples)
 
 ## Configuration
 

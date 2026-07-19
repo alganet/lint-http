@@ -99,11 +99,26 @@ impl Rule for MessageAccessControlAllowCredentialsWhenOrigin {
         "This rule checks Cross-Origin Resource Sharing (CORS) response headers to ensure that `Access-Control-Allow-Credentials` is **not** set to `true` when `Access-Control-Allow-Origin` is `*` (wildcard). Allowing credentials with a wildcard origin is insecure and disallowed by the CORS model."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "MDN: Access-Control-Allow-Credentials — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials",
-            "MDN: Access-Control-Allow-Origin — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin",
-            "Fetch Standard: Access-Control-Allow-Credentials — https://fetch.spec.whatwg.org/#http-access-control-allow-credentials",
+            crate::rules::SpecRef {
+                spec: "MDN Access-Control-Allow-Credentials",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials",
+                note: "Access-Control-Allow-Credentials",
+            },
+            crate::rules::SpecRef {
+                spec: "MDN Access-Control-Allow-Origin",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin",
+                note: "Access-Control-Allow-Origin",
+            },
+            crate::rules::SpecRef {
+                spec: "Fetch",
+                section: None,
+                url: "https://fetch.spec.whatwg.org/#http-access-control-allow-credentials",
+                note: "Fetch Standard: Access-Control-Allow-Credentials",
+            },
         ]
     }
 

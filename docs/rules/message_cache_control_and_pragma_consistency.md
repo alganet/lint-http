@@ -12,7 +12,7 @@ Flags contradictions between `Pragma` and `Cache-Control` in requests (for examp
 
 ## Specifications
 
-- [RFC 7234 §5.4](https://www.rfc-editor.org/rfc/rfc7234.html#section-5.4) — `Pragma` and its relationship to `Cache-Control`.
+- [RFC 7234 §5.4](https://www.rfc-editor.org/rfc/rfc7234.html#section-5.4): `Pragma` and its relationship to `Cache-Control`
 
 ## Configuration
 

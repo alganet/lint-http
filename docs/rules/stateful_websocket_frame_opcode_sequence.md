@@ -16,9 +16,9 @@ Validates message-level opcode sequencing rules for WebSocket frames observed du
 
 ## Specifications
 
-- [RFC 6455 §5.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2) — Base Framing Protocol, opcode definitions.
-- [RFC 6455 §5.5](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5) — Control Frames, payload length constraint.
-- [RFC 6455 §5.5.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5.1) — Close frame semantics and half-close behaviour.
+- [RFC 6455 §5.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2): Base Framing Protocol, opcode definitions
+- [RFC 6455 §5.5](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5): Control Frames, payload length constraint
+- [RFC 6455 §5.5.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5.1): Close frame semantics and half-close behaviour
 
 ## Configuration
 

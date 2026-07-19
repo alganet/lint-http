@@ -47,10 +47,20 @@ impl Rule for ServerResponseLocationOnRedirect {
         "Checks that responses where the semantics call for a `Location` header include one. In particular, a `201 (Created)` response and many redirection responses (300, 301, 302, 303, 307, 308) SHOULD include a `Location` header referring to the created or preferred target resource."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2) — `Location = URI-reference` and semantics for `201` and `3xx` responses.",
-            "[RFC 9110 §15.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4) — Redirection status codes and their `Location` semantics.",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("10.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
+                note: "`Location = URI-reference` and semantics for `201` and `3xx` responses",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
+                note: "Redirection status codes and their `Location` semantics",
+            },
         ]
     }
 

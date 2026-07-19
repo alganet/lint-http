@@ -12,7 +12,7 @@ SPDX-License-Identifier: ISC
 
 ## Specifications
 
-- [RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5) — `User-Agent` header field and `product` syntax (token ["/" product-version])
+- [RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5): `User-Agent` header field and `product` syntax (token ["/" product-version])
 
 ## Configuration
 

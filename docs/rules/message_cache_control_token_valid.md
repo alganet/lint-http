@@ -12,7 +12,7 @@ Validate `Cache-Control` directive names and unquoted values follow the `token` 
 
 ## Specifications
 
-- [RFC 9110 §5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2) — Cache-Control directives and general directive syntax
+- [RFC 9110 §5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2): Cache-Control directives and general directive syntax
 
 ## Configuration
 

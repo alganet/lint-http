@@ -149,10 +149,13 @@ impl Rule for MessageCachingDirectiveInteraction {
         "Detect contradictions or redundant combinations in `Cache-Control` directives that affect caching semantics. Examples include `public` and `private` appearing together (contradictory visibility), `no-store` combined with `public`/`private`, and `no-cache` together with `max-age=0` (redundant)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3) — Cache-Control directives and cache semantics",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9111",
+            section: Some("3"),
+            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3",
+            note: "Cache-Control directives and cache semantics",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

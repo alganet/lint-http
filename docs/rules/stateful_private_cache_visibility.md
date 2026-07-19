@@ -16,7 +16,7 @@ The rule relies on a cross-client history; the engine handles this by scoping th
 
 ## Specifications
 
-- [RFC 9111 §5.2 — Cache-Control field semantics](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2) — `private` directive applies only to private caches.
+- [RFC 9111 §5.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2): Cache-Control field semantics — `private` directive applies only to private caches
 
 ## Configuration
 

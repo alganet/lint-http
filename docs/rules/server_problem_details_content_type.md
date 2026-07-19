@@ -12,7 +12,7 @@ Problem Details responses (RFC 7807) SHOULD use the media types `application/pro
 
 ## Specifications
 
-- [RFC 7807 §6](https://www.rfc-editor.org/rfc/rfc7807#section-6) — Problem Details for HTTP APIs
+- [RFC 7807 §6](https://www.rfc-editor.org/rfc/rfc7807.html#section-6): Problem Details for HTTP APIs
 
 ## Configuration
 

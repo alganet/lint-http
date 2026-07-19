@@ -14,7 +14,7 @@ This rule warns when a response status that is not cacheable by default does not
 
 ## Specifications
 
-- [RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3) — HTTP Caching (which response status codes are cacheable by default and how freshness is established)
+- [RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3): HTTP Caching (which response status codes are cacheable by default and how freshness is established)
 
 ## Configuration
 

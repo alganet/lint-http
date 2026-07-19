@@ -168,10 +168,20 @@ impl Rule for MessageTeHeaderConstraints {
         "Validate the `TE` request header for syntax and usage:\n\n- Each member must be either the literal `trailers` or a transfer-coding token with optional parameters.\n- `q` (quality) parameter, if present, must be a valid qvalue between `0` and `1` with up to three decimals (e.g., `0.8`, `0.123`, `1.0`).\n- Parameter values must be a `token` or a `quoted-string`.\n- If a request includes a `TE` header, the `Connection` header MUST include the `TE` token.\n- `TE` MUST NOT appear in responses."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §10.1.4](https://www.rfc-editor.org/rfc/rfc9110#section-10.1.4) — TE header",
-            "[RFC 9110 §6.5.1](https://www.rfc-editor.org/rfc/rfc9110#section-6.5.1) — Limitations on trailers",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("10.1.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
+                note: "TE header",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("6.5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
+                note: "Limitations on trailers",
+            },
         ]
     }
 

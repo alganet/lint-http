@@ -178,12 +178,32 @@ impl Rule for Stateful101SwitchingProtocols {
         "Validates that `101 Switching Protocols` responses follow correct HTTP upgrade semantics. The rule checks:\n\n- The client must have requested the upgrade via the `Upgrade` header; unsolicited 101 responses are a protocol violation.\n- The protocol chosen in the response `Upgrade` header must match one offered by the client.\n- 101 must not be sent for HTTP/1.0 requests (Upgrade is an HTTP/1.1+ mechanism), or over HTTP/2 or HTTP/3 where the Upgrade mechanism is not supported.\n- After a successful 101 exchange, no further HTTP messages should appear on the same connection — the connection has been handed off to the upgraded protocol."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §15.2.2 — 101 Switching Protocols](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2)",
-            "[RFC 9110 §7.8 — Upgrade](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8)",
-            "[RFC 9113 §8.6 — The CONNECT Method (HTTP/2 forbids 101)](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.6)",
-            "[RFC 9114 §4.1 — HTTP Message Exchanges (HTTP/3 forbids 101)](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2",
+                note: "101 Switching Protocols",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.8"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
+                note: "Upgrade",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9113",
+                section: Some("8.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.6",
+                note: "The CONNECT Method (HTTP/2 forbids 101)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9114",
+                section: Some("4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1",
+                note: "HTTP Message Exchanges (HTTP/3 forbids 101)",
+            },
         ]
     }
 

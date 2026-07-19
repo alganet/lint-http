@@ -18,8 +18,8 @@ Failure to mirror the client's key, omit required tokens, or use the wrong statu
 
 ## Specifications
 
-- [RFC 6455 §4.2.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.2) — “Opening Handshake”, calculate `Sec-WebSocket-Accept`.
-- [RFC 9110 §9.3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5) — rules for `Connection` and `Upgrade` header interaction during protocol upgrades.
+- [RFC 6455 §4.2.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.2): “Opening Handshake”, calculate `Sec-WebSocket-Accept`
+- [RFC 9110 §9.3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5): rules for `Connection` and `Upgrade` header interaction during protocol upgrades
 
 ## Configuration
 

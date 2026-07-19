@@ -12,8 +12,8 @@ Validate authentication schemes used in `WWW-Authenticate` and `Authorization` h
 
 ## Specifications
 
-- [RFC 9110 §7.2.1 — WWW-Authenticate](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1)
-- [IANA HTTP Authentication Scheme Registry](https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml)
+- [RFC 9110 §7.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1): WWW-Authenticate
+- [IANA HTTP Authentication Schemes](https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml): IANA HTTP Authentication Scheme Registry
 
 ## Configuration
 

@@ -12,7 +12,7 @@ Validate that the HTTP start-line version token matches the ABNF syntax defined 
 
 ## Specifications
 
-- RFC 9112 §2.3: `HTTP-version = HTTP-name "/" DIGIT "." DIGIT` (case-sensitive `HTTP`)
+- [RFC 9112 §2.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-2.3): `HTTP-version = HTTP-name "/" DIGIT "." DIGIT` (case-sensitive `HTTP`)
 
 ## Configuration
 

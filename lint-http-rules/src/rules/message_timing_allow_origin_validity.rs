@@ -99,10 +99,20 @@ impl Rule for MessageTimingAllowOriginValidity {
         "Validate the `Timing-Allow-Origin` response header values. The header's value\nmust be `*` (wildcard), `null` (case-insensitive), or one or more serialized\norigins (`scheme://host[:port]`). Multiple header fields are allowed and their\nvalues are combined using HTTP list semantics. This rule detects header values\nthat cannot be decoded as visible US-ASCII, an entirely empty header value, and\ninvalid origin serializations."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[Resource Timing §4.5.1 — `Timing-Allow-Origin` response header](https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin)",
-            "[RFC 6454 — Origin (serialized-origin form)](https://www.rfc-editor.org/rfc/rfc6454.html)",
+            crate::rules::SpecRef {
+                spec: "Resource Timing",
+                section: Some("4.5.1"),
+                url: "https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin",
+                note: "`Timing-Allow-Origin` response header",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6454",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc6454.html",
+                note: "Origin (serialized-origin form)",
+            },
         ]
     }
 

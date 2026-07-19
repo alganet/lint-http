@@ -12,7 +12,7 @@ Validate that the `Content-Disposition` header's `disposition-type` is a valid `
 
 ## Specifications
 
-- [RFC 6266 §4](https://www.rfc-editor.org/rfc/rfc6266.html#section-4) — Use of `Content-Disposition` in HTTP (disposition-type is a `token` and followed by optional parameters)
+- [RFC 6266 §4](https://www.rfc-editor.org/rfc/rfc6266.html#section-4): Use of `Content-Disposition` in HTTP (disposition-type is a `token` and followed by optional parameters)
 
 ## Configuration
 

@@ -64,10 +64,13 @@ impl Rule for ServerProblemDetailsContentType {
         "Problem Details responses (RFC 7807) SHOULD use the media types `application/problem+json` or `application/problem+xml` to indicate a standardized problem representation. This rule warns when an error response (4xx/5xx) uses a generic JSON/XML media type instead of the Problem Details media types."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 7807 §6](https://www.rfc-editor.org/rfc/rfc7807#section-6) — Problem Details for HTTP APIs",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 7807",
+            section: Some("6"),
+            url: "https://www.rfc-editor.org/rfc/rfc7807.html#section-6",
+            note: "Problem Details for HTTP APIs",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

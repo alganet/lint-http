@@ -26,7 +26,7 @@ responses are skipped since they do not convey a new representation.
 
 ## Specifications
 
-- [RFC 9111 §6 — Cache coherence](https://www.rfc-editor.org/rfc/rfc9111.html#section-6)
+- [RFC 9111 §6](https://www.rfc-editor.org/rfc/rfc9111.html#section-6): Cache coherence
 
 ## Configuration
 

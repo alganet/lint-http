@@ -12,8 +12,8 @@ When a response includes a `Content-Length` header, its numeric value MUST match
 
 ## Specifications
 
-- [RFC 9110 §8.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6): The `Content-Length` header field and rules about forwarding incorrect values.
-- [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3): Message body length determination and framing (how body length is determined and handled).
+- [RFC 9110 §8.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6): The `Content-Length` header field and rules about forwarding incorrect values
+- [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3): Message body length determination and framing (how body length is determined and handled)
 
 ## Configuration
 

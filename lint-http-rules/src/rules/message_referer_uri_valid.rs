@@ -82,10 +82,20 @@ impl Rule for MessageRefererUriValid {
         "This rule checks that the `Referer` request header, when present, is a syntactically valid URI-reference per the HTTP specification. Malformed `Referer` values can break referrer-based logic and leak incorrect information to servers."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §7.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#name-referer)",
-            "[RFC 3986 §4](https://www.rfc-editor.org/rfc/rfc3986.html#section-4) — URI-reference syntax and percent-encoding",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.5.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.5.3",
+                note: "",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 3986",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4",
+                note: "URI-reference syntax and percent-encoding",
+            },
         ]
     }
 

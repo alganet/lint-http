@@ -97,10 +97,20 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
         "When a server returns a 206 (Partial Content) response it indicates that the request was satisfied by returning a range of the representation. Servers SHOULD advertise support for range requests using the `Accept-Ranges` header; an `Accept-Ranges: none` value contradicts a 206 response and is invalid in that context. This rule warns when a 206 response does not advertise supported range units, or when the advertised units contradict the `Content-Range` header."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 7233 §4.1 — 206 Partial Content: single-part 206 responses MUST include a `Content-Range` header describing the enclosed range.](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1)",
-            "[RFC 9110 §7.3.4 — `Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`.](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4)",
+            crate::rules::SpecRef {
+                spec: "RFC 7233",
+                section: Some("4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1",
+                note: "206 Partial Content: single-part 206 responses MUST include a `Content-Range` header describing the enclosed range",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.3.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4",
+                note: "`Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`",
+            },
         ]
     }
 

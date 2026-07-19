@@ -74,11 +74,26 @@ impl Rule for SemanticStatusCodeSemantics {
         "Detects clear mismatches between HTTP response status codes and the headers/payloads that express authentication or proxy-authentication intent. Examples: a 401 response must include a `WWW-Authenticate` header; a `WWW-Authenticate` header must not appear on non-401 responses. Likewise, `Proxy-Authenticate` is specific to 407 responses. These checks help identify servers that misuse status codes or include misleading headers."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §15.5.1 — 401 (Unauthorized) responses and WWW-Authenticate requirement](https://www.rfc-editor.org/rfc/rfc9110.html#name-401-unauthorized)",
-            "[RFC 9110 §15.6.1 — 407 (Proxy Authentication Required) responses and Proxy-Authenticate](https://www.rfc-editor.org/rfc/rfc9110.html#name-407-proxy-authentication)",
-            "[RFC 9110 §6 — Status code semantics (general)](https://www.rfc-editor.org/rfc/rfc9110.html#name-status-codes)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.1",
+                note: "401 (Unauthorized) responses and WWW-Authenticate requirement",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.6.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.6.1",
+                note: "407 (Proxy Authentication Required) responses and Proxy-Authenticate",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6",
+                note: "Status code semantics (general)",
+            },
         ]
     }
 

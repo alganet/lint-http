@@ -99,10 +99,20 @@ impl Rule for ServerAltSvcH3AdvertisementValid {
         "Validates `Alt-Svc` entries that advertise HTTP/3. Servers must use the final ALPN protocol identifier `h3`, not draft-era tokens such as `h3-29` or `h3-Q050`. When the `ma` (max-age) parameter is present on an `h3` entry, its value must be a positive integer within reasonable bounds (at most 1 year / 31 536 000 seconds); `ma=0` immediately invalidates the advertisement and is flagged as likely misconfiguration.\n\nThis rule complements `server_alt_svc_header_syntax` (general syntax) and `server_alt_svc_protocol_iana_registered` (allowlist check) by adding HTTP/3-specific semantic validation."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9114 §3.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1) — HTTP/3 alternative service discovery",
-            "[RFC 7838 §3](https://www.rfc-editor.org/rfc/rfc7838.html#section-3) — Alt-Svc header field syntax and `ma` parameter semantics",
+            crate::rules::SpecRef {
+                spec: "RFC 9114",
+                section: Some("3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1",
+                note: "HTTP/3 alternative service discovery",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7838",
+                section: Some("3"),
+                url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3",
+                note: "Alt-Svc header field syntax and `ma` parameter semantics",
+            },
         ]
     }
 

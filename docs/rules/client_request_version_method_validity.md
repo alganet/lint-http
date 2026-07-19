@@ -22,11 +22,11 @@ POST, PUT, PATCH, or OPTIONS when content is required.
 
 ## Specifications
 
-- RFC 9110 §9.3.1 (GET) – ‘‘A client **SHOULD NOT** generate content in a GET request ...’’
-- RFC 9110 §9.3.2 (HEAD) – ‘‘A client **SHOULD NOT** generate content in a HEAD request ...’’
-- RFC 9110 §9.3.5 (DELETE) – ‘‘content received in a DELETE request has no generally defined semantics ... A client **SHOULD NOT** generate content in a DELETE request ...’’
-- RFC 9110 §9.3.6 (CONNECT) – ‘‘A CONNECT request message **does not have content**.’'
-- RFC 9110 §9.3.8 (TRACE) – ‘‘A client **MUST NOT** send content in a TRACE request.’'
+- [RFC 9110 §9.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.1): GET
+- [RFC 9110 §9.3.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2): HEAD
+- [RFC 9110 §9.3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5): DELETE
+- [RFC 9110 §9.3.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6): CONNECT
+- [RFC 9110 §9.3.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8): TRACE
 
 ## Configuration
 

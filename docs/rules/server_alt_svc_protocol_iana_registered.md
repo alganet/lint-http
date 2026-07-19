@@ -12,7 +12,7 @@ Validate `Alt-Svc` response header protocol identifiers. Each `protocol` token (
 
 ## Specifications
 
-- [RFC 7838](https://www.rfc-editor.org/rfc/rfc7838.html) — Alternative Services (syntax and semantics)
+- [RFC 7838](https://www.rfc-editor.org/rfc/rfc7838.html): Alternative Services (syntax and semantics)
 
 ## Configuration
 

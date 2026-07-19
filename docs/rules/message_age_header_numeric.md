@@ -12,7 +12,7 @@ The `Age` header, when present in a response, indicates the time (in seconds) si
 
 ## Specifications
 
-- [RFC 9111 §5.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.1) — `Age` field-value: delta-seconds (non-negative integer).
+- [RFC 9111 §5.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.1): `Age` field-value: delta-seconds (non-negative integer)
 
 ## Configuration
 

@@ -108,10 +108,20 @@ impl Rule for MessageTrailerHeadersValid {
         "Validate `Trailer` header members are syntactically valid header field-names and do not nominate hop-by-hop headers. Trailer members must be `token`-formatted header field-names and MUST NOT be hop-by-hop headers such as `Connection`, `Keep-Alive`, `Proxy-Authenticate`, `Proxy-Authorization`, `TE`, `Trailer`, `Transfer-Encoding`, or `Upgrade`. When a header is nominated via `Connection`, it is considered hop-by-hop and therefore not appropriate as a trailer member."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 7230 §4.1.2 — Connection header and hop-by-hop semantics](https://www.rfc-editor.org/rfc/rfc7230.html#section-4.1.2)",
-            "[RFC 7230 §6.1 — Message framing and trailer fields](https://www.rfc-editor.org/rfc/rfc7230.html#section-6.1)",
+            crate::rules::SpecRef {
+                spec: "RFC 7230",
+                section: Some("4.1.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc7230.html#section-4.1.2",
+                note: "Connection header and hop-by-hop semantics",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7230",
+                section: Some("6.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc7230.html#section-6.1",
+                note: "Message framing and trailer fields",
+            },
         ]
     }
 

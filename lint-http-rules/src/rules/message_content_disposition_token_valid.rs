@@ -101,9 +101,14 @@ impl Rule for MessageContentDispositionTokenValid {
         "Validate that the `Content-Disposition` header's `disposition-type` is a valid `token` and not empty. The `disposition-type` appears before any `;` parameter list (e.g., `attachment; filename=\"a.txt\"`) and must follow the `token` grammar (no whitespace, control, or special characters)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 6266 §4](https://www.rfc-editor.org/rfc/rfc6266.html#section-4) — Use of `Content-Disposition` in HTTP (disposition-type is a `token` and followed by optional parameters)",
+            crate::rules::SpecRef {
+                spec: "RFC 6266",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4",
+                note: "Use of `Content-Disposition` in HTTP (disposition-type is a `token` and followed by optional parameters)",
+            },
         ]
     }
 

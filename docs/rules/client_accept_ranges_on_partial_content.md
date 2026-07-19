@@ -12,8 +12,8 @@ Clients should track server advertising of range support via the `Accept-Ranges`
 
 ## Specifications
 
-- [RFC 9110 §7.3.4 — `Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`.](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4)
-- [RFC 7233 §4.1 — `206 Partial Content` and `Content-Range`.](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1)
+- [RFC 9110 §7.3.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4): `Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`
+- [RFC 7233 §4.1](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1): `206 Partial Content` and `Content-Range`
 
 ## Configuration
 

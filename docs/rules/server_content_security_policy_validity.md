@@ -14,8 +14,8 @@ This rule is intentionally conservative: it is not a full CSP grammar validator,
 
 ## Specifications
 
-- W3C Content Security Policy Level 3 — directive and source-list syntax: https://www.w3.org/TR/CSP3/
-- Mozilla MDN overview and directive examples: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy
+- [CSP3](https://www.w3.org/TR/CSP3/): W3C Content Security Policy Level 3 — directive and source-list syntax
+- [MDN Content-Security-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy): Mozilla MDN overview and directive examples
 
 ## Configuration
 

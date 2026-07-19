@@ -18,7 +18,7 @@ This rule complements `message_cache_control_token_valid` which enforces general
 
 ## Specifications
 
-- [RFC 9110 §5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2) — Cache-Control directives and general directive syntax
+- [RFC 9110 §5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2): Cache-Control directives and general directive syntax
 
 ## Configuration
 

@@ -12,8 +12,8 @@ This rule checks the `Cross-Origin-Resource-Policy` response header value and en
 
 ## Specifications
 
-- W3C: Cross-Origin Resource Policy — https://w3c.github.io/webappsec-corp/
-- MDN: Cross-Origin-Resource-Policy — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Resource-Policy
+- [Fetch](https://fetch.spec.whatwg.org/): W3C: Cross-Origin Resource Policy
+- [MDN Cross-Origin-Resource-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Resource-Policy): Cross-Origin-Resource-Policy
 
 ## Configuration
 

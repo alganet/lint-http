@@ -12,8 +12,8 @@ Ensure responses to `HEAD` mirror the header fields that would have been sent fo
 
 ## Specifications
 
-- [RFC 9110 §9.3.2 — The HEAD method and header-field equivalence](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2): "The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET." (exceptions allowed for headers whose values are determined only while generating content.)
-- [RFC 9110 §8.6 — Content-Length](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6): a server MAY send Content-Length in a `HEAD` response but if present its value MUST equal the decimal number of octets that would have been sent in the content of the corresponding `GET` response.
+- [RFC 9110 §9.3.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2): The HEAD method and header-field equivalence: "The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET." (exceptions allowed for headers whose values are determined only while generating content.)
+- [RFC 9110 §8.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6): Content-Length: a server MAY send Content-Length in a `HEAD` response but if present its value MUST equal the decimal number of octets that would have been sent in the content of the corresponding `GET` response
 
 ## Configuration
 

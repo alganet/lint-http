@@ -12,7 +12,7 @@ When a server expresses an error using the Problem Details media type (`applicat
 
 ## Specifications
 
-- [RFC 7807 §3.1 — Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc7807.html#section-3.1)
+- [RFC 7807 §3.1](https://www.rfc-editor.org/rfc/rfc7807.html#section-3.1): Problem Details for HTTP APIs
 
 ## Configuration
 

@@ -62,10 +62,13 @@ impl Rule for MessageViaHeaderSyntaxValid {
         "Validates `Via` header field-values follow the list of received-protocol and received-by entries as specified by RFC 9110 §7.6.3. Each entry should include a protocol token (e.g., `1.1` or `HTTP/1.1`) and a `received-by` token (host, pseudonym, or IP with optional port); comments are allowed in parentheses."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §7.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.3): Via header",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("7.6.3"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.3",
+            note: "Via header",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

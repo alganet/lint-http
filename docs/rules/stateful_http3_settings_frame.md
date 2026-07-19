@@ -15,8 +15,8 @@ Validates HTTP/3 SETTINGS frame semantics on the control stream.  This rule insp
 
 ## Specifications
 
-- [RFC 9114 §7.2.4](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4) — SETTINGS.
-- [RFC 9114 §7.2.4.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4.1) — Defined SETTINGS Parameters.
+- [RFC 9114 §7.2.4](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4): SETTINGS
+- [RFC 9114 §7.2.4.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4.1): Defined SETTINGS Parameters
 
 ## Configuration
 

@@ -69,10 +69,13 @@ impl Rule for Server3xxVsRequestMethod {
         "Servers should use redirect status codes that unambiguously express whether the client should change the request method when following the Location. Responding with 301 or 302 to unsafe methods (e.g., POST) is historically ambiguous: use 303 to explicitly instruct the client to perform a GET on the target, or use 307/308 to indicate the client must preserve the original method and body."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4) — Redirection status codes and method-preserving semantics.",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("6.4"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
+            note: "Redirection status codes and method-preserving semantics",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

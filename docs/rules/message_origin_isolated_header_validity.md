@@ -12,8 +12,8 @@ Checks the `Origin-Isolation` response header and ensures it uses the structured
 
 ## Specifications
 
-- Origin Isolation explainer: https://github.com/davidben/origin-isolation/blob/master/README.md (See "Example" and "How it works")
-- Structured Headers boolean values: https://www.rfc-editor.org/rfc/rfc8941.html (RFC 8941 §3–§4)
+- [Origin Isolation Explainer](https://github.com/davidben/origin-isolation/blob/master/README.md): See "Example" and "How it works"
+- [RFC 8941 §3](https://www.rfc-editor.org/rfc/rfc8941.html#section-3): Structured Headers boolean values (§3–§4)
 
 ## Configuration
 

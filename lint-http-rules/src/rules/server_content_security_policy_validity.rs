@@ -231,10 +231,20 @@ impl Rule for ServerContentSecurityPolicyValidity {
         "Validate basic `Content-Security-Policy` syntax in responses. This rule checks that the header value is UTF-8, not empty, directives are present and well-formed (directive names follow `token` grammar), and common structural issues are flagged (unterminated single-quoted keywords, empty directives due to trailing semicolons, empty nonces/hashes).\n\nThis rule is intentionally conservative: it is not a full CSP grammar validator, but catches common, obvious mistakes and misconfigurations."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "W3C Content Security Policy Level 3 — directive and source-list syntax: https://www.w3.org/TR/CSP3/",
-            "Mozilla MDN overview and directive examples: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy",
+            crate::rules::SpecRef {
+                spec: "CSP3",
+                section: None,
+                url: "https://www.w3.org/TR/CSP3/",
+                note: "W3C Content Security Policy Level 3 — directive and source-list syntax",
+            },
+            crate::rules::SpecRef {
+                spec: "MDN Content-Security-Policy",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy",
+                note: "Mozilla MDN overview and directive examples",
+            },
         ]
     }
 

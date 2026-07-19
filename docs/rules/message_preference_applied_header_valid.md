@@ -12,7 +12,7 @@ Validate that the `Preference-Applied` response header follows the ABNF in RFC 7
 
 ## Specifications
 
-- [RFC 7240 §3](https://www.rfc-editor.org/rfc/rfc7240.html#section-3) — `Preference-Applied` header field and syntax
+- [RFC 7240 §3](https://www.rfc-editor.org/rfc/rfc7240.html#section-3): `Preference-Applied` header field and syntax
 
 ## Configuration
 

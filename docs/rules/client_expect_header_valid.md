@@ -12,7 +12,7 @@ Checks that the `Expect` request header, when present, follows the syntax define
 
 ## Specifications
 
-- [RFC 9110 §10.1.1 Expect](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.1)
+- [RFC 9110 §10.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.1): Expect
 
 ## Configuration
 

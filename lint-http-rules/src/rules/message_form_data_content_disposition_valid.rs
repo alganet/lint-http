@@ -167,9 +167,14 @@ impl Rule for MessageFormDataContentDispositionValid {
         "Ensure that `Content-Disposition` headers for `form-data` parts include a `name` parameter (non-empty). When a multipart part uses `form-data` disposition, RFC 7578 §4.2 requires a `name` parameter whose value is the field name from the form.\n\nMultipart `form-data` parts identify the form field that produced the part using a `Content-Disposition: form-data; name=\"...\"` header. Receiving applications rely on the `name` parameter to associate part data with form fields; missing or empty `name` parameters break form processing and interoperability.\n\nThis rule flags `Content-Disposition` header fields whose disposition-type is `form-data` but that do not include a `name` parameter or include an empty `name` value."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 7578 §4.2](https://www.rfc-editor.org/rfc/rfc7578.html#section-4.2) — Each multipart/form-data part MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain an additional parameter of `name`.",
+            crate::rules::SpecRef {
+                spec: "RFC 7578",
+                section: Some("4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc7578.html#section-4.2",
+                note: "Each multipart/form-data part MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain an additional parameter of `name`",
+            },
         ]
     }
 

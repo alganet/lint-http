@@ -17,10 +17,10 @@ Validates that `101 Switching Protocols` responses follow correct HTTP upgrade s
 
 ## Specifications
 
-- [RFC 9110 §15.2.2 — 101 Switching Protocols](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2)
-- [RFC 9110 §7.8 — Upgrade](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8)
-- [RFC 9113 §8.6 — The CONNECT Method (HTTP/2 forbids 101)](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.6)
-- [RFC 9114 §4.1 — HTTP Message Exchanges (HTTP/3 forbids 101)](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1)
+- [RFC 9110 §15.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2): 101 Switching Protocols
+- [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade
+- [RFC 9113 §8.6](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.6): The CONNECT Method (HTTP/2 forbids 101)
+- [RFC 9114 §4.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1): HTTP Message Exchanges (HTTP/3 forbids 101)
 
 ## Configuration
 

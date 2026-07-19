@@ -154,9 +154,14 @@ impl Rule for ServerKeepAliveTimeoutReasonable {
         "When a `Keep-Alive` header includes a `timeout` directive, this rule checks that the `timeout` value is reasonable. The `timeout` value should be a non-negative integer greater than zero and not unreasonably large (e.g., not several hours). `Keep-Alive` is a legacy header used to tune connection persistence; conservative, reasonable values help prevent resource exhaustion on servers and clients."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 7230 §6.7 - Connection management and the `Keep-Alive` discussion](https://www.rfc-editor.org/rfc/rfc7230.html#section-6.7) — `Keep-Alive` is a legacy header and must be treated conservatively; this rule validates `timeout` semantics only.",
+            crate::rules::SpecRef {
+                spec: "RFC 7230",
+                section: Some("6.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc7230.html#section-6.7",
+                note: "Connection management and the `Keep-Alive` discussion — `Keep-Alive` is a legacy header and must be treated conservatively; this rule validates `timeout` semantics only",
+            },
         ]
     }
 

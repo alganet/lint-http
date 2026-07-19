@@ -73,10 +73,20 @@ impl Rule for MessageIfNoneMatchEtagSyntax {
         "`If-None-Match` headers must be either `*` or a comma-separated list of entity-tags. Entity-tags follow the grammar in RFC 9110 §7.6 and may be weak (prefix `W/`). This rule validates the basic syntax (quoting, escaping, and prohibition of control characters)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §7.6 — ETag header field](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6)",
-            "[RFC 9110 §7.8.4 — If-None-Match](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.4)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6",
+                note: "ETag header field",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.8.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.4",
+                note: "If-None-Match",
+            },
         ]
     }
 

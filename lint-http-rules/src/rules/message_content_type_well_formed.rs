@@ -54,10 +54,13 @@ impl Rule for MessageContentTypeWellFormed {
         "This rule checks that `Content-Type` headers (both requests and responses) parse as a valid `media-type` with a non-empty type and subtype and well-formed parameters when present. This helps ensure downstream components and user agents can interpret the media type and parameters reliably."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type header and media type syntax",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("8.3"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+            note: "Content-Type header and media type syntax",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

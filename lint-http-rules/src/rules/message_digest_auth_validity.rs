@@ -174,10 +174,13 @@ impl Rule for MessageDigestAuthValidity {
         "Digest `Authorization` credentials must include the required auth-params and use syntactically valid tokens or quoted-strings. This rule checks `Authorization: Digest ...` request headers for presence of required fields and basic syntactic validity (e.g., `username`, `realm`, `nonce`, `uri`, `response`).\n\nServers and clients relying on Digest authentication may behave incorrectly when required parameters are missing or malformed."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 7616 §3.2.2 — HTTP Digest Access Authentication](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.2)",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 7616",
+            section: Some("3.2.2"),
+            url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.2",
+            note: "HTTP Digest Access Authentication",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

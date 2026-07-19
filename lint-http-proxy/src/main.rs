@@ -204,7 +204,7 @@ struct RuleInfo {
     scope: &'static str,
     title: Option<&'static str>,
     description: &'static str,
-    rfc_references: &'static [&'static str],
+    specifications: &'static [rules::SpecRef],
     examples: &'static [rules::Example],
     #[serde(skip_serializing_if = "Option::is_none")]
     enabled: Option<bool>,
@@ -222,7 +222,7 @@ fn collect_rule_info(cfg: Option<&config::Config>) -> Vec<RuleInfo> {
             scope_label(r.scope()),
             r.title(),
             r.description(),
-            r.rfc_references(),
+            r.specifications(),
             r.examples(),
         )
     });
@@ -233,20 +233,20 @@ fn collect_rule_info(cfg: Option<&config::Config>) -> Vec<RuleInfo> {
             "protocol",
             r.title(),
             r.description(),
-            r.rfc_references(),
+            r.specifications(),
             r.examples(),
         )
     });
     transaction
         .chain(protocol)
         .map(
-            |(id, kind, scope, title, description, rfc_references, examples)| RuleInfo {
+            |(id, kind, scope, title, description, specifications, examples)| RuleInfo {
                 id,
                 kind,
                 scope,
                 title,
                 description,
-                rfc_references,
+                specifications,
                 examples,
                 enabled: cfg.map(|c| c.is_enabled(id)),
             },

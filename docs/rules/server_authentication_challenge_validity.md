@@ -12,8 +12,8 @@ Warn when a single response advertises the same `realm` value across multiple `W
 
 ## Specifications
 
-- [RFC 9110 §11.5 — Establishing a Protection Space (Realm)](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.5)
-- [RFC 9110 §11.6.1 — WWW-Authenticate](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1)
+- [RFC 9110 §11.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.5): Establishing a Protection Space (Realm)
+- [RFC 9110 §11.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1): WWW-Authenticate
 
 ## Configuration
 

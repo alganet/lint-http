@@ -12,7 +12,7 @@ Validate the `Server` response header's product tokens and optional product vers
 
 ## Specifications
 
-- [RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1) — `Server` header field and `product` grammar: product = token ["/" product-version] *( RWS ( product / comment ) )
+- [RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1): `Server` header field and `product` grammar: product = token ["/" product-version] *( RWS ( product / comment ) )
 
 ## Configuration
 

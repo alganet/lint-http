@@ -12,8 +12,8 @@ Validate that `Authorization: Basic ...` credentials are syntactically valid Bas
 
 ## Specifications
 
-- [RFC 7617 §2 — The Basic authentication scheme and the `user-pass` encoding (Base64)](https://www.rfc-editor.org/rfc/rfc7617.html#section-2)
-- [RFC 4648 §4 — Base64 encoding used for `token68`](https://www.rfc-editor.org/rfc/rfc4648.html#section-4)
+- [RFC 7617 §2](https://www.rfc-editor.org/rfc/rfc7617.html#section-2): The Basic authentication scheme and the `user-pass` encoding (Base64)
+- [RFC 4648 §4](https://www.rfc-editor.org/rfc/rfc4648.html#section-4): Base64 encoding used for `token68`
 
 ## Configuration
 

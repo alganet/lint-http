@@ -42,10 +42,13 @@ impl Rule for ClientUserAgentPresent {
         "This rule checks if the client sends a `User-Agent` header in the request.\n\nWhile not strictly mandatory for all HTTP requests, the `User-Agent` header is highly recommended for identifying the client software, version, and operating system. It helps servers tailor responses and administrators debug issues."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5): User-Agent header",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("10.1.5"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
+            note: "User-Agent header",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

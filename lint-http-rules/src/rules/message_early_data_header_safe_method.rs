@@ -55,10 +55,20 @@ impl Rule for MessageEarlyDataHeaderSafeMethod {
         "If a request includes `Early-Data: 1`, the request method must be one of the safe methods: `GET`, `HEAD`, `OPTIONS`, or `TRACE`. Presence of `Early-Data: 1` on non-safe methods such as `POST`, `PUT`, or `DELETE` may indicate misuse of early data and is flagged as a violation."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 8470 §4 — Using Early Data in HTTP Clients](https://www.rfc-editor.org/rfc/rfc8470.html#section-4) — Clients MUST NOT send unsafe methods (or methods whose safety is unknown) in early data.",
-            "[RFC 8470 §5.1 — The Early-Data Header Field](https://www.rfc-editor.org/rfc/rfc8470.html#section-5.1) — The `Early-Data` header field has the single valid value `\"1\"` and indicates the request may have been sent in early data.",
+            crate::rules::SpecRef {
+                spec: "RFC 8470",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc8470.html#section-4",
+                note: "Using Early Data in HTTP Clients — Clients MUST NOT send unsafe methods (or methods whose safety is unknown) in early data",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 8470",
+                section: Some("5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc8470.html#section-5.1",
+                note: "The Early-Data Header Field — The `Early-Data` header field has the single valid value `\"1\"` and indicates the request may have been sent in early data",
+            },
         ]
     }
 

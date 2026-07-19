@@ -172,10 +172,13 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
         "Validate that the `Preference-Applied` response header follows the ABNF in RFC 7240 §3 and that each applied preference corresponds to a preference present in the request's `Prefer` header. Parameters (semicolon-separated) are not allowed in `Preference-Applied` members."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 7240 §3](https://www.rfc-editor.org/rfc/rfc7240.html#section-3) — `Preference-Applied` header field and syntax",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 7240",
+            section: Some("3"),
+            url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-3",
+            note: "`Preference-Applied` header field and syntax",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

@@ -12,9 +12,9 @@ When both `Sunset` and `Deprecation` response headers are present, they should b
 
 ## Specifications
 
-- [RFC 8594 §3 — `Sunset` header semantics (IMF-fixdate)](https://www.rfc-editor.org/rfc/rfc8594.html#section-3)
-- [RFC 9745 §2 — `Deprecation` structured Date item (`@<seconds>`) and legacy forms](https://www.rfc-editor.org/rfc/rfc9745.html#section-2)
-- [RFC 9651 §3.3.7 — Structured Field `Date` item syntax](https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7)
+- [RFC 8594 §3](https://www.rfc-editor.org/rfc/rfc8594.html#section-3): `Sunset` header semantics (IMF-fixdate)
+- [RFC 9745 §2](https://www.rfc-editor.org/rfc/rfc9745.html#section-2): `Deprecation` structured Date item (`@<seconds>`) and legacy forms
+- [RFC 9651 §3.3.7](https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7): Structured Field `Date` item syntax
 
 ## Configuration
 

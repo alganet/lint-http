@@ -69,10 +69,20 @@ impl Rule for ServerPriorityAndCacheabilityConsistency {
         "When an origin server includes a `Priority` response header (RFC 9218 §5) it is expected to control the cacheability or applicability of the cached response by using cache-control related fields (for example `Cache-Control` and/or `Vary`). This rule warns when a response includes `Priority` but lacks an explicit caching directive such as `Cache-Control` or `Vary` which can lead to incorrect caching of responses that differ by request properties."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9218 §5](https://www.rfc-editor.org/rfc/rfc9218.html#section-5) — `Priority` response header guidance: \"When an origin server generates the Priority response header ... the server is expected to control the cacheability ... by using header fields that control the caching behavior (e.g., Cache-Control, Vary)\".",
-            "[RFC 9111](https://www.rfc-editor.org/rfc/rfc9111.html) — HTTP caching and `Cache-Control`/`Vary` semantics (informative).",
+            crate::rules::SpecRef {
+                spec: "RFC 9218",
+                section: Some("5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-5",
+                note: "`Priority` response header guidance: \"When an origin server generates the Priority response header ... the server is expected to control the cacheability ... by using header fields that control the caching behavior (e.g., Cache-Control, Vary)\"",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html",
+                note: "HTTP caching and `Cache-Control`/`Vary` semantics (informative)",
+            },
         ]
     }
 

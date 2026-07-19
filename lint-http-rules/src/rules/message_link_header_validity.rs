@@ -211,11 +211,26 @@ impl Rule for MessageLinkHeaderValidity {
         "Validate `Link` header field syntax and common semantics. Ensures each link member contains an angle-bracketed URI (`<...>`), parameter names and values conform to `token`/`quoted-string` rules, and that `rel` values are syntactically valid. When `rel=preload` is used, include an `as` parameter where appropriate (see preload / Early Hints guidance). For `103 Early Hints` responses, `Link` members are commonly used to advertise `preload` hints."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 8288](https://www.rfc-editor.org/rfc/rfc8288.html) — Web Linking (Link header field)",
-            "[RFC 8297](https://www.rfc-editor.org/rfc/rfc8297.html) — Early Hints (use of Link for preload hints)",
-            "[W3C Preload spec](https://www.w3.org/TR/preload/) — `rel=preload` and the `as` parameter",
+            crate::rules::SpecRef {
+                spec: "RFC 8288",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc8288.html",
+                note: "Web Linking (Link header field)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 8297",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc8297.html",
+                note: "Early Hints (use of Link for preload hints)",
+            },
+            crate::rules::SpecRef {
+                spec: "HTML Links",
+                section: None,
+                url: "https://html.spec.whatwg.org/multipage/links.html",
+                note: "W3C Preload spec — `rel=preload` and the `as` parameter",
+            },
         ]
     }
 

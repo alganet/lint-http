@@ -16,7 +16,7 @@ This rule flags `Content-Disposition` header fields whose disposition-type is `f
 
 ## Specifications
 
-- [RFC 7578 §4.2](https://www.rfc-editor.org/rfc/rfc7578.html#section-4.2) — Each multipart/form-data part MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain an additional parameter of `name`.
+- [RFC 7578 §4.2](https://www.rfc-editor.org/rfc/rfc7578.html#section-4.2): Each multipart/form-data part MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain an additional parameter of `name`
 
 ## Configuration
 

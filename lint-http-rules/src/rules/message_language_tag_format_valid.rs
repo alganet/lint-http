@@ -97,11 +97,26 @@ impl Rule for MessageLanguageTagFormatValid {
         "Validate that any language tag appearing in HTTP headers such as `Content-Language` and `Accept-Language` follows a well-formed BCP 47-style syntax (RFC 5646). This check is conservative: it rejects obvious syntax problems (invalid characters, empty subtags, consecutive hyphens, or overly long subtags) while accepting common valid forms such as `en`, `en-US`, `zh-Hant`, `sr-Latn-RS`, and private-use tags like `x-custom`."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 5646 — BCP 47 language tag syntax](https://www.rfc-editor.org/rfc/rfc5646.html)",
-            "[RFC 9110 §7.2.5 — Accept-Language](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.5) — Accept-Language uses language-tags from RFC 5646.",
-            "[RFC 9110 §7.3.5 — Content-Language](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.5) — Content-Language uses language-tags from RFC 5646.",
+            crate::rules::SpecRef {
+                spec: "RFC 5646",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc5646.html",
+                note: "BCP 47 language tag syntax",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.2.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.5",
+                note: "Accept-Language — Accept-Language uses language-tags from RFC 5646",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.3.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.5",
+                note: "Content-Language — Content-Language uses language-tags from RFC 5646",
+            },
         ]
     }
 

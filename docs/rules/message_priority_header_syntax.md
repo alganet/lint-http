@@ -17,8 +17,8 @@ Receivers MUST ignore unknown members and parameters; this rule flags clear pars
 
 ## Specifications
 
-- [RFC 9218 §4–§5 (Priority header and parameters)](https://www.rfc-editor.org/rfc/rfc9218.html)
-- [RFC 8941 (Structured Field Values for HTTP)](https://www.rfc-editor.org/rfc/rfc8941.html)
+- [RFC 9218 §4](https://www.rfc-editor.org/rfc/rfc9218.html#section-4): Priority header and parameters
+- [RFC 8941](https://www.rfc-editor.org/rfc/rfc8941.html): Structured Field Values for HTTP
 
 ## Configuration
 

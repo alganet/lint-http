@@ -135,11 +135,26 @@ impl Rule for ClientHostHeader {
         "This rule enforces that HTTP requests include a valid `Host` header and validates common syntax mistakes.\n\n- The `Host` header is required for HTTP/1.1 origin-form requests and is used by servers to determine the target host.\n- If a port is present (for example, `example.com:8080`), the port MUST be numeric and in the range 1–65535.\n- If an IPv6 address literal is used with a port, the IPv6 literal MUST be enclosed in square brackets (for example, `[::1]:443`).\n- The `Host` header MUST NOT include userinfo (for example, `user:pass@host`).\n\nThis rule combines presence and syntax checks previously implemented in separate rules."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §7.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2): Host header field",
-            "[RFC 9112 §3.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2): Host header field in requests",
-            "[RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2): Authority component and IP-literals",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2",
+                note: "Host header field",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("3.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
+                note: "Host header field in requests",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 3986",
+                section: Some("3.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2",
+                note: "Authority component and IP-literals",
+            },
         ]
     }
 

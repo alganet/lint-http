@@ -162,10 +162,20 @@ impl Rule for StatefulCookieSameSiteEnforcement {
         "Cookies marked with the `SameSite` attribute impose restrictions on when they may be included in requests.  `Strict` cookies are only sent in a same-site context, while `Lax` cookies may also be included on top-level navigations using safe methods such as `GET`.  `None` cookies have no such restrictions but must be paired with `Secure` (checked by a different rule).\n\nThis rule rebuilds a simple cookie store from prior `Set-Cookie` responses for a given origin and compares it against the `Cookie` header on outgoing requests.  If a request includes a cookie whose stored metadata indicates a `Strict`/`Lax` policy that is violated by the current site relationship and navigation context, a violation is reported.  Cookies without an explicit `SameSite` value are treated as `Lax` to reflect modern browser defaults.\n\nThe check uses `Sec-Fetch-Site` (and, for Lax decisions, `Sec-Fetch-Mode`) headers to approximate whether the request is cross-site and whether it represents a top‑level navigation.\n\nIf the relationship cannot be determined (e.g. missing `Sec-Fetch-Site`), the rule conservatively abstains rather than raising false positives."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 6265bis §5.3.4 — SameSite cookie semantics](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.3.4)",
-            "[Fetch spec Sec-Fetch-Site](https://fetch.spec.whatwg.org/#sec-fetch-site)",
+            crate::rules::SpecRef {
+                spec: "draft-ietf-httpbis-rfc6265bis",
+                section: Some("5.3.4"),
+                url: "https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.3.4",
+                note: "SameSite cookie semantics",
+            },
+            crate::rules::SpecRef {
+                spec: "Fetch",
+                section: None,
+                url: "https://fetch.spec.whatwg.org/#sec-fetch-site",
+                note: "Fetch spec Sec-Fetch-Site",
+            },
         ]
     }
 

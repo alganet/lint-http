@@ -72,10 +72,20 @@ impl Rule for MessagePriorityHeaderSyntax {
         "The `Priority` header (RFC 9218) conveys priority parameters as a Structured Fields Dictionary. This rule validates basic syntax for the header and enforces the defined semantics for the standard parameters:\n\n- `u` (urgency) MUST be an integer in the range 0..=7 (inclusive).\n- `i` (incremental) is a boolean: it may be present without a value (indicating `true`) or use `?1`/`?0` notation. Unknown parameters are allowed and ignored.\n\nReceivers MUST ignore unknown members and parameters; this rule flags clear parsing errors and out-of-range `u` values."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9218 §4–§5 (Priority header and parameters)](https://www.rfc-editor.org/rfc/rfc9218.html)",
-            "[RFC 8941 (Structured Field Values for HTTP)](https://www.rfc-editor.org/rfc/rfc8941.html)",
+            crate::rules::SpecRef {
+                spec: "RFC 9218",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-4",
+                note: "Priority header and parameters",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 8941",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc8941.html",
+                note: "Structured Field Values for HTTP",
+            },
         ]
     }
 

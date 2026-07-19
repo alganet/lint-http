@@ -74,10 +74,13 @@ impl Rule for MessageCacheControlAndPragmaConsistency {
         "Flags contradictions between `Pragma` and `Cache-Control` in requests (for example, `Pragma: no-cache` together with `Cache-Control: only-if-cached`), and warns when `Pragma` appears in responses since its meaning there is unspecified. This helps avoid ambiguous or conflicting cache directives that can lead to cache-serving mistakes."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 7234 §5.4](https://www.rfc-editor.org/rfc/rfc7234.html#section-5.4) — `Pragma` and its relationship to `Cache-Control`.",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 7234",
+            section: Some("5.4"),
+            url: "https://www.rfc-editor.org/rfc/rfc7234.html#section-5.4",
+            note: "`Pragma` and its relationship to `Cache-Control`",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

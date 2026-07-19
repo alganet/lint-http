@@ -18,9 +18,9 @@ This rule complements `message_trailer_headers_valid`, which validates the `Trai
 
 ## Specifications
 
-- [RFC 9110 §6.5 — Trailer Fields](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5)
-- [RFC 9110 §6.5.1 — Limitations on Use of Trailers](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1)
-- [RFC 9112 §7.1.2 — Chunked Transfer Coding (Trailer Section)](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1.2)
+- [RFC 9110 §6.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5): Trailer Fields
+- [RFC 9110 §6.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1): Limitations on Use of Trailers
+- [RFC 9112 §7.1.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1.2): Chunked Transfer Coding (Trailer Section)
 
 ## Configuration
 

@@ -62,10 +62,20 @@ impl Rule for MessageBasicAuthBase64Validity {
         "Validate that `Authorization: Basic ...` credentials are syntactically valid Base64-encoded `user-id:password` octet sequences as defined by RFC 7617. The rule ensures the credentials decode successfully, include the required `:` separator, and that neither the user-id nor the password contains control characters."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 7617 §2 — The Basic authentication scheme and the `user-pass` encoding (Base64)](https://www.rfc-editor.org/rfc/rfc7617.html#section-2)",
-            "[RFC 4648 §4 — Base64 encoding used for `token68`](https://www.rfc-editor.org/rfc/rfc4648.html#section-4)",
+            crate::rules::SpecRef {
+                spec: "RFC 7617",
+                section: Some("2"),
+                url: "https://www.rfc-editor.org/rfc/rfc7617.html#section-2",
+                note: "The Basic authentication scheme and the `user-pass` encoding (Base64)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 4648",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc4648.html#section-4",
+                note: "Base64 encoding used for `token68`",
+            },
         ]
     }
 

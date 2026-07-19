@@ -148,10 +148,13 @@ impl Rule for ServerAltSvcProtocolIanaRegistered {
         "Validate `Alt-Svc` response header protocol identifiers. Each `protocol` token (the left-hand side of `protocol=authority`) should be a valid `token` and should be IANA-registered or explicitly allowed via configuration (e.g., `h2`, `h3`). This prevents advertising unsupported or mistyped protocol identifiers to clients."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 7838](https://www.rfc-editor.org/rfc/rfc7838.html) — Alternative Services (syntax and semantics)",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 7838",
+            section: None,
+            url: "https://www.rfc-editor.org/rfc/rfc7838.html",
+            note: "Alternative Services (syntax and semantics)",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

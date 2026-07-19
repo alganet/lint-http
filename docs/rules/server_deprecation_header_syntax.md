@@ -12,8 +12,8 @@ The `Deprecation` response header signals that a resource is deprecated. RFC 974
 
 ## Specifications
 
-- [RFC 9745 §2 — The `Deprecation` HTTP Response Header Field](https://www.rfc-editor.org/rfc/rfc9745.html#section-2)
-- [RFC 9651 §3.3.7 — Structured Field `Date` item syntax](https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7)
+- [RFC 9745 §2](https://www.rfc-editor.org/rfc/rfc9745.html#section-2): The `Deprecation` HTTP Response Header Field
+- [RFC 9651 §3.3.7](https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7): Structured Field `Date` item syntax
 
 ## Configuration
 

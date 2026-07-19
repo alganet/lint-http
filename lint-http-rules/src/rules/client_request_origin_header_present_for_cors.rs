@@ -88,11 +88,26 @@ impl Rule for ClientRequestOriginHeaderPresentForCors {
         "This rule enforces that requests which indicate cross-origin intent include an `Origin` header. In particular:\n\n- CORS preflight requests (an `OPTIONS` request with `Access-Control-Request-Method` or `Access-Control-Request-Headers`) MUST include an `Origin` header.\n- If a client uses an absolute-form request-target whose origin differs from the `Host` header, the request is treated as cross-origin and SHOULD include an `Origin` header.\n\nThe rule validates that `Origin` is present where required and that its value is syntactically plausible (a serialized origin such as `https://example.com` or the literal `null`). This rule applies to client requests (RuleScope::Client)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "RFC 6454 — The Web Origin Concept — https://datatracker.ietf.org/doc/html/rfc6454",
-            "CORS / Fetch: Origin header semantics — https://fetch.spec.whatwg.org/#origin-header",
-            "MDN: Origin — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin",
+            crate::rules::SpecRef {
+                spec: "RFC 6454",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc6454.html",
+                note: "The Web Origin Concept",
+            },
+            crate::rules::SpecRef {
+                spec: "Fetch",
+                section: None,
+                url: "https://fetch.spec.whatwg.org/#origin-header",
+                note: "CORS / Fetch: Origin header semantics",
+            },
+            crate::rules::SpecRef {
+                spec: "MDN Origin",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Origin",
+                note: "Origin",
+            },
         ]
     }
 

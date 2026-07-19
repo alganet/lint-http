@@ -12,9 +12,9 @@ This rule checks that the `Access-Control-Allow-Origin` response header is synta
 
 ## Specifications
 
-- MDN: Access-Control-Allow-Origin — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
-- CORS spec (W3C): Cross-Origin Resource Sharing (CORS) — https://www.w3.org/TR/cors/
-- Fetch Standard (CORS semantics) — https://fetch.spec.whatwg.org/
+- [MDN Access-Control-Allow-Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin): Access-Control-Allow-Origin
+- [Fetch](https://fetch.spec.whatwg.org/): CORS spec (W3C): Cross-Origin Resource Sharing (CORS)
+- [Fetch](https://fetch.spec.whatwg.org/): Fetch Standard (CORS semantics)
 
 ## Configuration
 

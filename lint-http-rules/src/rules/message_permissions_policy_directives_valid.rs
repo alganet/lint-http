@@ -64,10 +64,20 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
         "Validate `Permissions-Policy` HTTP response header directives for correct feature identifiers and member value forms. The header must be a structured-field dictionary (RFC 8941) and each directive must map a feature identifier (alphanumerics and hyphens) to an allowlist value (token `*`, token `self`, a `\"string\"`, or an inner-list `( ... )`). The optional `report-to` parameter (on the member value) must be a quoted-string when present."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[W3C Permissions Policy — Permissions-Policy HTTP header (directive syntax and serialization) §5.2](https://w3c.github.io/webappsec-permissions-policy/#permissions-policy-http-header-field)",
-            "[RFC 8941 — Structured Field Values for HTTP §3–§5 (Items, Lists, Dictionaries)](https://www.rfc-editor.org/rfc/rfc8941.html#section-3)",
+            crate::rules::SpecRef {
+                spec: "Permissions Policy",
+                section: Some("5.2"),
+                url: "https://w3c.github.io/webappsec-permissions-policy/#permissions-policy-http-header-field",
+                note: "Permissions-Policy HTTP header (directive syntax and serialization)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 8941",
+                section: Some("3"),
+                url: "https://www.rfc-editor.org/rfc/rfc8941.html#section-3",
+                note: "Structured Field Values for HTTP, §3–§5 (Items, Lists, Dictionaries)",
+            },
         ]
     }
 

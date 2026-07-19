@@ -174,10 +174,20 @@ impl Rule for StatefulWebsocketHandshakeValidity {
         "When a client requests an HTTP upgrade to the WebSocket protocol, the server must reply with a precise handshake response.  This rule inspects the request/response pair and ensures the response follows the opening-handshake rules in [RFC 6455 §4](https://www.rfc-editor.org/rfc/rfc6455.html#section-4):\n\n* the status code is `101 Switching Protocols`;\n* `Connection: Upgrade` and `Upgrade: websocket` headers are present;\n* the `Sec-WebSocket-Accept` header value is the SHA‑1 + base64 digest of the client's `Sec-WebSocket-Key` concatenated with the magic GUID.\n\nFailure to mirror the client's key, omit required tokens, or use the wrong status code indicates a malformed handshake and may prevent the WebSocket connection from being established."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 6455 §4.2.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.2) — “Opening Handshake”, calculate `Sec-WebSocket-Accept`.",
-            "[RFC 9110 §9.3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5) — rules for `Connection` and `Upgrade` header interaction during protocol upgrades.",
+            crate::rules::SpecRef {
+                spec: "RFC 6455",
+                section: Some("4.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.2",
+                note: "“Opening Handshake”, calculate `Sec-WebSocket-Accept`",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.3.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5",
+                note: "rules for `Connection` and `Upgrade` header interaction during protocol upgrades",
+            },
         ]
     }
 

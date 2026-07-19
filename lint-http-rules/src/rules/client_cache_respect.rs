@@ -67,10 +67,20 @@ impl Rule for ClientCacheRespect {
         "This rule checks if the client correctly uses conditional headers (`If-None-Match` or `If-Modified-Since`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §13.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2): If-None-Match",
-            "[RFC 9110 §13.1.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3): If-Modified-Since",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("13.1.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2",
+                note: "If-None-Match",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("13.1.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
+                note: "If-Modified-Since",
+            },
         ]
     }
 

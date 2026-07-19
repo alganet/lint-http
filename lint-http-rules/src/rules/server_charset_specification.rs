@@ -57,10 +57,20 @@ impl Rule for ServerCharsetSpecification {
         "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter.\n\nSpecifying the character encoding is crucial for security and correct rendering. If the charset is not explicitly defined, browsers may attempt to guess the encoding (MIME sniffing), which can lead to Cross-Site Scripting (XSS) vulnerabilities or incorrect display of characters."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type header",
-            "[MDN: Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+                note: "Content-Type header",
+            },
+            crate::rules::SpecRef {
+                spec: "MDN Content-Type",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type",
+                note: "Content-Type",
+            },
         ]
     }
 

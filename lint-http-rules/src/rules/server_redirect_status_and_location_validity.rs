@@ -48,10 +48,20 @@ impl Rule for ServerRedirectStatusAndLocationValidity {
         "Responses that indicate a resource has moved or been created (3xx redirections and 201 Created) commonly use the `Location` header to point to the target resource. A `Location` header appearing on responses that are not redirects or creations may indicate a misconfiguration or misuse; this rule flags `Location` header presence on non-redirect responses."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2) — `Location = URI-reference` and semantics for redirection responses (3xx).",
-            "[RFC 9110 §15.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4) — `201 Created` responses SHOULD include a `Location` header when a new resource is created.",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("10.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
+                note: "`Location = URI-reference` and semantics for redirection responses (3xx)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
+                note: "`201 Created` responses SHOULD include a `Location` header when a new resource is created",
+            },
         ]
     }
 

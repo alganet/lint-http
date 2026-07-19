@@ -12,7 +12,7 @@ Validate the `Content-Transfer-Encoding` header value follows the canonical enco
 
 ## Specifications
 
-- [RFC 2045 §6](https://www.rfc-editor.org/rfc/rfc2045#section-6) — Content-Transfer-Encoding
+- [RFC 2045 §6](https://www.rfc-editor.org/rfc/rfc2045.html#section-6): Content-Transfer-Encoding
 
 ## Configuration
 

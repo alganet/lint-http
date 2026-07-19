@@ -12,9 +12,9 @@ Detects clear mismatches between HTTP response status codes and the headers/payl
 
 ## Specifications
 
-- [RFC 9110 §15.5.1 — 401 (Unauthorized) responses and WWW-Authenticate requirement](https://www.rfc-editor.org/rfc/rfc9110.html#name-401-unauthorized)
-- [RFC 9110 §15.6.1 — 407 (Proxy Authentication Required) responses and Proxy-Authenticate](https://www.rfc-editor.org/rfc/rfc9110.html#name-407-proxy-authentication)
-- [RFC 9110 §6 — Status code semantics (general)](https://www.rfc-editor.org/rfc/rfc9110.html#name-status-codes)
+- [RFC 9110 §15.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.1): 401 (Unauthorized) responses and WWW-Authenticate requirement
+- [RFC 9110 §15.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.6.1): 407 (Proxy Authentication Required) responses and Proxy-Authenticate
+- [RFC 9110 §6](https://www.rfc-editor.org/rfc/rfc9110.html#section-6): Status code semantics (general)
 
 ## Configuration
 

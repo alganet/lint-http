@@ -142,11 +142,26 @@ impl Rule for MessageTransferCodingIanaRegistered {
         "Validate `Transfer-Encoding` and `TE` header values to ensure transfer-coding tokens are syntactically valid and are recognised (SHOULD be IANA-registered or explicitly allowed via configuration). The `TE` header's special value `trailers` is accepted."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9112 §6.1 — Transfer Coding](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1)",
-            "[RFC 9110 §10.1.4 — TE header](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4)",
-            "[IANA Transfer Coding registry](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#transfer-coding)",
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("6.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
+                note: "Transfer Coding",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("10.1.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
+                note: "TE header",
+            },
+            crate::rules::SpecRef {
+                spec: "IANA HTTP Parameters",
+                section: None,
+                url: "https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#transfer-coding",
+                note: "IANA Transfer Coding registry",
+            },
         ]
     }
 

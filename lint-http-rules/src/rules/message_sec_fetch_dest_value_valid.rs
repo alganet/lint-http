@@ -95,10 +95,13 @@ impl Rule for MessageSecFetchDestValueValid {
         "Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specification: the header value must be a token matching one of the recognized request destinations (e.g., `image`, `document`, `script`, `worker`, `empty`, etc.). Values are compared case-insensitively and token syntax is enforced. Multiple header fields are treated as a violation."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "Fetch Metadata (W3C) — `Sec-Fetch-Dest` header values: https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "Fetch Metadata",
+            section: None,
+            url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest",
+            note: "Fetch Metadata (W3C) — `Sec-Fetch-Dest` header values",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

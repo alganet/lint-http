@@ -94,10 +94,13 @@ impl ProtocolRule for StatefulHttp3GoawaySemantics {
         "Validates HTTP/3 GOAWAY frame semantics during connection lifecycle.  This rule inspects protocol-level events and checks:\n\n* **GOAWAY stream ID must not increase** — when multiple GOAWAY frames are received on the same connection, the stream ID in each subsequent GOAWAY MUST NOT be greater than the previous one (RFC 9114 §5.2).\n* **No streams beyond GOAWAY limit** — after a GOAWAY frame is received, no new request streams should be opened with an ID greater than the indicated last stream ID (RFC 9114 §5.2)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9114 §5.2](https://www.rfc-editor.org/rfc/rfc9114.html#section-5.2) — Connection Shutdown (GOAWAY).",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9114",
+            section: Some("5.2"),
+            url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-5.2",
+            note: "Connection Shutdown (GOAWAY)",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

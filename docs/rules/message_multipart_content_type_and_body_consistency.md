@@ -12,7 +12,7 @@ When a `Content-Type` header declares `multipart/*` it MUST include a `boundary`
 
 ## Specifications
 
-- [RFC 2046 §5.1.1 — Multipart common syntax and the `boundary` parameter](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1)
+- [RFC 2046 §5.1.1](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1): Multipart common syntax and the `boundary` parameter
 
 ## Configuration
 

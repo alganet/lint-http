@@ -64,10 +64,20 @@ impl Rule for MessageBearerTokenFormatValidity {
         "Validate `Authorization: Bearer <token>` header values. The Bearer token MUST be present, MUST NOT contain whitespace, and MUST conform to the `token68`-like form used for credential tokens (characters from the set ALPHA / DIGIT / \"-\" / \".\" / \"_\" / \"~\" / \"+\" / \"/\" followed by optional trailing `=` padding). Malformed Bearer tokens can lead to authentication failures or token parsing issues."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 6750 — The OAuth 2.0 Authorization Framework: Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750.html)",
-            "[RFC 7235 §2.1 — token68 syntax used for credentials](https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1)",
+            crate::rules::SpecRef {
+                spec: "RFC 6750",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc6750.html",
+                note: "The OAuth 2.0 Authorization Framework: Bearer Token Usage",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7235",
+                section: Some("2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1",
+                note: "token68 syntax used for credentials",
+            },
         ]
     }
 

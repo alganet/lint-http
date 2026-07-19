@@ -16,8 +16,8 @@ The check deliberately ignores request-side `Cache-Control: no-cache` clauses an
 
 ## Specifications
 
-- [RFC 9111 §5.2.2.5 — `no-cache`](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5)
-- [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2) — Calculating the age of a response (background context)
+- [RFC 9111 §5.2.2.5](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5): `no-cache`
+- [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2): Calculating the age of a response (background context)
 
 ## Configuration
 

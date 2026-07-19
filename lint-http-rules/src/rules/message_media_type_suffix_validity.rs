@@ -156,10 +156,20 @@ impl Rule for MessageMediaTypeSuffixValidity {
         "This rule flags media types (in `Content-Type` or `Accept`) whose subtype ends with a `+suffix` that is not a recognized structured-syntax suffix. Unknown or misspelled suffixes may lead to incorrect parsing or interoperability issues."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 6838 §4.2.8 — Structured Syntax Name Suffixes](https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8)",
-            "IANA Structured Syntax Suffix registry: https://www.iana.org/assignments/media-type-structured-suffix/media-type-structured-suffix.xhtml",
+            crate::rules::SpecRef {
+                spec: "RFC 6838",
+                section: Some("4.2.8"),
+                url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8",
+                note: "Structured Syntax Name Suffixes",
+            },
+            crate::rules::SpecRef {
+                spec: "IANA Media Type Structured Suffixes",
+                section: None,
+                url: "https://www.iana.org/assignments/media-type-structured-suffix/media-type-structured-suffix.xhtml",
+                note: "IANA Structured Syntax Suffix registry",
+            },
         ]
     }
 

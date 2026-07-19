@@ -12,7 +12,7 @@ Requests that include the `Sec-Fetch-User` request header MUST only include the 
 
 ## Specifications
 
-- Fetch Metadata (W3C) — `Sec-Fetch-User` header (boolean, serialized as `?1`): https://www.w3.org/TR/fetch-metadata/#sec-fetch-user-header
+- [Fetch Metadata](https://www.w3.org/TR/fetch-metadata/#sec-fetch-user-header): Fetch Metadata (W3C) — `Sec-Fetch-User` header (boolean, serialized as `?1`)
 
 ## Configuration
 

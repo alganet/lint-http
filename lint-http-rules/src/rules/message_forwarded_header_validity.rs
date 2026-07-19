@@ -377,10 +377,13 @@ impl Rule for MessageForwardedHeaderValidity {
         "Validates `Forwarded` header field-values follow the `Forwarded` header syntax as specified by RFC 7239 §4. Each element MUST be a semicolon-separated list of parameter `name=value` pairs; parameter names MUST be valid tokens. Well-known parameters (`for`, `by`, `proto`, `host`) are checked for syntactic validity (IPv4, bracketed IPv6 with optional port, `unknown`, obfuscated token, or quoted-string)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 7239 §4](https://www.rfc-editor.org/rfc/rfc7239.html#section-4): Forwarded header",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 7239",
+            section: Some("4"),
+            url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-4",
+            note: "Forwarded header",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

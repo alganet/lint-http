@@ -12,7 +12,7 @@ Requests that target site-wide well-known resources MUST use a path starting wit
 
 ## Specifications
 
-- [RFC 8615 §3 — Well-Known URIs](https://www.rfc-editor.org/rfc/rfc8615.html#section-3)
+- [RFC 8615 §3](https://www.rfc-editor.org/rfc/rfc8615.html#section-3): Well-Known URIs
 
 ## Configuration
 

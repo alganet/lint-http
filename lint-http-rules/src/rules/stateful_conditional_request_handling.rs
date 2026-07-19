@@ -155,12 +155,32 @@ impl Rule for StatefulConditionalRequestHandling {
         "Warn when conditional requests are used without a prior validator (ETag / Last-Modified) observed for the same resource and client. Also flag obvious cases where a server returns a `200` for a conditional `GET`/`HEAD` when the validator clearly matches (the server should return `304 Not Modified`)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §13.1 — Preconditions](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1)",
-            "[RFC 9110 §13.2 — Evaluation of Preconditions (precedence rules)](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2)",
-            "[RFC 9110 §7.6 — ETag header field](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6)",
-            "[RFC 9110 §7.7 — Last-Modified header field](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.7)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("13.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1",
+                note: "Preconditions",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("13.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2",
+                note: "Evaluation of Preconditions (precedence rules)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6",
+                note: "ETag header field",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.7",
+                note: "Last-Modified header field",
+            },
         ]
     }
 

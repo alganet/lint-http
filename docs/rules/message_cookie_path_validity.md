@@ -12,8 +12,8 @@ Validate the `Path` attribute in `Set-Cookie` header fields. The `Path` attribut
 
 ## Specifications
 
-- [RFC 6265 §5.2.4 — Path attribute](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.4) — defines the `Path` attribute syntax and semantics (including `path-value`).
-- [RFC 9110 §5.6.3 — Whitespace](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3) — rationale for being conservative about whitespace in header fields; this rule adopts a stricter profile by disallowing unencoded whitespace in cookie paths.
+- [RFC 6265 §5.2.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.4): Path attribute — defines the `Path` attribute syntax and semantics (including `path-value`)
+- [RFC 9110 §5.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3): Whitespace — rationale for being conservative about whitespace in header fields; this rule adopts a stricter profile by disallowing unencoded whitespace in cookie paths
 
 ## Configuration
 

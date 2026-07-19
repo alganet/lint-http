@@ -16,7 +16,7 @@ Validate the `Vary` response header. This rule enforces that:
 
 ## Specifications
 
-- [RFC 9110 §7.3.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.6) — Vary header
+- [RFC 9110 §7.3.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.6): Vary header
 
 ## Configuration
 

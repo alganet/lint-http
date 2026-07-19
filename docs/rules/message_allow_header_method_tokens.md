@@ -16,8 +16,8 @@ Validate the `Allow` header. This rule enforces that:
 
 ## Specifications
 
-- [RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1) — Allow header field
-- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2) — Token syntax (tchar)
+- [RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1): Allow header field
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Token syntax (tchar)
 
 ## Configuration
 

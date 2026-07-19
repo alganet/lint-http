@@ -12,7 +12,7 @@ Validate that the `Prefer` request header follows the ABNF in RFC 7240 §2. Each
 
 ## Specifications
 
-- [RFC 7240 §2](https://www.rfc-editor.org/rfc/rfc7240#section-2) — Prefer header syntax and semantics.
+- [RFC 7240 §2](https://www.rfc-editor.org/rfc/rfc7240.html#section-2): Prefer header syntax and semantics
 
 ## Configuration
 

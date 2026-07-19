@@ -12,7 +12,7 @@ Validate the `Alt-Svc` response header. Each value must be of the form `protocol
 
 ## Specifications
 
-- [RFC 7838](https://www.rfc-editor.org/rfc/rfc7838.html) — Alternative Services
+- [RFC 7838](https://www.rfc-editor.org/rfc/rfc7838.html): Alternative Services
 
 ## Configuration
 

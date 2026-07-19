@@ -148,13 +148,38 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
         "HTTP/3 requests encode control data as pseudo-header fields. This rule validates that every request includes exactly one `:method` pseudo-header field and that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\nResponses MUST include exactly one `:status` pseudo-header field containing a three-digit integer status code (100-599)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9114 §4.3 — HTTP Control Data](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3)",
-            "[RFC 9114 §4.3.1 — Request Pseudo-Header Fields](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1)",
-            "[RFC 9114 §4.3.2 — Response Pseudo-Header Fields](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.2)",
-            "[RFC 9114 §4.4 — The CONNECT Method](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.4)",
-            "[RFC 9110 §7.1 — Determining the Target Resource](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1)",
+            crate::rules::SpecRef {
+                spec: "RFC 9114",
+                section: Some("4.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3",
+                note: "HTTP Control Data",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9114",
+                section: Some("4.3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1",
+                note: "Request Pseudo-Header Fields",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9114",
+                section: Some("4.3.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.2",
+                note: "Response Pseudo-Header Fields",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9114",
+                section: Some("4.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.4",
+                note: "The CONNECT Method",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1",
+                note: "Determining the Target Resource",
+            },
         ]
     }
 

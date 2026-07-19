@@ -12,8 +12,8 @@ Validate `Authorization: Bearer <token>` header values. The Bearer token MUST be
 
 ## Specifications
 
-- [RFC 6750 — The OAuth 2.0 Authorization Framework: Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750.html)
-- [RFC 7235 §2.1 — token68 syntax used for credentials](https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1)
+- [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750.html): The OAuth 2.0 Authorization Framework: Bearer Token Usage
+- [RFC 7235 §2.1](https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1): token68 syntax used for credentials
 
 ## Configuration
 

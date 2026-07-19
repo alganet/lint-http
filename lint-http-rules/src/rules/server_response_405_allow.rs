@@ -39,10 +39,20 @@ impl Rule for ServerResponse405Allow {
         "This rule checks if `405 Method Not Allowed` responses include an `Allow` header.\n\nThe `Allow` header is required in `405` responses to indicate the set of methods supported by the resource, so clients can discover what operations are permitted."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §10.5.6](https://www.rfc-editor.org/rfc/rfc9110.html#name-405-method-not-allowed): 405 Method Not Allowed",
-            "[RFC 9110 §10.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1): Allow header",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("10.5.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.5.6",
+                note: "405 Method Not Allowed",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("10.2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
+                note: "Allow header",
+            },
         ]
     }
 

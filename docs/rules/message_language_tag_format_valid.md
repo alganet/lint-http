@@ -12,9 +12,9 @@ Validate that any language tag appearing in HTTP headers such as `Content-Langua
 
 ## Specifications
 
-- [RFC 5646 — BCP 47 language tag syntax](https://www.rfc-editor.org/rfc/rfc5646.html)
-- [RFC 9110 §7.2.5 — Accept-Language](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.5) — Accept-Language uses language-tags from RFC 5646.
-- [RFC 9110 §7.3.5 — Content-Language](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.5) — Content-Language uses language-tags from RFC 5646.
+- [RFC 5646](https://www.rfc-editor.org/rfc/rfc5646.html): BCP 47 language tag syntax
+- [RFC 9110 §7.2.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.5): Accept-Language — Accept-Language uses language-tags from RFC 5646
+- [RFC 9110 §7.3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.5): Content-Language — Content-Language uses language-tags from RFC 5646
 
 ## Configuration
 

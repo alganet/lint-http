@@ -26,7 +26,7 @@ raise a violation; such problems are covered by the general
 
 ## Specifications
 
-- [RFC 5789 §2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2) — Patch method semantics and patch document media types.
+- [RFC 5789 §2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2): Patch method semantics and patch document media types
 
 ## Configuration
 

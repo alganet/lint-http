@@ -94,10 +94,20 @@ impl Rule for StatefulNoCacheRevalidation {
         "The `no-cache` cache-control directive (RFC 9111 §5.2.2.5) permits a cache to store a response, but it **must not** use that stored entry to satisfy a subsequent request without first validating it with the origin server.  In practice, caches are expected to issue a conditional request using a validator (usually an `ETag` or `Last-Modified` value) when they have one; if no validator is available the cache may perform an unconditional request, which still contacts the origin server.\n\nThis stateful rule reconstructs a small portion of cache state for the current client+resource by locating the most recent prior response that included `Cache-Control: no-cache`.  If that response also carried a validator and the current request is unconditional (no `If-None-Match` or `If-Modified-Since` headers), the rule emits a warning.  The presence of validators is required to avoid false alarms in cases where the entry could not possibly be revalidated.\n\nThe check deliberately ignores request-side `Cache-Control: no-cache` clauses and makes no attempt to calculate freshness; it simply tracks whether a conditional header was omitted.  This rule complements `stateful_max_age_directive_validity` and `stateful_must_revalidate_enforcement` by focussing on the specific behaviour mandated by the `no-cache` directive."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9111 §5.2.2.5 — `no-cache`](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5)",
-            "[RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2) — Calculating the age of a response (background context)",
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("5.2.2.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5",
+                note: "`no-cache`",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
+                note: "Calculating the age of a response (background context)",
+            },
         ]
     }
 
