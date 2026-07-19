@@ -385,10 +385,12 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc6455.txt
   type: text/plain
   fragments:
-  - label: client_sec_websocket_headers_consistency
+  - label: lint-http-rules/src/helpers/websocket.rs
     section: § 4.1
     snippet: The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded
     cited_by:
+    - file: lint-http-rules/src/helpers/websocket.rs
+      line: 28
     - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
       line: 28
   - label: stateful_websocket_frame_opcode_sequence
@@ -761,6 +763,50 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 210
+  - label: lint-http-rules/src/helpers/headers.rs
+    section: § 13.1.2
+    snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 104
+    - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
+      line: 44
+  - label: lint-http-rules/src/helpers/headers.rs (2)
+    section: § 8.3.1
+    snippet: media-type = type "/" subtype parameters
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1089
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 90
+  - label: lint-http-rules/src/helpers/headers.rs (3)
+    section: § 8.6
+    snippet: Content-Length = 1*DIGIT
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 42
+    - file: lint-http-rules/src/rules/message_content_length.rs
+      line: 27
+  - label: lint-http-rules/src/helpers/headers.rs (4)
+    section: § 8.8.3
+    snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1048
+    - file: lint-http-rules/src/rules/message_etag_syntax.rs
+      line: 58
+  - label: lint-http-rules/src/helpers/status.rs
+    section: § 15.4
+    snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
+    cited_by:
+    - file: lint-http-rules/src/helpers/status.rs
+      line: 7
+    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
+      line: 37
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 35
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 41
   - label: lint-http-rules/src/helpers/token.rs
     section: § 5.6.2
     snippet: token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
@@ -861,12 +907,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
       line: 103
-  - label: message_content_length
-    section: § 8.6
-    snippet: Content-Length = 1*DIGIT
-    cited_by:
-    - file: lint-http-rules/src/rules/message_content_length.rs
-      line: 27
   - label: message_content_location_and_uri_consistency
     section: § 8.7
     snippet: Content-Location = absolute-URI / partial-URI
@@ -878,12 +918,6 @@ sources:
     snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
-      line: 90
-  - label: message_content_type_well_formed
-    section: § 8.3.1
-    snippet: media-type = type "/" subtype parameters
-    cited_by:
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 90
   - label: message_date_and_time_headers_consistency
     section: § 5.6.7
@@ -899,12 +933,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
       line: 36
-  - label: message_etag_syntax
-    section: § 8.8.3
-    snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
-    cited_by:
-    - file: lint-http-rules/src/rules/message_etag_syntax.rs
-      line: 58
   - label: message_extension_headers_registered
     section: § 5.1
     snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"
@@ -931,12 +959,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_if_modified_since_date_format.rs
       line: 48
-  - label: message_if_none_match_etag_syntax
-    section: § 13.1.2
-    snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
-    cited_by:
-    - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
-      line: 44
   - label: message_if_unmodified_since_date_format
     section: § 13.1.4
     snippet: If-Unmodified-Since = HTTP-date
@@ -1039,16 +1061,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 30
-  - label: server_3xx_vs_request_method
-    section: § 15.4
-    snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
-      line: 37
-    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
-      line: 35
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 41
   - label: server_accept_ranges_values_valid
     section: § 14.3
     snippet: Accept-Ranges     = acceptable-ranges acceptable-ranges = 1#range-unit
