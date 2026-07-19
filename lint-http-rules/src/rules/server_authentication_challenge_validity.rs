@@ -76,7 +76,10 @@ impl Rule for ServerAuthenticationChallengeValidity {
                 }
             }
 
-            // Now find any realm that is advertised by more than one distinct auth-scheme
+            // Now find any realm that is advertised by more than one distinct auth-scheme:
+            // one protection space, one scheme. (The converse is explicitly fine — the same
+            // section allows several challenges sharing an auth-scheme with different realms.)
+            // cite(RFC 9110 § 11.5): "These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database."
             for (realm, schemes) in realms.iter() {
                 if schemes.len() > 1 {
                     let mut schemes_vec: Vec<String> = schemes.iter().cloned().collect();

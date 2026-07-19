@@ -63,6 +63,7 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
     }
 
     // scheme is first token before whitespace
+    // cite(RFC 9110 § 11.3): "challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
     let mut parts = c.splitn(2, char::is_whitespace);
     let scheme = parts
         .next()
@@ -197,6 +198,7 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), String> {
     if scheme.is_empty() {
         return Err("Authorization header missing auth-scheme".into());
     }
+    // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
     if let Some(invalid) = crate::helpers::token::find_invalid_token_char(scheme) {
         return Err(format!(
             "Invalid character '{}' in Authorization auth-scheme",
@@ -205,6 +207,7 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), String> {
     }
 
     // Authorization MUST include credentials after scheme (unlike WWW-Authenticate)
+    // cite(RFC 9110 § 11.4): "credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
     if let Some(rest) = parts.next() {
         let rest = rest.trim();
         if rest.is_empty() {
@@ -233,6 +236,7 @@ pub fn validate_basic_credentials(token68: &str) -> Result<(), String> {
     if s.is_empty() {
         return Err("Basic credentials token is empty".into());
     }
+    // cite(RFC 7617 § 2): "and obtains the basic-credentials by encoding this octet sequence using Base64"
     let decoded = base64::engine::general_purpose::STANDARD
         .decode(s)
         .map_err(|e| format!("Invalid base64 in Basic credentials: {}", e))?;
@@ -240,6 +244,7 @@ pub fn validate_basic_credentials(token68: &str) -> Result<(), String> {
         return Err("Decoded Basic credentials empty".into());
     }
     // find first colon separator
+    // cite(RFC 7617 § 2): "constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password"
     let pos = decoded.iter().position(|b| *b == b':');
     if pos.is_none() {
         return Err("Decoded Basic credentials missing ':' separator".into());
@@ -249,6 +254,7 @@ pub fn validate_basic_credentials(token68: &str) -> Result<(), String> {
     // pass starts with ':' character; skip it
     let pass = &pass[1..];
 
+    // cite(RFC 7617 § 2): "The user-id and password MUST NOT contain any control characters"
     let contains_ctl =
         |bytes: &[u8]| -> Option<u8> { bytes.iter().find(|&&b| b < 0x20 || b == 0x7f).copied() };
 
@@ -286,6 +292,7 @@ pub fn validate_bearer_token(token: &str) -> Result<(), String> {
         return Err("Bearer token has empty main part".into());
     }
 
+    // cite(RFC 6750 § 2.1): "b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"=""
     let allowed_main =
         |c: char| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '~' | '+' | '/');
 

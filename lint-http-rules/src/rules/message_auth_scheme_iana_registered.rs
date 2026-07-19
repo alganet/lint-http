@@ -92,6 +92,7 @@ impl Rule for MessageAuthSchemeIanaRegistered {
                         message: format!("Invalid character '{}' in {} auth-scheme", c, hdr_name),
                     });
                 }
+                // cite(RFC 9110 § 16.4.1): "The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials."
                 if !allowed.contains(&scheme.to_ascii_lowercase()) {
                     return Some(Violation {
                         rule: "message_auth_scheme_iana_registered".into(),
@@ -176,9 +177,15 @@ impl Rule for MessageAuthSchemeIanaRegistered {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1",
-                note: "WWW-Authenticate",
+                section: Some("11.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.1",
+                note: "Authentication Scheme — `auth-scheme = token`, and where new schemes are registered",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("16.4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.4.1",
+                note: "Authentication Scheme Registry",
             },
             crate::rules::SpecRef {
                 spec: "IANA HTTP Authentication Schemes",

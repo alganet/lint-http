@@ -1,4 +1,56 @@
 sources:
+- label: RFC 6750
+  url: https://www.rfc-editor.org/rfc/rfc6750.txt
+  type: text/plain
+  fragments:
+  - label: lint-http-rules/src/helpers/auth.rs
+    section: § 2.1
+    snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 295
+    - file: lint-http-rules/src/rules/message_bearer_token_format_validity.rs
+      line: 51
+- label: RFC 7616
+  url: https://www.rfc-editor.org/rfc/rfc7616.txt
+  type: text/plain
+  fragments:
+  - label: message_digest_auth_validity
+    section: § 3.4
+    snippet: 'For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque.'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
+      line: 111
+  - label: message_digest_auth_validity (2)
+    section: § 3.4
+    snippet: If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
+      line: 57
+- label: RFC 7617
+  url: https://www.rfc-editor.org/rfc/rfc7617.txt
+  type: text/plain
+  fragments:
+  - label: lint-http-rules/src/helpers/auth.rs
+    section: § 2
+    snippet: The user-id and password MUST NOT contain any control characters
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 257
+  - label: lint-http-rules/src/helpers/auth.rs (2)
+    section: § 2
+    snippet: and obtains the basic-credentials by encoding this octet sequence using Base64
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 239
+    - file: lint-http-rules/src/rules/message_basic_auth_base64_validity.rs
+      line: 40
+  - label: lint-http-rules/src/helpers/auth.rs (3)
+    section: § 2
+    snippet: constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 247
 - label: RFC 9110
   url: https://www.rfc-editor.org/rfc/rfc9110.txt
   type: text/plain
@@ -9,12 +61,60 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 30
+  - label: lint-http-rules/src/helpers/auth.rs
+    section: § 11.1
+    snippet: It uses a case-insensitive token to identify the authentication scheme
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 201
+  - label: lint-http-rules/src/helpers/auth.rs (2)
+    section: § 11.3
+    snippet: 'challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 66
+  - label: lint-http-rules/src/helpers/auth.rs (3)
+    section: § 11.4
+    snippet: 'credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 210
+  - label: message_auth_scheme_iana_registered
+    section: § 16.4.1
+    snippet: The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_auth_scheme_iana_registered.rs
+      line: 95
+  - label: message_authorization_credentials_present
+    section: § 11.6.2
+    snippet: The "Authorization" header field allows a user agent to authenticate itself with an origin server
+    cited_by:
+    - file: lint-http-rules/src/rules/message_authorization_credentials_present.rs
+      line: 29
   - label: message_trailer_fields_validity
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
     cited_by:
     - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
       line: 14
+  - label: message_www_authenticate_challenge_syntax
+    section: § 11.6.1
+    snippet: The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_www_authenticate_challenge_syntax.rs
+      line: 32
+  - label: server_authentication_challenge_validity
+    section: § 11.5
+    snippet: These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_authentication_challenge_validity.rs
+      line: 82
+  - label: stateful_authentication_failure_loop
+    section: § 15.5.2
+    snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
+      line: 50
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.txt
   type: text/plain

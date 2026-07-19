@@ -24,10 +24,6 @@ lint-http-rules/src/rules/message_access_control_allow_credentials_when_origin.r
 lint-http-rules/src/rules/message_access_control_allow_origin_valid.rs
 lint-http-rules/src/rules/message_age_header_numeric.rs
 lint-http-rules/src/rules/message_allow_header_method_tokens.rs
-lint-http-rules/src/rules/message_auth_scheme_iana_registered.rs
-lint-http-rules/src/rules/message_authorization_credentials_present.rs
-lint-http-rules/src/rules/message_basic_auth_base64_validity.rs
-lint-http-rules/src/rules/message_bearer_token_format_validity.rs
 lint-http-rules/src/rules/message_cache_control_and_pragma_consistency.rs
 lint-http-rules/src/rules/message_cache_control_directive_validity.rs
 lint-http-rules/src/rules/message_cache_control_token_valid.rs
@@ -56,7 +52,6 @@ lint-http-rules/src/rules/message_cross_origin_embedder_policy_valid.rs
 lint-http-rules/src/rules/message_cross_origin_opener_policy_valid.rs
 lint-http-rules/src/rules/message_cross_origin_resource_policy_valid.rs
 lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
-lint-http-rules/src/rules/message_digest_auth_validity.rs
 lint-http-rules/src/rules/message_digest_header_syntax.rs
 lint-http-rules/src/rules/message_early_data_header_safe_method.rs
 lint-http-rules/src/rules/message_etag_syntax.rs
@@ -111,7 +106,6 @@ lint-http-rules/src/rules/message_user_agent_token_valid.rs
 lint-http-rules/src/rules/message_via_header_syntax_valid.rs
 lint-http-rules/src/rules/message_warning_header_syntax.rs
 lint-http-rules/src/rules/message_well_known_uri_format.rs
-lint-http-rules/src/rules/message_www_authenticate_challenge_syntax.rs
 lint-http-rules/src/rules/message_x_forwarded_consistency.rs
 lint-http-rules/src/rules/mod.rs
 lint-http-rules/src/rules/semantic_cache_coherence.rs
@@ -128,7 +122,6 @@ lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
 lint-http-rules/src/rules/server_alt_svc_h3_advertisement_valid.rs
 lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
 lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
-lint-http-rules/src/rules/server_authentication_challenge_validity.rs
 lint-http-rules/src/rules/server_cache_control_present.rs
 lint-http-rules/src/rules/server_charset_specification.rs
 lint-http-rules/src/rules/server_clear_site_data.rs
@@ -160,7 +153,6 @@ lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
 lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
 lint-http-rules/src/rules/stateful_101_switching_protocols.rs
 lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
-lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
 lint-http-rules/src/rules/stateful_cache_validation_chain.rs
 lint-http-rules/src/rules/stateful_conditional_request_handling.rs
 lint-http-rules/src/rules/stateful_cookie_domain_matching.rs

@@ -26,6 +26,7 @@ impl Rule for MessageAuthorizationCredentialsPresent {
         for hv in tx.request.headers.get_all("authorization").iter() {
             match hv.to_str() {
                 Ok(s) => {
+                    // cite(RFC 9110 § 11.6.2): "The "Authorization" header field allows a user agent to authenticate itself with an origin server"
                     if let Err(msg) = crate::helpers::auth::validate_authorization_syntax(s) {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -54,8 +55,8 @@ impl Rule for MessageAuthorizationCredentialsPresent {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2",
+                section: Some("11.6.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2",
                 note: "Authorization",
             },
             crate::rules::SpecRef {

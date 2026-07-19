@@ -48,6 +48,7 @@ impl Rule for MessageBearerTokenFormatValidity {
                     });
                 }
 
+                // cite(RFC 6750 § 2.1): "b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"=""
                 if let Err(msg) = crate::helpers::auth::validate_bearer_token(creds) {
                     return Some(Violation {
                         rule: self.id().into(),
