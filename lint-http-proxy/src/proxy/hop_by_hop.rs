@@ -17,6 +17,7 @@
 // surviving the hop -- it is the hint telling a recipient what metadata was lost
 // when an intermediary dropped the trailer section. We forward trailers, so
 // stripping the field that announces them was self-defeating.
+// cite(RFC 9110 § 7.6.1): "Furthermore, intermediaries SHOULD remove or replace fields that are known to require removal before forwarding, whether or not they appear as a connection-option, after applying those fields' semantics."
 pub(super) static HOP_BY_HOP_HEADERS: &[&str] = &[
     "connection",
     "keep-alive",
@@ -48,7 +49,10 @@ pub(super) fn parse_connection_tokens(
     let mut set = std::collections::HashSet::new();
     if let Some(conn_val) = val {
         if let Ok(conn_str) = conn_val.to_str() {
+            // cite(RFC 9110 § 7.6.1): "Connection = #connection-option connection-option = token"
             for token in conn_str.split(',') {
+                // The lowercasing is the sentence below; the set is matched case-insensitively.
+                // cite(RFC 9110 § 7.6.1): "Connection options are case-insensitive."
                 let trimmed = token.trim().to_ascii_lowercase();
                 if !trimmed.is_empty() {
                     set.insert(trimmed);
@@ -63,6 +67,9 @@ pub(super) fn is_hop_by_hop_header(
     name: &str,
     connection_hop_headers: &std::collections::HashSet<String>,
 ) -> bool {
+    // The `connection_hop_headers` half is the nomination clause: whatever Connection
+    // named is hop-by-hop for this message, on top of the table's fixed set.
+    // cite(RFC 9110 § 7.6.1): "Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message)."
     connection_hop_headers.contains(name) || HOP_BY_HOP_HEADERS.contains(&name)
 }
 

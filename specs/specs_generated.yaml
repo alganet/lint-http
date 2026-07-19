@@ -755,6 +755,30 @@ sources:
       line: 280
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
       line: 42
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs
+    section: § 7.6.1
+    snippet: 'Connection = #connection-option connection-option = token'
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 52
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (2)
+    section: § 7.6.1
+    snippet: Connection options are case-insensitive.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 55
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (3)
+    section: § 7.6.1
+    snippet: Furthermore, intermediaries SHOULD remove or replace fields that are known to require removal before forwarding, whether or not they appear as a connection-option, after applying those fields' semantics.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 20
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (4)
+    section: § 7.6.1
+    snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message).
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 72
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 11.1
     snippet: It uses a case-insensitive token to identify the authentication scheme
