@@ -24,6 +24,7 @@ impl Rule for ClientRequestUriPercentEncodingValid {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let s = tx.request.uri.as_str();
+        // cite(RFC 3986 § 2.1): "A percent-encoding mechanism is used to represent a data octet in a component when that octet's corresponding character is outside the allowed set or is being used as a delimiter of, or within, the component."
         if let Some(msg) = crate::helpers::uri::check_percent_encoding(s) {
             return Some(Violation {
                 rule: self.id().into(),

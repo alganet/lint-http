@@ -31,6 +31,7 @@ impl Rule for MessageDigestHeaderSyntax {
                                        empty_alg_fmt: &str|
          -> Result<Vec<(String, String)>, String> {
             let mut members = Vec::new();
+            // cite(RFC 9530 § 2): "The Content-Digest HTTP field can be used in requests and responses"
             for member in value.split(',') {
                 let m = member.trim();
                 if m.is_empty() {

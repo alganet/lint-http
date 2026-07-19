@@ -251,6 +251,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
       line: 26
+  - label: client_request_uri_percent_encoding_valid
+    section: § 2.1
+    snippet: A percent-encoding mechanism is used to represent a data octet in a component when that octet's corresponding character is outside the allowed set or is being used as a delimiter of, or within, the component.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
+      line: 27
 - label: RFC 5789
   url: https://www.rfc-editor.org/rfc/rfc5789.txt
   type: text/plain
@@ -375,6 +381,44 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 101
+- label: RFC 6455
+  url: https://www.rfc-editor.org/rfc/rfc6455.txt
+  type: text/plain
+  fragments:
+  - label: client_sec_websocket_headers_consistency
+    section: § 4.1
+    snippet: The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded
+    cited_by:
+    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
+      line: 28
+  - label: stateful_websocket_frame_opcode_sequence
+    section: § 11.8
+    snippet: The opcode denotes the frame type of the WebSocket frame,
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 45
+  - label: stateful_websocket_frame_opcode_sequence (2)
+    section: § 5.5.1
+    snippet: The Close frame MAY contain a body (the "Application data" portion of the frame) that indicates a reason for closing
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 64
+  - label: stateful_websocket_handshake_validity
+    section: § 4.1
+    snippet: If the status code received from the server is not 101, the client handles the response per HTTP [RFC2616] procedures.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+      line: 43
+- label: RFC 6749
+  url: https://www.rfc-editor.org/rfc/rfc6749.txt
+  type: text/plain
+  fragments:
+  - label: stateful_oauth2_code_flow
+    section: § 4.1.1
+    snippet: RECOMMENDED.  An opaque value used by the client to maintain state between the request and callback.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_oauth2_code_flow.rs
+      line: 72
 - label: RFC 6750
   url: https://www.rfc-editor.org/rfc/rfc6750.txt
   type: text/plain
@@ -387,6 +431,16 @@ sources:
       line: 295
     - file: lint-http-rules/src/rules/message_bearer_token_format_validity.rs
       line: 51
+- label: RFC 6797
+  url: https://www.rfc-editor.org/rfc/rfc6797.txt
+  type: text/plain
+  fragments:
+  - label: message_strict_transport_security_validity
+    section: § 6.1.1
+    snippet: The REQUIRED "max-age" directive specifies the number of seconds, after the reception of the STS header field,
+    cited_by:
+    - file: lint-http-rules/src/rules/message_strict_transport_security_validity.rs
+      line: 29
 - label: RFC 6838
   url: https://www.rfc-editor.org/rfc/rfc6838.txt
   type: text/plain
@@ -397,6 +451,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
       line: 88
+- label: RFC 7034
+  url: https://www.rfc-editor.org/rfc/rfc7034.txt
+  type: text/plain
+  fragments:
+  - label: server_x_frame_options_value_valid
+    section: § 2
+    snippet: The X-Frame-Options HTTP header field indicates a policy that specifies whether the browser should render the transmitted resource
+    cited_by:
+    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
+      line: 32
 - label: RFC 7239
   url: https://www.rfc-editor.org/rfc/rfc7239.txt
   type: text/plain
@@ -453,6 +517,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
       line: 57
+  - label: stateful_digest_auth_nonce_handling
+    section: § 3.3
+    snippet: The nonce is opaque to the client.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_digest_auth_nonce_handling.rs
+      line: 136
 - label: RFC 7617
   url: https://www.rfc-editor.org/rfc/rfc7617.txt
   type: text/plain
@@ -481,12 +551,32 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc7807.txt
   type: text/plain
   fragments:
+  - label: message_problem_details_structure
+    section: § 3.1
+    snippet: 'the following members: o "type" (string) - A URI reference [RFC3986] that identifies the problem type.'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 29
   - label: server_problem_details_content_type
     section: § 3
     snippet: When serialized as a JSON document, that format is identified with the "application/problem+json" media type.
     cited_by:
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
       line: 29
+- label: RFC 7838
+  url: https://www.rfc-editor.org/rfc/rfc7838.txt
+  type: text/plain
+  fragments:
+  - label: server_alt_svc_h3_advertisement_valid
+    section: § 1
+    snippet: This specification defines a new concept in HTTP, "Alternative Services", that allows an origin server to nominate additional means of interacting with it
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_h3_advertisement_valid.rs
+      line: 33
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 30
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 87
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
@@ -517,6 +607,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
       line: 58
+- label: RFC 8297
+  url: https://www.rfc-editor.org/rfc/rfc8297.txt
+  type: text/plain
+  fragments:
+  - label: stateful_103_early_hints_before_final
+    section: § 2
+    snippet: The 103 (Early Hints) informational status code indicates to the client that the server is likely to send a final response
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+      line: 31
 - label: RFC 8470
   url: https://www.rfc-editor.org/rfc/rfc8470.txt
   type: text/plain
@@ -527,6 +627,36 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
       line: 33
+- label: RFC 8594
+  url: https://www.rfc-editor.org/rfc/rfc8594.txt
+  type: text/plain
+  fragments:
+  - label: message_sunset_and_deprecation_consistency
+    section: § 1
+    snippet: the Sunset HTTP response header field, which indicates that a URI is likely to become unresponsive at a specified point in the future.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sunset_and_deprecation_consistency.rs
+      line: 53
+- label: RFC 8615
+  url: https://www.rfc-editor.org/rfc/rfc8615.txt
+  type: text/plain
+  fragments:
+  - label: message_well_known_uri_format
+    section: § 3
+    snippet: A well-known URI is a URI [RFC3986] whose path component begins with the characters "/.well-known/",
+    cited_by:
+    - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
+      line: 29
+- label: RFC 9000
+  url: https://www.rfc-editor.org/rfc/rfc9000.txt
+  type: text/plain
+  fragments:
+  - label: server_quic_transport_parameters
+    section: § 18
+    snippet: The extension_data field of the quic_transport_parameters extension defined in [QUIC-TLS] contains the QUIC transport parameters
+    cited_by:
+    - file: lint-http-rules/src/rules/server_quic_transport_parameters.rs
+      line: 46
 - label: RFC 9110
   url: https://www.rfc-editor.org/rfc/rfc9110.txt
   type: text/plain
@@ -543,6 +673,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
       line: 51
+  - label: client_cache_respect
+    section: § 13.1.2
+    snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource
+    cited_by:
+    - file: lint-http-rules/src/rules/client_cache_respect.rs
+      line: 35
   - label: client_expect_header_valid
     section: § 10.1.1
     snippet: The "Expect" header field in a request indicates a certain set of behaviors (expectations) that need to be supported by the server
@@ -555,6 +691,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 30
+  - label: client_range_header_syntax_valid
+    section: § 14.2
+    snippet: The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges
+    cited_by:
+    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
+      line: 31
   - label: client_request_method_token_valid
     section: § 5.6.2
     snippet: token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*"
@@ -593,6 +735,14 @@ sources:
       line: 64
     - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
       line: 26
+  - label: client_user_agent_present
+    section: § 10.1.5
+    snippet: The "User-Agent" header field contains information about the user agent originating the request
+    cited_by:
+    - file: lint-http-rules/src/rules/client_user_agent_present.rs
+      line: 28
+    - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
+      line: 39
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 11.1
     snippet: It uses a case-insensitive token to identify the authentication scheme
@@ -697,6 +847,8 @@ sources:
       line: 27
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
       line: 40
+    - file: lint-http-rules/src/rules/server_keep_alive_timeout_reasonable.rs
+      line: 89
   - label: message_content_encoding_iana_registered
     section: § 8.4.1
     snippet: All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry",
@@ -747,12 +899,20 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 58
-  - label: message_header_field_names_token
+  - label: message_extension_headers_registered
     section: § 5.1
     snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"
     cited_by:
+    - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
+      line: 87
     - file: lint-http-rules/src/rules/message_header_field_names_token.rs
       line: 28
+  - label: message_from_header_email_syntax
+    section: § 10.1.2
+    snippet: The "From" header field contains an Internet email address for a human user who controls the requesting user agent.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
+      line: 29
   - label: message_if_match_etag_syntax
     section: § 13.1.1
     snippet: An origin server MUST use the strong comparison function when comparing entity tags for If-Match
@@ -777,18 +937,48 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_if_unmodified_since_date_format.rs
       line: 49
+  - label: message_language_tag_format_valid
+    section: § 8.5.1
+    snippet: A language tag, as defined in [RFC5646], identifies a natural language spoken, written, or otherwise conveyed by human beings for communication of information to other human beings.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_language_tag_format_valid.rs
+      line: 28
   - label: message_max_forwards_numeric
     section: § 7.6.2
     snippet: Max-Forwards = 1*DIGIT
     cited_by:
     - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
       line: 28
+  - label: message_range_and_content_range_consistency
+    section: § 14.4
+    snippet: The "Content-Range" header field is sent in a single part 206 (Partial Content) response
+    cited_by:
+    - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
+      line: 32
+  - label: message_referer_uri_valid
+    section: § 10.1.3
+    snippet: The "Referer" [sic] header field allows the user agent to specify a URI reference for the resource from which the target URI was obtained
+    cited_by:
+    - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
+      line: 29
   - label: message_retry_after_date_or_delay
     section: § 10.2.3
     snippet: Retry-After = HTTP-date / delay-seconds
     cited_by:
     - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
       line: 49
+  - label: message_server_header_product_valid
+    section: § 10.2.4
+    snippet: The "Server" header field contains information about the software used by the origin server to handle the request
+    cited_by:
+    - file: lint-http-rules/src/rules/message_server_header_product_valid.rs
+      line: 39
+  - label: message_te_header_constraints
+    section: § 10.1.4
+    snippet: The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 29
   - label: message_trailer_fields_validity
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
@@ -897,6 +1087,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 30
+    - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
+      line: 36
   - label: server_no_body_for_1xx_204_304
     section: § 6.4.1
     snippet: 1xx (Informational), 204 (No Content), and 304 (Not Modified) responses do not include content.
@@ -921,6 +1113,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
       line: 31
+  - label: server_vary_header_valid
+    section: § 12.5.5
+    snippet: The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_vary_header_valid.rs
+      line: 34
+  - label: stateful_101_switching_protocols
+    section: § 15.2.2
+    snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+      line: 42
   - label: stateful_authentication_failure_loop
     section: § 15.5.2
     snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
@@ -943,6 +1147,22 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_age_header_numeric.rs
       line: 42
+  - label: message_cache_control_and_pragma_consistency
+    section: § 5.4
+    snippet: The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request
+    cited_by:
+    - file: lint-http-rules/src/rules/message_cache_control_and_pragma_consistency.rs
+      line: 30
+    - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
+      line: 30
+  - label: message_cache_control_directive_validity
+    section: § 5.2
+    snippet: The "Cache-Control" header field is used to list directives for caches along the request/response chain.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_cache_control_directive_validity.rs
+      line: 27
+    - file: lint-http-rules/src/rules/message_cache_control_token_valid.rs
+      line: 27
   - label: message_caching_directive_interaction
     section: § 5.2.2.5
     snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request.
@@ -965,6 +1185,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_expires_and_cache_control_consistency.rs
       line: 111
+  - label: message_warning_header_syntax
+    section: § 5.5
+    snippet: The "Warning" header field was used to carry additional information about the status or transformation of a message
+    cited_by:
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 194
   - label: semantic_cache_coherence
     section: § 4.2.4
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
@@ -985,6 +1211,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
       line: 36
+  - label: server_vary_and_cache_consistency
+    section: § 4.1
+    snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request
+    cited_by:
+    - file: lint-http-rules/src/rules/server_vary_and_cache_consistency.rs
+      line: 36
+    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
+      line: 172
   - label: stateful_cache_validation_chain
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
@@ -1021,12 +1255,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_s_max_age_enforcement.rs
       line: 93
-  - label: stateful_vary_header_cache_validity
-    section: § 4.1
-    snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
-      line: 172
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.txt
   type: text/plain
@@ -1061,18 +1289,90 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
       line: 27
+  - label: message_request_body_length_accuracy
+    section: § 6.3
+    snippet: The length of a message body is determined by one of the following (in order of precedence)
+    cited_by:
+    - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
+      line: 36
+    - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
+      line: 36
   - label: message_trailer_headers_valid
     section: § 7.1.2
     snippet: trailer-section   = *( field-line CRLF )
     cited_by:
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
       line: 39
+  - label: message_transfer_coding_iana_registered
+    section: § 7.3
+    snippet: The "HTTP Transfer Coding Registry" defines the namespace for transfer coding names.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 86
   - label: message_transfer_encoding_chunked_final
     section: § 6.1
     snippet: A sender MUST NOT apply the chunked transfer coding more than once to a message body
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 28
+- label: RFC 9113
+  url: https://www.rfc-editor.org/rfc/rfc9113.txt
+  type: text/plain
+  fragments:
+  - label: message_http2_pseudo_headers_validity
+    section: § 8.3
+    snippet: All pseudo-header fields MUST appear in a field block before all regular field lines.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 33
+- label: RFC 9114
+  url: https://www.rfc-editor.org/rfc/rfc9114.txt
+  type: text/plain
+  fragments:
+  - label: message_http3_host_authority_consistency
+    section: § 4.3
+    snippet: Pseudo-header fields are not HTTP fields.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_host_authority_consistency.rs
+      line: 27
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 27
+    - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
+      line: 27
+  - label: message_http3_no_connection_header
+    section: § 4.2
+    snippet: An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP]
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
+      line: 36
+  - label: stateful_http3_goaway_semantics
+    section: § 7.2.6
+    snippet: The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
+      line: 31
+  - label: stateful_http3_max_push_id
+    section: § 7.2.7
+    snippet: The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
+      line: 40
+  - label: stateful_http3_settings_frame
+    section: § 7.2.4
+    snippet: The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
+      line: 48
+- label: RFC 9218
+  url: https://www.rfc-editor.org/rfc/rfc9218.txt
+  type: text/plain
+  fragments:
+  - label: message_priority_header_syntax
+    section: § 4
+    snippet: The Priority HTTP header field (Section 5) is an end-to-end way to transmit this set of priority parameters when a
+    cited_by:
+    - file: lint-http-rules/src/rules/message_priority_header_syntax.rs
+      line: 27
 - label: RFC 9530
   url: https://www.rfc-editor.org/rfc/rfc9530.txt
   type: text/plain
@@ -1083,3 +1383,25 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_content_md5_vs_digest_preference.rs
       line: 31
+    - file: lint-http-rules/src/rules/message_digest_header_syntax.rs
+      line: 34
+- label: RFC 9651
+  url: https://www.rfc-editor.org/rfc/rfc9651.txt
+  type: text/plain
+  fragments:
+  - label: message_structured_headers_validity
+    snippet: This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,
+    cited_by:
+    - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
+      line: 85
+- label: RFC 9745
+  url: https://www.rfc-editor.org/rfc/rfc9745.txt
+  type: text/plain
+  fragments:
+  - label: message_sunset_and_deprecation_consistency
+    snippet: The Deprecation HTTP response header field is used to signal to consumers of a resource (identified by a URI) that the resource will be or has been deprecated.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sunset_and_deprecation_consistency.rs
+      line: 54
+    - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
+      line: 30

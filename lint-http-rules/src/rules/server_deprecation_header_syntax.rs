@@ -27,6 +27,7 @@ impl Rule for ServerDeprecationHeaderSyntax {
         let resp = tx.response.as_ref()?;
 
         let mut vals = Vec::new();
+        // cite(RFC 9745): "The Deprecation HTTP response header field is used to signal to consumers of a resource (identified by a URI) that the resource will be or has been deprecated."
         for hv in resp.headers.get_all("deprecation").iter() {
             vals.push(hv);
         }

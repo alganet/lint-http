@@ -84,6 +84,7 @@ impl Rule for MessageExtensionHeadersRegistered {
         let config = parse_allowed_config(cfg, self.id()).ok()?;
         // Helper to check headers map against allowed set
         let check_map = |headers: &hyper::HeaderMap| -> Option<Violation> {
+            // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
             for (name, _val) in headers.iter() {
                 let nm = name.as_str().to_ascii_lowercase();
                 if !config.allowed.contains(&nm) {

@@ -29,6 +29,7 @@ impl Rule for ServerXFrameOptionsValueValid {
         let headers = &resp.headers;
 
         let count = headers.get_all("x-frame-options").iter().count();
+        // cite(RFC 7034 § 2): "The X-Frame-Options HTTP header field indicates a policy that specifies whether the browser should render the transmitted resource"
         if count == 0 {
             return None;
         }

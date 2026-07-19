@@ -12,8 +12,8 @@ When a response includes `Vary: *`, caches cannot select that stored response fo
 
 ## Specifications
 
-- [RFC 7234 §4.1](https://www.rfc-editor.org/rfc/rfc7234.html#section-4.1): Calculating Secondary Keys with Vary (Vary semantics)
-- [RFC 7234 §3](https://www.rfc-editor.org/rfc/rfc7234.html#section-3): Storing Responses in Caches (cacheability requirements)
+- [RFC 9111 §4.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1): Calculating Secondary Keys with Vary (Vary semantics)
+- [RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3): Storing Responses in Caches (cacheability requirements)
 
 ## Configuration
 

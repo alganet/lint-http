@@ -82,6 +82,11 @@ impl Rule for ServerKeepAliveTimeoutReasonable {
         };
 
         // Check for Keep-Alive header (legacy header used by some servers)
+        // `Keep-Alive` is not specified by any current HTTP document — RFC 7230 §6.7 was
+        // Upgrade, not this. What *is* specified is that connection options are hop-by-hop
+        // and named by `Connection`, which is the only sentence this rule can honestly
+        // stand on. Its `timeout=` checks encode a de facto convention nobody defines.
+        // cite(RFC 9110 § 7.6.1): "The "Connection" header field allows the sender to list desired control options for the current connection."
         for hv in resp.headers.get_all("keep-alive") {
             let Ok(val) = hv.to_str() else {
                 return Some(Violation {

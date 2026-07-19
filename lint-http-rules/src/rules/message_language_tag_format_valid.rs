@@ -25,6 +25,7 @@ impl Rule for MessageLanguageTagFormatValid {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Helper to validate language-tag tokens according to helpers::language
         let check_tag = |hdr: &str, tag: &str| -> Option<Violation> {
+            // cite(RFC 9110 § 8.5.1): "A language tag, as defined in [RFC5646], identifies a natural language spoken, written, or otherwise conveyed by human beings for communication of information to other human beings."
             if let Err(e) = crate::helpers::language::validate_language_tag(tag) {
                 return Some(Violation {
                     rule: self.id().into(),

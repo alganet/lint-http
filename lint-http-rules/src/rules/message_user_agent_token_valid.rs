@@ -36,6 +36,7 @@ impl Rule for MessageUserAgentTokenValid {
                 }
             };
 
+            // cite(RFC 9110 § 10.1.5): "The "User-Agent" header field contains information about the user agent originating the request"
             if no_comments.trim().is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),

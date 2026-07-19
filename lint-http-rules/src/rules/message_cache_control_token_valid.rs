@@ -24,6 +24,7 @@ impl Rule for MessageCacheControlTokenValid {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Apply to both request and response messages
+        // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
         for header_val in tx.request.headers.get_all("cache-control").iter() {
             if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
                 if v.is_empty() {
@@ -85,9 +86,9 @@ impl Rule for MessageCacheControlTokenValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
-            spec: "RFC 9110",
+            spec: "RFC 9111",
             section: Some("5.2"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
+            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2",
             note: "Cache-Control directives and general directive syntax",
         }]
     }

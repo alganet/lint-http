@@ -27,6 +27,7 @@ impl Rule for ServerAltSvcHeaderSyntax {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
+        // cite(RFC 7838 § 1): "This specification defines a new concept in HTTP, "Alternative Services", that allows an origin server to nominate additional means of interacting with it"
         for hv in resp.headers.get_all("alt-svc").iter() {
             let s = match hv.to_str() {
                 Ok(s) => s,

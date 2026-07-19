@@ -24,6 +24,7 @@ impl Rule for ServerHttp3StatusCodeValidity {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to HTTP/3 connections.
+        // cite(RFC 9114 § 4.3): "Pseudo-header fields are not HTTP fields."
         if tx.request.version != "HTTP/3" {
             return None;
         }

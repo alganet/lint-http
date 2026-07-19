@@ -12,8 +12,8 @@ Validate that specified header fields are valid RFC 8941 Structured Field values
 
 ## Specifications
 
-- [RFC 8941](https://www.rfc-editor.org/rfc/rfc8941.html): Structured Field Values for HTTP
-- [RFC 8941 §3](https://www.rfc-editor.org/rfc/rfc8941.html#section-3): Items, Lists, Dictionaries
+- [RFC 9651](https://www.rfc-editor.org/rfc/rfc9651.html): Structured Field Values for HTTP
+- [RFC 9651 §3](https://www.rfc-editor.org/rfc/rfc9651.html#section-3): Items, Lists, Dictionaries
 
 ## Configuration
 

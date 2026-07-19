@@ -26,6 +26,7 @@ impl Rule for MessageRefererUriValid {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req = &tx.request;
 
+        // cite(RFC 9110 § 10.1.3): "The "Referer" [sic] header field allows the user agent to specify a URI reference for the resource from which the target URI was obtained"
         for hv in req.headers.get_all("referer").iter() {
             let s = match hv.to_str() {
                 Ok(v) => v,
@@ -86,8 +87,8 @@ impl Rule for MessageRefererUriValid {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.5.3",
+                section: Some("10.1.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.3",
                 note: "",
             },
             crate::rules::SpecRef {

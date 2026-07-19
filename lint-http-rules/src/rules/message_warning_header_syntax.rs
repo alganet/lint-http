@@ -188,6 +188,10 @@ impl Rule for MessageWarningHeaderSyntax {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check response headers
         if let Some(resp) = &tx.response {
+            // `Warning` is obsolete: RFC 9111 records it in order to say it was removed.
+            // The rule still validates the syntax of one that turns up, because traffic
+            // does not stop carrying a field the day a specification stops defining it.
+            // cite(RFC 9111 § 5.5): "The "Warning" header field was used to carry additional information about the status or transformation of a message"
             for hv in resp.headers.get_all("Warning").iter() {
                 if let Ok(s) = hv.to_str() {
                     if let Some(msg) = check_warning_value_str(s) {
@@ -236,16 +240,16 @@ impl Rule for MessageWarningHeaderSyntax {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
-                spec: "RFC 7234",
+                spec: "RFC 9111",
                 section: Some("5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc7234.html#section-5.5",
-                note: "Warning header field",
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.5",
+                note: "`Warning`, and its obsolescence. RFC 7234 §5.5 defined it; RFC 9111 is where it now says not to use it",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.1.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1.1",
-                note: "HTTP-date (IMF-fixdate)",
+                section: Some("5.6.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7",
+                note: "HTTP-date (IMF-fixdate). This reference said §7.1.1.1, which does not exist",
             },
         ]
     }

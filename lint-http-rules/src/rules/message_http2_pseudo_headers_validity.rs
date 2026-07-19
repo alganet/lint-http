@@ -30,6 +30,7 @@ impl Rule for MessageHttp2PseudoHeadersValidity {
 
         // Validate :method -> RequestInfo.method
         let method = tx.request.method.trim();
+        // cite(RFC 9113 § 8.3): "All pseudo-header fields MUST appear in a field block before all regular field lines."
         if let Some(c) = crate::helpers::token::find_invalid_token_char(method) {
             return Some(Violation {
                 rule: self.id().into(),

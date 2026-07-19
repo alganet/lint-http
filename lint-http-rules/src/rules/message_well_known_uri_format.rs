@@ -26,6 +26,7 @@ impl Rule for MessageWellKnownUriFormat {
         let path = crate::helpers::uri::extract_path_from_request_target(&tx.request.uri)?;
 
         // Well-known URIs MUST be under the path prefix `/.well-known/` per RFC 8615.
+        // cite(RFC 8615 § 3): "A well-known URI is a URI [RFC3986] whose path component begins with the characters "/.well-known/","
         if path.starts_with("/.well-known/") {
             return None;
         }

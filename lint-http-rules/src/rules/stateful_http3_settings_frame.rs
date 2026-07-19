@@ -45,6 +45,7 @@ impl ProtocolRule for StatefulHttp3SettingsFrame {
 
         // RFC 9114 §7.2.4: "A SETTINGS frame MUST NOT be sent more than once
         // over a connection."
+        // cite(RFC 9114 § 7.2.4): "The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate"
         for prev in history.iter() {
             if matches!(&prev.kind, ProtocolEventKind::H3SettingsReceived { .. }) {
                 return Some(Violation {

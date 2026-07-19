@@ -13,7 +13,7 @@ Validate `Permissions-Policy` HTTP response header directives for correct featur
 ## Specifications
 
 - [Permissions Policy](https://w3c.github.io/webappsec-permissions-policy/#permissions-policy-http-header-field): Permissions-Policy HTTP header (directive syntax and serialization). No section: an editor's draft renumbers — this reference said §5.2, the header field is now §6.1
-- [RFC 8941 §3](https://www.rfc-editor.org/rfc/rfc8941.html#section-3): Structured Field Values for HTTP, §3–§5 (Items, Lists, Dictionaries)
+- [RFC 9651 §3](https://www.rfc-editor.org/rfc/rfc9651.html#section-3): Structured Field Values for HTTP, §3–§5 (Items, Lists, Dictionaries)
 
 ## Configuration
 

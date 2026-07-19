@@ -26,6 +26,7 @@ impl Rule for MessageProblemDetailsStructure {
         let resp = tx.response.as_ref()?;
 
         // Only consider responses that indicate an error or problem (4xx/5xx)
+        // cite(RFC 7807 § 3.1): "the following members: o "type" (string) - A URI reference [RFC3986] that identifies the problem type."
         if resp.status < 400 {
             return None;
         }

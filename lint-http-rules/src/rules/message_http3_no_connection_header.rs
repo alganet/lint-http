@@ -33,6 +33,7 @@ impl Rule for MessageHttp3NoConnectionHeader {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to HTTP/3 transactions.
+        // cite(RFC 9114 § 4.2): "An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP]"
         if tx.request.version != "HTTP/3" {
             return None;
         }

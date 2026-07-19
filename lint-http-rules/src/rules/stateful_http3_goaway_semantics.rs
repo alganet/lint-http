@@ -28,6 +28,7 @@ impl ProtocolRule for StatefulHttp3GoawaySemantics {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // cite(RFC 9114 § 7.2.6): "The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint."
         match &event.kind {
             // RFC 9114 §5.2: the identifier in a GOAWAY frame MUST NOT
             // increase beyond the value sent in a previous GOAWAY.

@@ -27,6 +27,7 @@ impl Rule for MessagePragmaTokenValid {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Validate request headers
+        // cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
         for header_val in tx.request.headers.get_all("pragma").iter() {
             if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
                 if v.is_empty() {
@@ -89,9 +90,9 @@ impl Rule for MessagePragmaTokenValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("8.2"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.2",
+            spec: "RFC 9111",
+            section: Some("5.4"),
+            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.4",
             note: "Pragma",
         }]
     }

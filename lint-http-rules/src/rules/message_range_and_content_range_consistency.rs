@@ -29,6 +29,7 @@ impl Rule for MessageRangeAndContentRangeConsistency {
         let has_range_request = tx.request.headers.get("range").is_some();
 
         // 206 Partial Content rules
+        // cite(RFC 9110 § 14.4): "The "Content-Range" header field is sent in a single part 206 (Partial Content) response"
         if status == 206 {
             // 206 MUST include a valid Content-Range
             let cr = crate::helpers::headers::get_header_str(&resp.headers, "content-range");
@@ -137,21 +138,21 @@ impl Rule for MessageRangeAndContentRangeConsistency {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
-                spec: "RFC 7233",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1",
+                spec: "RFC 9110",
+                section: Some("15.3.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
                 note: "206 Partial Content: single-part 206 responses MUST include a `Content-Range` header describing the enclosed range",
             },
             crate::rules::SpecRef {
-                spec: "RFC 7233",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc7233.html#section-4.2",
+                spec: "RFC 9110",
+                section: Some("14.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.4",
                 note: "Content-Range: syntax of `Content-Range` and the semantics for satisfied and unsatisfiable ranges",
             },
             crate::rules::SpecRef {
-                spec: "RFC 7233",
-                section: Some("4.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc7233.html#section-4.4",
+                spec: "RFC 9110",
+                section: Some("15.5.17"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.17",
                 note: "416 Range Not Satisfiable: server SHOULD include `Content-Range: bytes */<complete-length>` in 416 responses",
             },
         ]

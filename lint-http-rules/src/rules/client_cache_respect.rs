@@ -32,6 +32,7 @@ impl Rule for ClientCacheRespect {
         let has_validators =
             resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
 
+        // cite(RFC 9110 § 13.1.2): "The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource"
         if !has_validators {
             return None;
         }

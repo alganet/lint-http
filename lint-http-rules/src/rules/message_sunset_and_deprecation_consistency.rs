@@ -50,6 +50,8 @@ impl Rule for MessageSunsetAndDeprecationConsistency {
             Some(hv) => match hv.to_str() {
                 Ok(s_raw) => {
                     let s = s_raw.trim();
+                    // cite(RFC 8594 § 1): "the Sunset HTTP response header field, which indicates that a URI is likely to become unresponsive at a specified point in the future."
+                    // cite(RFC 9745): "The Deprecation HTTP response header field is used to signal to consumers of a resource (identified by a URI) that the resource will be or has been deprecated."
                     if s.starts_with('@')
                         && s.len() > 1
                         && s[1..].chars().all(|c| c.is_ascii_digit())

@@ -33,6 +33,7 @@ impl Rule for MessageResponseBodyLengthAccuracy {
             .iter()
             .map(|v| v.to_owned())
             .collect();
+        // cite(RFC 9112 § 6.3): "The length of a message body is determined by one of the following (in order of precedence)"
         if !entries.is_empty() {
             let mut nums: Vec<u128> = Vec::with_capacity(entries.len());
             let mut raw_values: Vec<String> = Vec::with_capacity(entries.len());

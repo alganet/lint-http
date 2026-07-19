@@ -14,8 +14,11 @@ roots = [
 ]
 output = "specs/specs_generated.yaml"
 
-# Every non-RFC document a cite may name. `RFC 9110` needs no entry — it resolves
-# by pattern to rfc-editor. An unknown source name is a hard error, never a guess.
+# Every non-RFC document a cite may name. `RFC 9110` needs no entry: apysource
+# ships that pattern, next to the fetcher that has to know the URL anyway — apycite
+# has no idea what an RFC is. A family of our own would be a `patterns:` block in
+# the sources file below, which is apysource's file and apysource's key. An unknown
+# source name is a hard error, never a guess.
 sources = "specs/sources.yaml"
 
 # A cite in src/rules/<id>.rs is labelled by the rule id — one rule per file, so
@@ -38,3 +41,11 @@ label = "{path}"
 [ratchet]
 scope = "lint-http-rules/src/rules/*.rs"
 baseline = "specs/ratchet.txt"
+
+# `mod.rs` is in that directory but is not a rule: it holds the traits, the
+# registry, and `SpecRef` itself, and enforces no sentence of any specification.
+# It can never earn a citation, so without this it would sit in the baseline
+# forever and the baseline could never empty — which is the one thing the ratchet
+# is counting down to. Excluding it is a claim that it has no normative content,
+# and this is where a reviewer sees the claim.
+exclude = ["lint-http-rules/src/rules/mod.rs"]

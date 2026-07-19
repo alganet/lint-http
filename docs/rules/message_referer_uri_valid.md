@@ -12,7 +12,7 @@ This rule checks that the `Referer` request header, when present, is a syntactic
 
 ## Specifications
 
-- [RFC 9110 §7.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.5.3)
+- [RFC 9110 §10.1.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.3)
 - [RFC 3986 §4](https://www.rfc-editor.org/rfc/rfc3986.html#section-4): URI-reference syntax and percent-encoding
 
 ## Configuration

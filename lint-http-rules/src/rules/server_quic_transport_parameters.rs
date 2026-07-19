@@ -43,6 +43,7 @@ impl ProtocolRule for ServerQuicTransportParameters {
 
         // RFC 9000 §18.2 / RFC 9114 §3.1: HTTP/3 requires at least one
         // bidirectional stream for request/response exchange.
+        // cite(RFC 9000 § 18): "The extension_data field of the quic_transport_parameters extension defined in [QUIC-TLS] contains the QUIC transport parameters"
         if params.initial_max_streams_bidi == Some(0) {
             return Some(Violation {
                 rule: self.id().into(),

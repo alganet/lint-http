@@ -28,6 +28,7 @@ impl Rule for Stateful103EarlyHintsBeforeFinal {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to responses with status 103
         let resp = tx.response.as_ref()?;
+        // cite(RFC 8297 § 2): "The 103 (Early Hints) informational status code indicates to the client that the server is likely to send a final response"
         if resp.status != 103 {
             return None;
         }

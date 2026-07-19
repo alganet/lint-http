@@ -23,6 +23,9 @@ impl Rule for ClientUserAgentPresent {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // Nothing requires a `User-Agent`. What the field is *for* is the reason to send
+        // one, and that is what this cites — the rule is advice, not a rule of the protocol.
+        // cite(RFC 9110 § 10.1.5): "The "User-Agent" header field contains information about the user agent originating the request"
         if !tx.request.headers.contains_key("user-agent") {
             Some(Violation {
                 rule: self.id().into(),

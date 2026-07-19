@@ -36,6 +36,7 @@ impl Rule for MessageServerHeaderProductValid {
                 }
             };
 
+            // cite(RFC 9110 § 10.2.4): "The "Server" header field contains information about the software used by the origin server to handle the request"
             if no_comments.trim().is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -125,8 +126,8 @@ impl Rule for MessageServerHeaderProductValid {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1",
+                section: Some("10.2.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.4",
                 note: "`Server` header field and `product` grammar: product = token [\"/\" product-version] *( RWS ( product / comment ) )",
             },
         ]

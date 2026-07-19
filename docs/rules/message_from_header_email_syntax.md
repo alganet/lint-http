@@ -12,7 +12,7 @@ This rule validates the `From` request header's mailbox-list syntax. It accepts 
 
 ## Specifications
 
-- [RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1): Header field definition and reference
+- [RFC 9110 §10.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.2): Header field definition and reference
 - [RFC 5322 §3.4](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.4): Mailbox and mailbox-list syntax (note: full RFC 5322 parsing is complex; this rule uses a conservative subset to catch common errors)
 
 ## Configuration
