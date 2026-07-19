@@ -169,6 +169,7 @@ impl Rule for StatefulVaryHeaderCacheValidity {
                     .unwrap_or_default();
             let curr_val = crate::helpers::headers::get_all_header_values(&req.headers, &field)
                 .unwrap_or_default();
+            // cite(RFC 9111 § 4.1): "the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request"
             if past_val != curr_val {
                 let reported_validator = matched_validator.as_deref().unwrap_or("<unknown>");
                 return Some(Violation {

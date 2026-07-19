@@ -47,6 +47,7 @@ impl Rule for ServerPriorityAndCacheabilityConsistency {
         let has_cache_control = resp.headers.contains_key("cache-control");
         let has_vary = resp.headers.contains_key("vary");
 
+        // cite(RFC 9111 § 4.2.2): "Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time."
         if !has_cache_control && !has_vary {
             return Some(Violation {
                 rule: self.id().into(),

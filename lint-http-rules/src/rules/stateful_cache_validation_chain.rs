@@ -122,6 +122,7 @@ impl Rule for StatefulCacheValidationChain {
                     let reported = first_inm_val
                         .as_deref()
                         .unwrap_or("<non-UTF8 If-None-Match>");
+                    // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI."
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,

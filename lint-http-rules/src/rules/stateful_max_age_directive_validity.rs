@@ -88,6 +88,7 @@ impl Rule for StatefulMaxAgeDirectiveValidity {
         let has_conditional = tx.request.headers.contains_key("if-none-match")
             || tx.request.headers.contains_key("if-modified-since");
 
+        // cite(RFC 9111 § 5.2.2.1): "The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds."
         if current_age < max_age {
             if has_conditional {
                 return Some(Violation {

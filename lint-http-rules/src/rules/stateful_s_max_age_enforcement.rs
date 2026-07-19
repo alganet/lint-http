@@ -90,6 +90,7 @@ impl Rule for StatefulSMaxAgeEnforcement {
 
         // private cache has misapplied s-maxage if it revalidated once the age
         // crossed the s-maxage boundary but before the max-age expired.
+        // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field."
         if has_conditional && current_age >= s_max_age && current_age < max_age {
             return Some(Violation {
                 rule: self.id().into(),

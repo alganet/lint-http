@@ -145,6 +145,9 @@ impl Rule for StatefulNoStoreEnforcement {
                 for member in crate::helpers::headers::parse_list_header(s) {
                     let member = member.trim();
                     let normalized = crate::helpers::headers::normalize_etag(member);
+                    // A validator echoed back from a no-store response is proof the client
+                    // stored the thing it was told not to store.
+                    // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
                     if no_store_etags.contains(&normalized) {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -201,8 +204,8 @@ impl Rule for StatefulNoStoreEnforcement {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9111",
-                section: Some("5.2.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.3",
+                section: Some("5.2.2.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5",
                 note: "`no-store`",
             },
             crate::rules::SpecRef {

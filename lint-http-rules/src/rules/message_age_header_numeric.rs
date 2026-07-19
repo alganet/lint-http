@@ -39,6 +39,7 @@ impl Rule for MessageAgeHeaderNumeric {
             };
 
             // Age must be a non-negative integer (delta-seconds)
+            // cite(RFC 9111 § 5.1): "The Age field value is a non-negative integer, representing time in seconds"
             if s.parse::<u64>().is_ok() {
                 continue;
             }
