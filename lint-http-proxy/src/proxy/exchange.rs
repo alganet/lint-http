@@ -274,6 +274,10 @@ pub(super) fn build_upstream_request(
 /// headers are essential to the handshake); otherwise hop-by-hop headers are
 /// stripped. `append` preserves repeated headers (e.g. `set-cookie`).
 pub(super) fn filter_response_headers(headers: &HeaderMap, status: u16) -> HeaderMap {
+    // Why 101 escapes the hop-by-hop strip below: Upgrade is a connection-specific
+    // field an intermediary would normally remove, and a 101 is the one response
+    // that cannot survive losing it.
+    // cite(RFC 9110 § 15.2.2): "The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field"
     if status == 101 {
         return headers.clone();
     }

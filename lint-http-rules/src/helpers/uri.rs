@@ -140,6 +140,7 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
 pub fn extract_authority_from_request_target(s: &str) -> Option<String> {
     let s_trim = s.trim();
 
+    // cite(RFC 9112 § 3.2): "request-target = origin-form / absolute-form / authority-form / asterisk-form"
     if s_trim.is_empty() || s_trim == "*" || s_trim.starts_with('/') {
         return None;
     }
@@ -202,6 +203,7 @@ pub fn extract_host_from_request_target(s: &str) -> Option<String> {
 pub fn extract_path_from_request_target(s: &str) -> Option<String> {
     let s_trim = s.trim();
 
+    // cite(RFC 9112 § 3.2): "request-target = origin-form / absolute-form / authority-form / asterisk-form"
     if s_trim == "*" {
         return None;
     }

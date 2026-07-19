@@ -121,9 +121,11 @@ fn parse_varint_at(buf: &[u8], pos: usize) -> Option<(u64, usize)> {
 
 // ── Frame observer state machine ─────────────────────────────────────
 
-/// HTTP/3 frame type: SETTINGS (RFC 9114 §7.2.4).
+/// HTTP/3 frame type: SETTINGS.
+// cite(RFC 9114 § 7.2.4): "The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate"
 const H3_FRAME_SETTINGS: u64 = 0x04;
-/// HTTP/3 frame type: MAX_PUSH_ID (RFC 9114 §7.2.7).
+/// HTTP/3 frame type: MAX_PUSH_ID.
+// cite(RFC 9114 § 7.2.7): "The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate."
 const H3_FRAME_MAX_PUSH_ID: u64 = 0x0D;
 /// HTTP/3 unidirectional stream type for the control stream (RFC 9114 §6.2.1).
 const H3_STREAM_TYPE_CONTROL: u64 = 0x00;
