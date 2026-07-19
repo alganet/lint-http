@@ -7,16 +7,26 @@
 //! These helpers are shared by the HTTP/1.1+H2, WebSocket relay, and HTTP/3
 //! handlers when building responses to forward to the client.
 
-// RFC 7230 Section 6.1: Hop-by-hop headers must not be forwarded by proxies.
+// Fields an intermediary removes before forwarding, whether or not the sender
+// nominated them in Connection. The first five are the list RFC 9110 § 7.6.1
+// gives; `connection` is removed by the same section's separate instruction to
+// drop the Connection field itself after acting on it. Proxy-Authenticate and
+// Proxy-Authorization are not § 7.6.1's, and are justified one entry down.
+//
+// `Trailer` is deliberately absent: § 7.6.1 does not list it, and § 6.6.2 has it
+// surviving the hop -- it is the hint telling a recipient what metadata was lost
+// when an intermediary dropped the trailer section. We forward trailers, so
+// stripping the field that announces them was self-defeating.
 pub(super) static HOP_BY_HOP_HEADERS: &[&str] = &[
     "connection",
     "keep-alive",
-    "proxy-authenticate",
-    "proxy-authorization",
+    "proxy-connection",
     "te",
-    "trailer",
     "transfer-encoding",
     "upgrade",
+    // Not § 7.6.1's list: these two are single-hop by their own definition.
+    "proxy-authenticate",
+    "proxy-authorization",
 ];
 
 /// Convert hyper::Version into the textual HTTP-version token used in start/status lines.
