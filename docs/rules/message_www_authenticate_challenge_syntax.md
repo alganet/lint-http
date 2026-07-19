@@ -18,7 +18,7 @@ This rule validates that each challenge:
 
 ## Specifications
 
-- [RFC 9110 §7.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1): WWW-Authenticate
+- [RFC 9110 §11.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1): WWW-Authenticate
 - [RFC 7235 §2.1](https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1): Challenge and `token68`
 
 ## Configuration

@@ -29,6 +29,7 @@ impl Rule for MessageWwwAuthenticateChallengeSyntax {
                 if let Ok(s) = hv.to_str() {
                     // Group members into assembled challenges using the helper so we can
                     // test the grouping logic independently and exercise more branches.
+                    // cite(RFC 9110 § 11.6.1): "The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource."
                     let challenges = match crate::helpers::auth::split_and_group_challenges(s) {
                         Ok(c) => c,
                         Err(msg) => {
@@ -65,8 +66,8 @@ impl Rule for MessageWwwAuthenticateChallengeSyntax {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1",
+                section: Some("11.6.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1",
                 note: "WWW-Authenticate",
             },
             crate::rules::SpecRef {

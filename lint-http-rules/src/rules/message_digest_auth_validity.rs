@@ -50,7 +50,11 @@ impl Rule for MessageDigestAuthValidity {
                     // parse auth-param list into map
                     match crate::helpers::auth::parse_auth_params(rest) {
                         Ok(map) => {
-                            // required fields per RFC 7616: username, realm, nonce, uri, response
+                            // required fields per RFC 7616: username, realm, nonce, uri, response.
+                            // The RFC never enumerates them — it names the consequence, and
+                            // leaves "required" to the fields the response computation cannot
+                            // be checked without.
+                            // cite(RFC 7616 § 3.4): "If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code."
                             let required = ["username", "realm", "nonce", "uri", "response"];
                             for &k in &required {
                                 match map.get(k) {
@@ -104,6 +108,7 @@ impl Rule for MessageDigestAuthValidity {
                                     });
                                 }
                                 // values may be quoted-string; if quoted, validate quoted-string
+                                // cite(RFC 7616 § 3.4): "For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque."
                                 if v.starts_with('"') {
                                     if let Err(msg) =
                                         crate::helpers::headers::validate_quoted_string(v)

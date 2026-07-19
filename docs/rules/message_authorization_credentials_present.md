@@ -12,7 +12,7 @@ The `Authorization` request header field MUST include an authentication scheme f
 
 ## Specifications
 
-- [RFC 9110 §7.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2): Authorization
+- [RFC 9110 §11.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2): Authorization
 - [RFC 7617](https://www.rfc-editor.org/rfc/rfc7617.html): Basic Authentication
 - [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750.html): The OAuth 2.0 Authorization Framework: Bearer Token Usage
 

@@ -37,6 +37,7 @@ impl Rule for MessageBasicAuthBase64Validity {
                                 message: "Basic Authorization missing credentials".into(),
                             });
                         }
+                        // cite(RFC 7617 § 2): "and obtains the basic-credentials by encoding this octet sequence using Base64"
                         if let Err(msg) = crate::helpers::auth::validate_basic_credentials(creds) {
                             return Some(Violation {
                                 rule: self.id().into(),

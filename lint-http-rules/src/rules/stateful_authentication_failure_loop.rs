@@ -43,7 +43,11 @@ impl Rule for StatefulAuthenticationFailureLoop {
             }
         }
 
-        // We consider it a loop if there are more than 3 consecutive 401s *before* this one
+        // We consider it a loop if there are more than 3 consecutive 401s *before* this one.
+        // The spec sanctions *one* retry after a 401 and says what to do when the same
+        // challenge comes back again; a client still replaying it on the fourth is no longer
+        // retrying, it is looping.
+        // cite(RFC 9110 § 15.5.2): "If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information."
         if consecutive_401s >= 3 {
             Some(Violation {
                 rule: self.id().into(),
