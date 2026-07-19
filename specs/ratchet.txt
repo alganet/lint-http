@@ -105,7 +105,6 @@ lint-http-rules/src/rules/server_http3_status_code_validity.rs
 lint-http-rules/src/rules/server_keep_alive_timeout_reasonable.rs
 lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
 lint-http-rules/src/rules/server_location_header_uri_valid.rs
-lint-http-rules/src/rules/server_must_revalidate_and_immutable_mismatch.rs
 lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
 lint-http-rules/src/rules/server_patch_accept_patch_header.rs
 lint-http-rules/src/rules/server_problem_details_content_type.rs
