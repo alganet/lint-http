@@ -23,9 +23,9 @@ This check applies to server responses (RuleScope::Server).
 
 ## Specifications
 
-- RFC 6454 — The Web Origin Concept — https://datatracker.ietf.org/doc/html/rfc6454
-- Fetch CORS / Origin matching rules — https://fetch.spec.whatwg.org/#access-control-allow-origin-response-header
-- MDN: Access-Control-Allow-Origin — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
+- [RFC 6454](https://www.rfc-editor.org/rfc/rfc6454.html): The Web Origin Concept
+- [Fetch](https://fetch.spec.whatwg.org/#access-control-allow-origin-response-header): Fetch CORS / Origin matching rules
+- [MDN Access-Control-Allow-Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin): Access-Control-Allow-Origin
 
 ## Configuration
 

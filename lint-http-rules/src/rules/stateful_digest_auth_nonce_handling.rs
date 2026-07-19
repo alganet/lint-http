@@ -264,10 +264,20 @@ impl Rule for StatefulDigestAuthNonceHandling {
         "Digest authentication relies on a server-provided `nonce` value (and optionally `opaque`) and a client-maintained `nc` (nonce-count) counter to protect against replay attacks.  The client must never reuse a nonce-count for an already-seen nonce, and must return the `opaque` value verbatim.  When a server signals that a nonce is stale (`stale=true` in a subsequent `WWW-Authenticate` challenge), the client is expected to start a new handshake with the fresh nonce, resetting the nonce-count to `00000001`.\n\nThis rule ensures that an observed stream of transactions follows these lifecycle expectations by tracking challenges and responses across an origin."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 7616 §3.2.1 — Server challenge syntax](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.1)",
-            "[RFC 7616 §3.2.2 — Client response parameters (`nonce`, `nc`, `opaque`)](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.2)",
+            crate::rules::SpecRef {
+                spec: "RFC 7616",
+                section: Some("3.2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.1",
+                note: "Server challenge syntax",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7616",
+                section: Some("3.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.2",
+                note: "Client response parameters (`nonce`, `nc`, `opaque`)",
+            },
         ]
     }
 

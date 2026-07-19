@@ -43,10 +43,13 @@ impl Rule for ClientRequestUriPercentEncodingValid {
         "This rule checks that percent-encodings (pct-encodings) in the request-target are well-formed: each `%` must be followed by exactly two hexadecimal digits. Malformed percent-encodings can lead to ambiguous URIs or incorrect parsing by intermediaries."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 3986",
+            section: Some("2.1"),
+            url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1",
+            note: "Percent-Encoding",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

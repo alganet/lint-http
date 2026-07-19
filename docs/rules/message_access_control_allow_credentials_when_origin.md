@@ -12,9 +12,9 @@ This rule checks Cross-Origin Resource Sharing (CORS) response headers to ensure
 
 ## Specifications
 
-- MDN: Access-Control-Allow-Credentials — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials
-- MDN: Access-Control-Allow-Origin — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
-- Fetch Standard: Access-Control-Allow-Credentials — https://fetch.spec.whatwg.org/#http-access-control-allow-credentials
+- [MDN Access-Control-Allow-Credentials](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials): Access-Control-Allow-Credentials
+- [MDN Access-Control-Allow-Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin): Access-Control-Allow-Origin
+- [Fetch](https://fetch.spec.whatwg.org/#http-access-control-allow-credentials): Fetch Standard: Access-Control-Allow-Credentials
 
 ## Configuration
 

@@ -21,8 +21,8 @@ The stateful check augments the stateless [`client_cache_respect`](client_cache_
 
 ## Specifications
 
-- [RFC 9111 §4.2 — Calculating the age of a response](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2)
-- [RFC 9111 §4.3 — Expiration model (freshness lifetime)](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3)
+- [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2): Calculating the age of a response
+- [RFC 9111 §4.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3): Expiration model (freshness lifetime)
 
 ## Configuration
 

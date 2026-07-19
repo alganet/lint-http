@@ -12,7 +12,7 @@ Validate that the `Max-Forwards` request header value is a decimal integer consi
 
 ## Specifications
 
-- [RFC 9110 §7.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2) — Max-Forwards header.
+- [RFC 9110 §7.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2): Max-Forwards header
 
 ## Configuration
 

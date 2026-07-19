@@ -53,10 +53,20 @@ impl Rule for SemanticOptionsMethodCapabilities {
         "When a server responds to an `OPTIONS` request with a successful status code, it\nis expected to advertise the set of communication options supported for the\nselected resource.  An `Allow` header field is the canonical way to list the\nmethods that are allowed, and absence of the header hinders clients and\nintermediaries from discovering what operations are permitted.\n\nThis rule flags successful `OPTIONS` responses that omit the `Allow` header."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §9.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7): OPTIONS method semantics (\"A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow)\").",
-            "[RFC 9110 §10.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1): `Allow` header field definition.",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.3.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7",
+                note: "OPTIONS method semantics (\"A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow)\")",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("10.2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
+                note: "`Allow` header field definition",
+            },
         ]
     }
 

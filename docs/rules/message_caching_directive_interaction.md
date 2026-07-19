@@ -12,7 +12,7 @@ Detect contradictions or redundant combinations in `Cache-Control` directives th
 
 ## Specifications
 
-- [RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3) — Cache-Control directives and cache semantics
+- [RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3): Cache-Control directives and cache semantics
 
 ## Configuration
 

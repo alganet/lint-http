@@ -52,10 +52,20 @@ impl Rule for ServerRetryAfterStatusValidity {
         "`Retry-After` is primarily defined for temporary unavailability and redirects. This rule flags responses that include `Retry-After` on statuses where its semantics are unusual.\n\nThe rule allows `Retry-After` on:\n- `503 Service Unavailable` (RFC 9110)\n- any `3xx` redirection (RFC 9110)\n- `429 Too Many Requests` (RFC 6585)"
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3): Retry-After with 503 and 3xx responses",
-            "[RFC 6585 §4](https://www.rfc-editor.org/rfc/rfc6585.html#section-4): 429 Too Many Requests may include Retry-After",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("10.2.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3",
+                note: "Retry-After with 503 and 3xx responses",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6585",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc6585.html#section-4",
+                note: "429 Too Many Requests may include Retry-After",
+            },
         ]
     }
 

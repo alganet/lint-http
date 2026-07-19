@@ -50,10 +50,13 @@ impl Rule for MessageMultipartBoundarySyntax {
         "Validate that `Content-Type: multipart/*` includes a required `boundary` parameter and that the boundary value follows the rules in RFC 2046 §5.1.1: the boundary value, after optional quoted-string processing and unescaping, must be between 1 and 70 characters, must not end with whitespace, and must only contain characters from the defined set (letters, digits, and \"'() + _ , - . / : = ?\" and space when quoted)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 2046 §5.1.1 — Multipart common syntax and boundary parameter](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1)",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 2046",
+            section: Some("5.1.1"),
+            url: "https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1",
+            note: "Multipart common syntax and boundary parameter",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

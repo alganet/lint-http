@@ -86,10 +86,20 @@ impl Rule for MessageEtagSyntax {
         "Validate that the `ETag` response header contains a single, syntactically valid entity-tag (strong or weak) as defined by RFC 9110. This rule flags non-UTF-8 header values, the use of the special `*` value (which is only meaningful in conditional request headers), and the presence of multiple `ETag` header fields."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §7.6 — Entity Tag](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6)",
-            "[RFC 9110 §8.8.3 — ETag header field](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6",
+                note: "Entity Tag",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
+                note: "ETag header field",
+            },
         ]
     }
 

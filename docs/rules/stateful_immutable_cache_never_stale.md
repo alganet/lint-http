@@ -14,8 +14,8 @@ This rule reconstructs a small piece of cache state for a given client and resou
 
 ## Specifications
 
-- [RFC 8246 §3 — "immutable" directive](https://datatracker.ietf.org/doc/html/rfc8246#section-3)
-- [RFC 9111 §4.2/§4.3 — Calculating age and expiration](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2)
+- [RFC 8246 §3](https://www.rfc-editor.org/rfc/rfc8246.html#section-3): "immutable" directive
+- [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2): Calculating age and expiration (§4.2/§4.3)
 
 ## Configuration
 

@@ -137,11 +137,26 @@ impl Rule for SemanticOriginMatchingForCors {
         "When a server responds to a cross-origin request the `Access-Control-Allow-Origin`\nheader must either repeat the request's `Origin` value or use the wildcard `*`.\nFurthermore, the wildcard may **not** be used in conjunction with credentials\n(`Access-Control-Allow-Credentials: true`).\n\nThis rule looks at transactions where the client supplied an `Origin` header\nand the server returned an `Access-Control-Allow-Origin` header.  It\nvalidates that the header set is semantically consistent with the request\norigin and enforces the credential restriction on `*`.  If the request's\n`Origin` value is syntactically invalid the rule also raises a violation.\n\nThis check applies to server responses (RuleScope::Server)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "RFC 6454 — The Web Origin Concept — https://datatracker.ietf.org/doc/html/rfc6454",
-            "Fetch CORS / Origin matching rules — https://fetch.spec.whatwg.org/#access-control-allow-origin-response-header",
-            "MDN: Access-Control-Allow-Origin — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin",
+            crate::rules::SpecRef {
+                spec: "RFC 6454",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc6454.html",
+                note: "The Web Origin Concept",
+            },
+            crate::rules::SpecRef {
+                spec: "Fetch",
+                section: None,
+                url: "https://fetch.spec.whatwg.org/#access-control-allow-origin-response-header",
+                note: "Fetch CORS / Origin matching rules",
+            },
+            crate::rules::SpecRef {
+                spec: "MDN Access-Control-Allow-Origin",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin",
+                note: "Access-Control-Allow-Origin",
+            },
         ]
     }
 

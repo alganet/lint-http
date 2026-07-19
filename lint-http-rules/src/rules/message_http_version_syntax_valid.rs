@@ -50,10 +50,13 @@ impl Rule for MessageHttpVersionSyntaxValid {
         "Validate that the HTTP start-line version token matches the ABNF syntax defined for HTTP-version: `HTTP\"/\"DIGIT\".\"DIGIT` (e.g., `HTTP/1.1`). This rule checks both request start-lines and response status-lines when the version token is available."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "RFC 9112 §2.3: `HTTP-version = HTTP-name \"/\" DIGIT \".\" DIGIT` (case-sensitive `HTTP`)",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9112",
+            section: Some("2.3"),
+            url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-2.3",
+            note: "`HTTP-version = HTTP-name \"/\" DIGIT \".\" DIGIT` (case-sensitive `HTTP`)",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

@@ -14,8 +14,8 @@ This rule ensures that an observed stream of transactions follows these lifecycl
 
 ## Specifications
 
-- [RFC 7616 §3.2.1 — Server challenge syntax](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.1)
-- [RFC 7616 §3.2.2 — Client response parameters (`nonce`, `nc`, `opaque`)](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.2)
+- [RFC 7616 §3.2.1](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.1): Server challenge syntax
+- [RFC 7616 §3.2.2](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.2): Client response parameters (`nonce`, `nc`, `opaque`)
 
 ## Configuration
 

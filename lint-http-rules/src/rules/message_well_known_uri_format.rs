@@ -53,10 +53,13 @@ impl Rule for MessageWellKnownUriFormat {
         "Requests that target site-wide well-known resources MUST use a path starting with `/.well-known/` followed by the resource name. Requests that use `/.well-known` without the trailing slash and name, or that include `/.well-known` at a non-root path (for example, `/foo/.well-known/bar`) are likely misconfigured and should be corrected."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 8615 §3 — Well-Known URIs](https://www.rfc-editor.org/rfc/rfc8615.html#section-3)",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 8615",
+            section: Some("3"),
+            url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-3",
+            note: "Well-Known URIs",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

@@ -117,11 +117,26 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
         "Validate that a server response's `Content-Type` matches the client's `Accept` header when present. If the request provides an `Accept` header that does not allow the response media type (for example `Accept: application/json` but response `Content-Type: text/html`), the server should consider returning `406 Not Acceptable` or use a matching representation."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §12.5.1 — Accept (media ranges and q-values)](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1)",
-            "[RFC 9110 §12.4.2 — Quality values (q parameter)](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2)",
-            "[RFC 9110 §15.5.7 — 406 Not Acceptable](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.7)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("12.5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
+                note: "Accept (media ranges and q-values)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("12.4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
+                note: "Quality values (q parameter)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.5.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.7",
+                note: "406 Not Acceptable",
+            },
         ]
     }
 

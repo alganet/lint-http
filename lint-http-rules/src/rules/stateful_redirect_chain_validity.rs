@@ -114,10 +114,13 @@ impl Rule for StatefulRedirectChainValidity {
         "Detects obvious redirect loops and repeated redirect targets for the same client+resource. The rule flags:\n\n- Immediate circular redirects where the `Location` header points back to the same request target (absolute or relative).\n- Repeated redirects for the same client+resource that point to the same `Location` as a previous response (likely misconfiguration or loop).\n\nThis is a conservative, high‑value stateful check — full multi-resource chain graph analysis is out of scope for the current per-resource state store."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §6.4 — Redirection](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4)",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("6.4"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
+            note: "Redirection",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

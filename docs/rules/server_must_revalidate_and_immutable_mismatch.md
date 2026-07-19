@@ -12,8 +12,8 @@ This rule flags responses whose `Cache-Control` header contains both `must-reval
 
 ## Specifications
 
-- [RFC 9111 §5.2.2.2 — `must-revalidate`](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.2)
-- [RFC 8246 — HTTP Immutable Responses (`immutable` directive)](https://www.rfc-editor.org/rfc/rfc8246.html)
+- [RFC 9111 §5.2.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.2): `must-revalidate`
+- [RFC 8246](https://www.rfc-editor.org/rfc/rfc8246.html): HTTP Immutable Responses (`immutable` directive)
 
 ## Configuration
 

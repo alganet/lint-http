@@ -12,8 +12,8 @@ Checks that responses where the semantics call for a `Location` header include o
 
 ## Specifications
 
-- [RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2) — `Location = URI-reference` and semantics for `201` and `3xx` responses.
-- [RFC 9110 §15.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4) — Redirection status codes and their `Location` semantics.
+- [RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2): `Location = URI-reference` and semantics for `201` and `3xx` responses
+- [RFC 9110 §15.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4): Redirection status codes and their `Location` semantics
 
 ## Configuration
 

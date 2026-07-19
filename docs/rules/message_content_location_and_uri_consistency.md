@@ -12,7 +12,7 @@ Validate `Content-Location` header values to ensure they are well-formed URI ref
 
 ## Specifications
 
-- [RFC 9110 §8.7 — Content-Location](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7)
+- [RFC 9110 §8.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7): Content-Location
 
 ## Configuration
 

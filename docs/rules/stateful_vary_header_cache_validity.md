@@ -20,7 +20,7 @@ The rule is intentionally forgiving:
 
 ## Specifications
 
-- [RFC 9111 §4.1 "How a Cache Calculates a Secondary Key"](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1)
+- [RFC 9111 §4.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1): "How a Cache Calculates a Secondary Key"
 
 ## Configuration
 

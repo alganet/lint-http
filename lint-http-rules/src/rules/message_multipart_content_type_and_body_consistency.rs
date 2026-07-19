@@ -75,10 +75,13 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
         "When a `Content-Type` header declares `multipart/*` it MUST include a `boundary` parameter and the corresponding message body (when present) MUST use that boundary to delimit parts. This rule verifies that when a `multipart/*` Content-Type provides a boundary and a captured body is available, the body contains at least one boundary marker (`--<boundary>`) and a terminating boundary (`--<boundary>--`). Missing markers indicate a malformed or truncated multipart body and may break message parsing."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 2046 §5.1.1 — Multipart common syntax and the `boundary` parameter](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1)",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 2046",
+            section: Some("5.1.1"),
+            url: "https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1",
+            note: "Multipart common syntax and the `boundary` parameter",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

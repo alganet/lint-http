@@ -134,10 +134,20 @@ impl Rule for ClientSecWebsocketHeadersConsistency {
         "For `GET` requests with `Upgrade: websocket`, validate that the WebSocket client handshake request includes required headers and well-formed values:\n\n- `Connection` header includes the `Upgrade` token.\n- `Sec-WebSocket-Version` is present and equals `13`.\n- `Sec-WebSocket-Key` is present and decodes from base64 to 16 bytes (nonce).\n\nThis rule helps detect malformed WebSocket upgrade requests that will be rejected by compliant servers (RFC 6455)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 6455 §4.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1) — Client Handshake: request must be GET and include `Upgrade: websocket` and `Connection: Upgrade`.",
-            "[RFC 6455 §4.2.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.1) — `Sec-WebSocket-Key` must be a base64-encoded 16-byte nonce; `Sec-WebSocket-Version` expected value is `13`.",
+            crate::rules::SpecRef {
+                spec: "RFC 6455",
+                section: Some("4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1",
+                note: "Client Handshake: request must be GET and include `Upgrade: websocket` and `Connection: Upgrade`",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6455",
+                section: Some("4.2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.1",
+                note: "`Sec-WebSocket-Key` must be a base64-encoded 16-byte nonce; `Sec-WebSocket-Version` expected value is `13`",
+            },
         ]
     }
 

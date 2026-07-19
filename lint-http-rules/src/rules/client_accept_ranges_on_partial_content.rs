@@ -102,10 +102,20 @@ impl Rule for ClientAcceptRangesOnPartialContent {
         "Clients should track server advertising of range support via the `Accept-Ranges` response header and avoid sending `Range` requests when the server has explicitly advertised `Accept-Ranges: none`. If a previous response for the same resource was `206 Partial Content` but did not advertise `Accept-Ranges`, clients should be conservative and avoid sending subsequent `Range` requests unless the server signals support."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §7.3.4 — `Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`.](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4)",
-            "[RFC 7233 §4.1 — `206 Partial Content` and `Content-Range`.](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.3.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4",
+                note: "`Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7233",
+                section: Some("4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1",
+                note: "`206 Partial Content` and `Content-Range`",
+            },
         ]
     }
 

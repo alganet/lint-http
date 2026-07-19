@@ -12,8 +12,8 @@ This rule checks that the `X-XSS-Protection` response header, when present, uses
 
 ## Specifications
 
-- MDN: X-XSS-Protection — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-XSS-Protection
-- OWASP guidance: https://owasp.org/www-community/controls/Response_Headers
+- [MDN X-XSS-Protection](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection): X-XSS-Protection
+- [OWASP Secure Headers](https://owasp.org/www-project-secure-headers/): OWASP guidance
 
 ## Configuration
 

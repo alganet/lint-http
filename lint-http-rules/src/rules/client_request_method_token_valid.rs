@@ -48,10 +48,20 @@ impl Rule for ClientRequestMethodTokenValid {
         "HTTP request methods are tokens and must conform to the `token` (tchar) grammar. This rule flags method tokens that contain invalid characters (for example, spaces, control characters, `@`) or include lowercase alphabetic characters."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9112 §5.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-5.1): Methods",
-            "[RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens (tchar)",
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-5.1",
+                note: "Methods",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.6.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+                note: "Tokens (tchar)",
+            },
         ]
     }
 

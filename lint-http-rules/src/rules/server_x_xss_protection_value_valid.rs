@@ -80,10 +80,20 @@ impl Rule for ServerXXssProtectionValueValid {
         "This rule checks that the `X-XSS-Protection` response header, when present, uses an expected and safe value. Historically, the header accepted `0` to disable the browser's cross-site scripting filter and `1; mode=block` to enable blocking; other values are unsupported or ambiguous and should be avoided."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "MDN: X-XSS-Protection — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-XSS-Protection",
-            "OWASP guidance: https://owasp.org/www-community/controls/Response_Headers",
+            crate::rules::SpecRef {
+                spec: "MDN X-XSS-Protection",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection",
+                note: "X-XSS-Protection",
+            },
+            crate::rules::SpecRef {
+                spec: "OWASP Secure Headers",
+                section: None,
+                url: "https://owasp.org/www-project-secure-headers/",
+                note: "OWASP guidance",
+            },
         ]
     }
 

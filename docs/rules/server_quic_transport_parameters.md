@@ -17,8 +17,8 @@ Validates that QUIC transport parameters negotiated during the handshake are rea
 
 ## Specifications
 
-- [RFC 9000 §18.2](https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2) — Transport Parameter Definitions.
-- [RFC 9114 §3.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1) — Discovering an HTTP/3 Endpoint.
+- [RFC 9000 §18.2](https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2): Transport Parameter Definitions
+- [RFC 9114 §3.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1): Discovering an HTTP/3 Endpoint
 
 ## Configuration
 

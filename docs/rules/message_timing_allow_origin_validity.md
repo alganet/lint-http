@@ -17,8 +17,8 @@ invalid origin serializations.
 
 ## Specifications
 
-- [Resource Timing §4.5.1 — `Timing-Allow-Origin` response header](https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin)
-- [RFC 6454 — Origin (serialized-origin form)](https://www.rfc-editor.org/rfc/rfc6454.html)
+- [Resource Timing §4.5.1](https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin): `Timing-Allow-Origin` response header
+- [RFC 6454](https://www.rfc-editor.org/rfc/rfc6454.html): Origin (serialized-origin form)
 
 ## Configuration
 

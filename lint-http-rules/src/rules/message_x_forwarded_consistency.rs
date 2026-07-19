@@ -207,14 +207,16 @@ impl Rule for MessageXForwardedConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Validate common `X-Forwarded-*` headers for well-formedness and basic consistency. This rule checks that:\n\n- `X-Forwarded-For` contains only IP addresses (or the token `unknown`),\n- `X-Forwarded-Proto` uses a supported scheme (`http` or `https`), and\n- `X-Forwarded-Host` contains a syntactically valid host (optionally with port, or bracketed IPv6 with optional port).\n\nThese checks help detect misconfigured proxies that may produce malformed or misleading forwarding headers. Note: RFC 7239 specifies the standardized `Forwarded` header as a replacement for ad-hoc `X-Forwarded-*` headers; this rule validates the widely-used legacy `X-Forwarded-*` fields for basic correctness."
+        "Validate common `X-Forwarded-*` headers for well-formedness and basic consistency. This rule checks that:\n\n- `X-Forwarded-For` contains only IP addresses (or the token `unknown`),\n- `X-Forwarded-Proto` uses a supported scheme (`http` or `https`), and\n- `X-Forwarded-Host` contains a syntactically valid host (optionally with port, or bracketed IPv6 with optional port).\n\nThese checks help detect misconfigured proxies that may produce malformed or misleading forwarding headers. Note: RFC 7239 specifies the standardized `Forwarded` header as a replacement for ad-hoc `X-Forwarded-*` headers; this rule validates the widely-used legacy `X-Forwarded-*` fields for basic correctness.\n\nPractical usage: `X-Forwarded-For` is commonly used to record client addresses in order; this rule conservatively accepts `unknown` token for cases where the sender can't be determined."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 7239 §4](https://www.rfc-editor.org/rfc/rfc7239.html#section-4): `Forwarded` header syntax (standardized alternative to `X-Forwarded-*`).",
-            "Practical usage: `X-Forwarded-For` is commonly used to record client addresses in order; this rule conservatively accepts `unknown` token for cases where the sender can't be determined.",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 7239",
+            section: Some("4"),
+            url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-4",
+            note: "`Forwarded` header syntax (standardized alternative to `X-Forwarded-*`)",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

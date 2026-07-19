@@ -131,11 +131,26 @@ impl Rule for StatefulRangeRequestAndCaching {
         "Caches that store partial responses (206 Partial Content) risk serving stale or incomplete data if they later satisfy a Range request without validating that those partial fragments still match the current representation.  To avoid this, caches SHOULD supply an `If-Range` validator when issuing a subsequent request that contains a `Range` header; the origin server can then return the entire representation if the stored fragments are out of date (RFC 7233 §3.2).\n\nThis rule tracks earlier transactions for the same client and resource.  If a previous response was 206 and included a **strong** validator (a strong `ETag` – weak tags are ignored – or a `Last-Modified` date), a later Range request is expected to provide `If-Range`.  The rule warns when the header is missing or when its value does not match the validator observed in the earlier 206 response.  Note that while `If-Range` can use either kind of validator, combining partial responses into a complete representation requires a shared strong `ETag` (RFC 9111 §3.4)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 7233 §3.2 — `If-Range` precondition to `Range` requests.](https://www.rfc-editor.org/rfc/rfc7233.html#section-3.2)",
-            "[RFC 9111 §4.3.1 — Caches SHOULD send `If-Range` when validating partial responses](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1).",
-            "[RFC 9111 §3.4 — Combining partial content requires a shared strong validator.](https://www.rfc-editor.org/rfc/rfc9111.html#section-3.4)",
+            crate::rules::SpecRef {
+                spec: "RFC 7233",
+                section: Some("3.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc7233.html#section-3.2",
+                note: "`If-Range` precondition to `Range` requests",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("4.3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1",
+                note: "Caches SHOULD send `If-Range` when validating partial responses",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("3.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3.4",
+                note: "Combining partial content requires a shared strong validator",
+            },
         ]
     }
 

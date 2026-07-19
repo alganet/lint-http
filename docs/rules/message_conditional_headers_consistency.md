@@ -12,9 +12,9 @@ Validate consistency and mutual exclusivity of conditional request headers. This
 
 ## Specifications
 
-- [RFC 9110 §13.1 — Preconditions](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1)
-- [RFC 9110 §13.2 — Evaluation of Preconditions (precedence rules)](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2)
-- [RFC 9110 §14.2 — Range (If-Range interplay)](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2)
+- [RFC 9110 §13.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1): Preconditions
+- [RFC 9110 §13.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2): Evaluation of Preconditions (precedence rules)
+- [RFC 9110 §14.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2): Range (If-Range interplay)
 
 ## Configuration
 

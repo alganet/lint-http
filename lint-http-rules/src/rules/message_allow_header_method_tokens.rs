@@ -83,10 +83,20 @@ impl Rule for MessageAllowHeaderMethodTokens {
         "Validate the `Allow` header. This rule enforces that:\n\n- When present, `Allow` MUST be a comma-separated list of valid method tokens.\n- Each method token must conform to the `token` grammar (RFC `tchar`).\n- Empty tokens are not allowed (e.g., from trailing commas or double commas)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1) — Allow header field",
-            "[RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2) — Token syntax (tchar)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.1.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1",
+                note: "Allow header field",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.6.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+                note: "Token syntax (tchar)",
+            },
         ]
     }
 

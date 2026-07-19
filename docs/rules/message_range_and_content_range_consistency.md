@@ -13,9 +13,9 @@ This rule enforces that 206 (Partial Content) responses include a valid `Content
 
 ## Specifications
 
-- [RFC 7233 §4.1 — 206 Partial Content: single-part 206 responses MUST include a `Content-Range` header describing the enclosed range.](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1)
-- [RFC 7233 §4.2 — Content-Range: syntax of `Content-Range` and the semantics for satisfied and unsatisfiable ranges.](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.2)
-- [RFC 7233 §4.4 — 416 Range Not Satisfiable: server SHOULD include `Content-Range: bytes */<complete-length>` in 416 responses.](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.4)
+- [RFC 7233 §4.1](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.1): 206 Partial Content: single-part 206 responses MUST include a `Content-Range` header describing the enclosed range
+- [RFC 7233 §4.2](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.2): Content-Range: syntax of `Content-Range` and the semantics for satisfied and unsatisfiable ranges
+- [RFC 7233 §4.4](https://www.rfc-editor.org/rfc/rfc7233.html#section-4.4): 416 Range Not Satisfiable: server SHOULD include `Content-Range: bytes */<complete-length>` in 416 responses
 
 ## Configuration
 

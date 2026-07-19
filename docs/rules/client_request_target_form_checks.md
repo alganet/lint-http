@@ -18,7 +18,7 @@ These checks help ensure request-targets are semantically correct and avoid ambi
 
 ## Specifications
 
-- [RFC 9112 §2.7](https://www.rfc-editor.org/rfc/rfc9112.html#section-2.7) — Request Target Forms: origin-form, absolute-form, authority-form, asterisk-form.
+- [RFC 9112 §2.7](https://www.rfc-editor.org/rfc/rfc9112.html#section-2.7): Request Target Forms: origin-form, absolute-form, authority-form, asterisk-form
 
 ## Configuration
 

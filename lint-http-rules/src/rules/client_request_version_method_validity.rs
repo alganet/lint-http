@@ -79,13 +79,38 @@ impl Rule for ClientRequestVersionMethodValidity {
         "Clients SHOULD use request methods whose semantics align with the message\ncontent they are sending.  Some methods either forbid or have no defined\nsemantics for a request body; sending content with those methods can lead to\ninteroperability problems or security risks (e.g. request smuggling).  This\nrule flags any request that claims a non-zero body when the method's\nsemantics do not allow it.\n\nThe most obvious examples are GET and HEAD (which have no defined request\npayload semantics) but the same guidance applies to DELETE, TRACE, and\nCONNECT.  By enforcing this rule, users are encouraged to choose methods like\nPOST, PUT, PATCH, or OPTIONS when content is required."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "RFC 9110 §9.3.1 (GET) – ‘‘A client **SHOULD NOT** generate content in a GET request ...’’",
-            "RFC 9110 §9.3.2 (HEAD) – ‘‘A client **SHOULD NOT** generate content in a HEAD request ...’’",
-            "RFC 9110 §9.3.5 (DELETE) – ‘‘content received in a DELETE request has no generally defined semantics ... A client **SHOULD NOT** generate content in a DELETE request ...’’",
-            "RFC 9110 §9.3.6 (CONNECT) – ‘‘A CONNECT request message **does not have content**.’'",
-            "RFC 9110 §9.3.8 (TRACE) – ‘‘A client **MUST NOT** send content in a TRACE request.’'",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.1",
+                note: "GET",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.3.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
+                note: "HEAD",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.3.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5",
+                note: "DELETE",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.3.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
+                note: "CONNECT",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.3.8"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8",
+                note: "TRACE",
+            },
         ]
     }
 

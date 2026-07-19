@@ -13,7 +13,7 @@ This rule flags malformed directives, invalid token characters, empty members, a
 
 ## Specifications
 
-- [RFC 9110 §8.2 — Pragma](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.2)
+- [RFC 9110 §8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.2): Pragma
 
 ## Configuration
 

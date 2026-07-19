@@ -14,7 +14,7 @@ Servers and clients relying on Digest authentication may behave incorrectly when
 
 ## Specifications
 
-- [RFC 7616 §3.2.2 — HTTP Digest Access Authentication](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.2)
+- [RFC 7616 §3.2.2](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.2): HTTP Digest Access Authentication
 
 ## Configuration
 

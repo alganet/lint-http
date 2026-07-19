@@ -96,10 +96,20 @@ impl Rule for MessageCrossOriginResourcePolicyValid {
         "This rule checks the `Cross-Origin-Resource-Policy` response header value and ensures it is one of the allowed tokens: **`same-site`**, **`same-origin`**, or **`cross-origin`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. This header is response-only per the W3C Cross-Origin Resource Policy specification; the rule applies to server responses (RuleScope::Server)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "W3C: Cross-Origin Resource Policy — https://w3c.github.io/webappsec-corp/",
-            "MDN: Cross-Origin-Resource-Policy — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Resource-Policy",
+            crate::rules::SpecRef {
+                spec: "Fetch",
+                section: None,
+                url: "https://fetch.spec.whatwg.org/",
+                note: "W3C: Cross-Origin Resource Policy",
+            },
+            crate::rules::SpecRef {
+                spec: "MDN Cross-Origin-Resource-Policy",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Resource-Policy",
+                note: "Cross-Origin-Resource-Policy",
+            },
         ]
     }
 

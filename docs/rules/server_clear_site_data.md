@@ -12,8 +12,8 @@ Checks that configured logout paths include a `Clear-Site-Data` header so client
 
 ## Specifications
 
-- [W3C Clear Site Data Specification](https://www.w3.org/TR/clear-site-data/)
-- [MDN: Clear-Site-Data](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Clear-Site-Data)
+- [Clear-Site-Data](https://www.w3.org/TR/clear-site-data/): W3C Clear Site Data Specification
+- [MDN Clear-Site-Data](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Clear-Site-Data): Clear-Site-Data
 
 ## Configuration
 

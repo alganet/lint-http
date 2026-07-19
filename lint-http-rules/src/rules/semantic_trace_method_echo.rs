@@ -139,10 +139,20 @@ impl Rule for SemanticTraceMethodEcho {
         "Validate TRACE method semantics with two pragmatic checks:\n1. A TRACE request must not carry content.\n2. If a TRACE response carries content, it should use `Content-Type: message/http`.\n\nThese checks help catch incorrect TRACE handling and improve interoperability for diagnostics tooling."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §9.3.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8): TRACE semantics; clients `MUST NOT` send content in TRACE requests, and successful TRACE responses `SHOULD` use `message/http`.",
-            "[RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): `Content-Type` field semantics.",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.3.8"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8",
+                note: "TRACE semantics; clients `MUST NOT` send content in TRACE requests, and successful TRACE responses `SHOULD` use `message/http`",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+                note: "`Content-Type` field semantics",
+            },
         ]
     }
 

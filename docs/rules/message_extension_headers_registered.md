@@ -12,8 +12,8 @@ Non-standard or extension header field-names (i.e., those not registered in the 
 
 ## Specifications
 
-- [RFC 9110 §5.1 — Field names](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1)
-- [IANA HTTP Field Name Registry](https://www.iana.org/assignments/http-field-names/http-field-names.xhtml)
+- [RFC 9110 §5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1): Field names
+- [IANA HTTP Field Name Registry](https://www.iana.org/assignments/http-fields/http-fields.xhtml): IANA HTTP Field Name Registry
 
 ## Configuration
 

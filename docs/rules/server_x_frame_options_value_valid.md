@@ -12,8 +12,8 @@ The `X-Frame-Options` response header protects content from being embedded in fr
 
 ## Specifications
 
-- [RFC 7034 §2.1](https://www.rfc-editor.org/rfc/rfc7034.html#section-2.1) — `X-Frame-Options` header values: `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <serialized-origin>`.
-- [RFC 6454 §6](https://www.rfc-editor.org/rfc/rfc6454.html#section-6) — `serialized-origin` syntax (`scheme://host[:port]`).
+- [RFC 7034 §2.1](https://www.rfc-editor.org/rfc/rfc7034.html#section-2.1): `X-Frame-Options` header values: `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <serialized-origin>`
+- [RFC 6454 §6](https://www.rfc-editor.org/rfc/rfc6454.html#section-6): `serialized-origin` syntax (`scheme://host[:port]`)
 
 ## Configuration
 

@@ -154,11 +154,26 @@ impl Rule for MessageContentTypeIanaRegistered {
         "This rule checks that `Content-Type` media types (both requests and responses) are either a known, allowed media type or match an explicitly configured allowlist. This helps flag unregistered or accidental vendor types that may cause interoperability problems."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type header and media type syntax",
-            "[RFC 6838](https://www.rfc-editor.org/rfc/rfc6838.html): Media Type specifications and registration procedures (IANA)",
-            "[IANA Media Types Registry](https://www.iana.org/assignments/media-types/media-types.xhtml)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+                note: "Content-Type header and media type syntax",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6838",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc6838.html",
+                note: "Media Type specifications and registration procedures (IANA)",
+            },
+            crate::rules::SpecRef {
+                spec: "IANA Media Types",
+                section: None,
+                url: "https://www.iana.org/assignments/media-types/media-types.xhtml",
+                note: "IANA Media Types Registry",
+            },
         ]
     }
 

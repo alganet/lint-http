@@ -83,10 +83,13 @@ impl Rule for MessageCacheControlDirectiveValidity {
         "Validate `Cache-Control` directive names and argument formats for common correctness issues. This rule enforces directive-specific semantics such as:\n\n- `max-age` and `s-maxage` must have non-negative integer values (delta-seconds).\n- `private` and `no-cache` when carrying a field-name-list must provide a comma-separated list of field-names (tokens) either as an unquoted list or inside a quoted-string.\n- Unquoted directive values must follow the `token` grammar and quoted values must be valid `quoted-string`s.\n\nThis rule complements `message_cache_control_token_valid` which enforces general token/quoted-string syntax."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2) — Cache-Control directives and general directive syntax",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("5.2"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
+            note: "Cache-Control directives and general directive syntax",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

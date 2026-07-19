@@ -12,7 +12,7 @@ When a client sends a `Prefer` request header, servers MAY include a `Preference
 
 ## Specifications
 
-- [RFC 7240 §3](https://www.rfc-editor.org/rfc/rfc7240.html#section-3) — `Preference-Applied` header and ABNF
+- [RFC 7240 §3](https://www.rfc-editor.org/rfc/rfc7240.html#section-3): `Preference-Applied` header and ABNF
 
 ## Configuration
 

@@ -199,10 +199,20 @@ impl Rule for MessageCharsetIanaRegistered {
         "If a `Content-Type` header includes a `charset` parameter, the value SHOULD be an IANA-registered character set name (case-insensitive) or match one from an explicit allowlist. This rule detects empty or syntactically invalid `charset` values and reports unrecognized charsets according to configured policy."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §6.4 — Media Type `charset` parameter semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4)",
-            "[IANA Character Sets registry](https://www.iana.org/assignments/character-sets/character-sets.xhtml)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("6.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
+                note: "Media Type `charset` parameter semantics",
+            },
+            crate::rules::SpecRef {
+                spec: "IANA Character Sets",
+                section: None,
+                url: "https://www.iana.org/assignments/character-sets/character-sets.xhtml",
+                note: "IANA Character Sets registry",
+            },
         ]
     }
 

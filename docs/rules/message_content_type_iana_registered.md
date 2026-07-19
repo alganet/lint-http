@@ -14,7 +14,7 @@ This rule checks that `Content-Type` media types (both requests and responses) a
 
 - [RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type header and media type syntax
 - [RFC 6838](https://www.rfc-editor.org/rfc/rfc6838.html): Media Type specifications and registration procedures (IANA)
-- [IANA Media Types Registry](https://www.iana.org/assignments/media-types/media-types.xhtml)
+- [IANA Media Types](https://www.iana.org/assignments/media-types/media-types.xhtml): IANA Media Types Registry
 
 ## Configuration
 

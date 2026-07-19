@@ -261,11 +261,26 @@ impl Rule for MessageCookieAttributeConsistency {
         "Validate `Set-Cookie` attributes for syntactic correctness and common security consistency rules. This rule parses `Set-Cookie` header values and flags:\n\n- Invalid cookie-name tokens.\n- Malformed attributes (e.g., `Max-Age` non-numeric, `Expires` not an HTTP-date).\n- `Path` values that don't start with `/`.\n- `Domain` values that are empty or contain spaces.\n- `SameSite` values other than `Strict`, `Lax`, or `None`.\n- `SameSite=None` cookies that are not marked `Secure` (browser behaviour / compatibility requirement).\n- `Secure` and `HttpOnly` attributes that incorrectly include a value (they must be flags)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 6265 §5.2.2 — Set-Cookie header attributes and semantics](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.2)",
-            "[MDN — SameSite cookies (SameSite=None should be Secure)](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite) — browser compatibility guidance on `SameSite` usage.",
-            "[RFC 9110 §7.1.1 — HTTP-date (IMF-fixdate)](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1) — used for the `Expires` attribute.",
+            crate::rules::SpecRef {
+                spec: "RFC 6265",
+                section: Some("5.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.2",
+                note: "Set-Cookie header attributes and semantics",
+            },
+            crate::rules::SpecRef {
+                spec: "MDN Set-Cookie",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie",
+                note: "SameSite cookies (SameSite=None should be Secure) — browser compatibility guidance on `SameSite` usage",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.1.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1",
+                note: "HTTP-date (IMF-fixdate) — used for the `Expires` attribute",
+            },
         ]
     }
 

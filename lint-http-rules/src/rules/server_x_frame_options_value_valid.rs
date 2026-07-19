@@ -93,10 +93,20 @@ impl Rule for ServerXFrameOptionsValueValid {
         "The `X-Frame-Options` response header protects content from being embedded in frames by other origins. This rule validates that the header, when present, uses one of the allowed values: `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <serialized-origin>`. It also rejects multiple header occurrences and malformed `ALLOW-FROM` origins."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 7034 §2.1](https://www.rfc-editor.org/rfc/rfc7034.html#section-2.1) — `X-Frame-Options` header values: `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <serialized-origin>`.",
-            "[RFC 6454 §6](https://www.rfc-editor.org/rfc/rfc6454.html#section-6) — `serialized-origin` syntax (`scheme://host[:port]`).",
+            crate::rules::SpecRef {
+                spec: "RFC 7034",
+                section: Some("2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc7034.html#section-2.1",
+                note: "`X-Frame-Options` header values: `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <serialized-origin>`",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6454",
+                section: Some("6"),
+                url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-6",
+                note: "`serialized-origin` syntax (`scheme://host[:port]`)",
+            },
         ]
     }
 

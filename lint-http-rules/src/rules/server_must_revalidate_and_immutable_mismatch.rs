@@ -85,10 +85,20 @@ impl Rule for ServerMustRevalidateAndImmutableMismatch {
         "This rule flags responses whose `Cache-Control` header contains both `must-revalidate` and `immutable`. These directives have conflicting operational implications: `must-revalidate` requires caches to revalidate once a response becomes stale, while `immutable` signals that a response is intended to remain unchanged and avoid revalidation during its freshness lifetime (RFC 8246). Having both in the same response is likely a configuration mistake."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9111 §5.2.2.2 — `must-revalidate`](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.2)",
-            "[RFC 8246 — HTTP Immutable Responses (`immutable` directive)](https://www.rfc-editor.org/rfc/rfc8246.html)",
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("5.2.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.2",
+                note: "`must-revalidate`",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 8246",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc8246.html",
+                note: "HTTP Immutable Responses (`immutable` directive)",
+            },
         ]
     }
 

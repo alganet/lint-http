@@ -12,9 +12,9 @@ Validate `Transfer-Encoding` and `TE` header values to ensure transfer-coding to
 
 ## Specifications
 
-- [RFC 9112 §6.1 — Transfer Coding](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1)
-- [RFC 9110 §10.1.4 — TE header](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4)
-- [IANA Transfer Coding registry](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#transfer-coding)
+- [RFC 9112 §6.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1): Transfer Coding
+- [RFC 9110 §10.1.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4): TE header
+- [IANA HTTP Parameters](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#transfer-coding): IANA Transfer Coding registry
 
 ## Configuration
 

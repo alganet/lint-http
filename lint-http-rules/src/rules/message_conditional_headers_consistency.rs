@@ -105,11 +105,26 @@ impl Rule for MessageConditionalHeadersConsistency {
         "Validate consistency and mutual exclusivity of conditional request headers. This rule enforces the evaluation precedence of conditional headers (ETag-based conditionals take precedence over date-based ones), ensures `If-Range` is only used with `Range` requests, and disallows weak ETags in `If-Range` when an entity-tag is used."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §13.1 — Preconditions](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1)",
-            "[RFC 9110 §13.2 — Evaluation of Preconditions (precedence rules)](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2)",
-            "[RFC 9110 §14.2 — Range (If-Range interplay)](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("13.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1",
+                note: "Preconditions",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("13.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2",
+                note: "Evaluation of Preconditions (precedence rules)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("14.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
+                note: "Range (If-Range interplay)",
+            },
         ]
     }
 

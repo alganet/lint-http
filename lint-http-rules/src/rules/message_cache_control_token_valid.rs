@@ -83,10 +83,13 @@ impl Rule for MessageCacheControlTokenValid {
         "Validate `Cache-Control` directive names and unquoted values follow the `token` grammar. Values that are quoted-strings are validated as quoted strings. Empty header values and empty directive members are flagged as violations."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2) — Cache-Control directives and general directive syntax",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("5.2"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
+            note: "Cache-Control directives and general directive syntax",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

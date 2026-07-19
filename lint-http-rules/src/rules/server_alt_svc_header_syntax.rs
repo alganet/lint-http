@@ -180,8 +180,13 @@ impl Rule for ServerAltSvcHeaderSyntax {
         "Validate the `Alt-Svc` response header. Each value must be of the form `protocol=authority` with optional `;` parameters (e.g., `ma`). The `protocol` token must be a valid HTTP `token`, and `authority` should be a non-empty host[:port] or a quoted authority. If a port is present, it must be numeric."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &["[RFC 7838](https://www.rfc-editor.org/rfc/rfc7838.html) — Alternative Services"]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 7838",
+            section: None,
+            url: "https://www.rfc-editor.org/rfc/rfc7838.html",
+            note: "Alternative Services",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

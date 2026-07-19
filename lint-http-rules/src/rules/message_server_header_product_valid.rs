@@ -121,9 +121,14 @@ impl Rule for MessageServerHeaderProductValid {
         "Validate the `Server` response header's product tokens and optional product versions. Each product must be a `token` and the optional version (after `/`) must also be a `token`. Parenthesized comments are accepted per the header's grammar and are ignored for token validation."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1) — `Server` header field and `product` grammar: product = token [\"/\" product-version] *( RWS ( product / comment ) )",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.1.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1",
+                note: "`Server` header field and `product` grammar: product = token [\"/\" product-version] *( RWS ( product / comment ) )",
+            },
         ]
     }
 

@@ -12,7 +12,7 @@ When a `Keep-Alive` header includes a `timeout` directive, this rule checks that
 
 ## Specifications
 
-- [RFC 7230 §6.7 - Connection management and the `Keep-Alive` discussion](https://www.rfc-editor.org/rfc/rfc7230.html#section-6.7) — `Keep-Alive` is a legacy header and must be treated conservatively; this rule validates `timeout` semantics only.
+- [RFC 7230 §6.7](https://www.rfc-editor.org/rfc/rfc7230.html#section-6.7): Connection management and the `Keep-Alive` discussion — `Keep-Alive` is a legacy header and must be treated conservatively; this rule validates `timeout` semantics only
 
 ## Configuration
 

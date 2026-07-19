@@ -14,7 +14,7 @@ This rule tracks the transaction history by origin and flags if a client receive
 
 ## Specifications
 
-- [RFC 9110 §11.6.2 — 401 Unauthorized](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2)
+- [RFC 9110 §11.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2): 401 Unauthorized
 
 ## Configuration
 

@@ -12,8 +12,8 @@ If a `Content-Type` header includes a `charset` parameter, the value SHOULD be a
 
 ## Specifications
 
-- [RFC 9110 §6.4 — Media Type `charset` parameter semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4)
-- [IANA Character Sets registry](https://www.iana.org/assignments/character-sets/character-sets.xhtml)
+- [RFC 9110 §6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4): Media Type `charset` parameter semantics
+- [IANA Character Sets](https://www.iana.org/assignments/character-sets/character-sets.xhtml): IANA Character Sets registry
 
 ## Configuration
 

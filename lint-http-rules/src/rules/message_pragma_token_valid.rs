@@ -87,8 +87,13 @@ impl Rule for MessagePragmaTokenValid {
         "The `Pragma` header directives must follow directive syntax: a `token` optionally followed by `=token` or `=\"quoted-string\"`.\nThis rule flags malformed directives, invalid token characters, empty members, and non-UTF8 header values."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &["[RFC 9110 §8.2 — Pragma](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.2)"]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("8.2"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.2",
+            note: "Pragma",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

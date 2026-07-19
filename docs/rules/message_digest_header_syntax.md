@@ -17,7 +17,7 @@ RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest
 
 ## Specifications
 
-- [RFC 9530 §2, §3, §4 - Content-Digest / Repr-Digest / Want-* fields](https://www.rfc-editor.org/rfc/rfc9530.html)
+- [RFC 9530 §2](https://www.rfc-editor.org/rfc/rfc9530.html#section-2): Content-Digest / Repr-Digest / Want-* fields
 
 ## Configuration
 

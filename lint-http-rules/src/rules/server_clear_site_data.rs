@@ -136,10 +136,20 @@ impl Rule for ServerClearSiteData {
         "Checks that configured logout paths include a `Clear-Site-Data` header so client-side storage (cookies, cache, storage) is cleared on logout."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[W3C Clear Site Data Specification](https://www.w3.org/TR/clear-site-data/)",
-            "[MDN: Clear-Site-Data](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Clear-Site-Data)",
+            crate::rules::SpecRef {
+                spec: "Clear-Site-Data",
+                section: None,
+                url: "https://www.w3.org/TR/clear-site-data/",
+                note: "W3C Clear Site Data Specification",
+            },
+            crate::rules::SpecRef {
+                spec: "MDN Clear-Site-Data",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Clear-Site-Data",
+                note: "Clear-Site-Data",
+            },
         ]
     }
 

@@ -16,11 +16,11 @@ Responses MUST include exactly one `:status` pseudo-header field containing a th
 
 ## Specifications
 
-- [RFC 9114 §4.3 — HTTP Control Data](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3)
-- [RFC 9114 §4.3.1 — Request Pseudo-Header Fields](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1)
-- [RFC 9114 §4.3.2 — Response Pseudo-Header Fields](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.2)
-- [RFC 9114 §4.4 — The CONNECT Method](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.4)
-- [RFC 9110 §7.1 — Determining the Target Resource](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1)
+- [RFC 9114 §4.3](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3): HTTP Control Data
+- [RFC 9114 §4.3.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1): Request Pseudo-Header Fields
+- [RFC 9114 §4.3.2](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.2): Response Pseudo-Header Fields
+- [RFC 9114 §4.4](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.4): The CONNECT Method
+- [RFC 9110 §7.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1): Determining the Target Resource
 
 ## Configuration
 

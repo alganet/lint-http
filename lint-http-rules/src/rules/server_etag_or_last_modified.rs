@@ -49,10 +49,20 @@ impl Rule for ServerEtagOrLastModified {
         "This rule checks if `200 OK` responses include either an `ETag` or a `Last-Modified` header.\n\nThese headers act as validators, allowing clients to perform conditional requests (`If-None-Match` or `If-Modified-Since`). This enables efficient caching and revalidation, significantly reducing bandwidth when resources haven't changed."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §8.8.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.1): Last-Modified header",
-            "[RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): ETag header",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.8.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.1",
+                note: "Last-Modified header",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
+                note: "ETag header",
+            },
         ]
     }
 

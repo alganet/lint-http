@@ -16,8 +16,8 @@ misconfiguration and should be corrected.
 
 ## Specifications
 
-- [RFC 9111 §5.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3) — Cache-Control directives override Expires; recipients MUST ignore the Expires header field when max-age/s-maxage is present.
-- [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2) — Freshness and age calculations using `max-age`, `s-maxage`, and `Expires`.
+- [RFC 9111 §5.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3): Cache-Control directives override Expires; recipients MUST ignore the Expires header field when max-age/s-maxage is present
+- [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2): Freshness and age calculations using `max-age`, `s-maxage`, and `Expires`
 
 ## Configuration
 

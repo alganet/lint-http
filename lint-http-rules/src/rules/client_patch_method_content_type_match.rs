@@ -158,9 +158,14 @@ impl Rule for ClientPatchMethodContentTypeMatch {
         "When a server advertises supported patch formats using `Accept-Patch`, clients issuing `PATCH` requests SHOULD include a `Content-Type` that matches one of the advertised media types. This rule flags `PATCH` requests whose `Content-Type` does not match any media type previously advertised in an `Accept-Patch` response. It helps avoid unexpected or unsupported patch document formats (RFC 5789 §2.2)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 5789 §2.2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2) — `PATCH` and `Accept-Patch` header; Accept-Patch advertises supported patch media types.",
+            crate::rules::SpecRef {
+                spec: "RFC 5789",
+                section: Some("2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2",
+                note: "`PATCH` and `Accept-Patch` header; Accept-Patch advertises supported patch media types",
+            },
         ]
     }
 

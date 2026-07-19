@@ -64,8 +64,13 @@ impl Rule for Stateful103EarlyHintsBeforeFinal {
         "`103 Early Hints` responses are intended to be sent before the final response for the same request so that user agents can begin speculative work (for example, resource preloads). This rule flags `103` responses that are observed *after* a final response for the same client + request-target, using a stateful heuristic based on the previous transaction for that client and request-target. Because the implementation cannot reliably distinguish separate requests to the same URI, this detection may produce false positives when multiple requests to the same target are made in quick succession, but it is still useful for catching likely violations of the intent of RFC 8297."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &["[RFC 8297](https://www.rfc-editor.org/rfc/rfc8297.html) — Early Hints"]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 8297",
+            section: None,
+            url: "https://www.rfc-editor.org/rfc/rfc8297.html",
+            note: "Early Hints",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

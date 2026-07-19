@@ -16,9 +16,9 @@ This stateful check complements the existing `stateful_max_age_directive_validit
 
 ## Specifications
 
-- [RFC 9111 §5.2.2.2 — `must-revalidate`](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.2)
-- [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2) — Calculating the age of a response
-- [RFC 9111 §4.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3) — Expiration model (freshness lifetime)
+- [RFC 9111 §5.2.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.2): `must-revalidate`
+- [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2): Calculating the age of a response
+- [RFC 9111 §4.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3): Expiration model (freshness lifetime)
 
 ## Configuration
 

@@ -16,9 +16,9 @@ Request headers are checked when the request version is `HTTP/3`. Response heade
 
 ## Specifications
 
-- [RFC 9114 §4.2 — HTTP Fields](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2)
-- [RFC 9110 §7.6.1 — Connection](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1)
-- [RFC 9110 §10.1.4 — TE](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4)
+- [RFC 9114 §4.2](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2): HTTP Fields
+- [RFC 9110 §7.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1): Connection
+- [RFC 9110 §10.1.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4): TE
 
 ## Configuration
 

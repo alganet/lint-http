@@ -157,10 +157,20 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
         "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9111 §5.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3) — Cache-Control directives override Expires; recipients MUST ignore the Expires header field when max-age/s-maxage is present.",
-            "[RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2) — Freshness and age calculations using `max-age`, `s-maxage`, and `Expires`.",
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("5.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3",
+                note: "Cache-Control directives override Expires; recipients MUST ignore the Expires header field when max-age/s-maxage is present",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
+                note: "Freshness and age calculations using `max-age`, `s-maxage`, and `Expires`",
+            },
         ]
     }
 

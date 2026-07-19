@@ -122,10 +122,13 @@ impl Rule for MessageProblemDetailsStructure {
         "When a server expresses an error using the Problem Details media type (`application/problem+json`), the response body SHOULD be a JSON object carrying problem details (see RFC 7807). This rule performs conservative, syntactic checks on such responses: it verifies the response is an error (4xx/5xx) and that `application/problem+json` responses include a non-empty body. Captured bodies are available to rules in memory; the `captures_include_body` setting only controls whether bodies are persisted to the captures file. When body bytes are present, the rule will attempt to parse the body and ensure it is a non-empty JSON object. If body bytes are not present, the rule conservatively flags when a captured or indicated Content-Length of zero is present."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 7807 §3.1 — Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc7807.html#section-3.1)",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 7807",
+            section: Some("3.1"),
+            url: "https://www.rfc-editor.org/rfc/rfc7807.html#section-3.1",
+            note: "Problem Details for HTTP APIs",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

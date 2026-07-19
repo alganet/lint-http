@@ -235,11 +235,26 @@ impl Rule for MessageHttp2PseudoHeadersValidity {
         "Validate HTTP/2 pseudo-header fields used in requests and responses. Requests that include pseudo-headers must include the appropriate fields (e.g., `:method` and `:path` for most requests, `:authority` for CONNECT), and response pseudo-headers must be limited to `:status`. Values are validated for basic syntax (tokens, percent-encoding, numeric status) to detect malformed or protocol-inconsistent headers. The rule also accepts the asterisk-form (`*`) only when the method is `OPTIONS` (see specifications)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9113 §8.3.1 — Request pseudo-header fields](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1) — defines `:method`, `:scheme`, `:authority`, and `:path` and their presence/format rules (including `*` for OPTIONS and omitted `:path` for CONNECT).",
-            "[RFC 9113 §8.3.2 — Response pseudo-header fields](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.2) — defines the `:status` pseudo-header for responses.",
-            "[RFC 9113 §8.5 — CONNECT method](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.5) — CONNECT requests omit `:scheme` and `:path` and use `:authority` to carry host[:port].",
+            crate::rules::SpecRef {
+                spec: "RFC 9113",
+                section: Some("8.3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1",
+                note: "Request pseudo-header fields — defines `:method`, `:scheme`, `:authority`, and `:path` and their presence/format rules (including `*` for OPTIONS and omitted `:path` for CONNECT)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9113",
+                section: Some("8.3.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.2",
+                note: "Response pseudo-header fields — defines the `:status` pseudo-header for responses",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9113",
+                section: Some("8.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.5",
+                note: "CONNECT method — CONNECT requests omit `:scheme` and `:path` and use `:authority` to carry host[:port]",
+            },
         ]
     }
 

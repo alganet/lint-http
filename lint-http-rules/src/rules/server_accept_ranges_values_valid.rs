@@ -79,10 +79,13 @@ impl Rule for ServerAcceptRangesValuesValid {
         "Validate the `Accept-Ranges` response header. This rule enforces that:\n\n- When present, `Accept-Ranges` MUST contain only registered `range-unit` tokens.\n- For practical compatibility, this rule accepts `bytes` (the common range-unit) or `none` only.\n- The `none` token MUST NOT be combined with other range-units."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §7.3.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4) — Accept-Ranges header",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("7.3.4"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.4",
+            note: "Accept-Ranges header",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

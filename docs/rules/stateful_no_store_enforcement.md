@@ -16,8 +16,8 @@ The check is scoped to resource histories (the engine filters transactions by UR
 
 ## Specifications
 
-- [RFC 9111 §5.2.2.3 — `no-store`](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.3)
-- [RFC 9111 §4.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3) — Expiration model (validators are used for revalidation)
+- [RFC 9111 §5.2.2.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.3): `no-store`
+- [RFC 9111 §4.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3): Expiration model (validators are used for revalidation)
 
 ## Configuration
 

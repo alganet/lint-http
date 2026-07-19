@@ -17,7 +17,7 @@ This is a conservative, high‑value stateful check — full multi-resource chai
 
 ## Specifications
 
-- [RFC 9110 §6.4 — Redirection](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4)
+- [RFC 9110 §6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4): Redirection
 
 ## Configuration
 

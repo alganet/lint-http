@@ -233,10 +233,20 @@ impl Rule for MessageWarningHeaderSyntax {
         "Validate `Warning` header members follow the syntax described in RFC 7234 §5.5. Each member (a comma-separated `warn-value`) consists of:\n\n- A three-digit `warn-code` (e.g., `110`, `214`)\n- Whitespace and a `warn-agent` (host[:port] or pseudonym)\n- Whitespace and a `warn-text` which MUST be a `quoted-string`\n- Optionally, whitespace and a `warn-date` which MUST be a `quoted-string` containing an IMF-fixdate (an HTTP-date)\n\nThis rule flags empty members, invalid 3-digit codes, missing or unquoted `warn-text`, malformed `warn-date` (including invalid HTTP dates), and non-UTF8 header values."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 7234 §5.5](https://www.rfc-editor.org/rfc/rfc7234.html#section-5.5): Warning header field",
-            "[RFC 9110 §7.1.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1.1): HTTP-date (IMF-fixdate)",
+            crate::rules::SpecRef {
+                spec: "RFC 7234",
+                section: Some("5.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc7234.html#section-5.5",
+                note: "Warning header field",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.1.1.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1.1",
+                note: "HTTP-date (IMF-fixdate)",
+            },
         ]
     }
 

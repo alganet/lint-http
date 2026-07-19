@@ -122,10 +122,13 @@ impl Rule for SemanticPatchPartialUpdate {
         "The `PATCH` method is defined for applying partial modifications to an\nexisting resource.  The request entity is not the new resource state, but a\n\"patch document\" whose semantics are dictated by its media type.  If a\nclient sends a body with a `PATCH` request, the corresponding `Content-Type`\nheader field MUST describe a patch format; otherwise, the server cannot\ninterpret the change instructions and the request is likely to fail or cause\nunexpected effects.\n\nThis rule flags `PATCH` requests that include a body but either lack a\n`Content-Type` header altogether or use a media type that does not indicate a\npatch document (for example, a type or subtype that does not contain the\ntoken `patch`).  If a `Content-Type` header is present but cannot be\ninterpreted as UTF-8 or is otherwise syntactically invalid, the rule does not\nraise a violation; such problems are covered by the general\n`message_content_type_well_formed` rule."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 5789 §2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2) — Patch method semantics and patch document media types.",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 5789",
+            section: Some("2"),
+            url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2",
+            note: "Patch method semantics and patch document media types",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

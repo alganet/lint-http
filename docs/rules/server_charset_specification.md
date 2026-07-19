@@ -15,7 +15,7 @@ Specifying the character encoding is crucial for security and correct rendering.
 ## Specifications
 
 - [RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type header
-- [MDN: Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type)
+- [MDN Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type): Content-Type
 
 ## Configuration
 

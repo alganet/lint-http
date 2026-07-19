@@ -206,11 +206,26 @@ impl Rule for StatefulCookieLifecycle {
         "Cookies sent by servers via the `Set-Cookie` header establish state that a client is expected to retain and present on subsequent requests. This rule reconstructs a simplistic cookie store for a given origin and verifies that outgoing requests are consistent with that store.  It flags three broad classes of client misbehaviour:\n\n* Sending cookies after they have clearly expired or been removed.\n* Continuing to send an old value after a newer cookie with the same name/domain/path has been observed.\n* Transmitting a cookie marked `Secure` over an insecure (HTTP) transport.  The rule only flags this if the actual name/value pair sent corresponds to a known secure cookie, which avoids false positives when a non‑secure cookie with the same name is used.\n\nThe check relies solely on the captured traffic for a given client+origin; if a cookie appears in a request but the linter has never seen it set in the past, the rule assumes it pre‑dates the capture and does not complain."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 6265 §5 — Storage model](https://www.rfc-editor.org/rfc/rfc6265.html#section-5)",
-            "[RFC 6265 §5.1.3 — Domain matching](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3)",
-            "[RFC 6265 §5.1.4 — Path matching](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4)",
+            crate::rules::SpecRef {
+                spec: "RFC 6265",
+                section: Some("5"),
+                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5",
+                note: "Storage model",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6265",
+                section: Some("5.1.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3",
+                note: "Domain matching",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6265",
+                section: Some("5.1.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4",
+                note: "Path matching",
+            },
         ]
     }
 

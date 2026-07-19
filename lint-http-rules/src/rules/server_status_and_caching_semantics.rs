@@ -89,9 +89,14 @@ impl Rule for ServerStatusAndCachingSemantics {
         "Responses with certain status codes are cacheable by default (for example: `200`, `203`, `204`, `206`, `300`, `301`, `404`, `405`, `410`, `414`, `501`). For other status codes to be cacheable, servers MUST include explicit freshness information such as `Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header.\n\nThis rule warns when a response status that is not cacheable by default does not include explicit freshness information."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3) — HTTP Caching (which response status codes are cacheable by default and how freshness is established)",
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3",
+                note: "HTTP Caching (which response status codes are cacheable by default and how freshness is established)",
+            },
         ]
     }
 

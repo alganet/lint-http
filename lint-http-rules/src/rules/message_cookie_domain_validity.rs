@@ -87,10 +87,20 @@ impl Rule for MessageCookieDomainValidity {
         "Validate the `Domain` attribute of `Set-Cookie` header values. This rule checks that\n`Domain` values are syntactically valid domain names (no spaces, valid label characters,\nlabel length and overall length limits) and flags uses that are likely incorrect, such as\nIP addresses or empty values. A leading `.` is tolerated for historical reasons but is\nreported as deprecated."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 6265 §5.2.3 — `Domain` attribute semantics and format](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.3)",
-            "[RFC 1035 — Domain name label rules (length, allowed characters)](https://www.rfc-editor.org/rfc/rfc1035.html)",
+            crate::rules::SpecRef {
+                spec: "RFC 6265",
+                section: Some("5.2.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.3",
+                note: "`Domain` attribute semantics and format",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 1035",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc1035.html",
+                note: "Domain name label rules (length, allowed characters)",
+            },
         ]
     }
 

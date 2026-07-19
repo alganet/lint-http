@@ -135,10 +135,13 @@ impl Rule for MessageUserAgentTokenValid {
         "`User-Agent` header values SHOULD be syntactically valid `product` tokens as defined by HTTP (token [\"/\" token]) and MAY include parenthesized comments. This rule validates product tokens and their optional version tokens, and flags invalid characters, empty tokens, or malformed comments."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5) — `User-Agent` header field and `product` syntax (token [\"/\" product-version])",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("10.1.5"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
+            note: "`User-Agent` header field and `product` syntax (token [\"/\" product-version])",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

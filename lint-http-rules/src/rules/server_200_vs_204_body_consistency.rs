@@ -83,11 +83,26 @@ impl Rule for Server200Vs204BodyConsistency {
         "Warn when a server returns a 200 (OK) response that contains no message body and the request method is not `HEAD`. When a response intentionally has no content, the `204 No Content` status code is a more appropriate and explicit choice. This rule helps catch server misconfigurations that return `200` with an empty payload where `204` would better express the intent."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §15.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.1): 200 (OK) response semantics — expected to contain message content unless the message framing explicitly indicates zero length; consider using 204 when no content is preferred.",
-            "[RFC 9110 §15.3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.5): 204 (No Content) — indicates the server intentionally sends no content.",
-            "[RFC 9110 §6.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.2): Identifying content — rules for when responses are considered to have no content (e.g., HEAD requests or 204 responses).",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.1",
+                note: "200 (OK) response semantics — expected to contain message content unless the message framing explicitly indicates zero length; consider using 204 when no content is preferred",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.3.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.5",
+                note: "204 (No Content) — indicates the server intentionally sends no content",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("6.4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.2",
+                note: "Identifying content — rules for when responses are considered to have no content (e.g., HEAD requests or 204 responses)",
+            },
         ]
     }
 

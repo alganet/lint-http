@@ -65,8 +65,13 @@ impl Rule for ClientExpectHeaderValid {
         "Checks that the `Expect` request header, when present, follows the syntax defined by the HTTP specification. This rule validates that each list member is a `token` (ABNF token) and that any parameter (on the right-hand side of `=`) is either a token or a `quoted-string`. Quoted-string content is validated and supports quoted-pair escapes (`\\\"`); unescaped control characters (except HTAB) are rejected. Additionally, the special expectation `100-continue` MUST NOT be accompanied by parameters."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &["[RFC 9110 §10.1.1 Expect](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.1)"]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("10.1.1"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.1",
+            note: "Expect",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

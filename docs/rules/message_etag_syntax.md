@@ -12,8 +12,8 @@ Validate that the `ETag` response header contains a single, syntactically valid 
 
 ## Specifications
 
-- [RFC 9110 §7.6 — Entity Tag](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6)
-- [RFC 9110 §8.8.3 — ETag header field](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3)
+- [RFC 9110 §7.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6): Entity Tag
+- [RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): ETag header field
 
 ## Configuration
 

@@ -68,10 +68,20 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
         "Validates HTTP/3 `MAX_PUSH_ID` frame semantics across the lifetime of a connection.  This rule inspects protocol-level events emitted by the HTTP/3 control-stream parser and checks:\n\n* **MAX_PUSH_ID must not decrease** — when multiple `MAX_PUSH_ID` frames are received on the same connection, each successive value MUST be greater than or equal to the previous one.  Receipt of a smaller value is a connection error of type `H3_ID_ERROR` (RFC 9114 §7.2.7).\n\nThe first `MAX_PUSH_ID` on a connection establishes the initial limit and is always accepted, regardless of value (zero is valid and means the server is not allowed to push)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9114 §7.2.7](https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.7) — `MAX_PUSH_ID` frame.",
-            "[RFC 9114 §8.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-8.1) — HTTP/3 error codes (`H3_ID_ERROR`).",
+            crate::rules::SpecRef {
+                spec: "RFC 9114",
+                section: Some("7.2.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.7",
+                note: "`MAX_PUSH_ID` frame",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9114",
+                section: Some("8.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-8.1",
+                note: "HTTP/3 error codes (`H3_ID_ERROR`)",
+            },
         ]
     }
 

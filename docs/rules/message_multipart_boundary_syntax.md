@@ -12,7 +12,7 @@ Validate that `Content-Type: multipart/*` includes a required `boundary` paramet
 
 ## Specifications
 
-- [RFC 2046 §5.1.1 — Multipart common syntax and boundary parameter](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1)
+- [RFC 2046 §5.1.1](https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1): Multipart common syntax and boundary parameter
 
 ## Configuration
 

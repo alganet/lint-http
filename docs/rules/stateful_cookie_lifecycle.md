@@ -18,9 +18,9 @@ The check relies solely on the captured traffic for a given client+origin; if a 
 
 ## Specifications
 
-- [RFC 6265 §5 — Storage model](https://www.rfc-editor.org/rfc/rfc6265.html#section-5)
-- [RFC 6265 §5.1.3 — Domain matching](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3)
-- [RFC 6265 §5.1.4 — Path matching](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4)
+- [RFC 6265 §5](https://www.rfc-editor.org/rfc/rfc6265.html#section-5): Storage model
+- [RFC 6265 §5.1.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3): Domain matching
+- [RFC 6265 §5.1.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4): Path matching
 
 ## Configuration
 

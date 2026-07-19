@@ -43,10 +43,13 @@ impl Rule for ServerCacheControlPresent {
         "This rule checks if `200 OK` responses include a `Cache-Control` header.\n\nThe `Cache-Control` header is the primary mechanism for defining the caching policies of a resource. Even if a resource should not be cached, it is best practice to explicitly state this (e.g., `Cache-Control: no-store`) rather than relying on default browser behaviors or heuristic caching."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9111 §5.2](https://www.rfc-editor.org/rfc/rfc9111.html#name-cache-control): Cache-Control header",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9111",
+            section: Some("5.2"),
+            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2",
+            note: "Cache-Control header",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

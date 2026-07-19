@@ -125,11 +125,26 @@ impl Rule for MessageAcceptEncodingParameterValidity {
         "`Accept-Encoding` members may include parameters such as `q` weights. This rule validates each member's parameters:\n\n- Parameter names must be `token` characters.\n- Parameter values must be a `token` or a `quoted-string`.\n- The special `q` parameter must be a valid qvalue (for example: `0`, `0.5`, `1.0`, `0.123`).\n\nInvalid parameter forms or `q` values are flagged."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §12.5.3 — Accept-Encoding](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3)",
-            "[RFC 9110 §12.4.2 — Quality Values (q)](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2)",
-            "[RFC 9110 §5.6.6 — Parameters (token / quoted-string)](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("12.5.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3",
+                note: "Accept-Encoding",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("12.4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
+                note: "Quality Values (q)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.6.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
+                note: "Parameters (token / quoted-string)",
+            },
         ]
     }
 

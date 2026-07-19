@@ -127,10 +127,13 @@ impl Rule for MessageContentLocationAndUriConsistency {
         "Validate `Content-Location` header values to ensure they are well-formed URI references and, for 2xx responses, that they consistently identify the representation. If the response's `Content-Location` resolves to the same URI as the request target, the response clearly identifies the representation of the target resource; otherwise, the header indicates the representation is identified by a different URI (allowed, but worth flagging)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §8.7 — Content-Location](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7)",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("8.7"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7",
+            note: "Content-Location",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

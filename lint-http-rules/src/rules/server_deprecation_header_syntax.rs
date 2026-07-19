@@ -88,10 +88,20 @@ impl Rule for ServerDeprecationHeaderSyntax {
         "The `Deprecation` response header signals that a resource is deprecated. RFC 9745 defines the header as a Structured Field `Date` item (a numeric timestamp expressed as `@<seconds>`). This rule validates the canonical structured form and flags legacy or invalid forms (literal `true`, HTTP-date, non-numeric `@` values) with helpful messages."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9745 §2 — The `Deprecation` HTTP Response Header Field](https://www.rfc-editor.org/rfc/rfc9745.html#section-2)",
-            "[RFC 9651 §3.3.7 — Structured Field `Date` item syntax](https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7)",
+            crate::rules::SpecRef {
+                spec: "RFC 9745",
+                section: Some("2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-2",
+                note: "The `Deprecation` HTTP Response Header Field",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9651",
+                section: Some("3.3.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7",
+                note: "Structured Field `Date` item syntax",
+            },
         ]
     }
 

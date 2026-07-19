@@ -67,10 +67,13 @@ impl Rule for MessageIfModifiedSinceDateFormat {
         "The `If-Modified-Since` request header, when present, MUST be a valid HTTP-date (IMF-fixdate). This rule flags `If-Modified-Since` header values that are not valid HTTP-date strings or contain non-UTF8 bytes."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §7.8.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.1): If-Modified-Since header",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("7.8.1"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.1",
+            note: "If-Modified-Since header",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

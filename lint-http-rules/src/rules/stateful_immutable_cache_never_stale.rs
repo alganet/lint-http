@@ -110,10 +110,20 @@ impl Rule for StatefulImmutableCacheNeverStale {
         "The `immutable` cache-control directive (RFC 8246) signals that the representation is not expected to change.  Clients and caches are therefore encouraged to treat the response as fresh for the duration of its advertised freshness lifetime and to avoid revalidation during that period.  Revalidating (issuing a conditional request) while the entry is still fresh is wasteful and undermines the purpose of `immutable`.\n\nThis rule reconstructs a small piece of cache state for a given client and resource by locating the most recent prior response bearing an `immutable` directive that does not simultaneously forbid caching (`no-store` or `no-cache`).  It estimates the \"age\" of that response using any `Age` header and the elapsed time since the response was observed.  The advertised freshness lifetime is computed using the shared helper in `helpers::headers`, which honours `Cache-Control: max-age` and falls back to an `Expires` header if necessary.  If a subsequent request for the same resource includes a conditional header (`If-None-Match` or `If-Modified-Since`) **and** the calculated age is still less than the freshness lifetime, a warning is produced.  Unconditional requests and conditional requests made after the freshness lifetime expires are permitted, since `immutable` entries may still be reused without revalidation once stale."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 8246 §3 — \"immutable\" directive](https://datatracker.ietf.org/doc/html/rfc8246#section-3)",
-            "[RFC 9111 §4.2/§4.3 — Calculating age and expiration](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2)",
+            crate::rules::SpecRef {
+                spec: "RFC 8246",
+                section: Some("3"),
+                url: "https://www.rfc-editor.org/rfc/rfc8246.html#section-3",
+                note: "\"immutable\" directive",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
+                note: "Calculating age and expiration (§4.2/§4.3)",
+            },
         ]
     }
 

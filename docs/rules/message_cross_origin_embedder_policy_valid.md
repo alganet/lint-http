@@ -12,9 +12,9 @@ This rule checks the `Cross-Origin-Embedder-Policy` response header value and en
 
 ## Specifications
 
-- MDN: Cross-Origin-Embedder-Policy — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Embedder-Policy
-- Cross-Origin Embedder Policy (W3C): The Cross-Origin-Embedder-Policy header — https://w3c.github.io/webappsec-coep/
-- HTML Standard / Fetch (describes behavior and interaction with other cross-origin policies) — https://html.spec.whatwg.org/multipage/origin.html#cross-origin-embedder-policy
+- [MDN Cross-Origin-Embedder-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy): Cross-Origin-Embedder-Policy
+- [HTML](https://html.spec.whatwg.org/multipage/browsers.html): Cross-Origin Embedder Policy (W3C): The Cross-Origin-Embedder-Policy header
+- [HTML](https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-embedder-policy): HTML Standard / Fetch (describes behavior and interaction with other cross-origin policies)
 
 ## Configuration
 

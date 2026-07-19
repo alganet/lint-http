@@ -12,9 +12,9 @@ Validate that a server response's `Content-Type` matches the client's `Accept` h
 
 ## Specifications
 
-- [RFC 9110 §12.5.1 — Accept (media ranges and q-values)](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1)
-- [RFC 9110 §12.4.2 — Quality values (q parameter)](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2)
-- [RFC 9110 §15.5.7 — 406 Not Acceptable](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.7)
+- [RFC 9110 §12.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1): Accept (media ranges and q-values)
+- [RFC 9110 §12.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2): Quality values (q parameter)
+- [RFC 9110 §15.5.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.7): 406 Not Acceptable
 
 ## Configuration
 

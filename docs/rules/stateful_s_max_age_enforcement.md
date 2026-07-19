@@ -14,7 +14,7 @@ This rule watches a series of transactions from the same client and examines the
 
 ## Specifications
 
-- [RFC 9111 §5.2 — `s-maxage` directive](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2) — applies only to shared caches and overrides `max-age`/`Expires` for those caches.
+- [RFC 9111 §5.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2): `s-maxage` directive — applies only to shared caches and overrides `max-age`/`Expires` for those caches
 
 ## Configuration
 

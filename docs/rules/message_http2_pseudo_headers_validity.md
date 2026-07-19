@@ -12,9 +12,9 @@ Validate HTTP/2 pseudo-header fields used in requests and responses. Requests th
 
 ## Specifications
 
-- [RFC 9113 §8.3.1 — Request pseudo-header fields](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1) — defines `:method`, `:scheme`, `:authority`, and `:path` and their presence/format rules (including `*` for OPTIONS and omitted `:path` for CONNECT).
-- [RFC 9113 §8.3.2 — Response pseudo-header fields](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.2) — defines the `:status` pseudo-header for responses.
-- [RFC 9113 §8.5 — CONNECT method](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.5) — CONNECT requests omit `:scheme` and `:path` and use `:authority` to carry host[:port].
+- [RFC 9113 §8.3.1](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1): Request pseudo-header fields — defines `:method`, `:scheme`, `:authority`, and `:path` and their presence/format rules (including `*` for OPTIONS and omitted `:path` for CONNECT)
+- [RFC 9113 §8.3.2](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.2): Response pseudo-header fields — defines the `:status` pseudo-header for responses
+- [RFC 9113 §8.5](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.5): CONNECT method — CONNECT requests omit `:scheme` and `:path` and use `:authority` to carry host[:port]
 
 ## Configuration
 

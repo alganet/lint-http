@@ -20,7 +20,7 @@ The check does not assume the authorization request and callback share a common 
 
 ## Specifications
 
-- [RFC 6749 §4.1.1 — Authorization Request](https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.1) (state parameter is **RECOMMENDED**; server must echo if present)
+- [RFC 6749 §4.1.1](https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.1): Authorization Request (state parameter is **RECOMMENDED**; server must echo if present)
 
 ## Configuration
 

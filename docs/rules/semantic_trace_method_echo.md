@@ -16,8 +16,8 @@ These checks help catch incorrect TRACE handling and improve interoperability fo
 
 ## Specifications
 
-- [RFC 9110 §9.3.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8): TRACE semantics; clients `MUST NOT` send content in TRACE requests, and successful TRACE responses `SHOULD` use `message/http`.
-- [RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): `Content-Type` field semantics.
+- [RFC 9110 §9.3.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8): TRACE semantics; clients `MUST NOT` send content in TRACE requests, and successful TRACE responses `SHOULD` use `message/http`
+- [RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): `Content-Type` field semantics
 
 ## Configuration
 

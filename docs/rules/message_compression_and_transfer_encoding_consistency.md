@@ -12,8 +12,8 @@ Responses that use representation compression (e.g., `Content-Encoding: gzip`) s
 
 ## Specifications
 
-- [RFC 9110 §5.3 — Content Coding](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3)
-- [RFC 9112 §6.1 — Transfer Codings and `Transfer-Encoding`](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1)
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Content Coding
+- [RFC 9112 §6.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1): Transfer Codings and `Transfer-Encoding`
 
 ## Configuration
 

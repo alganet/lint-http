@@ -16,9 +16,9 @@ This rule only applies to HTTP/3 requests. When the request version is not HTTP/
 
 ## Specifications
 
-- [RFC 9114 §4.3.1 — Request Pseudo-Header Fields](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1)
-- [RFC 9110 §7.2 — Host and :authority](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2)
-- [RFC 3986 §3.2.2 — Host](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2)
+- [RFC 9114 §4.3.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1): Request Pseudo-Header Fields
+- [RFC 9110 §7.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2): Host and :authority
+- [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2): Host
 
 ## Configuration
 

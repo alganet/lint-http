@@ -62,10 +62,13 @@ impl Rule for StatefulAuthenticationFailureLoop {
         "Detects repeated `401 Unauthorized` challenges for the same protection space (origin), which strongly indicates an authentication failure loop. When a client continuously retries authentication and repeatedly fails with a 401 across the same origin, it could imply a broken client, misconfigured credentials, or a flawed authentication handshake.\n\nThis rule tracks the transaction history by origin and flags if a client receives 4 or more consecutive `401 Unauthorized` challenges without a successful (or other non-401) response in between."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §11.6.2 — 401 Unauthorized](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2)",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("11.6.2"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2",
+            note: "401 Unauthorized",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

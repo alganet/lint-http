@@ -93,11 +93,26 @@ impl Rule for MessageCrossOriginEmbedderPolicyValid {
         "This rule checks the `Cross-Origin-Embedder-Policy` response header value and ensures it uses one of the secure tokens that enable cross-origin isolation: **`require-corp`** or **`credentialless`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `unsafe-none` is a valid COEP token per the specification, but it does not enable cross-origin isolation; this rule rejects it intentionally to encourage more secure configurations. The rule applies to server responses (RuleScope::Server)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "MDN: Cross-Origin-Embedder-Policy — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Embedder-Policy",
-            "Cross-Origin Embedder Policy (W3C): The Cross-Origin-Embedder-Policy header — https://w3c.github.io/webappsec-coep/",
-            "HTML Standard / Fetch (describes behavior and interaction with other cross-origin policies) — https://html.spec.whatwg.org/multipage/origin.html#cross-origin-embedder-policy",
+            crate::rules::SpecRef {
+                spec: "MDN Cross-Origin-Embedder-Policy",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy",
+                note: "Cross-Origin-Embedder-Policy",
+            },
+            crate::rules::SpecRef {
+                spec: "HTML",
+                section: None,
+                url: "https://html.spec.whatwg.org/multipage/browsers.html",
+                note: "Cross-Origin Embedder Policy (W3C): The Cross-Origin-Embedder-Policy header",
+            },
+            crate::rules::SpecRef {
+                spec: "HTML",
+                section: None,
+                url: "https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-embedder-policy",
+                note: "HTML Standard / Fetch (describes behavior and interaction with other cross-origin policies)",
+            },
         ]
     }
 

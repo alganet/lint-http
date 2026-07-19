@@ -50,11 +50,26 @@ impl Rule for MessageAuthorizationCredentialsPresent {
         "The `Authorization` request header field MUST include an authentication scheme followed by credentials. This rule flags requests where the header is empty, contains an invalid auth-scheme token, or is missing credentials after the scheme. Ensuring credentials are present helps detect malformed or truncated authorization attempts."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §7.6.2 — Authorization](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2)",
-            "[RFC 7617 — Basic Authentication](https://www.rfc-editor.org/rfc/rfc7617.html)",
-            "[RFC 6750 — The OAuth 2.0 Authorization Framework: Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750.html)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.6.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2",
+                note: "Authorization",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7617",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc7617.html",
+                note: "Basic Authentication",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6750",
+                section: None,
+                url: "https://www.rfc-editor.org/rfc/rfc6750.html",
+                note: "The OAuth 2.0 Authorization Framework: Bearer Token Usage",
+            },
         ]
     }
 

@@ -12,8 +12,8 @@ Responses that indicate a resource has moved or been created (3xx redirections a
 
 ## Specifications
 
-- [RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2) — `Location = URI-reference` and semantics for redirection responses (3xx).
-- [RFC 9110 §15.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4) — `201 Created` responses SHOULD include a `Location` header when a new resource is created.
+- [RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2): `Location = URI-reference` and semantics for redirection responses (3xx)
+- [RFC 9110 §15.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4): `201 Created` responses SHOULD include a `Location` header when a new resource is created
 
 ## Configuration
 

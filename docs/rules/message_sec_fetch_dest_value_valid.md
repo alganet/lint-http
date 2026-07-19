@@ -12,7 +12,7 @@ Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specific
 
 ## Specifications
 
-- Fetch Metadata (W3C) — `Sec-Fetch-Dest` header values: https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest
+- [Fetch Metadata](https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest): Fetch Metadata (W3C) — `Sec-Fetch-Dest` header values
 
 ## Configuration
 

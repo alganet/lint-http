@@ -65,10 +65,13 @@ impl Rule for ClientPreferHeaderAndPreferenceApplied {
         "When a client sends a `Prefer` request header, servers MAY include a `Preference-Applied` response header to indicate which preferences were applied. This rule warns when a request included `Prefer` but the response did not include `Preference-Applied`, which makes it harder for clients to know which preferences the server applied. This is a best-practice suggestion; servers are not strictly required to include `Preference-Applied`."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 7240 §3](https://www.rfc-editor.org/rfc/rfc7240.html#section-3) — `Preference-Applied` header and ABNF",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 7240",
+            section: Some("3"),
+            url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-3",
+            note: "`Preference-Applied` header and ABNF",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

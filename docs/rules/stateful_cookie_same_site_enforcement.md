@@ -18,8 +18,8 @@ If the relationship cannot be determined (e.g. missing `Sec-Fetch-Site`), the ru
 
 ## Specifications
 
-- [RFC 6265bis §5.3.4 — SameSite cookie semantics](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.3.4)
-- [Fetch spec Sec-Fetch-Site](https://fetch.spec.whatwg.org/#sec-fetch-site)
+- [draft-ietf-httpbis-rfc6265bis §5.3.4](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.3.4): SameSite cookie semantics
+- [Fetch](https://fetch.spec.whatwg.org/#sec-fetch-site): Fetch spec Sec-Fetch-Site
 
 ## Configuration
 

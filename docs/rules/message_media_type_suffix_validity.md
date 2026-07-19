@@ -12,8 +12,8 @@ This rule flags media types (in `Content-Type` or `Accept`) whose subtype ends w
 
 ## Specifications
 
-- [RFC 6838 §4.2.8 — Structured Syntax Name Suffixes](https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8)
-- IANA Structured Syntax Suffix registry: https://www.iana.org/assignments/media-type-structured-suffix/media-type-structured-suffix.xhtml
+- [RFC 6838 §4.2.8](https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8): Structured Syntax Name Suffixes
+- [IANA Media Type Structured Suffixes](https://www.iana.org/assignments/media-type-structured-suffix/media-type-structured-suffix.xhtml): IANA Structured Syntax Suffix registry
 
 ## Configuration
 

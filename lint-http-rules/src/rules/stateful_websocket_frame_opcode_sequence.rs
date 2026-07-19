@@ -112,11 +112,26 @@ impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
         "Validates message-level opcode sequencing rules for WebSocket frames observed during relay.  This rule inspects each frame event and checks:\n\n* **Reserved opcodes** (3-7, 11-15) must not appear without a negotiated extension (RFC 6455 §5.2).\n* **Control frame payload limit** — Close (8), Ping (9), and Pong (10) frames must not exceed 125 bytes of payload data (RFC 6455 §5.5).\n* **Data after Close** — once a Close frame has been sent in a given direction, no further data frames (Text=1, Binary=2) should follow in that same direction (RFC 6455 §5.5.1)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 6455 §5.2](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2) — Base Framing Protocol, opcode definitions.",
-            "[RFC 6455 §5.5](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5) — Control Frames, payload length constraint.",
-            "[RFC 6455 §5.5.1](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5.1) — Close frame semantics and half-close behaviour.",
+            crate::rules::SpecRef {
+                spec: "RFC 6455",
+                section: Some("5.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2",
+                note: "Base Framing Protocol, opcode definitions",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6455",
+                section: Some("5.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5",
+                note: "Control Frames, payload length constraint",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6455",
+                section: Some("5.5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5.1",
+                note: "Close frame semantics and half-close behaviour",
+            },
         ]
     }
 

@@ -179,10 +179,13 @@ impl Rule for MessagePreferHeaderValid {
         "Validate that the `Prefer` request header follows the ABNF in RFC 7240 §2. Each preference token must be a `token` and optional values must be either a `token` or a `quoted-string`. Parameters (semicolon-separated) must have `token` names and their values must be `token` or `quoted-string` when present."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 7240 §2](https://www.rfc-editor.org/rfc/rfc7240#section-2) — Prefer header syntax and semantics.",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 7240",
+            section: Some("2"),
+            url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-2",
+            note: "Prefer header syntax and semantics",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

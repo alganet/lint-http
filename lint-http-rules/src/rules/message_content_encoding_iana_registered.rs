@@ -141,10 +141,20 @@ impl Rule for MessageContentEncodingIanaRegistered {
         "Validate `Content-Encoding` and `Accept-Encoding` header values to ensure content-coding tokens are syntactically valid and are recognised (SHOULD be IANA-registered or explicitly allowed via configuration). The rule flags unrecognised content-coding tokens and invalid token characters."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §5.3 — Content Coding](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3)",
-            "[IANA Content Coding registry](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+                note: "Content Coding",
+            },
+            crate::rules::SpecRef {
+                spec: "IANA HTTP Parameters",
+                section: None,
+                url: "https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding",
+                note: "IANA Content Coding registry",
+            },
         ]
     }
 

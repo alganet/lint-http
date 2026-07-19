@@ -12,8 +12,8 @@ When a request includes a `Content-Length` header, its numeric value MUST match 
 
 ## Specifications
 
-- [RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): Content-Length header field usage.
-- [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3): Message body length determination and framing (how body length is determined and handled).
+- [RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): Content-Length header field usage
+- [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3): Message body length determination and framing (how body length is determined and handled)
 
 ## Configuration
 

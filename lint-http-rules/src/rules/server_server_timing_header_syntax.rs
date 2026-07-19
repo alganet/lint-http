@@ -212,9 +212,14 @@ impl Rule for ServerServerTimingHeaderSyntax {
         "The `Server-Timing` response header communicates server-side performance metrics. Each metric must be a `metric-name` followed by optional `;`-separated parameters such as `dur` (duration, numeric) and `desc` (description, token or quoted-string). This rule validates that each metric name and parameter-name is a `token`, parameter values are either `token` or a well-formed `quoted-string`, and that `dur` parses as a number when present."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "W3C Server-Timing Header Field — Section \"The `Server-Timing` Header Field\" (syntax and examples): https://w3c.github.io/server-timing/#the-server-timing-header-field",
+            crate::rules::SpecRef {
+                spec: "Server Timing",
+                section: None,
+                url: "https://www.w3.org/TR/server-timing/#the-server-timing-header-field",
+                note: "W3C Server-Timing Header Field — Section \"The `Server-Timing` Header Field\" (syntax and examples)",
+            },
         ]
     }
 

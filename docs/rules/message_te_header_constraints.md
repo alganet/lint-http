@@ -18,8 +18,8 @@ Validate the `TE` request header for syntax and usage:
 
 ## Specifications
 
-- [RFC 9110 §10.1.4](https://www.rfc-editor.org/rfc/rfc9110#section-10.1.4) — TE header
-- [RFC 9110 §6.5.1](https://www.rfc-editor.org/rfc/rfc9110#section-6.5.1) — Limitations on trailers
+- [RFC 9110 §10.1.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4): TE header
+- [RFC 9110 §6.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1): Limitations on trailers
 
 ## Configuration
 

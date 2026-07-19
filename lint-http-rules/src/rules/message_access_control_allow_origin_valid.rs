@@ -100,11 +100,26 @@ impl Rule for MessageAccessControlAllowOriginValid {
         "This rule checks that the `Access-Control-Allow-Origin` response header is syntactically valid: it must be a single value and that value must be either `*`, `null`, or a valid serialized-origin (scheme://host[:port]). Multiple header fields or comma-separated lists are not allowed per the CORS semantics and will be flagged as violations."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "MDN: Access-Control-Allow-Origin — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin",
-            "CORS spec (W3C): Cross-Origin Resource Sharing (CORS) — https://www.w3.org/TR/cors/",
-            "Fetch Standard (CORS semantics) — https://fetch.spec.whatwg.org/",
+            crate::rules::SpecRef {
+                spec: "MDN Access-Control-Allow-Origin",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin",
+                note: "Access-Control-Allow-Origin",
+            },
+            crate::rules::SpecRef {
+                spec: "Fetch",
+                section: None,
+                url: "https://fetch.spec.whatwg.org/",
+                note: "CORS spec (W3C): Cross-Origin Resource Sharing (CORS)",
+            },
+            crate::rules::SpecRef {
+                spec: "Fetch",
+                section: None,
+                url: "https://fetch.spec.whatwg.org/",
+                note: "Fetch Standard (CORS semantics)",
+            },
         ]
     }
 

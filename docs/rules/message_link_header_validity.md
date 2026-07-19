@@ -12,9 +12,9 @@ Validate `Link` header field syntax and common semantics. Ensures each link memb
 
 ## Specifications
 
-- [RFC 8288](https://www.rfc-editor.org/rfc/rfc8288.html) — Web Linking (Link header field)
-- [RFC 8297](https://www.rfc-editor.org/rfc/rfc8297.html) — Early Hints (use of Link for preload hints)
-- [W3C Preload spec](https://www.w3.org/TR/preload/) — `rel=preload` and the `as` parameter
+- [RFC 8288](https://www.rfc-editor.org/rfc/rfc8288.html): Web Linking (Link header field)
+- [RFC 8297](https://www.rfc-editor.org/rfc/rfc8297.html): Early Hints (use of Link for preload hints)
+- [HTML Links](https://html.spec.whatwg.org/multipage/links.html): W3C Preload spec — `rel=preload` and the `as` parameter
 
 ## Configuration
 

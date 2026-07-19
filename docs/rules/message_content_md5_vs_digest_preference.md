@@ -14,8 +14,8 @@ This rule flags messages (requests or responses) that include both `Content-Dige
 
 ## Specifications
 
-- [RFC 9530 §2–§4 — Content-Digest and related structured fields](https://www.rfc-editor.org/rfc/rfc9530.html)
-- [RFC 7231 §3.3.2 — Content-MD5 (historical reference)](https://www.rfc-editor.org/rfc/rfc7231.html#section-3.3.2)
+- [RFC 9530 §2](https://www.rfc-editor.org/rfc/rfc9530.html#section-2): Content-Digest and related structured fields
+- [RFC 7231 §3.3.2](https://www.rfc-editor.org/rfc/rfc7231.html#section-3.3.2): Content-MD5 (historical reference)
 
 ## Configuration
 

@@ -17,9 +17,9 @@ The rule validates that `Origin` is present where required and that its value is
 
 ## Specifications
 
-- RFC 6454 — The Web Origin Concept — https://datatracker.ietf.org/doc/html/rfc6454
-- CORS / Fetch: Origin header semantics — https://fetch.spec.whatwg.org/#origin-header
-- MDN: Origin — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin
+- [RFC 6454](https://www.rfc-editor.org/rfc/rfc6454.html): The Web Origin Concept
+- [Fetch](https://fetch.spec.whatwg.org/#origin-header): CORS / Fetch: Origin header semantics
+- [MDN Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Origin): Origin
 
 ## Configuration
 

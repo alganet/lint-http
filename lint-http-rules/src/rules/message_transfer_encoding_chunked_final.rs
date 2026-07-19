@@ -79,10 +79,13 @@ impl Rule for MessageTransferEncodingChunkedFinal {
         "Ensures that when `Transfer-Encoding` includes the `chunked` transfer coding, it appears as the final transfer coding.\n\nPer RFC 9112 §7.1, the `chunked` transfer-coding must always be the final transfer-coding applied to a message. Intermediate codecs cannot follow `chunked`, because chunked encoding is the format used to delimit the message body.\n\nIf a message includes `Transfer-Encoding: ...` values and any of them is `chunked`, then `chunked` must be the final coding in the sequence. The rule checks all `Transfer-Encoding` header fields and the order of comma-separated codings."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9112 §7.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1): Transfer-Encoding",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9112",
+            section: Some("7.1"),
+            url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1",
+            note: "Transfer-Encoding",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

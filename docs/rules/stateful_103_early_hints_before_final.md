@@ -12,7 +12,7 @@ SPDX-License-Identifier: ISC
 
 ## Specifications
 
-- [RFC 8297](https://www.rfc-editor.org/rfc/rfc8297.html) — Early Hints
+- [RFC 8297](https://www.rfc-editor.org/rfc/rfc8297.html): Early Hints
 
 ## Configuration
 

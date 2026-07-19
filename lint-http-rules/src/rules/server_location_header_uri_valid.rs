@@ -80,10 +80,20 @@ impl Rule for ServerLocationHeaderUriValid {
         "This rule checks that the `Location` response header, when present, is a syntactically valid URI-reference. `Location` is commonly used in redirects and SHOULD be a URI-reference per the HTTP spec; malformed values can break clients."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §7.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#name-location)",
-            "[RFC 3986 §4](https://www.rfc-editor.org/rfc/rfc3986.html#section-4) — URI-reference syntax and percent-encoding",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.5.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.5.2",
+                note: "",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 3986",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4",
+                note: "URI-reference syntax and percent-encoding",
+            },
         ]
     }
 

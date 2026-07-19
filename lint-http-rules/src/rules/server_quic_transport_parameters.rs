@@ -134,10 +134,20 @@ impl ProtocolRule for ServerQuicTransportParameters {
         "Validates that QUIC transport parameters negotiated during the handshake are reasonable for HTTP/3 usage.  This rule inspects protocol-level `QuicTransportParams` events and checks:\n\n* **Bidirectional streams allowed** — `initial_max_streams_bidi` must be non-zero so that at least one HTTP/3 request stream can be opened.\n* **Connection flow control** — `initial_max_data` must be non-zero so that data can actually be transferred.\n* **Stream flow control** — `initial_max_stream_data_bidi_local`, `initial_max_stream_data_bidi_remote`, and `initial_max_stream_data_uni` must be non-zero for their respective stream types to carry data.\n* **Idle timeout** — `max_idle_timeout_ms` should be set (non-zero) to prevent idle connections from consuming server resources indefinitely, and should not be excessively large (>10 minutes)."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9000 §18.2](https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2) — Transport Parameter Definitions.",
-            "[RFC 9114 §3.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1) — Discovering an HTTP/3 Endpoint.",
+            crate::rules::SpecRef {
+                spec: "RFC 9000",
+                section: Some("18.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2",
+                note: "Transport Parameter Definitions",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9114",
+                section: Some("3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1",
+                note: "Discovering an HTTP/3 Endpoint",
+            },
         ]
     }
 

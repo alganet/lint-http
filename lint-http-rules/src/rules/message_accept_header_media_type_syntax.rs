@@ -189,10 +189,13 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
         "Validate `Accept` header media-range syntax. Each member must be a valid media-range (`type/subtype`, `type/*`, or `*/*`), and parameters must be well-formed (`name=value`). The `q` parameter must be a valid quality value (0.000–1.000 with up to three decimal places). This rule is conservative and focuses on syntactic correctness rather than semantic content negotiation."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
-        &[
-            "[RFC 9110 §7.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1) — Accept header field and media-range syntax",
-        ]
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9110",
+            section: Some("7.2.1"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2.1",
+            note: "Accept header field and media-range syntax",
+        }]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

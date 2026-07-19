@@ -120,10 +120,20 @@ impl Rule for MessageExtensionHeadersRegistered {
         "Non-standard or extension header field-names (i.e., those not registered in the IANA HTTP Field Name registry) SHOULD be explicitly allowed by configuration to avoid accidental custom headers, typos, and interoperability issues. This rule flags header field-names that are not present in the rule's `allowed` list."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §5.1 — Field names](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1)",
-            "[IANA HTTP Field Name Registry](https://www.iana.org/assignments/http-field-names/http-field-names.xhtml)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1",
+                note: "Field names",
+            },
+            crate::rules::SpecRef {
+                spec: "IANA HTTP Field Name Registry",
+                section: None,
+                url: "https://www.iana.org/assignments/http-fields/http-fields.xhtml",
+                note: "IANA HTTP Field Name Registry",
+            },
         ]
     }
 

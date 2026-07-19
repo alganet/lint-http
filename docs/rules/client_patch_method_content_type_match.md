@@ -12,7 +12,7 @@ When a server advertises supported patch formats using `Accept-Patch`, clients i
 
 ## Specifications
 
-- [RFC 5789 §2.2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2) — `PATCH` and `Accept-Patch` header; Accept-Patch advertises supported patch media types.
+- [RFC 5789 §2.2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2): `PATCH` and `Accept-Patch` header; Accept-Patch advertises supported patch media types
 
 ## Configuration
 

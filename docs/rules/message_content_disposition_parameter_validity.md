@@ -18,9 +18,9 @@ When a parameter value is syntactically invalid, the rule raises a `warn`-level 
 
 ## Specifications
 
-- [RFC 6266 §4](https://www.rfc-editor.org/rfc/rfc6266.html#section-4) — Use of `Content-Disposition` in HTTP (parameters, `filename`, `filename*`, `size` notes).
-- [RFC 5987 §3.2](https://www.rfc-editor.org/rfc/rfc5987.html#section-3.2) — `ext-value` syntax used for `filename*`.
-- [RFC 2616 §2.2 / §3.6](https://www.rfc-editor.org/rfc/rfc2616.html) — `token` and `quoted-string` definitions.
+- [RFC 6266 §4](https://www.rfc-editor.org/rfc/rfc6266.html#section-4): Use of `Content-Disposition` in HTTP (parameters, `filename`, `filename*`, `size` notes)
+- [RFC 5987 §3.2](https://www.rfc-editor.org/rfc/rfc5987.html#section-3.2): `ext-value` syntax used for `filename*`
+- [RFC 2616 §2.2](https://www.rfc-editor.org/rfc/rfc2616.html#section-2.2): `token` and `quoted-string` definitions (§2.2/§3.6)
 
 ## Configuration
 

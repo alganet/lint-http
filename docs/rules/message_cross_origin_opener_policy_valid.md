@@ -12,9 +12,9 @@ This rule checks the `Cross-Origin-Opener-Policy` response header value and ensu
 
 ## Specifications
 
-- MDN: Cross-Origin-Opener-Policy — https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Opener-Policy
-- Cross-Origin-Opener-Policy (W3C): “The Cross-Origin-Opener-Policy header” — https://www.w3.org/TR/cross-origin-opener-policy/#the-cross-origin-opener-policy-header
-- HTML Standard: “Cross-origin opener policies” (defines header behavior and allowed values) — https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-opener-policies
+- [MDN Cross-Origin-Opener-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Opener-Policy): Cross-Origin-Opener-Policy
+- [HTML](https://html.spec.whatwg.org/multipage/browsers.html#the-cross-origin-opener-policy-header): Cross-Origin-Opener-Policy (W3C): “The Cross-Origin-Opener-Policy header”
+- [HTML](https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-opener-policies): HTML Standard: “Cross-origin opener policies” (defines header behavior and allowed values)
 
 ## Configuration
 

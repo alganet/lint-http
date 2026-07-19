@@ -18,9 +18,9 @@ Invalid parameter forms or `q` values are flagged.
 
 ## Specifications
 
-- [RFC 9110 §12.5.3 — Accept-Encoding](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3)
-- [RFC 9110 §12.4.2 — Quality Values (q)](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2)
-- [RFC 9110 §5.6.6 — Parameters (token / quoted-string)](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6)
+- [RFC 9110 §12.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3): Accept-Encoding
+- [RFC 9110 §12.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2): Quality Values (q)
+- [RFC 9110 §5.6.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6): Parameters (token / quoted-string)
 
 ## Configuration
 

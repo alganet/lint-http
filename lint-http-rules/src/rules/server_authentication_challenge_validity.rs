@@ -102,10 +102,20 @@ impl Rule for ServerAuthenticationChallengeValidity {
         "Warn when a single response advertises the same `realm` value across multiple `WWW-Authenticate` authentication schemes. A realm identifies a protection space and re-using the same realm string for different schemes can cause ambiguity and confuse credential selection. This is a **heuristic** check (HTTP does not strictly forbid this pattern), and it is intended to help operators spot potentially confusing authentication configurations. (RFC 9110 §11.5)"
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "[RFC 9110 §11.5 — Establishing a Protection Space (Realm)](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.5)",
-            "[RFC 9110 §11.6.1 — WWW-Authenticate](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1)",
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("11.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.5",
+                note: "Establishing a Protection Space (Realm)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("11.6.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1",
+                note: "WWW-Authenticate",
+            },
         ]
     }
 

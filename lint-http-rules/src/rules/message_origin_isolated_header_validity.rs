@@ -79,10 +79,20 @@ impl Rule for MessageOriginIsolatedHeaderValidity {
         "Checks the `Origin-Isolation` response header and ensures it uses the structured-header boolean value `?1` to request document origin isolation. The header must be a single value and must not contain comma-separated lists or multiple header fields. `?1` signals that the origin requests origin isolation for documents served from it; other values are rejected by this rule."
     }
 
-    fn rfc_references(&self) -> &'static [&'static str] {
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            "Origin Isolation explainer: https://github.com/davidben/origin-isolation/blob/master/README.md (See \"Example\" and \"How it works\")",
-            "Structured Headers boolean values: https://www.rfc-editor.org/rfc/rfc8941.html (RFC 8941 §3–§4)",
+            crate::rules::SpecRef {
+                spec: "Origin Isolation Explainer",
+                section: None,
+                url: "https://github.com/davidben/origin-isolation/blob/master/README.md",
+                note: "See \"Example\" and \"How it works\"",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 8941",
+                section: Some("3"),
+                url: "https://www.rfc-editor.org/rfc/rfc8941.html#section-3",
+                note: "Structured Headers boolean values (§3–§4)",
+            },
         ]
     }
 
