@@ -26,6 +26,7 @@ impl Rule for MessageTeHeaderConstraints {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // TE should not appear in responses
         if let Some(resp) = &tx.response {
+            // cite(RFC 9110 § 10.1.4): "The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections."
             if let Some(val) = crate::helpers::headers::get_header_str(&resp.headers, "te") {
                 return Some(Violation {
                     rule: self.id().to_string(),

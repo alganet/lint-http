@@ -89,9 +89,9 @@ impl Rule for MessageOriginIsolatedHeaderValidity {
                 note: "See \"Example\" and \"How it works\"",
             },
             crate::rules::SpecRef {
-                spec: "RFC 8941",
+                spec: "RFC 9651",
                 section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc8941.html#section-3",
+                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3",
                 note: "Structured Headers boolean values (§3–§4)",
             },
         ]

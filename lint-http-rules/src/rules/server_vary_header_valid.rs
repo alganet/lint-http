@@ -31,6 +31,7 @@ impl Rule for ServerVaryHeaderValid {
         let mut saw_star = false;
         let mut total_tokens = 0usize;
 
+        // cite(RFC 9110 § 12.5.5): "The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response."
         for hv in resp.headers.get_all("vary").iter() {
             let s = match hv.to_str() {
                 Ok(s) => s,
@@ -103,8 +104,8 @@ impl Rule for ServerVaryHeaderValid {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
             spec: "RFC 9110",
-            section: Some("7.3.6"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.3.6",
+            section: Some("12.5.5"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5",
             note: "Vary header",
         }]
     }

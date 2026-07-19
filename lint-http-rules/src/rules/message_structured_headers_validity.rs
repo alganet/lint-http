@@ -82,6 +82,7 @@ impl Rule for MessageStructuredHeadersValidity {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = parse_headers_config(cfg, self.id()).ok()?;
+        // cite(RFC 9651): "This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,"
         for hdr in &config.headers {
             // Request
             for hv in tx.request.headers.get_all(hdr.as_str()).iter() {
@@ -142,15 +143,15 @@ impl Rule for MessageStructuredHeadersValidity {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
-                spec: "RFC 8941",
+                spec: "RFC 9651",
                 section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc8941.html",
+                url: "https://www.rfc-editor.org/rfc/rfc9651.html",
                 note: "Structured Field Values for HTTP",
             },
             crate::rules::SpecRef {
-                spec: "RFC 8941",
+                spec: "RFC 9651",
                 section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc8941.html#section-3",
+                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3",
                 note: "Items, Lists, Dictionaries",
             },
         ]

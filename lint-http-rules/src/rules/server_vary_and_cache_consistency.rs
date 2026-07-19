@@ -33,6 +33,7 @@ impl Rule for ServerVaryAndCacheConsistency {
 
         // Detect Vary: * across all Vary header fields
         let mut saw_star = false;
+        // cite(RFC 9111 § 4.1): "the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request"
         for hv in resp.headers.get_all("vary").iter() {
             let s = match hv.to_str() {
                 Ok(s) => s,
@@ -102,15 +103,15 @@ impl Rule for ServerVaryAndCacheConsistency {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
-                spec: "RFC 7234",
+                spec: "RFC 9111",
                 section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7234.html#section-4.1",
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
                 note: "Calculating Secondary Keys with Vary (Vary semantics)",
             },
             crate::rules::SpecRef {
-                spec: "RFC 7234",
+                spec: "RFC 9111",
                 section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc7234.html#section-3",
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3",
                 note: "Storing Responses in Caches (cacheability requirements)",
             },
         ]

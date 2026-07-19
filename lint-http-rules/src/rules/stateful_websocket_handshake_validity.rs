@@ -40,6 +40,7 @@ impl Rule for StatefulWebsocketHandshakeValidity {
         let req = &tx.request;
 
         // Only consider WebSocket handshake requests (GET + Upgrade: websocket)
+        // cite(RFC 6455 § 4.1): "If the status code received from the server is not 101, the client handles the response per HTTP [RFC2616] procedures."
         if req.method != "GET" {
             return None;
         }

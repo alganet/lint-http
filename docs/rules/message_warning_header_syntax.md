@@ -19,8 +19,8 @@ This rule flags empty members, invalid 3-digit codes, missing or unquoted `warn-
 
 ## Specifications
 
-- [RFC 7234 §5.5](https://www.rfc-editor.org/rfc/rfc7234.html#section-5.5): Warning header field
-- [RFC 9110 §7.1.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1.1): HTTP-date (IMF-fixdate)
+- [RFC 9111 §5.5](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.5): `Warning`, and its obsolescence. RFC 7234 §5.5 defined it; RFC 9111 is where it now says not to use it
+- [RFC 9110 §5.6.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7): HTTP-date (IMF-fixdate). This reference said §7.1.1.1, which does not exist
 
 ## Configuration
 

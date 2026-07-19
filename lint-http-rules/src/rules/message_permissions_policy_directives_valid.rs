@@ -74,9 +74,9 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
                 note: "Permissions-Policy HTTP header (directive syntax and serialization). No section: an editor's draft renumbers — this reference said §5.2, the header field is now §6.1",
             },
             crate::rules::SpecRef {
-                spec: "RFC 8941",
+                spec: "RFC 9651",
                 section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc8941.html#section-3",
+                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3",
                 note: "Structured Field Values for HTTP, §3–§5 (Items, Lists, Dictionaries)",
             },
         ]

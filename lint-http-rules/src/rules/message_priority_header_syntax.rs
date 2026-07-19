@@ -24,6 +24,7 @@ impl Rule for MessagePriorityHeaderSyntax {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check request
+        // cite(RFC 9218 § 4): "The Priority HTTP header field (Section 5) is an end-to-end way to transmit this set of priority parameters when a"
         if let Some(hv) = tx.request.headers.get_all("priority").iter().next() {
             if hv.to_str().is_err() {
                 return Some(Violation {
@@ -81,9 +82,9 @@ impl Rule for MessagePriorityHeaderSyntax {
                 note: "Priority header and parameters",
             },
             crate::rules::SpecRef {
-                spec: "RFC 8941",
+                spec: "RFC 9651",
                 section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc8941.html",
+                url: "https://www.rfc-editor.org/rfc/rfc9651.html",
                 note: "Structured Field Values for HTTP",
             },
         ]

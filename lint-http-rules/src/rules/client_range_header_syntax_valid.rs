@@ -28,6 +28,7 @@ impl Rule for ClientRangeHeaderSyntaxValid {
         let hdrs = tx.request.headers.get_all(RANGE);
         let _ = hdrs.iter().next()?;
 
+        // cite(RFC 9110 § 14.2): "The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges"
         for hv in hdrs.iter() {
             match hv.to_str() {
                 Ok(s) => {

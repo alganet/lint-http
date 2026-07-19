@@ -37,6 +37,7 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
         // push ID; receipt of a MAX_PUSH_ID frame that contains a smaller
         // value than previously received MUST be treated as a connection
         // error of type H3_ID_ERROR."
+        // cite(RFC 9114 § 7.2.7): "The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate."
         for prev in history.iter() {
             if let ProtocolEventKind::H3MaxPushId { push_id: prev_id } = &prev.kind {
                 if current < *prev_id {

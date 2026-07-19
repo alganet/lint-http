@@ -24,6 +24,10 @@ impl Rule for MessageCacheControlAndPragmaConsistency {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check requests: Pragma: no-cache vs Cache-Control: only-if-cached contradiction
+        // `Pragma` is the HTTP/1.0 spelling of a request `no-cache`, and `Cache-Control`
+        // is the one that means anything now. A message carrying both is asking to be
+        // read by two generations of cache and had better say the same thing to each.
+        // cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
         for hv in tx.request.headers.get_all("pragma").iter() {
             let s = match hv.to_str() {
                 Ok(v) => v,
@@ -76,9 +80,9 @@ impl Rule for MessageCacheControlAndPragmaConsistency {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
-            spec: "RFC 7234",
+            spec: "RFC 9111",
             section: Some("5.4"),
-            url: "https://www.rfc-editor.org/rfc/rfc7234.html#section-5.4",
+            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.4",
             note: "`Pragma` and its relationship to `Cache-Control`",
         }]
     }

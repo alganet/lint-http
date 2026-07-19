@@ -42,6 +42,7 @@ impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
         };
 
         // Reserved opcodes (3-7, 11-15) are invalid without extensions.
+        // cite(RFC 6455 § 11.8): "The opcode denotes the frame type of the WebSocket frame,"
         if (3..=7).contains(&opcode) || (11..=15).contains(&opcode) {
             return Some(Violation {
                 rule: self.id().into(),
@@ -60,6 +61,7 @@ impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
         }
 
         // Control frames (8-10) must not exceed 125 bytes payload.
+        // cite(RFC 6455 § 5.5.1): "The Close frame MAY contain a body (the "Application data" portion of the frame) that indicates a reason for closing"
         if opcode >= 8 && payload_length > 125 {
             return Some(Violation {
                 rule: self.id().into(),

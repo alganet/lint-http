@@ -133,6 +133,7 @@ impl Rule for StatefulDigestAuthNonceHandling {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // only care about client-side requests with Digest Authorization
+        // cite(RFC 7616 § 3.3): "The nonce is opaque to the client."
         for hv in tx.request.headers.get_all("authorization").iter() {
             let s = match hv.to_str() {
                 Ok(v) => v,

@@ -26,6 +26,7 @@ impl Rule for MessageStrictTransportSecurityValidity {
         // Only applicable to responses
         let resp = tx.response.as_ref()?;
 
+        // cite(RFC 6797 § 6.1.1): "The REQUIRED "max-age" directive specifies the number of seconds, after the reception of the STS header field,"
         for hv in resp.headers.get_all("strict-transport-security").iter() {
             let v = match hv.to_str() {
                 Ok(s) => s.trim(),

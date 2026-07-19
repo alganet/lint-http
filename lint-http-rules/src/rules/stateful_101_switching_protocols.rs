@@ -39,6 +39,7 @@ impl Rule for Stateful101SwitchingProtocols {
         let resp = tx.response.as_ref()?;
 
         // ── Check: HTTP traffic after a prior 101 on the same connection ──
+        // cite(RFC 9110 § 15.2.2): "The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field"
         if tx.connection_id.is_some() {
             for prev in history.iter() {
                 if let Some(prev_resp) = &prev.response {

@@ -25,6 +25,7 @@ impl Rule for ClientSecWebsocketHeadersConsistency {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only consider WebSocket handshake requests: GET method and Upgrade includes 'websocket'
+        // cite(RFC 6455 § 4.1): "The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded"
         if tx.request.method != "GET" {
             return None;
         }

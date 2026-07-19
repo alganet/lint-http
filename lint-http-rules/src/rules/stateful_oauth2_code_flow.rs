@@ -65,7 +65,11 @@ impl Rule for StatefulOauth2CodeFlow {
         // detect authorization request
         if let Some(rt) = get_param(&params, "response_type") {
             if rt == "code" {
-                // must have state; treat empty or whitespace-only as missing
+                // must have state; treat empty or whitespace-only as missing.
+                // RECOMMENDED, not REQUIRED — this rule is deliberately stricter than the
+                // specification, because the parameter's whole purpose is the CSRF binding
+                // it provides, and a flow without it has no binding at all.
+                // cite(RFC 6749 § 4.1.1): "RECOMMENDED.  An opaque value used by the client to maintain state between the request and callback."
                 match get_param(&params, "state") {
                     Some(s) if !s.trim().is_empty() => {
                         // OK

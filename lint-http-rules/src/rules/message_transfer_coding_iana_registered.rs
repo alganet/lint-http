@@ -83,6 +83,7 @@ impl Rule for MessageTransferCodingIanaRegistered {
         let config = parse_allowed_config(cfg, self.id()).ok()?;
         // check a list-style header value (Transfer-Encoding or TE) against allowed list
         let check_value = |hdr_name: &str, val: &str, allowed: &[String]| -> Option<Violation> {
+            // cite(RFC 9112 § 7.3): "The "HTTP Transfer Coding Registry" defines the namespace for transfer coding names."
             for part in crate::helpers::headers::parse_list_header(val) {
                 let token = part.split(';').next().unwrap().trim();
                 // TE allows the special value 'trailers'

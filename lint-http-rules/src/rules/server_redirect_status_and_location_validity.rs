@@ -30,6 +30,10 @@ impl Rule for ServerRedirectStatusAndLocationValidity {
             // These statuses allow or SHOULD include Location when appropriate
             let allowed_with_location = matches!(status, 201 | 300 | 301 | 302 | 303 | 307 | 308);
 
+            // `Location` means something only where the status gives it a referent: the
+            // target of a redirect, or the resource a 201 created. On any other status
+            // there is nothing for it to refer *to*.
+            // cite(RFC 9110 § 10.2.2): "The "Location" header field is used in some responses to refer to a specific resource in relation to the response."
             if !allowed_with_location && resp.headers.get_all("location").iter().next().is_some() {
                 return Some(Violation {
                     rule: self.id().into(),
