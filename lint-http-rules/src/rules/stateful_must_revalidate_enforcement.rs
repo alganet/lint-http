@@ -101,6 +101,7 @@ impl Rule for StatefulMustRevalidateEnforcement {
             let resp = prev_tx.response.as_ref().unwrap();
             let has_validator =
                 resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
+            // cite(RFC 9111 § 5.2.2.2): "The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3."
             if has_validator {
                 return Some(Violation {
                     rule: self.id().into(),

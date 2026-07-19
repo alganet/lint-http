@@ -24,6 +24,12 @@ impl Rule for ServerCacheControlPresent {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         if let Some(resp) = &tx.response {
+            // Nothing requires a `Cache-Control` on a 200. What the absence of one buys is
+            // a cache guessing: with no explicit expiration time, a heuristic freshness
+            // lifetime is permitted, and the origin no longer decides how long its response
+            // is reused. This rule asks servers to decide. It is advice, and cites the
+            // sentence that makes it advice worth taking.
+            // cite(RFC 9111 § 4.2.2): "Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time."
             if resp.status == 200 && !resp.headers.contains_key("cache-control") {
                 return Some(Violation {
                     rule: self.id().into(),

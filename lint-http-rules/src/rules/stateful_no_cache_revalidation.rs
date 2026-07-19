@@ -75,6 +75,7 @@ impl Rule for StatefulNoCacheRevalidation {
         let has_conditional = tx.request.headers.contains_key("if-none-match")
             || tx.request.headers.contains_key("if-modified-since");
 
+        // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
         if !has_conditional {
             return Some(Violation {
                 rule: self.id().into(),
@@ -98,8 +99,8 @@ impl Rule for StatefulNoCacheRevalidation {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9111",
-                section: Some("5.2.2.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5",
+                section: Some("5.2.2.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.4",
                 note: "`no-cache`",
             },
             crate::rules::SpecRef {

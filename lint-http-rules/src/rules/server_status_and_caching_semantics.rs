@@ -33,6 +33,7 @@ impl Rule for ServerStatusAndCachingSemantics {
         // Status codes that are cacheable by default per RFC 9111 §3
         const DEFAULT_CACHEABLE: [u16; 11] =
             [200, 203, 204, 206, 300, 301, 404, 405, 410, 414, 501];
+        // cite(RFC 9111 § 4.2.2): "A cache MUST NOT use heuristics to determine freshness when an explicit expiration time is present"
         if DEFAULT_CACHEABLE.contains(&status) {
             return None;
         }

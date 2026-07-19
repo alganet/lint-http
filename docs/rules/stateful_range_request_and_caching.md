@@ -14,7 +14,7 @@ This rule tracks earlier transactions for the same client and resource.  If a pr
 
 ## Specifications
 
-- [RFC 7233 §3.2](https://www.rfc-editor.org/rfc/rfc7233.html#section-3.2): `If-Range` precondition to `Range` requests
+- [RFC 9110 §13.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5): `If-Range` precondition to `Range` requests. RFC 7233 §3.2 defined it; RFC 9110 obsoleted RFC 7233, and this reference had not moved
 - [RFC 9111 §4.3.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1): Caches SHOULD send `If-Range` when validating partial responses
 - [RFC 9111 §3.4](https://www.rfc-editor.org/rfc/rfc9111.html#section-3.4): Combining partial content requires a shared strong validator
 

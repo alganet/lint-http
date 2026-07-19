@@ -88,6 +88,10 @@ impl Rule for StatefulImmutableCacheNeverStale {
         let has_conditional = tx.request.headers.contains_key("if-none-match")
             || tx.request.headers.contains_key("if-modified-since");
 
+        // Only while fresh. `immutable` says nothing about a stale response, and this rule
+        // must not either — hence the age check guarding the branch.
+        // cite(RFC 8246 § 2): "Clients SHOULD NOT issue a conditional request during the response's freshness lifetime (e.g., upon a reload) unless explicitly overridden by the user (e.g., a force reload)."
+        // cite(RFC 8246 § 2): "The immutable extension only applies during the freshness lifetime of the stored response."
         if has_conditional && current_age < freshness_lifetime {
             return Some(Violation {
                 rule: self.id().into(),

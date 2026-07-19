@@ -104,13 +104,17 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
             tx.timestamp
         };
 
-        // If no-cache or no-store or max-age=0 but Expires in the future => contradiction
+        // If no-cache or no-store or max-age=0 but Expires in the future => contradiction.
+        // The precedence is not stated as a rule about Expires; it falls out of the
+        // freshness calculation, which consults max-age *before* it consults Expires and
+        // stops at the first match.
+        // cite(RFC 9111 § 4.2.1): "If the max-age response directive (Section 5.2.2.1) is present, use its value, or * If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field"
         if (cc_no_cache || cc_no_store || cc_max_age == Some(0)) && expires > date_ref {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
                 message: format!(
-                    "Response contains Cache-Control directives {:?} which prevent caching, but Expires indicates freshness until {} — Cache-Control takes precedence (RFC 9111 §5.3)",
+                    "Response contains Cache-Control directives {:?} which prevent caching, but Expires indicates freshness until {} — Cache-Control takes precedence (RFC 9111 §4.2.1)",
                     if cc_no_cache { "no-cache" } else if cc_no_store { "no-store" } else { "max-age=0" },
                     expires
                 ),

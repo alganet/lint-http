@@ -77,6 +77,7 @@ impl Rule for MessageCachingDirectiveInteraction {
             }
 
             // public vs private contradiction
+            // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
             if seen.contains_key("public") && seen.contains_key("private") {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -89,6 +90,10 @@ impl Rule for MessageCachingDirectiveInteraction {
             if seen.contains_key("no-store")
                 && (seen.contains_key("public") || seen.contains_key("private"))
             {
+                // `no-store` forbids storing at all, so pairing it with a directive whose
+                // only job is to say *which* caches may store is a contradiction: one of
+                // the two is dead text, and the server does not know which it meant.
+                // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,

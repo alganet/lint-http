@@ -71,6 +71,10 @@ impl Rule for StatefulPrivateCacheVisibility {
                                 if let Some(hv2) = resp.headers.get("etag") {
                                     if let Ok(val) = hv2.to_str() {
                                         let val_norm = crate::helpers::headers::normalize_etag(val);
+                                        // A validator from a `private` response turning up
+                                        // in a *different* client's request means a shared
+                                        // cache stored what only one user was to hold.
+                                        // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
                                         if val_norm == normalized {
                                             return Some(Violation {
                                                 rule: self.id().into(),

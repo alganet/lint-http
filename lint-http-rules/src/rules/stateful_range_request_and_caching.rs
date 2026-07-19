@@ -80,6 +80,9 @@ impl Rule for StatefulRangeRequestAndCaching {
         // current request's If-Range, if any
         let if_range_val = crate::helpers::headers::get_header_str(&req.headers, "if-range");
 
+        // The strong-validator condition is what makes recombining safe; a range request
+        // that carries no `If-Range` gives the cache nothing to check it against.
+        // cite(RFC 9111 § 3.4): "A cache MAY combine these ranges into a single stored response, and reuse that response to satisfy later requests, if they all share the same strong validator"
         if if_range_val.is_none() {
             return Some(Violation {
                 rule: self.id().into(),
@@ -134,10 +137,10 @@ impl Rule for StatefulRangeRequestAndCaching {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
-                spec: "RFC 7233",
-                section: Some("3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc7233.html#section-3.2",
-                note: "`If-Range` precondition to `Range` requests",
+                spec: "RFC 9110",
+                section: Some("13.1.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5",
+                note: "`If-Range` precondition to `Range` requests. RFC 7233 §3.2 defined it; RFC 9110 obsoleted RFC 7233, and this reference had not moved",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9111",

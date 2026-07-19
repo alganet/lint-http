@@ -82,6 +82,9 @@ impl Rule for SemanticCacheCoherence {
             }
         }
 
+        // A representation going backwards in time across two responses is the observable
+        // form of a cache serving something it should have revalidated.
+        // cite(RFC 9111 § 4.2.4): "A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server"
         if let Some(prev_max) = max_prev {
             if curr_time < prev_max {
                 return Some(Violation {
