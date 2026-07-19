@@ -38,6 +38,7 @@ impl Rule for StatefulRedirectChainValidity {
 
         let status = resp.status;
         // Consider redirection/creation status codes that may include Location
+        // cite(RFC 9110 § 15.4): "The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request."
         if !matches!(status, 300 | 301 | 302 | 303 | 307 | 308 | 201) {
             return None;
         }
@@ -117,8 +118,8 @@ impl Rule for StatefulRedirectChainValidity {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
             spec: "RFC 9110",
-            section: Some("6.4"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
+            section: Some("15.4"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
             note: "Redirection",
         }]
     }

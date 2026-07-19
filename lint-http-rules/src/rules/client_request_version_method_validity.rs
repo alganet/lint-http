@@ -51,7 +51,17 @@ impl Rule for ClientRequestVersionMethodValidity {
         }
 
         // Methods that do *not* define request-content semantics and which RFC
-        // 9110 either forbids or discourages from carrying a body.
+        // 9110 either forbids or discourages from carrying a body. One sentence per
+        // method, because the strength differs: TRACE and CONNECT are prohibitions,
+        // the other three are discouragements, and the rule flattens them into one
+        // violation. These quotes were in the rule's metadata before stage 1 moved
+        // references to typed fields and dropped them; they belong here, next to the
+        // branch, where they can be checked.
+        // cite(RFC 9110 § 9.3.1): "A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server"
+        // cite(RFC 9110 § 9.3.2): "A client SHOULD NOT generate content in a HEAD request"
+        // cite(RFC 9110 § 9.3.5): "A client SHOULD NOT generate content in a DELETE request"
+        // cite(RFC 9110 § 9.3.6): "A CONNECT request message does not have content."
+        // cite(RFC 9110 § 9.3.8): "A client MUST NOT send content in a TRACE request."
         let method_upper = method.to_ascii_uppercase();
         if method_upper == "GET"
             || method_upper == "HEAD"

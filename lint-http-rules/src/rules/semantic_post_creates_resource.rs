@@ -24,6 +24,7 @@ impl Rule for SemanticPostCreatesResource {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // only consider POST requests with a response
+        // cite(RFC 9110 § 9.3.3): "If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response"
         if !tx.request.method.eq_ignore_ascii_case("POST") {
             return None;
         }

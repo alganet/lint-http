@@ -28,6 +28,7 @@ impl Rule for ServerStatusCodeValidRange {
         };
 
         let status = resp.status;
+        // cite(RFC 9110 § 15): "The status code of a response is a three-digit integer code that describes the result of the request"
         if !(100..=599).contains(&status) {
             return Some(Violation {
                 rule: self.id().into(),

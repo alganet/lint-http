@@ -28,6 +28,7 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
 
         // Collect tokens from ALL header fields (multiple header fields should be considered)
         let mut ce_set = std::collections::HashSet::new();
+        // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
         for hv in resp.headers.get_all("content-encoding").iter() {
             if let Ok(s) = hv.to_str() {
                 for part in crate::helpers::headers::parse_list_header(s) {
@@ -87,8 +88,8 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+                section: Some("8.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
                 note: "Content Coding",
             },
             crate::rules::SpecRef {

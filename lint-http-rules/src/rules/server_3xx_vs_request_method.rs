@@ -34,6 +34,7 @@ impl Rule for Server3xxVsRequestMethod {
         let status = resp.status;
 
         // Only consider redirection responses that include a Location header
+        // cite(RFC 9110 § 15.4): "The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request."
         if !(300..400).contains(&status) {
             return None;
         }
@@ -72,8 +73,8 @@ impl Rule for Server3xxVsRequestMethod {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
             spec: "RFC 9110",
-            section: Some("6.4"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
+            section: Some("15.4"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
             note: "Redirection status codes and method-preserving semantics",
         }]
     }

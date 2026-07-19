@@ -32,6 +32,7 @@ impl Rule for ServerResponseLocationOnRedirect {
         // 300, 301, 302, 303, 307, 308 (see §15.4 and §10.2.2).
         let should_have_location = matches!(status, 201 | 300 | 301 | 302 | 303 | 307 | 308);
 
+        // cite(RFC 9110 § 15.4): "The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request."
         if should_have_location && resp.headers.get_all("location").iter().next().is_none() {
             return Some(Violation {
                 rule: self.id().into(),

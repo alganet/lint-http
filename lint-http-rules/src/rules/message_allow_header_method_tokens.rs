@@ -25,6 +25,7 @@ impl Rule for MessageAllowHeaderMethodTokens {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let check = |headers: &HeaderMap| -> Option<Violation> {
+            // cite(RFC 9110 § 10.2.1): "The "Allow" header field lists the set of methods advertised as supported by the target resource."
             for hv in headers.get_all("allow").iter() {
                 let allow_str = match hv.to_str() {
                     Ok(v) => v,
@@ -87,8 +88,8 @@ impl Rule for MessageAllowHeaderMethodTokens {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1",
+                section: Some("10.2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
                 note: "Allow header field",
             },
             crate::rules::SpecRef {

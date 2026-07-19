@@ -24,6 +24,7 @@ impl Rule for MessageContentLengthVsTransferEncoding {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check request headers
+        // cite(RFC 9112 § 6.2): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
         if tx.request.headers.contains_key("content-length")
             && tx.request.headers.contains_key("transfer-encoding")
         {

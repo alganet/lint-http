@@ -24,6 +24,7 @@ impl Rule for MessageConnectionUpgrade {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check request headers
+        // cite(RFC 9110 § 7.6.1): "The "Connection" header field allows the sender to list desired control options for the current connection."
         if let Some(msg) = check_connection_upgrade_map(&tx.request.headers) {
             return Some(Violation {
                 rule: self.id().into(),

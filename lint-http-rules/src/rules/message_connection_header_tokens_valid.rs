@@ -24,6 +24,7 @@ impl Rule for MessageConnectionHeaderTokensValid {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
+            // cite(RFC 9110 § 7.6.1): "The "Connection" header field allows the sender to list desired control options for the current connection."
             for hv in headers.get_all(hyper::header::CONNECTION).iter() {
                 let s = match hv.to_str() {
                     Ok(v) => v,

@@ -26,6 +26,8 @@ impl Rule for ClientRequestMethodTokenValid {
         let m = tx.request.method.as_str();
 
         // Validate token characters per RFC token (tchar) and uppercase requirement using shared helpers
+        // cite(RFC 9112 § 3.1): "The method token indicates the request method to be performed on the target resource."
+        // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*""
         if let Some(c) = crate::helpers::token::find_invalid_token_char(m) {
             return Some(Violation {
                 rule: self.id().into(),
@@ -52,9 +54,9 @@ impl Rule for ClientRequestMethodTokenValid {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9112",
-                section: Some("5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-5.1",
-                note: "Methods",
+                section: Some("3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.1",
+                note: "`method = token`. This reference said §5.1, which is Field Line Parsing",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",

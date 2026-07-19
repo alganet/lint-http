@@ -12,7 +12,7 @@ This rule checks that the `Location` response header, when present, is a syntact
 
 ## Specifications
 
-- [RFC 9110 §7.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.5.2)
+- [RFC 9110 §10.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2)
 - [RFC 3986 §4](https://www.rfc-editor.org/rfc/rfc3986.html#section-4): URI-reference syntax and percent-encoding
 
 ## Configuration

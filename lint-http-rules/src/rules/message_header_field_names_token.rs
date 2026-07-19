@@ -25,6 +25,7 @@ impl Rule for MessageHeaderFieldNamesToken {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // token characters per RFC token (tchar) - use shared helper
         // Check request headers
+        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
         for (k, _v) in tx.request.headers.iter() {
             if let Some(v) = check_header_name(k.as_str(), &config) {
                 return Some(v);

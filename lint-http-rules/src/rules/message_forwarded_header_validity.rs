@@ -179,6 +179,7 @@ impl Rule for MessageForwardedHeaderValidity {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Helper to validate a single Forwarded element (one comma-separated member)
         let validate_element = |elem: &str| -> Option<Violation> {
+            // cite(RFC 7239 § 4): "The "Forwarded" HTTP header field is an OPTIONAL header field"
             if elem.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),

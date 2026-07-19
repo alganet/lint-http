@@ -24,6 +24,7 @@ impl Rule for MessageContentLength {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
+            // cite(RFC 9110 § 8.6): "Content-Length = 1*DIGIT"
             match crate::helpers::headers::validate_content_length(headers) {
                 Ok(_) => None,
                 Err(e) => {

@@ -24,6 +24,7 @@ impl Rule for SemanticOptionsMethodCapabilities {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only care about OPTIONS requests with a final response
+        // cite(RFC 9110 § 9.3.7): "The OPTIONS method requests information about the communication options available for the target resource"
         if !tx.request.method.eq_ignore_ascii_case("OPTIONS") {
             return None;
         }

@@ -24,6 +24,7 @@ impl Rule for ClientExpectHeaderValid {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check request headers
+        // cite(RFC 9110 § 10.1.1): "The "Expect" header field in a request indicates a certain set of behaviors (expectations) that need to be supported by the server"
         for hv in tx.request.headers.get_all("Expect").iter() {
             let s = match hv.to_str() {
                 Ok(v) => v,

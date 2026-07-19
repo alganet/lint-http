@@ -32,6 +32,7 @@ impl Rule for ClientPreferHeaderAndPreferenceApplied {
             // If the Prefer header contains at least one non-empty UTF-8 member, consider it present
             .any(|h| h.to_str().map(|s| !s.trim().is_empty()).unwrap_or(false));
 
+        // cite(RFC 7240 § 3): "The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server"
         if !saw_prefer {
             return None;
         }
