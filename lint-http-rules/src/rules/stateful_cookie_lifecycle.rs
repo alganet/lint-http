@@ -121,6 +121,7 @@ impl Rule for StatefulCookieLifecycle {
                         && c.domain_matches(&req_host)
                         && c.path_matches(&req_path)
                 }) {
+                    // cite(RFC 6265 § 4.1.2.5): "The Secure attribute limits the scope of the cookie to "secure" channels"
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
@@ -173,7 +174,10 @@ impl Rule for StatefulCookieLifecycle {
                 }
                 if seen_path {
                     // there was a matching cookie in the past but it is no longer
-                    // live (either expired, deleted, or replaced by another).
+                    // live (either expired, deleted, or replaced by another). A client
+                    // still sending it has a store the user agent was required to have
+                    // emptied.
+                    // cite(RFC 6265 § 5.3): "The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store."
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,

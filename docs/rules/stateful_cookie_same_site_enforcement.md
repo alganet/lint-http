@@ -18,7 +18,7 @@ If the relationship cannot be determined (e.g. missing `Sec-Fetch-Site`), the ru
 
 ## Specifications
 
-- [draft-ietf-httpbis-rfc6265bis §5.3.4](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.3.4): SameSite cookie semantics
+- [draft-ietf-httpbis-rfc6265bis](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis): `SameSite` cookie semantics. No section: a draft renumbers between revisions — this one cited §5.3.4, where `SameSite` has not lived for some time
 - [Fetch](https://fetch.spec.whatwg.org/#sec-fetch-site): Fetch spec Sec-Fetch-Site
 
 ## Configuration

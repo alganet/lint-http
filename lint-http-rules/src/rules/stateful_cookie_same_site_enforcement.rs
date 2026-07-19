@@ -125,6 +125,7 @@ impl Rule for StatefulCookieSameSiteEnforcement {
 
                 if is_cross {
                     match effective {
+                        // cite(draft-ietf-httpbis-rfc6265bis): "If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests."
                         crate::helpers::cookie::SameSite::Strict => {
                             return Some(Violation {
                                 rule: self.id().into(),
@@ -135,6 +136,10 @@ impl Rule for StatefulCookieSameSiteEnforcement {
                                 ),
                             });
                         }
+                        // `allow_lax` is the carve-out named in the second half of this
+                        // sentence: a top-level navigation is where a Lax cookie legitimately
+                        // crosses sites, which is why this arm only fires when it is not one.
+                        // cite(draft-ietf-httpbis-rfc6265bis): "If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1."
                         crate::helpers::cookie::SameSite::Lax if !allow_lax => {
                             return Some(Violation {
                                 rule: self.id().into(),
@@ -166,9 +171,9 @@ impl Rule for StatefulCookieSameSiteEnforcement {
         &[
             crate::rules::SpecRef {
                 spec: "draft-ietf-httpbis-rfc6265bis",
-                section: Some("5.3.4"),
-                url: "https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.3.4",
-                note: "SameSite cookie semantics",
+                section: None,
+                url: "https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis",
+                note: "`SameSite` cookie semantics. No section: a draft renumbers between revisions — this one cited §5.3.4, where `SameSite` has not lived for some time",
             },
             crate::rules::SpecRef {
                 spec: "Fetch",
