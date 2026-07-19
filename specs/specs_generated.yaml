@@ -359,16 +359,20 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
   fragments:
-  - label: stateful_immutable_cache_never_stale
+  - label: server_immutable_requires_freshness
     section: § 2
     snippet: Clients SHOULD NOT issue a conditional request during the response's freshness lifetime (e.g., upon a reload) unless explicitly overridden by the user (e.g., a force reload).
     cited_by:
+    - file: lint-http-rules/src/rules/server_immutable_requires_freshness.rs
+      line: 97
     - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
       line: 93
-  - label: stateful_immutable_cache_never_stale (2)
+  - label: server_immutable_requires_freshness (2)
     section: § 2
     snippet: The immutable extension only applies during the freshness lifetime of the stored response.
     cited_by:
+    - file: lint-http-rules/src/rules/server_immutable_requires_freshness.rs
+      line: 96
     - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
       line: 94
 - label: RFC 8288
