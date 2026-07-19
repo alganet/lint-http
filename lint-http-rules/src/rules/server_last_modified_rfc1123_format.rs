@@ -28,6 +28,8 @@ impl Rule for ServerLastModifiedRfc1123Format {
         };
 
         if let Some(s) = crate::helpers::headers::get_header_str(&resp.headers, "last-modified") {
+            // cite(RFC 9110 § 8.8.2): "Last-Modified = HTTP-date"
+            // cite(RFC 9110 § 5.6.7): "An HTTP-date value represents time as an instance of Coordinated Universal Time (UTC)."
             if !crate::http_date::is_valid_http_date(s) {
                 return Some(Violation {
                     rule: self.id().into(),

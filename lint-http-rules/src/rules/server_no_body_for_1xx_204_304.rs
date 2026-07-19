@@ -34,6 +34,7 @@ impl Rule for ServerNoBodyFor1xx204304 {
         }
 
         // If Transfer-Encoding present, that's indicative of a body
+        // cite(RFC 9110 § 6.4.1): "1xx (Informational), 204 (No Content), and 304 (Not Modified) responses do not include content."
         if resp.headers.contains_key("transfer-encoding") {
             return Some(Violation {
                 rule: self.id().into(),

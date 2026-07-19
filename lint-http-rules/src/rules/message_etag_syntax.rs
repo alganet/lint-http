@@ -6,7 +6,7 @@ use crate::lint::Violation;
 use crate::rules::Rule;
 
 /// Validate `ETag` header values: must be a single entity-tag (strong or weak quoted-string)
-/// per RFC 9110 §7.6 / §8.8.3. Also flags invalid UTF-8 and multiple header fields.
+/// per RFC 9110 §8.8.3. Also flags invalid UTF-8 and multiple header fields.
 pub struct MessageEtagSyntax;
 
 impl Rule for MessageEtagSyntax {
@@ -55,6 +55,7 @@ impl Rule for MessageEtagSyntax {
                 });
             }
 
+            // cite(RFC 9110 § 8.8.3): "entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE"
             if let Err(msg) = crate::helpers::headers::validate_entity_tag(t) {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -90,15 +91,9 @@ impl Rule for MessageEtagSyntax {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6",
-                note: "Entity Tag",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
                 section: Some("8.8.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
-                note: "ETag header field",
+                note: "`ETag` and the `entity-tag` grammar. Both of this rule's references used to point here, one of them via §7.6 — which is Message Forwarding",
             },
         ]
     }

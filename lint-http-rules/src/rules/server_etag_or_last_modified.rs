@@ -27,6 +27,10 @@ impl Rule for ServerEtagOrLastModified {
             return None;
         };
         let status = resp.status;
+        // A 200 with no validator cannot be revalidated: every later request for it is a
+        // full transfer, and a conditional request has nothing to be conditional on.
+        // cite(RFC 9110 § 8.8.2): "An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined"
+        // cite(RFC 9110 § 8.8.3): "An entity tag is an opaque validator for differentiating between multiple representations of the same resource"
         if status == 200
             && !resp.headers.contains_key("etag")
             && !resp.headers.contains_key("last-modified")
@@ -53,8 +57,8 @@ impl Rule for ServerEtagOrLastModified {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("8.8.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.1",
+                section: Some("8.8.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2",
                 note: "Last-Modified header",
             },
             crate::rules::SpecRef {

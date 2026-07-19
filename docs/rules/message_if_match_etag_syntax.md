@@ -12,8 +12,8 @@ SPDX-License-Identifier: ISC
 
 ## Specifications
 
-- [RFC 9110 §7.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6): ETag header field
-- [RFC 9110 §7.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.3): If-Match
+- [RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): ETag header field
+- [RFC 9110 §13.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.1): If-Match
 
 ## Configuration
 

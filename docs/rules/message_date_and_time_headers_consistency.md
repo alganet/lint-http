@@ -12,9 +12,9 @@ Validate that date/time related headers are well-formed and mutually consistent.
 
 ## Specifications
 
-- [RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1): `Date` header (IMF-fixdate)
-- [RFC 9110 §7.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.7): `Last-Modified` header
-- [RFC 9110 §7.8.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.1): `If-Modified-Since` (conditional requests)
+- [RFC 9110 §6.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1): `Date` header (IMF-fixdate)
+- [RFC 9110 §8.8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2): `Last-Modified` header
+- [RFC 9110 §13.1.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3): `If-Modified-Since` (conditional requests)
 - [RFC 8594 §3](https://www.rfc-editor.org/rfc/rfc8594.html#section-3): `Sunset` header semantics
 
 ## Configuration

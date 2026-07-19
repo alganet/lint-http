@@ -41,6 +41,10 @@ impl Rule for MessageIfMatchEtagSyntax {
             let mut seen_any = false;
             for member in crate::helpers::headers::parse_list_header(s) {
                 seen_any = true;
+                // If-Match is compared strongly, so a weak tag (`W/"…"`) can never satisfy
+                // it — which is why the entity-tag validation here is not merely syntactic
+                // housekeeping.
+                // cite(RFC 9110 § 13.1.1): "An origin server MUST use the strong comparison function when comparing entity tags for If-Match"
                 if let Err(msg) = crate::helpers::headers::validate_entity_tag(member) {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -77,14 +81,14 @@ impl Rule for MessageIfMatchEtagSyntax {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6",
+                section: Some("8.8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
                 note: "ETag header field",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.3",
+                section: Some("13.1.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.1",
                 note: "If-Match",
             },
         ]

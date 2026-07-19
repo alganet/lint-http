@@ -22,7 +22,7 @@ Validate `Set-Cookie` attributes for syntactic correctness and common security c
 
 - [RFC 6265 §5.2.2](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.2): Set-Cookie header attributes and semantics
 - [MDN Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie): SameSite cookies (SameSite=None should be Secure) — browser compatibility guidance on `SameSite` usage
-- [RFC 9110 §7.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1.1): HTTP-date (IMF-fixdate) — used for the `Expires` attribute
+- [RFC 9110 §5.6.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7): HTTP-date (IMF-fixdate) — used for the `Expires` attribute
 
 ## Configuration
 

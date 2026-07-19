@@ -41,6 +41,7 @@ impl Rule for MessageIfNoneMatchEtagSyntax {
             let mut seen_any = false;
             for member in crate::helpers::headers::parse_list_header(s) {
                 seen_any = true;
+                // cite(RFC 9110 § 13.1.2): "A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match"
                 if let Err(msg) = crate::helpers::headers::validate_entity_tag(member) {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -77,14 +78,14 @@ impl Rule for MessageIfNoneMatchEtagSyntax {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6",
+                section: Some("8.8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
                 note: "ETag header field",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("7.8.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8.4",
+                section: Some("13.1.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2",
                 note: "If-None-Match",
             },
         ]
