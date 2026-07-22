@@ -11,6 +11,17 @@
 use base64::Engine;
 use sha1::Digest;
 
+/// The GUID a server concatenates to the client's key. This constant *is* the
+/// specification: get one character wrong and every handshake we judge is judged
+/// against nonsense, with no other symptom.
+///
+/// The quote below is from § 4.2.2's worked example rather than from the normative
+/// step above it, and that is not laziness. RFC 6455's line width breaks this GUID
+/// across a line everywhere it is *stated* — the extracted text reads
+/// `"258EAFA5- E914-47DA-95CA-C5AB0DC85B11"`, with a space. The example is one of
+/// only two places in the document where all 36 characters survive on one line, so
+/// it is the only passage that can pin the value at all.
+// cite(RFC 6455 § 4.2.2): "server would append the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" to form the string"
 const WS_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 /// Compute the `Sec-WebSocket-Accept` value from the client's request key.
@@ -19,8 +30,8 @@ const WS_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 /// base64 or decodes to a length other than 16 bytes, this function returns
 /// `None`, mirroring the requirements of RFC 6455.
 ///
-/// Otherwise the result is the base64 encoding of the SHA-1 hash of the
-/// concatenation of the key bytes and the well-known GUID.
+/// Otherwise the result is the base64 encoding of the SHA-1 hash of the key **as a
+/// string** concatenated with the well-known GUID — not of the bytes it decodes to.
 pub fn compute_accept(key: &str) -> Option<String> {
     let key_trim = key.trim();
     // decode key to ensure it is 16 bytes long
@@ -28,8 +39,14 @@ pub fn compute_accept(key: &str) -> Option<String> {
         // cite(RFC 6455 § 4.1): "The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded"
         Ok(bytes) if bytes.len() == 16 => {
             let mut hasher = sha1::Sha1::new();
+            // The decode above is a length check and nothing more. What gets hashed is
+            // the key exactly as it arrived on the wire — the easiest thing here to get
+            // wrong is to hash the 16 bytes we just decoded, which produces a
+            // plausible-looking accept value that is always wrong.
+            // cite(RFC 6455 § 4.1): "(as a string, not base64-decoded) with the string"
             hasher.update(key_trim.as_bytes());
             hasher.update(WS_GUID.as_bytes());
+            // cite(RFC 6455 § 4.2.2): "taking the SHA-1 hash of this concatenated value to obtain a 20-byte value"
             let digest = hasher.finalize();
             Some(base64::engine::general_purpose::STANDARD.encode(digest))
         }
