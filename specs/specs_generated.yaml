@@ -1433,6 +1433,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
       line: 36
+  - label: server_http3_status_code_validity
+    section: § 4.5
+    snippet: HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
+    cited_by:
+    - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
+      line: 41
   - label: stateful_http3_goaway_semantics
     section: § 7.2.6
     snippet: The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint.

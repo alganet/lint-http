@@ -269,7 +269,7 @@ fn emit_h3_protocol_event(
 /// shared hyper client, lint the transaction, write captures, and stream the
 /// response back over h3.
 ///
-/// HTTP/3 does not support 101 Switching Protocols (RFC 9114 §4.2), so
+/// HTTP/3 does not support 101 Switching Protocols (RFC 9114 §4.5), so
 /// upgrade/WebSocket handling is intentionally omitted here.
 async fn handle_h3_request(
     req: hyper::Request<()>,

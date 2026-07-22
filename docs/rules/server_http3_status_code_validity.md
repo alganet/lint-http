@@ -17,7 +17,7 @@ This rule applies when the request version is `HTTP/3`. Response properties are 
 ## Specifications
 
 - [RFC 9114 §4.5](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5): HTTP Upgrade
-- [RFC 9114 §4.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1): HTTP Message Exchanges
+- [RFC 9114 §4.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1): HTTP Message Framing, where interim and final responses are described. This note said HTTP Message Exchanges, which is not a section RFC 9114 has
 - [RFC 9110 §15.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2): Informational 1xx
 - [RFC 9220](https://www.rfc-editor.org/rfc/rfc9220.html): Bootstrapping WebSockets with HTTP/3
 
