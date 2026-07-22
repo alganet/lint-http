@@ -226,18 +226,23 @@ pub fn parse_set_cookie(
 
     let domain = domain_attr.unwrap_or(default_domain);
 
-    // determine default path per RFC 6265 §5.1.4
+    // The branches below are § 5.1.4's numbered steps, in its order.
+    // cite(RFC 6265 § 5.1.4): "The user agent MUST use an algorithm equivalent to the following algorithm to compute the default-path of a cookie:"
     let default_path =
         if let Some(p) = crate::helpers::uri::extract_path_from_request_target(request_uri) {
+            // Step 2. Quoted here only as its tail: the step opens "If the uri-path is
+            // empty or if the first character of the uri-" and the document's line
+            // break lands inside `uri-path`, so the sentence cannot be quoted whole.
+            // cite(RFC 6265 § 5.1.4): "output %x2F ("/") and skip the remaining steps."
             if !p.starts_with('/') {
                 "/".into()
             } else {
-                // if path contains no more than one '/', default is '/'
+                // cite(RFC 6265 § 5.1.4): "If the uri-path contains no more than one %x2F ("/") character, output %x2F ("/") and skip the remaining step."
                 let slash_count = p.matches('/').count();
                 if slash_count <= 1 {
                     "/".into()
                 } else {
-                    // strip everything after the right-most '/'
+                    // cite(RFC 6265 § 5.1.4): "Output the characters of the uri-path from the first character up to, but not including, the right-most %x2F ("/")."
                     if let Some(pos) = p.rfind('/') {
                         if pos == 0 {
                             "/".into()
