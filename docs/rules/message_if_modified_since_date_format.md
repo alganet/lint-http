@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-The `If-Modified-Since` request header, when present, MUST be a valid HTTP-date (IMF-fixdate). This rule flags `If-Modified-Since` header values that are not valid HTTP-date strings or contain non-UTF8 bytes.
+The `If-Modified-Since` request header is defined as an HTTP-date, and a sender MUST generate it in the IMF-fixdate format. This rule flags values that are not a valid IMF-fixdate — including the two obsolete formats, which a recipient must still accept but no sender may emit — or that contain non-UTF8 bytes.
 
 ## Specifications
 
