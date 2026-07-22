@@ -25,9 +25,10 @@ impl Rule for ClientRequestMethodTokenValid {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let m = tx.request.method.as_str();
 
-        // Validate token characters per RFC token (tchar) and uppercase requirement using shared helpers
+        // The claim here is that a method *is* a token. Which characters make a token
+        // is `tchar`, and that sentence is cited where the set is actually spelled out,
+        // in `helpers::token::is_tchar` -- one call away, and quoted in full there.
         // cite(RFC 9112 § 3.1): "The method token indicates the request method to be performed on the target resource."
-        // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*""
         if let Some(c) = crate::helpers::token::find_invalid_token_char(m) {
             return Some(Violation {
                 rule: self.id().into(),
