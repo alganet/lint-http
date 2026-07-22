@@ -747,6 +747,24 @@ sources:
       line: 28
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
       line: 39
+  - label: lint-http-core/src/http_date.rs
+    section: § 5.6.7
+    snippet: A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats.
+    cited_by:
+    - file: lint-http-core/src/http_date.rs
+      line: 25
+  - label: lint-http-core/src/http_date.rs (2)
+    section: § 5.6.7
+    snippet: HTTP-date = IMF-fixdate / obs-date
+    cited_by:
+    - file: lint-http-core/src/http_date.rs
+      line: 24
+  - label: lint-http-core/src/http_date.rs (3)
+    section: § 5.6.7
+    snippet: When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format.
+    cited_by:
+    - file: lint-http-core/src/http_date.rs
+      line: 47
   - label: lint-http-proxy/src/proxy/exchange.rs
     section: § 15.2.2
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
