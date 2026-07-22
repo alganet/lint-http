@@ -43,6 +43,7 @@ pub fn validate_cookie_domain(s: &str) -> Result<(), String> {
     }
 
     // Validate labels
+    // cite(RFC 1035 § 2.3.4): "names 255 octets or less"
     if s.len() > 255 {
         return Err("domain total length exceeds 255 characters".into());
     }
@@ -51,11 +52,22 @@ pub fn validate_cookie_domain(s: &str) -> Result<(), String> {
         if label.is_empty() {
             return Err("domain contains empty label".into());
         }
+        // cite(RFC 1035 § 2.3.1): "Labels must be 63 characters or less."
         if label.len() > 63 {
             return Err("domain label exceeds 63 characters".into());
         }
         let first = label.chars().next().expect("label verified non-empty");
         let last = label.chars().next_back().expect("label verified non-empty");
+        // Only the hyphen is checked at the ends, not "starts with a letter". That is
+        // not an oversight: § 2.3.1's rule was letter-first, and RFC 1123 changed it.
+        // A label may open with a digit, and `1.example.com` is not our business to
+        // reject — so the quote below is deliberately the clause about the *end* and
+        // the interior, which is the part this branch actually enforces.
+        // cite(RFC 1035 § 2.3.1): "end with a letter or digit, and have as interior characters only letters, digits, and hyphen."
+        // (RFC 1123's § 2.1 heading is the old indented style with no trailing period,
+        // which the section resolver does not match, so this cite names the document
+        // and lets the sentence locate itself.)
+        // cite(RFC 1123): "the restriction on the first character is relaxed to allow either a letter or a digit."
         if first == '-' || last == '-' {
             return Err("domain label must not start or end with '-'".into());
         }

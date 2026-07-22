@@ -213,6 +213,37 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_origin_isolated_header_validity.rs
       line: 67
+- label: RFC 1035
+  url: https://www.rfc-editor.org/rfc/rfc1035.txt
+  type: text/plain
+  fragments:
+  - label: lint-http-rules/src/helpers/domain.rs
+    section: § 2.3.1
+    snippet: Labels must be 63 characters or less.
+    cited_by:
+    - file: lint-http-rules/src/helpers/domain.rs
+      line: 55
+  - label: lint-http-rules/src/helpers/domain.rs (2)
+    section: § 2.3.1
+    snippet: end with a letter or digit, and have as interior characters only letters, digits, and hyphen.
+    cited_by:
+    - file: lint-http-rules/src/helpers/domain.rs
+      line: 66
+  - label: lint-http-rules/src/helpers/domain.rs (3)
+    section: § 2.3.4
+    snippet: names 255 octets or less
+    cited_by:
+    - file: lint-http-rules/src/helpers/domain.rs
+      line: 46
+- label: RFC 1123
+  url: https://www.rfc-editor.org/rfc/rfc1123.txt
+  type: text/plain
+  fragments:
+  - label: lint-http-rules/src/helpers/domain.rs
+    snippet: the restriction on the first character is relaxed to allow either a letter or a digit.
+    cited_by:
+    - file: lint-http-rules/src/helpers/domain.rs
+      line: 70
 - label: RFC 2045
   url: https://www.rfc-editor.org/rfc/rfc2045.txt
   type: text/plain
