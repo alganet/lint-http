@@ -791,6 +791,8 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 20
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 615
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (4)
     section: § 7.6.1
     snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message).
@@ -798,11 +800,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 72
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 579
-    - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
-      line: 221
-    - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
-      line: 85
+      line: 642
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 11.1
     snippet: It uses a case-insensitive token to identify the authentication scheme
@@ -830,14 +828,20 @@ sources:
     - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
       line: 44
   - label: lint-http-rules/src/helpers/headers.rs (2)
+    section: § 6.5.1
+    snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 552
+  - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 8.3.1
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1104
+      line: 1163
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 90
-  - label: lint-http-rules/src/helpers/headers.rs (3)
+  - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
     cited_by:
@@ -845,12 +849,12 @@ sources:
       line: 42
     - file: lint-http-rules/src/rules/message_content_length.rs
       line: 27
-  - label: lint-http-rules/src/helpers/headers.rs (4)
+  - label: lint-http-rules/src/helpers/headers.rs (5)
     section: § 8.8.3
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1063
+      line: 1122
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 58
   - label: lint-http-rules/src/helpers/status.rs
@@ -1064,11 +1068,11 @@ sources:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 29
   - label: message_trailer_fields_validity
-    section: § 6.5.1
-    snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
+    section: § 6.6.2
+    snippet: A sender that intends to generate one or more trailer fields in a message SHOULD generate a Trailer header field in the header section of that message to indicate which fields might be present in the trailers.
     cited_by:
     - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
-      line: 14
+      line: 185
   - label: message_via_header_syntax_valid
     section: § 7.6.3
     snippet: The "Via" header field indicates the presence of intermediate protocols and recipients

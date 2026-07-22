@@ -540,52 +540,111 @@ mod concat_header_tests {
         assert!(!inm_matches_known("*", "\"a\""));
     }
 }
-/// Check whether a header name is a hop-by-hop header.
+/// Field names that cannot appear in a trailer section, by category.
 ///
-/// Returns `true` if `name` matches a known hop-by-hop header (case-insensitive)
-/// or if it is nominated by the optional `Connection` header value.
+/// This is the fixed half of the question "may this field be a trailer". The other
+/// half is [`is_nominated_by_connection`], which depends on the message.
 ///
-/// Both callers are trailer rules, and the name oversells what this answers for
-/// them: a field being hop-by-hop is one reason it cannot be a trailer, not the
-/// definition of one. The §6.5.1 list of fields that cannot be trailers lives in
-/// `message_trailer_fields_validity`, cited there.
+/// The categories below are the ones the cited sentence names, in its order. The
+/// last group is here because a connection-specific field is, by definition, needed
+/// before the content is read; `trailer` is here because a Trailer field inside a
+/// trailer section announces nothing.
+// cite(RFC 9110 § 6.5.1): "Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format."
+pub static PROHIBITED_TRAILER_FIELDS: &[&str] = &[
+    // Message framing
+    "content-length",
+    "transfer-encoding",
+    // Routing
+    "host",
+    // Request modifiers — controls
+    "cache-control",
+    "expect",
+    "max-forwards",
+    "pragma",
+    "range",
+    "te",
+    // Request modifiers — conditionals
+    "if-match",
+    "if-modified-since",
+    "if-none-match",
+    "if-range",
+    "if-unmodified-since",
+    // Authentication (RFC 9110 §11)
+    "authentication-info",
+    "authorization",
+    "proxy-authenticate",
+    "proxy-authentication-info",
+    "proxy-authorization",
+    "www-authenticate",
+    // Response control data (RFC 9110 §6.2)
+    "age",
+    "date",
+    "expires",
+    "location",
+    "retry-after",
+    "vary",
+    "warning",
+    // Payload processing
+    "content-encoding",
+    "content-range",
+    "content-type",
+    "trailer",
+    // Connection-specific (RFC 9110 §7.6.1)
+    "connection",
+    "keep-alive",
+    "upgrade",
+];
+
+/// Whether `name` cannot appear in a trailer section because of what it is.
 ///
-/// The static set below is *not* RFC 9110 § 7.6.1's list and is not cited as such.
-/// § 7.6.1 names Proxy-Connection, Keep-Alive, TE, Transfer-Encoding and Upgrade;
-/// this set omits Proxy-Connection and adds Trailer, which § 6.6.2 has surviving
-/// the hop. It stays as-is because both callers want Trailer flagged and neither
-/// forwards anything -- but the divergence is real and belongs in a list of its
-/// own rather than under a borrowed name.
-pub fn is_hop_by_hop_header(name: &str, connection_header_value: Option<&str>) -> bool {
+/// See [`is_nominated_by_connection`] for the half that depends on the message.
+pub fn is_prohibited_trailer_field(name: &str) -> bool {
     let name_l = name.trim().to_ascii_lowercase();
-    static HOP_BY_HOP: &[&str] = &[
-        "connection",
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailer",
-        "transfer-encoding",
-        "upgrade",
-    ];
+    PROHIBITED_TRAILER_FIELDS.contains(&name_l.as_str())
+}
 
-    if HOP_BY_HOP.contains(&name_l.as_str()) {
-        return true;
-    }
+/// Fields that are connection-specific whatever the message says.
+///
+/// The first six are RFC 9110 § 7.6.1's own list, plus `connection` itself, which the
+/// same section has an intermediary remove after acting on it. The last two are not
+/// § 7.6.1's: they are single-hop by their own definitions in § 11.7.1 and § 11.7.2.
+///
+/// `trailer` is deliberately not here — § 6.6.2 has it surviving the hop. It cannot be
+/// a *trailer field*, but that is § 6.5.1's business and
+/// [`PROHIBITED_TRAILER_FIELDS`] is where it says so.
+// cite(RFC 9110 § 7.6.1): "Furthermore, intermediaries SHOULD remove or replace fields that are known to require removal before forwarding, whether or not they appear as a connection-option, after applying those fields' semantics."
+static CONNECTION_SPECIFIC_FIELDS: &[&str] = &[
+    "connection",
+    "keep-alive",
+    "proxy-connection",
+    "te",
+    "transfer-encoding",
+    "upgrade",
+    // Single-hop by their own definitions, not by § 7.6.1's list.
+    "proxy-authenticate",
+    "proxy-authorization",
+];
 
-    // The nomination half, and the only half of this function a sentence covers
-    // exactly. Note "header or trailer field(s)": this is why a Connection-nominated
-    // name is disqualified from a trailer section, and it is what both callers ask.
+/// Whether `name` is connection-specific — either always, or because this message's
+/// `Connection` header nominated it.
+pub fn is_connection_specific_field(name: &str, connection_header_value: Option<&str>) -> bool {
+    let name_l = name.trim().to_ascii_lowercase();
+    CONNECTION_SPECIFIC_FIELDS.contains(&name_l.as_str())
+        || is_nominated_by_connection(name, connection_header_value)
+}
+
+/// Whether `name` was named as a connection-option in this message's `Connection`
+/// header, which disqualifies it from the trailer section for this message only.
+///
+/// The cited sentence says "header **or trailer** field(s)", and that is the whole
+/// reason a connection-option reaches into a trailer section at all.
+pub fn is_nominated_by_connection(name: &str, connection_header_value: Option<&str>) -> bool {
     // cite(RFC 9110 § 7.6.1): "Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message)."
-    if let Some(conn) = connection_header_value {
-        for tok in parse_list_header(conn) {
-            if tok.eq_ignore_ascii_case(name_l.as_str()) {
-                return true;
-            }
-        }
-    }
-
-    false
+    let name_l = name.trim().to_ascii_lowercase();
+    let Some(conn) = connection_header_value else {
+        return false;
+    };
+    parse_list_header(conn).any(|tok| tok.eq_ignore_ascii_case(name_l.as_str()))
 }
 
 /// Remove top-level parenthesized comments from a header value.
@@ -1794,24 +1853,45 @@ mod tests {
     }
 
     #[test]
-    fn test_is_hop_by_hop_header() {
-        // builtin hop-by-hop headers (case-insensitive)
-        assert!(is_hop_by_hop_header("Connection", None));
-        assert!(is_hop_by_hop_header("connection", None));
-        assert!(is_hop_by_hop_header("keep-alive", None));
-        assert!(!is_hop_by_hop_header("x-foo", None));
+    fn test_is_prohibited_trailer_field() {
+        // Fields the cited categories name, case-insensitively.
+        assert!(is_prohibited_trailer_field("Connection"));
+        assert!(is_prohibited_trailer_field("connection"));
+        assert!(is_prohibited_trailer_field("keep-alive"));
+        // The categories reach well past the connection-specific ones: framing,
+        // routing, conditionals, response control data.
+        assert!(is_prohibited_trailer_field("Content-Length"));
+        assert!(is_prohibited_trailer_field("host"));
+        assert!(is_prohibited_trailer_field("If-Match"));
+        assert!(is_prohibited_trailer_field("date"));
+        // A Trailer field inside a trailer section announces nothing.
+        assert!(is_prohibited_trailer_field("trailer"));
+        // An extension field is not prohibited by what it is.
+        assert!(!is_prohibited_trailer_field("x-foo"));
+        assert!(!is_prohibited_trailer_field("x-checksum"));
+    }
 
-        // connection nominates an additional hop-by-hop header
-        assert!(is_hop_by_hop_header(
+    #[test]
+    fn test_is_nominated_by_connection() {
+        // Nomination is per-message: this field is disqualified only because this
+        // message's Connection header names it.
+        assert!(is_nominated_by_connection(
             "X-Special",
             Some("keep-alive, X-Special")
         ));
-        // not nominated if not listed
-        assert!(!is_hop_by_hop_header("X-Special", Some("keep-alive")));
-        // nomination is case-insensitive
-        assert!(is_hop_by_hop_header(
+        // Not nominated if not listed.
+        assert!(!is_nominated_by_connection("X-Special", Some("keep-alive")));
+        // Both sides match case-insensitively.
+        assert!(is_nominated_by_connection(
             "x-special",
             Some("KEEP-ALIVE, x-special")
+        ));
+        // No Connection header nominates nothing.
+        assert!(!is_nominated_by_connection("x-special", None));
+        // A substring is not a token.
+        assert!(!is_nominated_by_connection(
+            "upgrade",
+            Some("super-upgrade")
         ));
     }
 
