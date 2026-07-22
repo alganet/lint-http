@@ -28,9 +28,13 @@ impl Rule for ServerLastModifiedRfc1123Format {
         };
 
         if let Some(s) = crate::helpers::headers::get_header_str(&resp.headers, "last-modified") {
+            // A response is a sender, so HTTP-date is not the bar here: the field is
+            // *defined* as HTTP-date, and a sender is still confined to IMF-fixdate.
+            // Checking `is_valid_http_date` accepted the two obsolete formats and so
+            // could never fail on the thing this rule exists to report.
             // cite(RFC 9110 § 8.8.2): "Last-Modified = HTTP-date"
-            // cite(RFC 9110 § 5.6.7): "An HTTP-date value represents time as an instance of Coordinated Universal Time (UTC)."
-            if !crate::http_date::is_valid_http_date(s) {
+            // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
+            if !crate::http_date::is_valid_imf_fixdate(s) {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
@@ -96,6 +100,12 @@ mod tests {
     #[case(Some(vec![("last-modified", "not-a-date")] ), true)]
     #[case(Some(vec![("last-modified", "Wed, 02 Jan 2030 12:00:00 GMT")] ), false)]
     #[case(None, false)]
+    // The two obsolete formats, in RFC 9110 § 5.6.7's own words. A recipient must
+    // accept both; a sender may generate neither, and a response is a sender. These
+    // are the cases this rule advertised and could not catch until it stopped asking
+    // the recipient's question.
+    #[case(Some(vec![("last-modified", "Sunday, 06-Nov-94 08:49:37 GMT")] ), true)]
+    #[case(Some(vec![("last-modified", "Sun Nov  6 08:49:37 1994")] ), true)]
     fn check_last_modified_cases(
         #[case] headers: Option<Vec<(&str, &str)>>,
         #[case] expect_violation: bool,

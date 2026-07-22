@@ -765,6 +765,8 @@ sources:
     cited_by:
     - file: lint-http-core/src/http_date.rs
       line: 47
+    - file: lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
+      line: 36
   - label: lint-http-proxy/src/proxy/exchange.rs
     section: § 15.2.2
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
@@ -977,8 +979,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
       line: 37
-    - file: lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
-      line: 32
   - label: message_date_and_time_headers_consistency (2)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated
@@ -1150,7 +1150,7 @@ sources:
     snippet: Last-Modified = HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
-      line: 31
+      line: 35
   - label: server_location_header_uri_valid
     section: § 10.2.2
     snippet: The "Location" header field is used in some responses to refer to a specific resource in relation to the response.
