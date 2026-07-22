@@ -23,6 +23,11 @@ This rule enforces that 206 (Partial Content) responses include a valid `Content
 [rules.message_range_and_content_range_consistency]
 enabled = true
 severity = "warn"
+# Range units whose first-pos/last-pos may be read as octet offsets and checked
+# against Content-Length. Units are an extensible token set (RFC 9110 14.1); a
+# Content-Range naming a unit not listed here is still parsed and structurally
+# validated, but its length is not compared to Content-Length.
+units = ["bytes"]
 ```
 
 ## Examples
