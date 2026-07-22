@@ -1551,7 +1551,7 @@ sources:
     snippet: The Priority HTTP header field (Section 5) is an end-to-end way to transmit this set of priority parameters when a
     cited_by:
     - file: lint-http-rules/src/rules/message_priority_header_syntax.rs
-      line: 27
+      line: 28
 - label: RFC 9530
   url: https://www.rfc-editor.org/rfc/rfc9530.txt
   type: text/plain

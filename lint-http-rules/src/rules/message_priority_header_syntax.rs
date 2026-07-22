@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::structured_fields::{is_valid_sf_key, is_valid_token_like};
 use crate::lint::Violation;
 use crate::rules::Rule;
 
@@ -215,45 +216,6 @@ fn validate_priority_header(s: &str) -> Option<String> {
     }
 
     None
-}
-
-fn is_valid_sf_key(k: &str) -> bool {
-    let mut chars = k.chars();
-    let first = match chars.next() {
-        Some(c) => c,
-        None => return false,
-    };
-    if !(first.is_ascii_lowercase() || first == '*') {
-        return false;
-    }
-    for c in chars {
-        if !(c.is_ascii_lowercase()
-            || c.is_ascii_digit()
-            || c == '_'
-            || c == '-'
-            || c == '.'
-            || c == '*')
-        {
-            return false;
-        }
-    }
-    true
-}
-
-fn is_valid_token_like(v: &str) -> bool {
-    // Accept a token-like value: first char alpha or '*' then allowed tchar/:/
-    let mut chars = v.chars();
-    match chars.next() {
-        Some(c) if c.is_ascii_alphabetic() || c == '*' => {}
-        _ => return false,
-    }
-    for c in chars {
-        if crate::helpers::token::is_tchar(c) || c == ':' || c == '/' {
-            continue;
-        }
-        return false;
-    }
-    true
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
