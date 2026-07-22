@@ -334,13 +334,26 @@ pub fn compute_freshness_lifetime(
         }
     }
 
+    // The order is the sentence's order, and it is "use the first match". s-maxage is
+    // the arm above these two and is deliberately absent: it applies only to a shared
+    // cache, and this helper is not told whether it is one.
+    // cite(RFC 9111 § 4.2.1): "If the max-age response directive (Section 5.2.2.1) is present, use its value, or * If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or"
     if let Some(max_age) = get_cache_control_max_age(headers) {
         return max_age;
     }
     if let Some(hv) = headers.get("expires") {
         if let Ok(s) = hv.to_str() {
             if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
-                let diff = dt.signed_duration_since(resp_timestamp).num_seconds();
+                // Subtract Date, not the time we happened to receive this. The origin's
+                // clock is the one the sentence asks for, and `resp_timestamp` is only
+                // the fallback it names for when Date is absent.
+                // cite(RFC 9111 § 4.2.1): "Note that this calculation is intended to reduce clock skew by using the clock information provided by the origin server whenever possible."
+                let basis = headers
+                    .get("date")
+                    .and_then(|d| d.to_str().ok())
+                    .and_then(|d| crate::http_date::parse_http_date_to_datetime(d.trim()).ok())
+                    .unwrap_or(resp_timestamp);
+                let diff = dt.signed_duration_since(basis).num_seconds();
                 if diff > 0 {
                     return diff;
                 }
@@ -881,7 +894,9 @@ pub fn unescape_quoted_string(val: &str) -> Result<String, String> {
 /// Validate qvalue syntax: 0, 1, 0.5, 0.123, 1.0, 0.000, etc. up to 3 decimals
 pub fn valid_qvalue(s: &str) -> bool {
     let s = s.trim();
-    // Must match either 1 or 1.0{0,3} or 0(.xxx){0,3}
+    // The three-decimal cap and the "1 may only be followed by zeroes" asymmetry are
+    // both in the production; neither is arbitrary.
+    // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
     if s == "1" || s == "1.0" || s == "1.00" || s == "1.000" {
         return true;
     }
@@ -1831,6 +1846,42 @@ mod tests {
         hm.append("cache-control", "max-age=100".parse().unwrap());
         hm.append("cache-control", "no-cache".parse().unwrap());
         assert_eq!(compute_freshness_lifetime(&hm, now), 0);
+
+        // Expires is measured from Date when Date is present, not from when we
+        // happened to receive the message. Here the origin's clock is 60s behind
+        // ours: Expires - Date is 20s, Expires - now is -40s. Reading it from `now`
+        // would call a fresh response stale.
+        hm.clear();
+        let origin_now = now - chrono::Duration::seconds(60);
+        let fmt =
+            |d: chrono::DateTime<chrono::Utc>| d.format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        hm.append("date", fmt(origin_now).parse().unwrap());
+        hm.append(
+            "expires",
+            fmt(origin_now + chrono::Duration::seconds(20))
+                .parse()
+                .unwrap(),
+        );
+        let val = compute_freshness_lifetime(&hm, now);
+        assert!(
+            (val - 20).abs() <= 1,
+            "expected ~20s from Date, got {}",
+            val
+        );
+
+        // With no Date, the time the message was received is the fallback the
+        // sentence names.
+        hm.clear();
+        hm.append(
+            "expires",
+            fmt(now + chrono::Duration::seconds(20)).parse().unwrap(),
+        );
+        let val = compute_freshness_lifetime(&hm, now);
+        assert!(
+            (val - 20).abs() <= 1,
+            "expected ~20s from receipt, got {}",
+            val
+        );
     }
 
     #[test]
