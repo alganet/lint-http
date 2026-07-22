@@ -701,12 +701,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 31
-  - label: client_request_method_token_valid
-    section: § 5.6.2
-    snippet: token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*"
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 30
   - label: client_request_version_method_validity
     section: § 9.3.1
     snippet: A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server
@@ -803,6 +797,12 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 72
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 579
+    - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
+      line: 221
+    - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
+      line: 85
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 11.1
     snippet: It uses a case-insensitive token to identify the authentication scheme
@@ -834,7 +834,7 @@ sources:
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1089
+      line: 1104
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 90
   - label: lint-http-rules/src/helpers/headers.rs (3)
@@ -850,7 +850,7 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1048
+      line: 1063
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 58
   - label: lint-http-rules/src/helpers/status.rs
@@ -1338,7 +1338,7 @@ sources:
     snippet: The method token indicates the request method to be performed on the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 29
+      line: 31
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 3.2
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form

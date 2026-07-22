@@ -215,10 +215,10 @@ fn check_trailers(
             });
         }
 
-        // Dynamic hop-by-hop: headers nominated by the Connection header
-        // are hop-by-hop and must not appear as trailer fields.
-        // The static hop-by-hop set is already covered by PROHIBITED_TRAILER_FIELDS,
-        // so we only need to check Connection-nominated headers here.
+        // Dynamic hop-by-hop: headers nominated by the Connection header must not
+        // appear as trailer fields. The sentence says "header or trailer field(s)",
+        // which is the whole reason a connection-option disqualifies a trailer name.
+        // cite(RFC 9110 § 7.6.1): "Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message)."
         if crate::helpers::headers::is_hop_by_hop_header(name, connection_val)
             && !PROHIBITED_TRAILER_FIELDS.contains(&name)
         {

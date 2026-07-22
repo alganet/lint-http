@@ -544,7 +544,18 @@ mod concat_header_tests {
 ///
 /// Returns `true` if `name` matches a known hop-by-hop header (case-insensitive)
 /// or if it is nominated by the optional `Connection` header value.
-/// This mirrors the hop-by-hop semantics in RFC 7230 §4.1.2 and §6.1.
+///
+/// Both callers are trailer rules, and the name oversells what this answers for
+/// them: a field being hop-by-hop is one reason it cannot be a trailer, not the
+/// definition of one. The §6.5.1 list of fields that cannot be trailers lives in
+/// `message_trailer_fields_validity`, cited there.
+///
+/// The static set below is *not* RFC 9110 § 7.6.1's list and is not cited as such.
+/// § 7.6.1 names Proxy-Connection, Keep-Alive, TE, Transfer-Encoding and Upgrade;
+/// this set omits Proxy-Connection and adds Trailer, which § 6.6.2 has surviving
+/// the hop. It stays as-is because both callers want Trailer flagged and neither
+/// forwards anything -- but the divergence is real and belongs in a list of its
+/// own rather than under a borrowed name.
 pub fn is_hop_by_hop_header(name: &str, connection_header_value: Option<&str>) -> bool {
     let name_l = name.trim().to_ascii_lowercase();
     static HOP_BY_HOP: &[&str] = &[
@@ -562,6 +573,10 @@ pub fn is_hop_by_hop_header(name: &str, connection_header_value: Option<&str>) -
         return true;
     }
 
+    // The nomination half, and the only half of this function a sentence covers
+    // exactly. Note "header or trailer field(s)": this is why a Connection-nominated
+    // name is disqualified from a trailer section, and it is what both callers ask.
+    // cite(RFC 9110 § 7.6.1): "Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message)."
     if let Some(conn) = connection_header_value {
         for tok in parse_list_header(conn) {
             if tok.eq_ignore_ascii_case(name_l.as_str()) {
