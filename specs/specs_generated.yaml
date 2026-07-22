@@ -899,37 +899,49 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 210
   - label: lint-http-rules/src/helpers/content_range.rs
+    section: § 14.1
+    snippet: All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1.
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_range.rs
+      line: 54
+  - label: lint-http-rules/src/helpers/content_range.rs (2)
+    section: § 14.1
+    snippet: Range units are intended to be extensible, as described in Section 16.5.
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_range.rs
+      line: 55
+  - label: lint-http-rules/src/helpers/content_range.rs (3)
     section: § 14.4
     snippet: A Content-Range field value is invalid if it contains a range-resp that has a last-pos value less than its first-pos value, or a complete-length value less than or equal to its last-pos value.
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 81
+      line: 111
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 97
-  - label: lint-http-rules/src/helpers/content_range.rs (2)
+      line: 127
+  - label: lint-http-rules/src/helpers/content_range.rs (4)
     section: § 14.4
     snippet: complete-length = 1*DIGIT
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 56
-  - label: lint-http-rules/src/helpers/content_range.rs (3)
+      line: 83
+  - label: lint-http-rules/src/helpers/content_range.rs (5)
     section: § 14.4
     snippet: incl-range = first-pos "-" last-pos
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 64
-  - label: lint-http-rules/src/helpers/content_range.rs (4)
+      line: 94
+  - label: lint-http-rules/src/helpers/content_range.rs (6)
     section: § 14.4
     snippet: range-resp = incl-range "/" ( complete-length / "*" )
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 63
-  - label: lint-http-rules/src/helpers/content_range.rs (5)
+      line: 93
+  - label: lint-http-rules/src/helpers/content_range.rs (7)
     section: § 14.4
     snippet: unsatisfied-range = "*/" complete-length
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 49
+      line: 76
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 12.4.2
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
@@ -1152,10 +1164,16 @@ sources:
       line: 28
   - label: message_range_and_content_range_consistency
     section: § 14.4
+    snippet: If a 206 (Partial Content) response contains a Content-Range header field with a range unit (Section 14.1) that the recipient does not understand, the recipient MUST NOT attempt to recombine it with a stored representation.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
+      line: 127
+  - label: message_range_and_content_range_consistency (2)
+    section: § 14.4
     snippet: The "Content-Range" header field is sent in a single part 206 (Partial Content) response
     cited_by:
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
-      line: 32
+      line: 93
   - label: message_referer_uri_valid
     section: § 10.1.3
     snippet: The "Referer" [sic] header field allows the user agent to specify a URI reference for the resource from which the target URI was obtained

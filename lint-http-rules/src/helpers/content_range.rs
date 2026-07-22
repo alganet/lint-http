@@ -5,16 +5,33 @@
 use std::num::ParseIntError;
 
 /// Result of parsing a `Content-Range` header value.
+///
+/// The `unit` is carried rather than required to be `bytes`. Content-Range's
+/// grammar is the same whatever the unit -- there is no unit-specific
+/// alternative in the production, so `items 0-1/3` parses by the same rules as
+/// `bytes 0-1/3` and is subject to the same validity conditions. What a caller
+/// cannot do for an unrecognised unit is relate the range to an octet count,
+/// because the positions are counted in units and `Content-Length` is not.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ContentRange {
     /// Example: `bytes 0-499/1234` or `bytes 0-499/*` (instance_length = None for `*`).
     Satisfied {
+        unit: String,
         first: u128,
         last: u128,
         instance_length: Option<u128>,
     },
     /// Example: `bytes */1234` used in `416 Range Not Satisfiable` responses.
-    Unsatisfiable { instance_length: u128 },
+    Unsatisfiable { unit: String, instance_length: u128 },
+}
+
+impl ContentRange {
+    /// The range unit, lowercased -- unit names are case-insensitive.
+    pub fn unit(&self) -> &str {
+        match self {
+            ContentRange::Satisfied { unit, .. } | ContentRange::Unsatisfiable { unit, .. } => unit,
+        }
+    }
 }
 
 /// Parse a `Content-Range` header value. Returns a `ContentRange` or an error string.
@@ -27,9 +44,19 @@ pub fn parse_content_range(s: &str) -> Result<ContentRange, String> {
     // Expect unit SP range / instance-length
     let mut parts = s.splitn(2, ' ');
     let unit = parts.next().ok_or_else(|| "missing unit".to_string())?;
-    if !unit.eq_ignore_ascii_case("bytes") {
-        return Err(format!("unsupported unit '{}', expected 'bytes'", unit));
+
+    // A unit this parser does not model is not a malformed unit. Range units are a
+    // token and an open set, so the only thing checkable here is that the name is
+    // well-formed; deciding whether `bytes` semantics may be applied to it belongs
+    // to the caller, which is the only party that knows what it is about to do with
+    // the answer.
+    //
+    // cite(RFC 9110 § 14.1): "All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1."
+    // cite(RFC 9110 § 14.1): "Range units are intended to be extensible, as described in Section 16.5."
+    if unit.is_empty() || crate::helpers::token::find_invalid_token_char(unit).is_some() {
+        return Err(format!("invalid range-unit '{}'", unit));
     }
+    let unit = unit.to_ascii_lowercase();
     let rest = parts
         .next()
         .ok_or_else(|| "missing range/spec".to_string())?
@@ -56,7 +83,10 @@ pub fn parse_content_range(s: &str) -> Result<ContentRange, String> {
         // cite(RFC 9110 § 14.4): "complete-length = 1*DIGIT"
         let instance_length =
             parse_u128(right).map_err(|e| format!("invalid instance-length: {}", e))?;
-        return Ok(ContentRange::Unsatisfiable { instance_length });
+        return Ok(ContentRange::Unsatisfiable {
+            unit,
+            instance_length,
+        });
     }
 
     // Otherwise expect first-last
@@ -105,6 +135,7 @@ pub fn parse_content_range(s: &str) -> Result<ContentRange, String> {
     }
 
     Ok(ContentRange::Satisfied {
+        unit,
         first: first_v,
         last: last_v,
         instance_length,
@@ -125,6 +156,7 @@ mod tests {
         assert_eq!(
             v,
             ContentRange::Satisfied {
+                unit: "bytes".into(),
                 first: 0,
                 last: 499,
                 instance_length: Some(1234)
@@ -135,6 +167,7 @@ mod tests {
         assert_eq!(
             v2,
             ContentRange::Satisfied {
+                unit: "bytes".into(),
                 first: 5,
                 last: 5,
                 instance_length: None
@@ -145,6 +178,7 @@ mod tests {
         assert_eq!(
             v3,
             ContentRange::Satisfied {
+                unit: "bytes".into(),
                 first: 0,
                 last: 0,
                 instance_length: None
@@ -158,14 +192,43 @@ mod tests {
         assert_eq!(
             v,
             ContentRange::Unsatisfiable {
+                unit: "bytes".into(),
                 instance_length: 1234
             }
         );
     }
 
+    /// A range unit this parser does not model is still a legal range unit:
+    /// `range-unit = token`, and the set is extensible. Parsing it is not the
+    /// same as agreeing to apply byte semantics to it -- that is the caller's
+    /// call, and `message_range_and_content_range_consistency` makes it.
+    #[test]
+    fn unmodelled_unit_parses_and_is_reported() {
+        let v = parse_content_range("items 0-1/3").unwrap();
+        assert_eq!(
+            v,
+            ContentRange::Satisfied {
+                unit: "items".into(),
+                first: 0,
+                last: 1,
+                instance_length: Some(3)
+            }
+        );
+        // The generic validity conditions still apply to it.
+        assert!(parse_content_range("items 1-0/3").is_err());
+        assert!(parse_content_range("items 0-5/3").is_err());
+    }
+
+    #[test]
+    fn unit_names_are_case_insensitive() {
+        assert_eq!(parse_content_range("BYTES 0-1/3").unwrap().unit(), "bytes");
+    }
+
     #[test]
     fn invalid_unit() {
-        assert!(parse_content_range("items 0-1/3").is_err());
+        // Not a token: "(" is not a tchar.
+        assert!(parse_content_range("by(tes 0-1/3").is_err());
+        assert!(parse_content_range(" 0-1/3").is_err());
     }
 
     #[test]
