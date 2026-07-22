@@ -558,8 +558,9 @@ mod tests {
     #[case(None, Some("websocket"), false)]
     #[case(None, None, false)]
     #[case(Some("Upgrade"), Some("h2c"), false)]
-    // Connection contains "upgrade" only as a substring of another token —
-    // RFC 7230 requires the literal "upgrade" token to be present.
+    // Connection contains "upgrade" only as a substring of another token, and
+    // RFC 9110 §7.6.1 makes Connection a list of tokens, not a string to search.
+    // The sentence is cited where the splitting happens, in `parse_connection_tokens`.
     #[case(Some("super-upgrade"), Some("websocket"), false)]
     #[case(Some("upgrades"), Some("websocket"), false)]
     fn is_websocket_upgrade_negative(

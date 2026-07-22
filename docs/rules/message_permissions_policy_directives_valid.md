@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate `Permissions-Policy` HTTP response header directives for correct feature identifiers and member value forms. The header must be a structured-field dictionary (RFC 8941) and each directive must map a feature identifier (alphanumerics and hyphens) to an allowlist value (token `*`, token `self`, a `"string"`, or an inner-list `( ... )`). The optional `report-to` parameter (on the member value) must be a quoted-string when present.
+Validate `Permissions-Policy` HTTP response header directives for correct feature identifiers and member value forms. The header must be a structured-field dictionary (RFC 9651) and each directive must map a feature identifier (alphanumerics and hyphens) to an allowlist value (token `*`, token `self`, a `"string"`, or an inner-list `( ... )`). The optional `report-to` parameter (on the member value) must be a quoted-string when present.
 
 ## Specifications
 

@@ -37,8 +37,8 @@ impl Rule for ServerHttp3StatusCodeValidity {
             return None;
         }
 
-        // RFC 9114 §4.5: HTTP/3 does not use the 101 (Switching Protocols)
-        // informational status code.
+        // § 4.5 is the only place RFC 9114 mentions 101 at all.
+        // cite(RFC 9114 § 4.5): "HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
         if resp.status == 101 {
             return Some(Violation {
                 rule: self.id().into(),
@@ -115,7 +115,7 @@ impl Rule for ServerHttp3StatusCodeValidity {
                 spec: "RFC 9114",
                 section: Some("4.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1",
-                note: "HTTP Message Exchanges",
+                note: "HTTP Message Framing, where interim and final responses are described. This note said HTTP Message Exchanges, which is not a section RFC 9114 has",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",

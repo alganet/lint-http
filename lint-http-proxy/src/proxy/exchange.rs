@@ -219,7 +219,7 @@ pub(super) async fn exchange(
 /// path uses a boxed [`ClientBody`], the WebSocket path a raw `Full<Bytes>` for
 /// its own upgrade connection.
 ///
-/// When `strip_hop_by_hop` is set, RFC 7230 §6.1 hop-by-hop request headers
+/// When `strip_hop_by_hop` is set, RFC 9110 §7.6.1 hop-by-hop request headers
 /// (and any header the client names in `Connection:`) are dropped instead of
 /// relayed to the origin — the request-side mirror of [`filter_response_headers`].
 /// The WebSocket path passes `false`: its handshake relies on `Connection` /

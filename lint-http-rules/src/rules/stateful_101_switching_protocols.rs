@@ -201,9 +201,9 @@ impl Rule for Stateful101SwitchingProtocols {
             },
             crate::rules::SpecRef {
                 spec: "RFC 9114",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1",
-                note: "HTTP Message Exchanges (HTTP/3 forbids 101)",
+                section: Some("4.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5",
+                note: "HTTP Upgrade (HTTP/3 forbids 101). This said §4.1, whose subject is HTTP Message Framing, under a note naming a section title RFC 9114 does not have",
             },
         ]
     }
