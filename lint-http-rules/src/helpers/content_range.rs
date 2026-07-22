@@ -75,6 +75,15 @@ pub fn parse_content_range(s: &str) -> Result<ContentRange, String> {
         Some(parse_u128(right).map_err(|e| format!("invalid instance-length: {}", e))?)
     };
 
+    if let Some(len) = instance_length {
+        if len <= last_v {
+            return Err(format!(
+                "complete-length {} is not greater than last byte-pos {}",
+                len, last_v
+            ));
+        }
+    }
+
     Ok(ContentRange::Satisfied {
         first: first_v,
         last: last_v,
@@ -146,6 +155,33 @@ mod tests {
         assert!(parse_content_range("bytes -5/10").is_err());
         assert!(parse_content_range("bytes */*").is_err());
         assert!(parse_content_range("bytes */x").is_err());
+    }
+
+    /// The examples § 14.4 states in its own prose, all of which describe a
+    /// representation of 1234 bytes.
+    #[test]
+    fn section_14_4_examples_are_valid() {
+        for v in [
+            "bytes 42-1233/1234",
+            "bytes 42-1233/*",
+            "bytes 0-499/1234",
+            "bytes 500-999/1234",
+            "bytes 500-1233/1234",
+            "bytes 734-1233/1234",
+            "bytes */1234",
+        ] {
+            assert!(parse_content_range(v).is_ok(), "{v} should parse");
+        }
+    }
+
+    #[test]
+    fn complete_length_must_exceed_last_pos() {
+        // last-pos 499 needs at least 500 bytes to exist.
+        assert!(parse_content_range("bytes 0-499/500").is_ok());
+        assert!(parse_content_range("bytes 0-499/499").is_err());
+        assert!(parse_content_range("bytes 0-499/10").is_err());
+        // Unknown complete length says nothing about last-pos.
+        assert!(parse_content_range("bytes 0-499/*").is_ok());
     }
 
     #[test]
