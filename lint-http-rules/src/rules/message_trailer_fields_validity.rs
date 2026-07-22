@@ -5,57 +5,6 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-/// Trailer fields that MUST NOT appear per RFC 9110 §6.5.1.
-///
-/// Includes fields necessary for message framing, routing, request modifiers
-/// (controls and conditionals), authentication, response control data, and
-/// fields that determine how to process the payload.
-const PROHIBITED_TRAILER_FIELDS: &[&str] = &[
-    // cite(RFC 9110 § 6.5.1): "Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format."
-    // Message framing (RFC 9110 §6.5.1)
-    "content-length",
-    "transfer-encoding",
-    // Routing
-    "host",
-    // Request modifiers — controls
-    "cache-control",
-    "expect",
-    "max-forwards",
-    "pragma",
-    "range",
-    "te",
-    // Request modifiers — conditionals
-    "if-match",
-    "if-modified-since",
-    "if-none-match",
-    "if-range",
-    "if-unmodified-since",
-    // Authentication (RFC 9110 §11)
-    "authentication-info",
-    "authorization",
-    "proxy-authenticate",
-    "proxy-authentication-info",
-    "proxy-authorization",
-    "www-authenticate",
-    // Response control data (RFC 9110 §6.2)
-    "age",
-    "date",
-    "expires",
-    "location",
-    "retry-after",
-    "vary",
-    "warning",
-    // Payload processing
-    "content-encoding",
-    "content-range",
-    "content-type",
-    "trailer",
-    // Hop-by-hop (RFC 9110 §7.6.1)
-    "connection",
-    "keep-alive",
-    "upgrade",
-];
-
 pub struct MessageTrailerFieldsValidity;
 
 impl Rule for MessageTrailerFieldsValidity {
@@ -201,7 +150,7 @@ fn check_trailers(
         let name = key.as_str(); // hyper normalises header names to lowercase
 
         // Prohibited trailer field (MUST NOT per RFC 9110 §6.5.1).
-        if PROHIBITED_TRAILER_FIELDS.contains(&name) {
+        if crate::helpers::headers::is_prohibited_trailer_field(name) {
             return Some(Violation {
                 rule: rule_id.to_string(),
                 severity: config.severity,
@@ -215,26 +164,25 @@ fn check_trailers(
             });
         }
 
-        // Dynamic hop-by-hop: headers nominated by the Connection header must not
-        // appear as trailer fields. The sentence says "header or trailer field(s)",
-        // which is the whole reason a connection-option disqualifies a trailer name.
-        // cite(RFC 9110 § 7.6.1): "Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message)."
-        if crate::helpers::headers::is_hop_by_hop_header(name, connection_val)
-            && !PROHIBITED_TRAILER_FIELDS.contains(&name)
-        {
+        // The other half, and the one that depends on this message rather than on
+        // what the field is. The sentence it rests on is cited on the helper.
+        if crate::helpers::headers::is_nominated_by_connection(name, connection_val) {
             return Some(Violation {
                 rule: rule_id.to_string(),
                 severity: config.severity,
                 message: format!(
-                    "Trailer field '{}' is a hop-by-hop header nominated by the \
-                     Connection header; trailers must not contain hop-by-hop \
-                     fields (RFC 9110 §6.5.1, §7.6.1)",
+                    "Trailer field '{}' is named as a connection-option in this \
+                     message's Connection header, which makes it connection-specific \
+                     for this hop and not something a trailer section may carry \
+                     (RFC 9110 §7.6.1)",
                     name
                 ),
             });
         }
 
-        // Undeclared trailer field — only checked when a Trailer header exists.
+        // Undeclared trailer field — only checked when a Trailer header exists,
+        // because it is the declaration that creates the expectation to fall short of.
+        // cite(RFC 9110 § 6.6.2): "A sender that intends to generate one or more trailer fields in a message SHOULD generate a Trailer header field in the header section of that message to indicate which fields might be present in the trailers."
         if !declared.is_empty() && !declared.iter().any(|d| d == name) {
             return Some(Violation {
                 rule: rule_id.to_string(),
@@ -509,7 +457,7 @@ mod tests {
 
         let v = rule.check_transaction(&tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("hop-by-hop"));
+        assert!(v.unwrap().message.contains("connection-option"));
     }
 
     #[test]
@@ -523,7 +471,7 @@ mod tests {
 
         let v = rule.check_transaction(&tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("hop-by-hop"));
+        assert!(v.unwrap().message.contains("connection-option"));
     }
 
     #[test]
@@ -536,7 +484,7 @@ mod tests {
 
         let v = rule.check_transaction(&tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("hop-by-hop"));
+        assert!(v.unwrap().message.contains("connection-option"));
     }
 
     #[test]

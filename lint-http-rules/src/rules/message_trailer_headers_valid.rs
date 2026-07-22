@@ -79,15 +79,31 @@ impl Rule for MessageTrailerHeadersValid {
                         });
                     }
 
-                    // "remove any header or trailer field(s)" is the clause that makes
-                    // a hop-by-hop name unusable as a trailer, and it is why this
-                    // branch fires at all.
-                    // cite(RFC 9110 § 7.6.1): "Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message)."
-                    if crate::helpers::headers::is_hop_by_hop_header(member, connection_val) {
+                    // Scope note: this rule checks the *declaration*, and § 6.5.1's
+                    // "MUST NOT generate a trailer field" binds the sending, not the
+                    // announcing. So the wider § 6.5.1 list is not applied here —
+                    // `message_trailer_fields_validity` applies it to the fields that
+                    // actually arrive. What is checked here is the narrower claim: a
+                    // connection-specific field does not survive the hop, so no
+                    // recipient could ever read it as a trailer.
+                    if crate::helpers::headers::is_connection_specific_field(member, connection_val)
+                    {
                         return Some(Violation {
                             rule: self.id().to_string(),
                             severity: config.severity,
-                            message: format!("Trailer header nominates hop-by-hop header '{}'; trailers must not be hop-by-hop headers", member),
+                            message: format!("Trailer header nominates connection-specific field '{}'; it does not survive the hop, so it cannot arrive as a trailer (RFC 9110 §7.6.1)", member),
+                        });
+                    }
+
+                    // The one § 6.5.1 field this rule checks at declaration time, and
+                    // it earns the exception by being circular rather than merely
+                    // premature: a Trailer field inside a trailer section announces a
+                    // section the recipient has already finished reading.
+                    if member.eq_ignore_ascii_case("trailer") {
+                        return Some(Violation {
+                            rule: self.id().to_string(),
+                            severity: config.severity,
+                            message: "Trailer header nominates 'Trailer'; a Trailer field cannot announce the trailer section it is already inside (RFC 9110 §6.5.1)".to_string(),
                         });
                     }
                 }
