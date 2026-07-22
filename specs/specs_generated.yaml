@@ -765,6 +765,10 @@ sources:
     cited_by:
     - file: lint-http-core/src/http_date.rs
       line: 47
+    - file: lint-http-rules/src/rules/message_if_modified_since_date_format.rs
+      line: 54
+    - file: lint-http-rules/src/rules/message_if_unmodified_since_date_format.rs
+      line: 55
     - file: lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
       line: 36
   - label: lint-http-proxy/src/proxy/exchange.rs
@@ -1010,13 +1014,13 @@ sources:
     snippet: If-Modified-Since = HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/message_if_modified_since_date_format.rs
-      line: 48
+      line: 53
   - label: message_if_unmodified_since_date_format
     section: § 13.1.4
     snippet: If-Unmodified-Since = HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/message_if_unmodified_since_date_format.rs
-      line: 49
+      line: 54
   - label: message_language_tag_format_valid
     section: § 8.5.1
     snippet: A language tag, as defined in [RFC5646], identifies a natural language spoken, written, or otherwise conveyed by human beings for communication of information to other human beings.
