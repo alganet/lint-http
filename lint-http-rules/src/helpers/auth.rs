@@ -348,6 +348,12 @@ pub fn parse_auth_params(s: &str) -> Result<std::collections::HashMap<String, St
 /// suitable for inclusion in violation messages.
 pub fn parse_nc_hex(s: &str) -> Result<u64, String> {
     let s = s.trim();
+    // RFC 7616 gives `nc` no ABNF at all. § 3.4 introduces it as "the hexadecimal
+    // count" and never fixes its width; the sentence below is the only place in the
+    // document that does. It sits in § 3.5, about Authentication-Info, but the same
+    // section requires that field's nc to be the one from the client's request — so
+    // it is one value with one width, and this is where the width is written down.
+    // cite(RFC 7616 § 3.5): "For historical reasons, the nc value MUST be exactly 8 hexadecimal digits."
     if s.len() != 8 {
         return Err("nc must be exactly 8 hex digits".into());
     }

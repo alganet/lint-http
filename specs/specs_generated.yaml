@@ -327,6 +327,30 @@ sources:
     - file: lint-http-rules/src/rules/stateful_cookie_domain_matching.rs
       line: 108
   - label: lint-http-rules/src/helpers/cookie.rs (3)
+    section: § 5.1.4
+    snippet: If the uri-path contains no more than one %x2F ("/") character, output %x2F ("/") and skip the remaining step.
+    cited_by:
+    - file: lint-http-rules/src/helpers/cookie.rs
+      line: 240
+  - label: lint-http-rules/src/helpers/cookie.rs (4)
+    section: § 5.1.4
+    snippet: Output the characters of the uri-path from the first character up to, but not including, the right-most %x2F ("/").
+    cited_by:
+    - file: lint-http-rules/src/helpers/cookie.rs
+      line: 245
+  - label: lint-http-rules/src/helpers/cookie.rs (5)
+    section: § 5.1.4
+    snippet: 'The user agent MUST use an algorithm equivalent to the following algorithm to compute the default-path of a cookie:'
+    cited_by:
+    - file: lint-http-rules/src/helpers/cookie.rs
+      line: 230
+  - label: lint-http-rules/src/helpers/cookie.rs (6)
+    section: § 5.1.4
+    snippet: output %x2F ("/") and skip the remaining steps.
+    cited_by:
+    - file: lint-http-rules/src/helpers/cookie.rs
+      line: 236
+  - label: lint-http-rules/src/helpers/cookie.rs (7)
     section: § 5.2.4
     snippet: 'If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):'
     cited_by:
@@ -558,6 +582,12 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc7616.txt
   type: text/plain
   fragments:
+  - label: lint-http-rules/src/helpers/auth.rs
+    section: § 3.5
+    snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 356
   - label: message_digest_auth_validity
     section: § 3.4
     snippet: 'For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque.'
