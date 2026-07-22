@@ -41,18 +41,27 @@ pub fn parse_content_range(s: &str) -> Result<ContentRange, String> {
     let left = rest[..slash_idx].trim();
     let right = rest[slash_idx + 1..].trim();
 
+    // The "*" is not a wildcard standing in for the range here -- it is the first
+    // character of a two-character literal, which is why nothing but an exact "*"
+    // is accepted before the "/", and why the complete-length after it may not
+    // itself be "*". A 416 always knows how long the representation is.
+    //
+    // cite(RFC 9110 § 14.4): "unsatisfied-range = "*/" complete-length"
     if !left.is_empty() && left.starts_with('*') {
         // Left "*" should be exact
         if left != "*" {
             return Err("unexpected value before '/'".into());
         }
         // Right must be a number (instance-length)
+        // cite(RFC 9110 § 14.4): "complete-length = 1*DIGIT"
         let instance_length =
             parse_u128(right).map_err(|e| format!("invalid instance-length: {}", e))?;
         return Ok(ContentRange::Unsatisfiable { instance_length });
     }
 
     // Otherwise expect first-last
+    // cite(RFC 9110 § 14.4): "range-resp = incl-range "/" ( complete-length / "*" )"
+    // cite(RFC 9110 § 14.4): "incl-range = first-pos "-" last-pos"
     let dash_idx = left
         .find('-')
         .ok_or_else(|| "missing '-' in byte-range".to_string())?;
@@ -65,6 +74,11 @@ pub fn parse_content_range(s: &str) -> Result<ContentRange, String> {
 
     let first_v = parse_u128(first).map_err(|e| format!("invalid first byte-pos: {}", e))?;
     let last_v = parse_u128(last).map_err(|e| format!("invalid last byte-pos: {}", e))?;
+    // The first of the sentence's two invalidity conditions. It is also what makes
+    // `last - first` safe for callers, who are otherwise one unsigned subtraction
+    // away from an underflow.
+    //
+    // cite(RFC 9110 § 14.4): "A Content-Range field value is invalid if it contains a range-resp that has a last-pos value less than its first-pos value, or a complete-length value less than or equal to its last-pos value."
     if first_v > last_v {
         return Err("first byte-pos greater than last".into());
     }
@@ -75,6 +89,12 @@ pub fn parse_content_range(s: &str) -> Result<ContentRange, String> {
         Some(parse_u128(right).map_err(|e| format!("invalid instance-length: {}", e))?)
     };
 
+    // The second condition of the same sentence. "Less than or equal to" is the
+    // exact reach: positions are zero-based and inclusive, so a last-pos of 499
+    // needs a complete-length of 500 to be the last byte rather than one past the
+    // end. `*` asserts nothing about length and so cannot contradict last-pos.
+    //
+    // cite(RFC 9110 § 14.4): "A Content-Range field value is invalid if it contains a range-resp that has a last-pos value less than its first-pos value, or a complete-length value less than or equal to its last-pos value."
     if let Some(len) = instance_length {
         if len <= last_v {
             return Err(format!(
