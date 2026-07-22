@@ -817,9 +817,9 @@ mod tests {
     }
 
     #[rstest]
-    fn empty_byte_sequence_is_rejected() {
+    fn empty_byte_sequence_is_accepted() {
         let v = validate_structured_field("::");
-        assert!(v.is_some());
+        assert!(v.is_none(), "unexpected parse error: {:?}", v);
     }
 
     #[rstest]
