@@ -898,6 +898,38 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 210
+  - label: lint-http-rules/src/helpers/content_range.rs
+    section: § 14.4
+    snippet: A Content-Range field value is invalid if it contains a range-resp that has a last-pos value less than its first-pos value, or a complete-length value less than or equal to its last-pos value.
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_range.rs
+      line: 81
+    - file: lint-http-rules/src/helpers/content_range.rs
+      line: 97
+  - label: lint-http-rules/src/helpers/content_range.rs (2)
+    section: § 14.4
+    snippet: complete-length = 1*DIGIT
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_range.rs
+      line: 56
+  - label: lint-http-rules/src/helpers/content_range.rs (3)
+    section: § 14.4
+    snippet: incl-range = first-pos "-" last-pos
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_range.rs
+      line: 64
+  - label: lint-http-rules/src/helpers/content_range.rs (4)
+    section: § 14.4
+    snippet: range-resp = incl-range "/" ( complete-length / "*" )
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_range.rs
+      line: 63
+  - label: lint-http-rules/src/helpers/content_range.rs (5)
+    section: § 14.4
+    snippet: unsatisfied-range = "*/" complete-length
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_range.rs
+      line: 49
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 12.4.2
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
