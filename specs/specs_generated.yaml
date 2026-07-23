@@ -711,25 +711,25 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1062
+      line: 1098
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1003
+      line: 1039
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1041
+      line: 1077
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1034
+      line: 1070
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
@@ -941,7 +941,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 20
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 659
+      line: 695
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (4)
     section: § 7.6.1
     snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message).
@@ -949,7 +949,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 72
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 686
+      line: 722
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 11.1
     snippet: It uses a case-insensitive token to identify the authentication scheme
@@ -1017,7 +1017,7 @@ sources:
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 970
+      line: 1006
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 78
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
@@ -1027,60 +1027,84 @@ sources:
     snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 126
+      line: 146
     - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
       line: 44
   - label: lint-http-rules/src/helpers/headers.rs (3)
+    section: § 5.3
+    snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP.
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 122
+  - label: lint-http-rules/src/helpers/headers.rs (4)
+    section: § 5.3
+    snippet: Since it cannot be combined into a single field value, | recipients ought to handle "Set-Cookie" as a special case while | processing fields.
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 123
+  - label: lint-http-rules/src/helpers/headers.rs (5)
+    section: § 5.6.1.2
+    snippet: '#element => [ element ] *( OWS "," OWS [ element ] )'
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 242
+  - label: lint-http-rules/src/helpers/headers.rs (6)
+    section: § 5.6.1.2
+    snippet: Empty elements do not contribute to the count of elements present.
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 241
+  - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.6.4
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 935
-  - label: lint-http-rules/src/helpers/headers.rs (4)
+      line: 971
+  - label: lint-http-rules/src/helpers/headers.rs (8)
     section: § 5.6.4
     snippet: qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 866
-  - label: lint-http-rules/src/helpers/headers.rs (5)
+      line: 902
+  - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 883
-  - label: lint-http-rules/src/helpers/headers.rs (6)
+      line: 919
+  - label: lint-http-rules/src/helpers/headers.rs (10)
     section: § 5.6.4
     snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 865
-  - label: lint-http-rules/src/helpers/headers.rs (7)
+      line: 901
+  - label: lint-http-rules/src/helpers/headers.rs (11)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 712
-  - label: lint-http-rules/src/helpers/headers.rs (8)
+      line: 748
+  - label: lint-http-rules/src/helpers/headers.rs (12)
     section: § 5.6.5
     snippet: ctext          = HTAB / SP / %x21-27 / %x2A-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 713
-  - label: lint-http-rules/src/helpers/headers.rs (9)
+      line: 749
+  - label: lint-http-rules/src/helpers/headers.rs (13)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 596
-  - label: lint-http-rules/src/helpers/headers.rs (10)
+      line: 632
+  - label: lint-http-rules/src/helpers/headers.rs (14)
     section: § 8.3.1
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1274
+      line: 1310
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 90
-  - label: lint-http-rules/src/helpers/headers.rs (11)
+  - label: lint-http-rules/src/helpers/headers.rs (15)
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
     cited_by:
@@ -1088,20 +1112,20 @@ sources:
       line: 53
     - file: lint-http-rules/src/rules/message_content_length.rs
       line: 27
-  - label: lint-http-rules/src/helpers/headers.rs (12)
+  - label: lint-http-rules/src/helpers/headers.rs (16)
     section: § 8.8.3
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1233
+      line: 1269
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 58
-  - label: lint-http-rules/src/helpers/headers.rs (13)
+  - label: lint-http-rules/src/helpers/headers.rs (17)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque- tags match character-by-character, regardless of either or both being tagged as "weak".
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 290
+      line: 326
   - label: lint-http-rules/src/helpers/status.rs
     section: § 15.4
     snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
@@ -1461,13 +1485,13 @@ sources:
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or * If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 371
+      line: 407
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 4.2.1
     snippet: Note that this calculation is intended to reduce clock skew by using the clock information provided by the origin server whenever possible.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 381
+      line: 417
   - label: message_age_header_numeric
     section: § 5.1
     snippet: The Age field value is a non-negative integer, representing time in seconds

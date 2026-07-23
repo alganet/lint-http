@@ -100,7 +100,27 @@ pub fn get_header_str<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str>
 /// avoids comparing partial header values.
 ///
 /// This is handy when rules need to compare the *effective* string value of a
-/// possibly-multiple header field (e.g. cookies, Vary dimensions, etc.).
+/// possibly-multiple header field (e.g. Upgrade, Vary dimensions, etc.).
+///
+/// The `", "` is not a house style. § 5.3 permits the combining, names the comma
+/// as the separator, and then says which of comma and comma-SP to use, so all
+/// three of the decisions in this function are in one sentence. The in-order
+/// append is the same sentence: order is significant, so `get_all`'s order is
+/// preserved rather than sorted or deduplicated.
+///
+/// **This is not valid for every field, and the RFC names the exception.** The
+/// doc comment here used to offer "cookies" as an example, which is precisely
+/// backwards: `Set-Cookie` does not use list syntax and cannot be combined into
+/// one field value at all. No caller passes it today. Do not add one -- for that
+/// field, iterate the lines.
+///
+/// The `|` inside the second quote is not a typo and must not be tidied. That
+/// sentence sits in one of the RFC's indented note blocks, whose gutter markers
+/// survive extraction, so the `|` is genuinely part of what the document says as
+/// far as verification is concerned.
+///
+// cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP."
+// cite(RFC 9110 § 5.3): "Since it cannot be combined into a single field value, | recipients ought to handle "Set-Cookie" as a special case while | processing fields."
 pub fn get_all_header_values(headers: &HeaderMap, name: &str) -> Option<String> {
     let mut iter = headers.get_all(name).iter();
     // Return None if header is absent.
@@ -204,6 +224,22 @@ pub fn extract_strong_validators_from_response(
 /// Parse a comma-separated list of header values (e.g., Connection, Transfer-Encoding).
 ///
 /// This iterator splits by comma, trims whitespace, and skips empty parts.
+///
+/// "Skips empty parts" is the interesting one, and it is a requirement rather
+/// than a convenience: `a,,b` is a two-element list, not a malformed one, and the
+/// seventy-odd callers that reach this are all recipients. A sender must not
+/// produce empty elements (§ 5.6.1.1), which is a different rule for a different
+/// party -- so a *rule* wanting to flag `a,,b` as bad output cannot ask this
+/// function, because by the time it answers, the evidence is gone.
+///
+/// § 5.6.1.2 bounds the requirement -- ignore "a reasonable number", but not so
+/// many that it becomes a denial-of-service vector -- and this imposes no cap.
+/// That is deliberate rather than overlooked: the bound protects a recipient from
+/// the cost of the ignoring, and `split` + `filter` is linear with no
+/// amplification. There is nothing here to exhaust.
+///
+// cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+// cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
 pub fn parse_list_header(val: &str) -> impl Iterator<Item = &str> {
     val.split(',').map(|s| s.trim()).filter(|s| !s.is_empty())
 }
