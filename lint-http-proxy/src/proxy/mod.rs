@@ -17,6 +17,7 @@ mod tee_body;
 #[cfg(test)]
 mod test_support;
 mod upstream;
+mod upstream_h3;
 mod websocket;
 
 use bytes::Bytes;
@@ -152,7 +153,7 @@ async fn run_proxy_inner(
 ) -> anyhow::Result<()> {
     // Load the platform trust store once; the forwarding client and the
     // WebSocket-upgrade path share it.
-    let upstream = upstream::Upstream::new()?;
+    let upstream = upstream::Upstream::new(&cfg)?;
 
     let ca = if cfg.tls.enabled {
         let cert_path = cfg.tls.ca_cert_path.as_deref().unwrap_or("ca.crt");

@@ -35,6 +35,17 @@ captures_include_body = false
 # Server name (SNI) for the HTTP/3 TLS certificate. Clients must connect
 # using this name. Defaults to "localhost" when omitted.
 # h3_server_name = "proxy.example.com"
+# Forward to origins over HTTP/3 (QUIC) when they are known to speak it. This is
+# the outbound (proxy->origin) leg, independent of h3_listen above. Only origins
+# whose authority is in h3_upstream_authorities are attempted over H3; all others
+# use the H1/H2 client. Default: false.
+# h3_upstream_enabled = false
+# h3_upstream_authorities = ["origin.example.com:443"]
+# UDP bind address for the H3 upstream client. Default: "0.0.0.0:0".
+# h3_upstream_bind = "0.0.0.0:0"
+# Extra CA PEM files to trust for origin H3 endpoint certificates (private CAs),
+# in addition to the platform trust store.
+# h3_upstream_extra_ca_certs = ["/etc/lint-http/origin-ca.pem"]
 # Serve the live capture stream at GET /_lint_http/stream (Server-Sent Events,
 # one event per transaction as it commits). Exposes all proxied traffic to
 # anyone who can reach the proxy port, so it is opt-in. Default: false.

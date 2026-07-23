@@ -31,7 +31,7 @@ pub(super) async fn make_shared_with_cfg(
         .to_string();
     let cw = CaptureWriter::new(p.clone(), false).await?;
 
-    let upstream = super::upstream::Upstream::new()?;
+    let upstream = super::upstream::Upstream::new(&cfg)?;
     let state = StdArc::new(crate::state::StateStore::new(300, 10));
     let protocol_event_store = StdArc::new(crate::protocol_event_store::ProtocolEventStore::new(
         300, 100,
