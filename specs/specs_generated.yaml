@@ -1856,7 +1856,7 @@ sources:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 128
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
-      line: 40
+      line: 34
   - label: message_http3_host_authority_consistency
     section: § 4.3.1
     snippet: If both fields are present, they MUST contain the same value.
@@ -1911,6 +1911,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
       line: 31
+  - label: stateful_http3_max_push_id
+    section: § 7.2.7
+    snippet: A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
+      line: 43
+  - label: stateful_http3_max_push_id (2)
+    section: § 7.2.7
+    snippet: The maximum push ID is unset when an HTTP/3 connection is created, meaning that a server cannot push until it receives a MAX_PUSH_ID frame
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
+      line: 71
   - label: stateful_http3_settings_frame
     section: § 11.2.2
     snippet: The entries in Table 3 are registered by this document
