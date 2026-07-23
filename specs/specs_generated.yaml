@@ -1267,8 +1267,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1281
-    - file: lint-http-rules/src/rules/message_etag_syntax.rs
-      line: 58
   - label: lint-http-rules/src/helpers/headers.rs (12)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
@@ -1405,6 +1403,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
       line: 93
+  - label: message_etag_syntax
+    section: § 5.3
+    snippet: a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list
+    cited_by:
+    - file: lint-http-rules/src/rules/message_etag_syntax.rs
+      line: 77
+  - label: message_etag_syntax (2)
+    section: § 8.8.3
+    snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_etag_syntax.rs
+      line: 53
+  - label: message_etag_syntax (3)
+    section: § 8.8.3
+    snippet: The "ETag" field in a response provides the current entity tag for the selected representation, as determined at the conclusion of handling the request.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_etag_syntax.rs
+      line: 30
   - label: message_extension_headers_registered
     section: § 5.1
     snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"

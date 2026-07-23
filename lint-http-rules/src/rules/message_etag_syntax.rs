@@ -25,6 +25,9 @@ impl Rule for MessageEtagSyntax {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // ETag is a response field, which is why this rule is Server-scoped and only
+        // inspects the response.
+        // cite(RFC 9110 § 8.8.3): "The "ETag" field in a response provides the current entity tag for the selected representation, as determined at the conclusion of handling the request."
         let Some(resp) = &tx.response else {
             return None;
         };
@@ -44,7 +47,10 @@ impl Rule for MessageEtagSyntax {
             };
 
             let t = s.trim();
-            // '*' is not a valid ETag in responses (used only in conditional match lists)
+            // `validate_entity_tag` accepts `*` (it is legal in If-Match/If-None-Match
+            // lists), but an ETag value must be an entity-tag, which `*` is not — so
+            // reject it here, before delegating the entity-tag grammar to the helper.
+            // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
             if t == "*" {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -55,7 +61,7 @@ impl Rule for MessageEtagSyntax {
                 });
             }
 
-            // cite(RFC 9110 § 8.8.3): "entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE"
+            // The entity-tag grammar itself (§8.8.3) is owned by `validate_entity_tag`.
             if let Err(msg) = crate::helpers::headers::validate_entity_tag(t) {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -65,6 +71,10 @@ impl Rule for MessageEtagSyntax {
             }
         }
 
+        // `ETag = entity-tag` is a single value, not a list (`#entity-tag`), so ETag is
+        // not a field whose lines may be recombined as a comma-separated list — the §5.3
+        // exception does not apply, and a sender must emit at most one ETag field line.
+        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
@@ -93,7 +103,13 @@ impl Rule for MessageEtagSyntax {
                 spec: "RFC 9110",
                 section: Some("8.8.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
-                note: "`ETag` and the `entity-tag` grammar. Both of this rule's references used to point here, one of them via §7.6 — which is Message Forwarding",
+                note: "`ETag` header field, the `ETag = entity-tag` field production, and the `entity-tag` grammar",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+                note: "Field Order: a non-list field (such as `ETag = entity-tag`) must not appear as multiple field lines",
             },
         ]
     }
