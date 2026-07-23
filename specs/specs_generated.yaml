@@ -312,7 +312,7 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc4648.txt
   type: text/plain
   fragments:
-  - label: lint-http-rules/src/helpers/auth.rs
+  - label: base64 rejects non-alphabet
     section: § 3.3
     snippet: Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise.
     cited_by:
@@ -400,7 +400,7 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc6265.txt
   type: text/plain
   fragments:
-  - label: lint-http-rules/src/helpers/cookie.rs
+  - label: cookie domain-match
     section: § 5.1.3
     snippet: A string domain-matches a given domain string if at least one of the following conditions hold
     cited_by:
@@ -408,7 +408,7 @@ sources:
       line: 93
     - file: lint-http-rules/src/rules/stateful_cookie_domain_matching.rs
       line: 96
-  - label: lint-http-rules/src/helpers/cookie.rs (2)
+  - label: cookie path-match
     section: § 5.1.4
     snippet: A request-path path-matches a given cookie-path if at least one of the following conditions holds
     cited_by:
@@ -416,31 +416,31 @@ sources:
       line: 106
     - file: lint-http-rules/src/rules/stateful_cookie_domain_matching.rs
       line: 108
-  - label: lint-http-rules/src/helpers/cookie.rs (3)
+  - label: lint-http-rules/src/helpers/cookie.rs
     section: § 5.1.4
     snippet: If the uri-path contains no more than one %x2F ("/") character, output %x2F ("/") and skip the remaining step.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 240
-  - label: lint-http-rules/src/helpers/cookie.rs (4)
+  - label: lint-http-rules/src/helpers/cookie.rs (2)
     section: § 5.1.4
     snippet: Output the characters of the uri-path from the first character up to, but not including, the right-most %x2F ("/").
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 245
-  - label: lint-http-rules/src/helpers/cookie.rs (5)
+  - label: lint-http-rules/src/helpers/cookie.rs (3)
     section: § 5.1.4
     snippet: 'The user agent MUST use an algorithm equivalent to the following algorithm to compute the default-path of a cookie:'
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 230
-  - label: lint-http-rules/src/helpers/cookie.rs (6)
+  - label: lint-http-rules/src/helpers/cookie.rs (4)
     section: § 5.1.4
     snippet: output %x2F ("/") and skip the remaining steps.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 236
-  - label: lint-http-rules/src/helpers/cookie.rs (7)
+  - label: cookie Path attribute
     section: § 5.2.4
     snippet: 'If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):'
     cited_by:
@@ -556,7 +556,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 48
-  - label: lint-http-rules/src/helpers/websocket.rs (2)
+  - label: Sec-WebSocket-Key nonce
     section: § 4.1
     snippet: The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded
     cited_by:
@@ -564,13 +564,13 @@ sources:
       line: 41
     - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
       line: 28
-  - label: lint-http-rules/src/helpers/websocket.rs (3)
+  - label: lint-http-rules/src/helpers/websocket.rs (2)
     section: § 4.2.2
     snippet: server would append the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" to form the string
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 24
-  - label: lint-http-rules/src/helpers/websocket.rs (4)
+  - label: lint-http-rules/src/helpers/websocket.rs (3)
     section: § 4.2.2
     snippet: taking the SHA-1 hash of this concatenated value to obtain a 20-byte value
     cited_by:
@@ -618,7 +618,7 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc6750.txt
   type: text/plain
   fragments:
-  - label: lint-http-rules/src/helpers/auth.rs
+  - label: bearer b64token grammar
     section: § 2.1
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
@@ -734,7 +734,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 260
-  - label: lint-http-rules/src/helpers/auth.rs (2)
+  - label: basic-credentials base64
     section: § 2
     snippet: and obtains the basic-credentials by encoding this octet sequence using Base64
     cited_by:
@@ -742,7 +742,7 @@ sources:
       line: 239
     - file: lint-http-rules/src/rules/message_basic_auth_base64_validity.rs
       line: 40
-  - label: lint-http-rules/src/helpers/auth.rs (3)
+  - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 2
     snippet: constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password
     cited_by:
@@ -881,22 +881,23 @@ sources:
   type: text/plain
   fragments:
   - label: lint-http-proxy/src/h3_instrument.rs
-    snippet: For example, the eight-byte sequence 0xc2197c5eff14e88c decodes to the decimal value 151,288,809,941,952,652; the four-byte sequence 0x9d7f3e7d decodes to 494,878,333; the two-byte sequence 0x7bbd decodes to 15,293; and the single byte 0x25 decodes to 37 (as does the two-byte sequence 0x4025).
-    cited_by:
-    - file: lint-http-proxy/src/h3_instrument.rs
-      line: 492
-  - label: lint-http-proxy/src/h3_instrument.rs (2)
     section: § 16
     snippet: The QUIC variable-length integer encoding reserves the two most significant bits of the first byte to encode the base-2 logarithm of the integer encoding length in bytes.  The integer value is encoded on the remaining bits, in network byte order.
     cited_by:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 40
-  - label: lint-http-proxy/src/h3_instrument.rs (3)
+  - label: lint-http-proxy/src/h3_instrument.rs (2)
     section: § 16
     snippet: This means that integers are encoded on 1, 2, 4, or 8 bytes and can encode 6-, 14-, 30-, or 62-bit values, respectively.
     cited_by:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 41
+  - label: lint-http-proxy/src/h3_instrument.rs (3)
+    section: § A.1
+    snippet: For example, the eight-byte sequence 0xc2197c5eff14e88c decodes to the decimal value 151,288,809,941,952,652; the four-byte sequence 0x9d7f3e7d decodes to 494,878,333; the two-byte sequence 0x7bbd decodes to 15,293; and the single byte 0x25 decodes to 37 (as does the two-byte sequence 0x4025).
+    cited_by:
+    - file: lint-http-proxy/src/h3_instrument.rs
+      line: 490
   - label: server_quic_transport_parameters
     section: § 18
     snippet: The extension_data field of the quic_transport_parameters extension defined in [QUIC-TLS] contains the QUIC transport parameters
@@ -1125,7 +1126,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 76
-  - label: lint-http-rules/src/helpers/headers.rs
+  - label: qvalue grammar
     section: § 12.4.2
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
@@ -1135,7 +1136,7 @@ sources:
       line: 78
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
       line: 65
-  - label: lint-http-rules/src/helpers/headers.rs (2)
+  - label: If-None-Match weak comparison
     section: § 13.1.2
     snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
     cited_by:
@@ -1143,73 +1144,73 @@ sources:
       line: 146
     - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
       line: 44
-  - label: lint-http-rules/src/helpers/headers.rs (3)
+  - label: lint-http-rules/src/helpers/headers.rs
     section: § 5.3
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 122
-  - label: lint-http-rules/src/helpers/headers.rs (4)
+  - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 5.3
     snippet: Since it cannot be combined into a single field value, | recipients ought to handle "Set-Cookie" as a special case while | processing fields.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 123
-  - label: lint-http-rules/src/helpers/headers.rs (5)
+  - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 5.6.1.2
     snippet: '#element => [ element ] *( OWS "," OWS [ element ] )'
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 242
-  - label: lint-http-rules/src/helpers/headers.rs (6)
+  - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 5.6.1.2
     snippet: Empty elements do not contribute to the count of elements present.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 241
-  - label: lint-http-rules/src/helpers/headers.rs (7)
+  - label: lint-http-rules/src/helpers/headers.rs (5)
     section: § 5.6.4
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 971
-  - label: lint-http-rules/src/helpers/headers.rs (8)
+  - label: lint-http-rules/src/helpers/headers.rs (6)
     section: § 5.6.4
     snippet: qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 902
-  - label: lint-http-rules/src/helpers/headers.rs (9)
+  - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 919
-  - label: lint-http-rules/src/helpers/headers.rs (10)
+  - label: lint-http-rules/src/helpers/headers.rs (8)
     section: § 5.6.4
     snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 901
-  - label: lint-http-rules/src/helpers/headers.rs (11)
+  - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 748
-  - label: lint-http-rules/src/helpers/headers.rs (12)
+  - label: lint-http-rules/src/helpers/headers.rs (10)
     section: § 5.6.5
     snippet: ctext          = HTAB / SP / %x21-27 / %x2A-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 749
-  - label: lint-http-rules/src/helpers/headers.rs (13)
+  - label: lint-http-rules/src/helpers/headers.rs (11)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 632
-  - label: lint-http-rules/src/helpers/headers.rs (14)
+  - label: media-type grammar
     section: § 8.3.1
     snippet: media-type = type "/" subtype parameters
     cited_by:
@@ -1217,7 +1218,7 @@ sources:
       line: 1322
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 90
-  - label: lint-http-rules/src/helpers/headers.rs (15)
+  - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
     cited_by:
@@ -1225,7 +1226,7 @@ sources:
       line: 53
     - file: lint-http-rules/src/rules/message_content_length.rs
       line: 27
-  - label: lint-http-rules/src/helpers/headers.rs (16)
+  - label: entity-tag grammar
     section: § 8.8.3
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
@@ -1233,13 +1234,13 @@ sources:
       line: 1281
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 58
-  - label: lint-http-rules/src/helpers/headers.rs (17)
+  - label: lint-http-rules/src/helpers/headers.rs (12)
     section: § 8.8.3.2
-    snippet: two entity tags are equivalent if their opaque- tags match character-by-character, regardless of either or both being tagged as "weak".
+    snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 326
-  - label: lint-http-rules/src/helpers/status.rs
+  - label: 3xx redirection class
     section: § 15.4
     snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
     cited_by:
@@ -1771,7 +1772,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 48
-  - label: lint-http-rules/src/helpers/uri.rs
+  - label: request-target forms
     section: § 3.2
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
     cited_by:

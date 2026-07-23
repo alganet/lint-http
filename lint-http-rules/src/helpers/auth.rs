@@ -236,10 +236,10 @@ pub fn validate_basic_credentials(token68: &str) -> Result<(), String> {
     if s.is_empty() {
         return Err("Basic credentials token is empty".into());
     }
-    // cite(RFC 7617 § 2): "and obtains the basic-credentials by encoding this octet sequence using Base64"
+    // cite(RFC 7617 § 2, label: basic-credentials base64): "and obtains the basic-credentials by encoding this octet sequence using Base64"
     // Erroring out on a malformed encoding is RFC 4648's own instruction, not
     // strictness for its own sake — and RFC 7617 does not state otherwise.
-    // cite(RFC 4648 § 3.3): "Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise."
+    // cite(RFC 4648 § 3.3, label: base64 rejects non-alphabet): "Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise."
     let decoded = base64::engine::general_purpose::STANDARD
         .decode(s)
         .map_err(|e| format!("Invalid base64 in Basic credentials: {}", e))?;
@@ -295,7 +295,7 @@ pub fn validate_bearer_token(token: &str) -> Result<(), String> {
         return Err("Bearer token has empty main part".into());
     }
 
-    // cite(RFC 6750 § 2.1): "b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"=""
+    // cite(RFC 6750 § 2.1, label: bearer b64token grammar): "b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"=""
     let allowed_main =
         |c: char| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '~' | '+' | '/');
 

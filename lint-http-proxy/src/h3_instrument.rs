@@ -480,16 +480,14 @@ mod tests {
     /// rather than one. A minimal-encoding assumption anywhere in the decoder
     /// would pass every other case here and fail this one.
     ///
-    /// The cite names no section, and that is not laziness. This sentence is in
-    /// Appendix A.1, and no appendix is addressable: a `§` selector compares a
-    /// *digit* prefix, so the `A. Pseudocode` node the parser does build can
-    /// never be selected, and `A.1.` is not recognised as a heading at all --
-    /// it has no "Appendix" prefix to match on. `§ A` and `§ A.1` both resolve
-    /// to nothing. Omitting the section is the documented way through: the
-    /// quote locates itself in the whole document, and verification is exactly
-    /// as strong.
+    /// The worked examples live in Appendix A.1, and the cite names it. That was long
+    /// uncitable: a `§` selector compared a *digit* prefix, so the `A. Pseudocode` node
+    /// the parser built could never be selected, and the bare `A.1.` heading was not
+    /// recognised as a heading at all. apysource 0.5.1 fixed both, so the section is
+    /// named here and the quote is checked against the appendix it actually comes from,
+    /// not the whole document.
     ///
-    // cite(RFC 9000): "For example, the eight-byte sequence 0xc2197c5eff14e88c decodes to the decimal value 151,288,809,941,952,652; the four-byte sequence 0x9d7f3e7d decodes to 494,878,333; the two-byte sequence 0x7bbd decodes to 15,293; and the single byte 0x25 decodes to 37 (as does the two-byte sequence 0x4025)."
+    // cite(RFC 9000 § A.1): "For example, the eight-byte sequence 0xc2197c5eff14e88c decodes to the decimal value 151,288,809,941,952,652; the four-byte sequence 0x9d7f3e7d decodes to 494,878,333; the two-byte sequence 0x7bbd decodes to 15,293; and the single byte 0x25 decodes to 37 (as does the two-byte sequence 0x4025)."
     #[test]
     fn rfc9000_a1_worked_examples() {
         let vectors: &[(&[u8], u64)] = &[
