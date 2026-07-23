@@ -14,7 +14,7 @@ This rule complements `server_alt_svc_header_syntax` (general syntax) and `serve
 
 ## Specifications
 
-- [RFC 9114 §3.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1): HTTP/3 alternative service discovery
+- [RFC 9114 §3.1.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1.1): HTTP Alternative Services — advertising HTTP/3 via Alt-Svc using the "h3" ALPN token
 - [RFC 7838 §3](https://www.rfc-editor.org/rfc/rfc7838.html#section-3): Alt-Svc header field syntax and `ma` parameter semantics
 
 ## Configuration

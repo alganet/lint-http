@@ -6,10 +6,12 @@ use crate::lint::Violation;
 use crate::rules::Rule;
 
 /// Alt-Svc advertising `h3` must use the final protocol ID (not draft versions),
-/// with a reasonable `ma` (max-age) value (RFC 9114 §3.1, RFC 7838).
+/// with a reasonable `ma` (max-age) value (RFC 9114 §3.1.1, RFC 7838).
 pub struct ServerAltSvcH3AdvertisementValid;
 
-/// Maximum reasonable max-age: 1 year in seconds.
+/// Maximum reasonable max-age: 1 year in seconds. RFC 7838 sets **no** upper
+/// bound on `ma`; this is a linter heuristic to flag likely misconfiguration,
+/// not a spec limit — hence uncited (recorded in the audit ledger, §4.1).
 const MAX_REASONABLE_MA: u64 = 365 * 24 * 3600;
 
 impl Rule for ServerAltSvcH3AdvertisementValid {
@@ -30,7 +32,10 @@ impl Rule for ServerAltSvcH3AdvertisementValid {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
-        // cite(RFC 7838 § 1): "This specification defines a new concept in HTTP, "Alternative Services", that allows an origin server to nominate additional means of interacting with it"
+        // Server-scoped: this rule reads Alt-Svc from responses. §3 defines the
+        // header field itself (§1's cite was the broader "Alternative Services"
+        // concept — re-anchored to the sentence about the response header field).
+        // cite(RFC 7838 § 3): "An HTTP(S) origin server can advertise the availability of alternative services to clients by adding an Alt-Svc header field to responses."
         for hv in resp.headers.get_all("alt-svc").iter() {
             let s = match hv.to_str() {
                 Ok(s) => s,
@@ -47,7 +52,13 @@ impl Rule for ServerAltSvcH3AdvertisementValid {
                     continue; // syntax rule handles this
                 }
 
-                // "clear" is a valid Alt-Svc directive (RFC 7838 §3)
+                // "clear" is a directive to invalidate cached alternatives, not an
+                // h3 advertisement, so there is nothing for this rule to validate.
+                // (The grammar makes "clear" case-sensitive — `%s"clear"`; matching
+                // it case-insensitively here is inert, as any non-lowercase form has
+                // no '=' and is skipped anyway. Case-sensitivity is the syntax rule's
+                // concern; see §4.1.)
+                // cite(RFC 7838 § 3): "A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated"
                 if proto_auth.eq_ignore_ascii_case("clear") {
                     continue;
                 }
@@ -62,16 +73,25 @@ impl Rule for ServerAltSvcH3AdvertisementValid {
                     continue;
                 }
 
+                // RFC 7838 §3 says protocol-ids are matched by "simple string
+                // comparison" (case-sensitive); this rule folds to lowercase — a
+                // deliberate, more-permissive choice so case-variant draft tokens
+                // (e.g. "H3-29") are still flagged. Not cited: the spec sentence
+                // mandates case-sensitive comparison, which is not what this does
+                // (the #10 shape — permissive code, no honest quote; §4.1).
                 let proto_lower = protocol.to_ascii_lowercase();
 
-                // Draft h3 protocol IDs (h3-29, h3-Q050, etc.)
+                // Draft h3 protocol IDs (h3-29, h3-Q050, etc.): the final ALPN token
+                // advertised for HTTP/3 is "h3", so any "h3-*" draft token is not a
+                // valid advertisement of the shipped protocol.
+                // cite(RFC 9114 § 3.1.1): "An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token."
                 if proto_lower.starts_with("h3-") {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
                         message: format!(
                             "Alt-Svc uses draft HTTP/3 protocol identifier '{}'; \
-                             use the final 'h3' token instead (RFC 9114 §3.1)",
+                             use the final 'h3' token instead (RFC 9114 §3.1.1)",
                             protocol
                         ),
                     });
@@ -104,9 +124,9 @@ impl Rule for ServerAltSvcH3AdvertisementValid {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9114",
-                section: Some("3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1",
-                note: "HTTP/3 alternative service discovery",
+                section: Some("3.1.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1.1",
+                note: "HTTP Alternative Services — advertising HTTP/3 via Alt-Svc using the \"h3\" ALPN token",
             },
             crate::rules::SpecRef {
                 spec: "RFC 7838",
@@ -152,6 +172,11 @@ fn check_h3_ma_param(
             continue;
         }
 
+        // `ma` carries a delta-seconds count — how long the advertisement stays
+        // fresh. This governs all three checks below: an absent value and a
+        // non-numeric value fail to express delta-seconds, and ma=0 means fresh
+        // for zero seconds (immediately stale).
+        // cite(RFC 7838 § 3.1): "The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh."
         if raw_val.is_empty() {
             return Some(Violation {
                 rule: rule_id.into(),
@@ -173,10 +198,12 @@ fn check_h3_ma_param(
                     rule: rule_id.into(),
                     severity: config.severity,
                     message: "Alt-Svc h3 entry has 'ma=0' which immediately invalidates \
-                         the advertisement (RFC 7838 §3)"
+                         the advertisement (RFC 7838 §3.1)"
                         .into(),
                 });
             }
+            // Heuristic ceiling, not spec-derived: RFC 7838 places no upper bound
+            // on `ma` (see MAX_REASONABLE_MA). Flags likely misconfiguration only.
             Ok(n) if n > MAX_REASONABLE_MA => {
                 return Some(Violation {
                     rule: rule_id.into(),
