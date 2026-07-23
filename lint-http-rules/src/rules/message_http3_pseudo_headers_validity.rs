@@ -23,13 +23,17 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Only applies to HTTP/3 transactions.
-        // cite(RFC 9114 § 4.3): "Pseudo-header fields are not HTTP fields."
+        // Only applies to HTTP/3 transactions. The version gate is scoping, not a
+        // normative check, so it carries no cite; each requirement below cites the
+        // sentence it enforces.
         if tx.request.version != "HTTP/3" {
             return None;
         }
 
-        // :method pseudo-header is required (RFC 9114 §4.3).
+        // :method is required. (The :scheme half of the same sentence is not
+        // checked — the canonical model does not retain scheme for origin-form
+        // requests, as the description says.)
+        // cite(RFC 9114 § 4.3.1): "All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4."
         let method = tx.request.method.trim();
         if method.is_empty() {
             return Some(Violation {
@@ -42,10 +46,10 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
         let is_connect = method.eq_ignore_ascii_case("CONNECT");
 
         if is_connect {
-            // CONNECT requests require an authority (RFC 9114 §4.4).
-            // In the canonical model, the authority comes from the request-target
-            // (authority-form) or, for extended CONNECT using origin-form, from
-            // the Host header.
+            // CONNECT requires an authority; in the canonical model it comes from the
+            // request-target (authority-form) or, for extended CONNECT using
+            // origin-form, from the Host header.
+            // cite(RFC 9114 § 4.4): "The :authority pseudo-header field contains the host and port to connect to"
             let uri_trimmed = tx.request.uri.trim();
             if uri_trimmed.is_empty() {
                 return Some(Violation {
@@ -81,8 +85,11 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
                 });
             }
         } else {
-            // Non-CONNECT: :path pseudo-header is required (RFC 9114 §4.3).
-            // Asterisk-form ("*") is only valid for OPTIONS (RFC 9110 §7.1).
+            // Non-CONNECT: the request-target is either the asterisk-form (OPTIONS
+            // only) or a path. RFC 9110 § 7.1 permits "*" for OPTIONS and forbids it
+            // for every other method.
+            // cite(RFC 9110 § 7.1): "For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*")."
+            // cite(RFC 9110 § 7.1): "These forms MUST NOT be used with other methods."
             let uri_trimmed = tx.request.uri.trim();
             if uri_trimmed == "*" {
                 if !method.eq_ignore_ascii_case("OPTIONS") {
@@ -95,6 +102,7 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
                     });
                 }
             } else {
+                // cite(RFC 9114 § 4.3.1): "This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of / (ASCII 0x2f)."
                 let has_path =
                     crate::helpers::uri::extract_path_from_request_target(uri_trimmed).is_some();
                 if !has_path {
@@ -106,10 +114,10 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
                 }
             }
 
-            // For schemes with a mandatory authority component (http, https),
-            // the request MUST contain either :authority or Host (RFC 9114 §4.3.1).
             // HTTP/3 always runs over QUIC/TLS, so the scheme is always http or
-            // https — the authority requirement applies to all non-CONNECT requests.
+            // https, both of which have a mandatory authority component — the
+            // requirement applies to every non-CONNECT request.
+            // cite(RFC 9114 § 4.3.1): "If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field."
             let has_authority =
                 crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri)
                     .is_some();
@@ -125,7 +133,10 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
             }
         }
 
-        // Response: :status pseudo-header must be valid (RFC 9114 §4.3).
+        // Response: :status must be a three-digit code. Its presence is required by
+        // RFC 9114 § 4.3.2; the 100–599 range it must fall in is defined by RFC 9110
+        // § 15, which is the constraint this branch actually enforces.
+        // cite(RFC 9110 § 15): "All valid status codes are within the range of 100 to 599, inclusive."
         if let Some(resp) = &tx.response {
             if resp.version == "HTTP/3" && !(100..=599).contains(&resp.status) {
                 return Some(Violation {
@@ -179,7 +190,13 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
                 spec: "RFC 9110",
                 section: Some("7.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1",
-                note: "Determining the Target Resource",
+                note: "Determining the Target Resource (asterisk-form request target)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
+                note: "Status Codes: valid codes are in the range 100-599",
             },
         ]
     }

@@ -23,8 +23,8 @@ impl Rule for MessageHttp3HostAuthorityConsistency {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Only applies to HTTP/3 transactions.
-        // cite(RFC 9114 § 4.3): "Pseudo-header fields are not HTTP fields."
+        // Only applies to HTTP/3 transactions. This gate is scoping, not a normative
+        // check, so it carries no citation; the two comparisons below carry theirs.
         if tx.request.version != "HTTP/3" {
             return None;
         }
@@ -49,7 +49,8 @@ impl Rule for MessageHttp3HostAuthorityConsistency {
 
         let host_trimmed = host_str.trim();
 
-        // Both must not be empty when both are present (RFC 9114 §4.3.1).
+        // Both must not be empty when both are present.
+        // cite(RFC 9114 § 4.3.1): "If these fields are present, they MUST NOT be empty."
         if host_trimmed.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
@@ -60,8 +61,10 @@ impl Rule for MessageHttp3HostAuthorityConsistency {
             });
         }
 
-        // The values MUST contain the same value (RFC 9114 §4.3.1).
-        // Hostnames are case-insensitive (RFC 3986 §3.2.2).
+        // The two must carry the same value, compared case-insensitively because the
+        // host component is.
+        // cite(RFC 9114 § 4.3.1): "If both fields are present, they MUST contain the same value."
+        // cite(RFC 3986 § 3.2.2): "Although host is case-insensitive, producers and normalizers should use lowercase for registered names and hexadecimal addresses for the sake of uniformity"
         if !authority.eq_ignore_ascii_case(host_trimmed) {
             return Some(Violation {
                 rule: self.id().into(),
