@@ -561,7 +561,10 @@ async fn upstream_h3_slow_origin_idempotent_get_falls_back_to_h1() -> anyhow::Re
     let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
 
     let (status, _headers, body) = proxy_get(proxy_addr, &authority, "/slow", &[]).await?;
-    assert_eq!(status, 200, "an idempotent GET should fall back to H1, not 502");
+    assert_eq!(
+        status, 200,
+        "an idempotent GET should fall back to H1, not 502"
+    );
     assert_eq!(body, b"fellback");
     assert!(
         h1_hits.load(Ordering::SeqCst) >= 1,
@@ -642,6 +645,132 @@ async fn upstream_h3_slow_origin_non_idempotent_post_502s() -> anyhow::Result<()
     proxy_handle.abort();
     h3_origin.abort();
     h1_origin.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    let _ = tokio::fs::remove_file(&ca_pem_path).await;
+    Ok(())
+}
+
+/// An H3 origin that answers `401` the instant it sees a request, **without
+/// reading the request body** — exercising the duplex path where the origin
+/// responds (and resets the request stream) before the upload is drained.
+fn start_h3_origin_early_response(
+    pki: &TestPki,
+    bind: SocketAddr,
+) -> anyhow::Result<(SocketAddr, tokio::task::JoinHandle<()>)> {
+    let endpoint = h3_server_endpoint(pki, bind)?;
+    let addr = endpoint.local_addr()?;
+    let handle = tokio::spawn(async move {
+        while let Some(incoming) = endpoint.accept().await {
+            tokio::spawn(async move {
+                let Ok(conn) = incoming.await else { return };
+                let Ok(mut h3) =
+                    h3::server::Connection::<_, Bytes>::new(h3_quinn::Connection::new(conn)).await
+                else {
+                    return;
+                };
+                while let Ok(Some(resolver)) = h3.accept().await {
+                    tokio::spawn(async move {
+                        if let Ok((_req, mut stream)) = resolver.resolve_request().await {
+                            // Respond immediately, ignoring the request body.
+                            let resp = http::Response::builder().status(401).body(()).unwrap();
+                            let _ = stream.send_response(resp).await;
+                            let _ = stream.finish().await;
+                        }
+                    });
+                }
+            });
+        }
+    });
+    Ok((addr, handle))
+}
+
+#[tokio::test]
+async fn upstream_h3_origin_early_response_is_delivered_and_captured() -> anyhow::Result<()> {
+    // The H3 origin answers 401 without draining the (sizeable) POST body. With
+    // duplex send/recv the proxy observes that response concurrently with the
+    // upload, delivers it to the client, and still commits the transaction —
+    // proving the body pump handles an origin-reset stream without hanging the
+    // capture or mis-recording the leg.
+    let pki = gen_test_pki()?;
+    let ca_pem_path =
+        std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
+    tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
+
+    let (origin_addr, origin_handle) =
+        start_h3_origin_early_response(&pki, "127.0.0.1:0".parse()?)?;
+    let authority = origin_addr.to_string();
+
+    let mut cfg = Config::default();
+    cfg.general.h3_upstream_enabled = true;
+    cfg.general.h3_upstream_authorities = vec![authority.clone()];
+    cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
+
+    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    let big = vec![b'x'; 256 * 1024];
+    let (status, _body) = proxy_post(proxy_addr, &authority, "/gate", &big).await?;
+    assert_eq!(status, 401, "the early origin response reaches the client");
+
+    let caps = read_captures(&captures_path).await?;
+    let v = &caps[0];
+    assert_eq!(v["response"]["status"].as_u64(), Some(401));
+    assert_eq!(
+        v["response"]["version"].as_str(),
+        Some("HTTP/3"),
+        "the leg is recorded as HTTP/3 even though the origin responded early"
+    );
+
+    proxy_handle.abort();
+    origin_handle.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    let _ = tokio::fs::remove_file(&ca_pem_path).await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn upstream_h3_early_response_to_large_upload_commits_without_hanging() -> anyhow::Result<()>
+{
+    // Regression for the duplex body pump: the origin answers 401 without reading
+    // an upload *larger than the QUIC flow-control window*, so the pump parks in
+    // `send_data`. The response must still reach the client AND the transaction
+    // must still commit — proving the pump is aborted (dropping the request tee,
+    // firing `body_done`) when the response body drops, rather than parking
+    // forever and leaking the capture. A timeout guards against the regression
+    // hanging the whole suite.
+    let pki = gen_test_pki()?;
+    let ca_pem_path =
+        std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
+    tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
+
+    let (origin_addr, origin_handle) =
+        start_h3_origin_early_response(&pki, "127.0.0.1:0".parse()?)?;
+    let authority = origin_addr.to_string();
+
+    let mut cfg = Config::default();
+    cfg.general.h3_upstream_enabled = true;
+    cfg.general.h3_upstream_authorities = vec![authority.clone()];
+    cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
+
+    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    // 16 MiB comfortably exceeds quinn's default per-stream receive window, so the
+    // pump parks once the origin (which never reads) stops accepting bytes.
+    let big = vec![b'x'; 16 * 1024 * 1024];
+    let (status, _body) = tokio::time::timeout(
+        Duration::from_secs(20),
+        proxy_post(proxy_addr, &authority, "/gate", &big),
+    )
+    .await
+    .map_err(|_| anyhow::anyhow!("proxy_post hung — the parked pump was not aborted"))??;
+    assert_eq!(status, 401, "the early origin response reaches the client");
+
+    // The capture being written at all proves `body_done` fired despite the
+    // parked pump (read_captures has its own startup timeout).
+    let caps = read_captures(&captures_path).await?;
+    assert_eq!(caps[0]["response"]["status"].as_u64(), Some(401));
+
+    proxy_handle.abort();
+    origin_handle.abort();
     let _ = tokio::fs::remove_file(&captures_path).await;
     let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
