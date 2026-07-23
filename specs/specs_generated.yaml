@@ -702,6 +702,34 @@ sources:
       line: 30
     - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
       line: 87
+- label: RFC 8187
+  url: https://www.rfc-editor.org/rfc/rfc8187.txt
+  type: text/plain
+  fragments:
+  - label: lint-http-rules/src/helpers/headers.rs
+    section: § 3.2.1
+    snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1000
+  - label: lint-http-rules/src/helpers/headers.rs (2)
+    section: § 3.2.1
+    snippet: ext-value = charset  "'" [ language ] "'" value-chars
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 941
+  - label: lint-http-rules/src/helpers/headers.rs (3)
+    section: § 3.2.1
+    snippet: pct-encoded   = "%" HEXDIG HEXDIG
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 979
+  - label: lint-http-rules/src/helpers/headers.rs (4)
+    section: § 3.2.1
+    snippet: value-chars   = *( pct-encoded / attr-char )
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 972
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
@@ -913,7 +941,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 20
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 628
+      line: 637
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (4)
     section: § 7.6.1
     snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message).
@@ -921,7 +949,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 72
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 655
+      line: 664
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 11.1
     snippet: It uses a case-insensitive token to identify the authentication scheme
@@ -989,7 +1017,7 @@ sources:
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 899
+      line: 908
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 78
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
@@ -1007,13 +1035,13 @@ sources:
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 565
+      line: 574
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 8.3.1
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1178
+      line: 1212
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 90
   - label: lint-http-rules/src/helpers/headers.rs (5)
@@ -1029,9 +1057,15 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1137
+      line: 1171
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 58
+  - label: lint-http-rules/src/helpers/headers.rs (7)
+    section: § 8.8.3.2
+    snippet: two entity tags are equivalent if their opaque- tags match character-by-character, regardless of either or both being tagged as "weak".
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 268
   - label: lint-http-rules/src/helpers/status.rs
     section: § 15.4
     snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
@@ -1391,13 +1425,13 @@ sources:
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or * If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 340
+      line: 349
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 4.2.1
     snippet: Note that this calculation is intended to reduce clock skew by using the clock information provided by the origin server whenever possible.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 350
+      line: 359
   - label: message_age_header_numeric
     section: § 5.1
     snippet: The Age field value is a non-negative integer, representing time in seconds
