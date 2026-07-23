@@ -10,6 +10,8 @@
 //! - Reserved setting identifiers (0x00, 0x02–0x05 — the `Reserved` rows of
 //!   Table 3 in RFC 9114 §11.2.2) must not appear; their receipt is a
 //!   connection error of type H3_SETTINGS_ERROR (RFC 9114 §7.2.4.1).
+//! - No setting identifier appears more than once within one SETTINGS frame
+//!   (RFC 9114 §7.2.4).
 
 use crate::lint::Violation;
 use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
@@ -87,6 +89,25 @@ impl ProtocolRule for StatefulHttp3SettingsFrame {
             }
         }
 
+        // A setting identifier repeated within the one frame is a violation the
+        // sender committed; the receiver MAY reject it, but the MUST NOT is on
+        // the sender, so we report it.  Checked after the per-identifier scan so
+        // a reserved identifier is named for what it is even when repeated.
+        // cite(RFC 9114 § 7.2.4): "The same setting identifier MUST NOT occur more than once in the SETTINGS frame"
+        for (i, &(id, _)) in settings.iter().enumerate() {
+            if settings[..i].iter().any(|&(prev_id, _)| prev_id == id) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "HTTP/3 SETTINGS contains setting identifier 0x{:02X} more \
+                         than once (RFC 9114 §7.2.4)",
+                        id
+                    ),
+                });
+            }
+        }
+
         // Identifiers outside the reserved set — including the 0x1f*N+0x21
         // greasing values and unregistered extensions — pass without comment.
         // cite(RFC 9114 § 7.2.4): "An implementation MUST ignore any parameter with an identifier it does not understand"
@@ -98,7 +119,7 @@ impl ProtocolRule for StatefulHttp3SettingsFrame {
     }
 
     fn description(&self) -> &'static str {
-        "Validates HTTP/3 SETTINGS frame semantics on the control stream.  This rule inspects protocol-level events emitted by the QUIC stream wrapper and checks:\n\n* **No duplicate SETTINGS** — a SETTINGS frame MUST be sent as the first frame of each control stream by each peer, and it MUST NOT be sent subsequently (RFC 9114 §7.2.4).  SETTINGS applies to the entire connection, never a single stream, so a second `H3SettingsReceived` event on the same connection is a violation.\n* **No reserved setting identifiers** — the `Reserved` rows of the \"HTTP/3 Settings\" registry (RFC 9114 Table 3, §11.2.2) MUST NOT be sent, and their receipt MUST be treated as a connection error of type `H3_SETTINGS_ERROR` (RFC 9114 §7.2.4.1).  The reserved identifiers are `0x00` (no HTTP/2 counterpart), `0x02` (SETTINGS_ENABLE_PUSH in HTTP/2), `0x03` (SETTINGS_MAX_CONCURRENT_STREAMS), `0x04` (SETTINGS_INITIAL_WINDOW_SIZE), and `0x05` (SETTINGS_MAX_FRAME_SIZE).\n\nIdentifiers outside that set — including the `0x1f * N + 0x21` greasing values and unregistered extensions — are ignored, per RFC 9114 §7.2.4's requirement that unknown parameters be ignored."
+        "Validates HTTP/3 SETTINGS frame semantics on the control stream.  This rule inspects protocol-level events emitted by the QUIC stream wrapper and checks:\n\n* **No duplicate SETTINGS** — a SETTINGS frame MUST be sent as the first frame of each control stream by each peer, and it MUST NOT be sent subsequently (RFC 9114 §7.2.4).  SETTINGS applies to the entire connection, never a single stream, so a second `H3SettingsReceived` event on the same connection is a violation.\n* **No reserved setting identifiers** — the `Reserved` rows of the \"HTTP/3 Settings\" registry (RFC 9114 Table 3, §11.2.2) MUST NOT be sent, and their receipt MUST be treated as a connection error of type `H3_SETTINGS_ERROR` (RFC 9114 §7.2.4.1).  The reserved identifiers are `0x00` (no HTTP/2 counterpart), `0x02` (SETTINGS_ENABLE_PUSH in HTTP/2), `0x03` (SETTINGS_MAX_CONCURRENT_STREAMS), `0x04` (SETTINGS_INITIAL_WINDOW_SIZE), and `0x05` (SETTINGS_MAX_FRAME_SIZE).\n\n* **No repeated setting identifier** — the same setting identifier MUST NOT occur more than once in the SETTINGS frame (RFC 9114 §7.2.4).  A receiver MAY treat duplicates as a connection error of type `H3_SETTINGS_ERROR`; the sender's obligation is unconditional, so a repeated identifier within one frame is a violation.\n\nIdentifiers outside the reserved set — including the `0x1f * N + 0x21` greasing values and unregistered extensions — are ignored, per RFC 9114 §7.2.4's requirement that unknown parameters be ignored."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -141,6 +162,11 @@ impl ProtocolRule for StatefulHttp3SettingsFrame {
                 compliance: Compliance::NonCompliant,
                 label: Some("(reserved HTTP/2 setting identifier)"),
                 snippet: "# Control stream sends SETTINGS { 0x03 = 100 }\n# Violation: SETTINGS contains reserved HTTP/2 setting identifier 0x03 (RFC 9114 §7.2.4.1)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(repeated setting identifier)"),
+                snippet: "# Control stream sends SETTINGS { 0x06 = 8192, 0x06 = 4096 }\n# Violation: SETTINGS contains setting identifier 0x06 more than once (RFC 9114 §7.2.4)",
             },
         ]
     }
@@ -363,6 +389,55 @@ mod tests {
         let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x03"));
+    }
+
+    // ── Repeated setting identifier within one frame ─────────────────
+
+    #[test]
+    fn repeated_identifier_fails() {
+        let rule = StatefulHttp3SettingsFrame;
+        let conn = Uuid::new_v4();
+        let evt = make_settings(conn, vec![(0x06, 8192), (0x06, 4096)]);
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        assert!(result.is_some());
+        let msg = result.unwrap().message;
+        assert!(msg.contains("more than once"));
+        assert!(msg.contains("0x06"));
+    }
+
+    #[test]
+    fn repeated_identifier_non_adjacent_fails() {
+        let rule = StatefulHttp3SettingsFrame;
+        let conn = Uuid::new_v4();
+        // Same identifier repeated with an unrelated one between.
+        let evt = make_settings(conn, vec![(0x01, 4096), (0x07, 100), (0x01, 2048)]);
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        assert!(result.is_some());
+        assert!(result.unwrap().message.contains("0x01"));
+    }
+
+    #[test]
+    fn distinct_identifiers_with_equal_values_pass() {
+        // Repeated *values* are fine; only repeated identifiers are a violation.
+        let rule = StatefulHttp3SettingsFrame;
+        let conn = Uuid::new_v4();
+        let evt = make_settings(conn, vec![(0x06, 100), (0x01, 100), (0x07, 100)]);
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn reserved_identifier_reported_before_repeat() {
+        // A repeated reserved identifier is named as reserved, not as a repeat:
+        // the reserved scan runs first so the more specific violation wins.
+        let rule = StatefulHttp3SettingsFrame;
+        let conn = Uuid::new_v4();
+        let evt = make_settings(conn, vec![(0x03, 1), (0x03, 2)]);
+        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        assert!(result.is_some());
+        let msg = result.unwrap().message;
+        assert!(msg.contains("reserved"));
+        assert!(msg.contains("0x03"));
     }
 
     // ── Setting ID boundaries ────────────────────────────────────────

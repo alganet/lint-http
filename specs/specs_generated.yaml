@@ -1848,7 +1848,7 @@ sources:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 125
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 48
+      line: 50
   - label: lint-http-proxy/src/h3_instrument.rs (3)
     section: § 7.2.7
     snippet: The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate.
@@ -1916,31 +1916,37 @@ sources:
     snippet: The entries in Table 3 are registered by this document
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 24
+      line: 26
   - label: stateful_http3_settings_frame (2)
     section: § 7.2.4
     snippet: A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 60
+      line: 62
   - label: stateful_http3_settings_frame (3)
     section: § 7.2.4
     snippet: An implementation MUST ignore any parameter with an identifier it does not understand
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 92
+      line: 113
   - label: stateful_http3_settings_frame (4)
     section: § 7.2.4
     snippet: SETTINGS frames always apply to an entire HTTP/3 connection, never a single stream
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 56
+      line: 58
   - label: stateful_http3_settings_frame (5)
+    section: § 7.2.4
+    snippet: The same setting identifier MUST NOT occur more than once in the SETTINGS frame
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
+      line: 96
+  - label: stateful_http3_settings_frame (6)
     section: § 7.2.4.1
     snippet: These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 75
+      line: 77
 - label: RFC 9218
   url: https://www.rfc-editor.org/rfc/rfc9218.txt
   type: text/plain
