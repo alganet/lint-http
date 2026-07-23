@@ -23,8 +23,19 @@ use super::{boxed_full, BoxError, ResponseBody, Shared};
 
 /// Check if a request is a WebSocket upgrade request.
 ///
-/// RFC 6455 §4.1: a WebSocket handshake requires `Connection: Upgrade` (as a
-/// distinct token, possibly alongside others) and `Upgrade: websocket`.
+/// A WebSocket handshake requires `Connection: Upgrade` (as a distinct token,
+/// possibly alongside others) and `Upgrade: websocket`.
+///
+/// Both sentences say "include", not "equal", and that is the whole reason the
+/// two checks are shaped differently. Connection is a token list, so `include`
+/// means membership -- `Connection: keep-alive, Upgrade` is a valid handshake
+/// and a string compare would reject it, which is why this asks
+/// `parse_connection_tokens` rather than looking at the field value. The
+/// keyword and the token are also matched case-insensitively, which the
+/// document establishes elsewhere for each field rather than here.
+///
+// cite(RFC 6455 § 4.1): "The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword."
+// cite(RFC 6455 § 4.1): "The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token."
 pub(super) fn is_websocket_upgrade<B>(req: &Request<B>) -> bool {
     let connection_tokens = parse_connection_tokens(req.headers().get(hyper::header::CONNECTION));
     let has_upgrade = connection_tokens.contains("upgrade");
@@ -123,6 +134,14 @@ pub(super) async fn handle_websocket_upgrade(
         // A 101 has no body; a non-101 response body streams through to the
         // client but is not captured here, so record it as unknown rather than
         // falsely claiming zero length.
+        //
+        // The `Some(0)` is knowledge, not a guess -- the sentence below is what
+        // makes zero the only possible answer for a 101, and it is why the two
+        // arms are asymmetric. `None` here means "we did not look"; `Some(0)`
+        // means "there is nothing to look at". Only one of those can be said
+        // without reading the body, and only for 1xx.
+        //
+        // cite(RFC 9110 § 15.2): "A 1xx response is terminated by the end of the header section; it cannot contain content or trailers."
         body_length: if status == 101 { Some(0) } else { None },
         trailers: None,
     });
@@ -449,6 +468,17 @@ fn message_to_info(
     direction: crate::websocket_session::MessageDirection,
 ) -> crate::websocket_session::WebSocketMessageInfo {
     use crate::websocket_session::WebSocketMessageInfo;
+
+    // These numbers are the wire format, not tungstenite's enum discriminants,
+    // and this match is the only place the mapping is written down -- so it is
+    // the opcode table, restated in Rust.
+    //
+    // Quoted as one extract rather than per arm, for a plain reason: "%x9 denotes
+    // a ping" is eighteen characters and the extractor's floor is twenty. Ping and
+    // pong cannot be quoted alone, so the list is quoted whole and each arm reads
+    // its own line out of it.
+    //
+    // cite(RFC 6455 § 5.2): "%x0 denotes a continuation frame * %x1 denotes a text frame * %x2 denotes a binary frame * %x3-7 are reserved for further non-control frames * %x8 denotes a connection close * %x9 denotes a ping * %xA denotes a pong"
     let (opcode, payload_length, fin, rsv) = match msg {
         // Assembled messages: tungstenite has already defragmented, so FIN is
         // implicitly true and RSV bits are not available.
