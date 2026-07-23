@@ -883,12 +883,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
       line: 123
-  - label: message_sunset_and_deprecation_consistency
-    section: § 1
-    snippet: the Sunset HTTP response header field, which indicates that a URI is likely to become unresponsive at a specified point in the future.
-    cited_by:
     - file: lint-http-rules/src/rules/message_sunset_and_deprecation_consistency.rs
-      line: 53
+      line: 34
 - label: RFC 8615
   url: https://www.rfc-editor.org/rfc/rfc8615.txt
   type: text/plain
@@ -2270,14 +2266,30 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
       line: 85
+  - label: message_sunset_and_deprecation_consistency
+    section: § 3.3.7
+    snippet: their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sunset_and_deprecation_consistency.rs
+      line: 62
 - label: RFC 9745
   url: https://www.rfc-editor.org/rfc/rfc9745.txt
   type: text/plain
   fragments:
   - label: message_sunset_and_deprecation_consistency
-    snippet: The Deprecation HTTP response header field is used to signal to consumers of a resource (identified by a URI) that the resource will be or has been deprecated.
+    section: § 2.1
+    snippet: Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651].
     cited_by:
     - file: lint-http-rules/src/rules/message_sunset_and_deprecation_consistency.rs
-      line: 54
+      line: 61
+  - label: message_sunset_and_deprecation_consistency (2)
+    section: § 4
+    snippet: The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sunset_and_deprecation_consistency.rs
+      line: 101
+  - label: server_deprecation_header_syntax
+    snippet: The Deprecation HTTP response header field is used to signal to consumers of a resource (identified by a URI) that the resource will be or has been deprecated.
+    cited_by:
     - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
       line: 30

@@ -8,12 +8,13 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-When both `Sunset` and `Deprecation` response headers are present, they should be logically consistent: `Deprecation` indicates when a resource was (or will be) deprecated and `Sunset` indicates the removal/shutdown date. This rule validates that, when both headers are parseable, the `Deprecation` timestamp is not later than the `Sunset` date. Additionally, the rule validates the `Sunset` header syntax: if a `Sunset` header is present but not a valid IMF-fixdate, the rule reports a violation (the `Sunset` header must be a valid IMF-fixdate per RFC 8594), even when `Deprecation` is absent.
+When both `Sunset` and `Deprecation` response headers are present they must be logically consistent: `Deprecation` (a Structured Field Date, `@<seconds>`, RFC 9745 §2.1) marks when a resource was or will be deprecated, and `Sunset` (an HTTP-date, RFC 8594 §3) marks the removal date. RFC 9745 §4 requires that the Sunset timestamp not be earlier than the Deprecation timestamp; this rule flags the reverse (subject to a small clock-skew tolerance). It also validates the `Sunset` syntax: a `Sunset` header that is not a parseable HTTP-date is reported even when `Deprecation` is absent. Legacy/non-structured `Deprecation` forms are left to `server_deprecation_header_syntax`.
 
 ## Specifications
 
-- [RFC 8594 §3](https://www.rfc-editor.org/rfc/rfc8594.html#section-3): `Sunset` header semantics (IMF-fixdate)
-- [RFC 9745 §2](https://www.rfc-editor.org/rfc/rfc9745.html#section-2): `Deprecation` structured Date item (`@<seconds>`) and legacy forms
+- [RFC 8594 §3](https://www.rfc-editor.org/rfc/rfc8594.html#section-3): `Sunset` header semantics (HTTP-date)
+- [RFC 9745 §2.1](https://www.rfc-editor.org/rfc/rfc9745.html#section-2.1): `Deprecation` is a Structured Field Date (`@<seconds>`)
+- [RFC 9745 §4](https://www.rfc-editor.org/rfc/rfc9745.html#section-4): Sunset MUST NOT be earlier than Deprecation
 - [RFC 9651 §3.3.7](https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7): Structured Field `Date` item syntax
 
 ## Configuration
