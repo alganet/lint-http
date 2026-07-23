@@ -106,6 +106,19 @@ pub struct GeneralConfig {
     #[serde(default)]
     pub h3_upstream_extra_ca_certs: Vec<String>,
 
+    /// How long (ms) to wait for the HTTP/3 upstream QUIC connect + handshake
+    /// (and the response head) before treating the attempt as failed and
+    /// falling back to H1/H2 (default: 5000).
+    #[serde(default = "default_h3_upstream_connect_timeout_ms")]
+    pub h3_upstream_connect_timeout_ms: u64,
+
+    /// Base backoff (seconds) for the H3 upstream negative cache: after a
+    /// connect/handshake failure an origin authority is not retried over H3
+    /// until this window (doubling per consecutive failure) elapses, so a
+    /// non-H3 origin isn't probed on every request (default: 30).
+    #[serde(default = "default_h3_upstream_negative_ttl_seconds")]
+    pub h3_upstream_negative_ttl_seconds: u64,
+
     /// Whether the live capture stream endpoint (`GET /_lint_http/stream`, an
     /// SSE feed of each transaction as it commits) is served. It exposes every
     /// proxied transaction (and body prefixes when `captures_include_body` is
@@ -147,6 +160,14 @@ const fn default_shutdown_timeout_seconds() -> u64 {
     30
 }
 
+const fn default_h3_upstream_connect_timeout_ms() -> u64 {
+    5000
+}
+
+const fn default_h3_upstream_negative_ttl_seconds() -> u64 {
+    30
+}
+
 fn default_listen() -> String {
     "127.0.0.1:3000".to_string()
 }
@@ -183,6 +204,8 @@ impl Default for GeneralConfig {
             h3_upstream_authorities: Vec::new(),
             h3_upstream_bind: None,
             h3_upstream_extra_ca_certs: Vec::new(),
+            h3_upstream_connect_timeout_ms: default_h3_upstream_connect_timeout_ms(),
+            h3_upstream_negative_ttl_seconds: default_h3_upstream_negative_ttl_seconds(),
             live_stream_enabled: default_live_stream_enabled(),
         }
     }

@@ -16,8 +16,10 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use bytes::Bytes;
-use http_body_util::{BodyExt, Empty};
+use http_body_util::{BodyExt, Empty, Full};
 use hyper_util::rt::TokioIo;
 
 use lint_http::config::Config;
@@ -305,5 +307,166 @@ async fn upstream_h3_disabled_authority_uses_h1_path() -> anyhow::Result<()> {
 
     proxy_handle.abort();
     let _ = tokio::fs::remove_file(&captures_path).await;
+    Ok(())
+}
+
+/// Send one HTTP/1.1 POST to the proxy, returning status and response body.
+async fn proxy_post(
+    proxy_addr: SocketAddr,
+    origin_authority: &str,
+    path: &str,
+    body: &[u8],
+) -> anyhow::Result<(u16, Vec<u8>)> {
+    let stream = tokio::net::TcpStream::connect(proxy_addr).await?;
+    let (mut sender, conn) = hyper::client::conn::http1::handshake(TokioIo::new(stream)).await?;
+    tokio::spawn(async move {
+        let _ = conn.await;
+    });
+
+    let req = hyper::Request::builder()
+        .method("POST")
+        .uri(format!("http://{origin_authority}{path}"))
+        .header("host", origin_authority)
+        .body(Full::new(Bytes::copy_from_slice(body)))?;
+    let resp = sender.send_request(req).await?;
+    let status = resp.status().as_u16();
+    let body = resp.into_body().collect().await?.to_bytes().to_vec();
+    Ok((status, body))
+}
+
+#[tokio::test]
+async fn upstream_h3_connect_failure_falls_back_to_h1() -> anyhow::Result<()> {
+    // The allowlisted authority has an H1 origin (wiremock, TCP) but *no* H3
+    // endpoint on the matching UDP port. The H3 attempt fails at connect
+    // (pre-request), so the proxy falls back to H1/H2 and the request succeeds —
+    // and the capture records the leg actually used as HTTP/1.1.
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let mock = MockServer::start().await;
+    Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/fb"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("fell-back"))
+        .mount(&mock)
+        .await;
+
+    let authority = format!("127.0.0.1:{}", mock.address().port());
+
+    let mut cfg = Config::default();
+    cfg.general.h3_upstream_enabled = true;
+    cfg.general.h3_upstream_authorities = vec![authority.clone()];
+    // Keep the failed-connect wait short so the fall-back is prompt.
+    cfg.general.h3_upstream_connect_timeout_ms = 1500;
+
+    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    let (status, _headers, body) = proxy_get(proxy_addr, &authority, "/fb", &[]).await?;
+    assert_eq!(status, 200, "the H1 fall-back should succeed");
+    assert_eq!(body, b"fell-back");
+
+    let caps = read_captures(&captures_path).await?;
+    let v = &caps[0];
+    assert_eq!(
+        v["response"]["version"].as_str(),
+        Some("HTTP/1.1"),
+        "a fall-back records the leg actually used (H1), not H3"
+    );
+
+    proxy_handle.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn upstream_h3_non_idempotent_not_retried_after_midflight_failure() -> anyhow::Result<()> {
+    // A POST (non-idempotent) whose H3 attempt fails *after* the handshake — the
+    // origin accepts the connection and reads the request, then drops without
+    // responding — must NOT be retried on H1/H2 (RFC 9110 §9.2.2). We prove it
+    // by running a working H1 origin on the same authority's TCP port and
+    // asserting it is never hit while the client gets a 502.
+    use tokio::io::AsyncWriteExt;
+
+    let pki = gen_test_pki()?;
+    let ca_pem_path =
+        std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
+    tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
+
+    // Reserve a port that both the UDP (H3) origin and the TCP (H1) origin bind.
+    let reserved = std::net::UdpSocket::bind("127.0.0.1:0")?;
+    let port = reserved.local_addr()?.port();
+    drop(reserved);
+    let authority = format!("127.0.0.1:{port}");
+    let bind: SocketAddr = authority.parse()?;
+
+    // H3 origin: completes the handshake, reads one request, then drops the
+    // connection without responding — a mid-flight failure for the proxy.
+    let mut tls = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(vec![pki.leaf_cert.clone()], pki.leaf_key.clone_key())?;
+    tls.alpn_protocols = vec![b"h3".to_vec()];
+    let quic = quinn::crypto::rustls::QuicServerConfig::try_from(tls)
+        .map_err(|e| anyhow::anyhow!("origin QUIC server config: {e}"))?;
+    let server_config = quinn::ServerConfig::with_crypto(Arc::new(quic));
+    let h3_endpoint = quinn::Endpoint::server(server_config, bind)?;
+    let h3_origin = tokio::spawn(async move {
+        while let Some(incoming) = h3_endpoint.accept().await {
+            tokio::spawn(async move {
+                let Ok(conn) = incoming.await else { return };
+                let Ok(mut h3) =
+                    h3::server::Connection::<_, Bytes>::new(h3_quinn::Connection::new(conn)).await
+                else {
+                    return;
+                };
+                // Read one request, then return — dropping `h3` closes the
+                // connection so the proxy's response read fails mid-flight.
+                if let Ok(Some(resolver)) = h3.accept().await {
+                    let _ = resolver.resolve_request().await;
+                }
+            });
+        }
+    });
+
+    // H1 origin on the same TCP port: records every hit; would return 200 if the
+    // proxy (incorrectly) fell back.
+    let h1_hits = Arc::new(AtomicUsize::new(0));
+    let h1_hits_srv = h1_hits.clone();
+    let tcp = tokio::net::TcpListener::bind(bind).await?;
+    let h1_origin = tokio::spawn(async move {
+        while let Ok((mut sock, _)) = tcp.accept().await {
+            h1_hits_srv.fetch_add(1, Ordering::SeqCst);
+            tokio::spawn(async move {
+                let _ = sock
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nh1")
+                    .await;
+            });
+        }
+    });
+
+    let mut cfg = Config::default();
+    cfg.general.h3_upstream_enabled = true;
+    cfg.general.h3_upstream_authorities = vec![authority.clone()];
+    cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
+    cfg.general.h3_upstream_connect_timeout_ms = 3000;
+
+    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    let (status, _body) = proxy_post(proxy_addr, &authority, "/x", b"payload").await?;
+    assert_eq!(
+        status, 502,
+        "a mid-flight H3 failure of a non-idempotent method surfaces as 502"
+    );
+
+    // Give any (erroneous) fall-back a chance to land before asserting it didn't.
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(
+        h1_hits.load(Ordering::SeqCst),
+        0,
+        "a non-idempotent POST must not be retried on H1 after a mid-flight H3 failure"
+    );
+
+    proxy_handle.abort();
+    h3_origin.abort();
+    h1_origin.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
 }
