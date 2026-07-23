@@ -23,8 +23,7 @@ impl Rule for ServerHttp3StatusCodeValidity {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Only applies to HTTP/3 connections.
-        // cite(RFC 9114 § 4.3): "Pseudo-header fields are not HTTP fields."
+        // Only applies to HTTP/3 connections. Scoping, not a normative check — no cite.
         if tx.request.version != "HTTP/3" {
             return None;
         }
@@ -49,10 +48,11 @@ impl Rule for ServerHttp3StatusCodeValidity {
             });
         }
 
-        // RFC 9110 §15.2, RFC 9114 §4.1: Informational (1xx) responses
-        // consist of only a HEADERS frame — no content, no trailers.
+        // Informational (1xx) responses consist of only a HEADERS frame — no content,
+        // no trailers. One sentence governs all three checks in this block.
+        // cite(RFC 9110 § 15.2): "A 1xx response is terminated by the end of the header section; it cannot contain content or trailers."
         if (100..200).contains(&resp.status) {
-            // Content-Length MUST NOT appear on 1xx responses (RFC 9110 §15.2).
+            // Content-Length MUST NOT appear on a 1xx response — it announces content.
             if resp.headers.contains_key("content-length") {
                 return Some(Violation {
                     rule: self.id().into(),

@@ -302,6 +302,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/ipv6.rs
       line: 78
+  - label: message_http3_host_authority_consistency
+    section: § 3.2.2
+    snippet: Although host is case-insensitive, producers and normalizers should use lowercase for registered names and hexadecimal addresses for the sake of uniformity
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_host_authority_consistency.rs
+      line: 67
 - label: RFC 4648
   url: https://www.rfc-editor.org/rfc/rfc4648.txt
   type: text/plain
@@ -1055,6 +1061,8 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket.rs
       line: 144
+    - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
+      line: 53
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 11.1
     snippet: It uses a case-insensitive token to identify the authentication scheme
@@ -1373,6 +1381,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
       line: 29
+  - label: message_http3_pseudo_headers_validity
+    section: § 15
+    snippet: All valid status codes are within the range of 100 to 599, inclusive.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 139
+  - label: message_http3_pseudo_headers_validity (2)
+    section: § 7.1
+    snippet: For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*").
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 91
+  - label: message_http3_pseudo_headers_validity (3)
+    section: § 7.1
+    snippet: These forms MUST NOT be used with other methods.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 92
   - label: message_if_match_etag_syntax
     section: § 13.1.1
     snippet: An origin server MUST use the strong comparison function when comparing entity tags for If-Match
@@ -1830,27 +1856,53 @@ sources:
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
       line: 40
   - label: message_http3_host_authority_consistency
-    section: § 4.3
-    snippet: Pseudo-header fields are not HTTP fields.
+    section: § 4.3.1
+    snippet: If both fields are present, they MUST contain the same value.
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_host_authority_consistency.rs
-      line: 27
-    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 27
-    - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
-      line: 27
+      line: 66
+  - label: message_http3_host_authority_consistency (2)
+    section: § 4.3.1
+    snippet: If these fields are present, they MUST NOT be empty.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_host_authority_consistency.rs
+      line: 53
   - label: message_http3_no_connection_header
     section: § 4.2
     snippet: An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP]
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
       line: 36
+  - label: message_http3_pseudo_headers_validity
+    section: § 4.3.1
+    snippet: All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 36
+  - label: message_http3_pseudo_headers_validity (2)
+    section: § 4.3.1
+    snippet: If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 120
+  - label: message_http3_pseudo_headers_validity (3)
+    section: § 4.3.1
+    snippet: This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of / (ASCII 0x2f).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 105
+  - label: message_http3_pseudo_headers_validity (4)
+    section: § 4.4
+    snippet: The :authority pseudo-header field contains the host and port to connect to
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 52
   - label: server_http3_status_code_validity
     section: § 4.5
     snippet: HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
-      line: 41
+      line: 40
   - label: stateful_http3_goaway_semantics
     section: § 7.2.6
     snippet: The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint.
