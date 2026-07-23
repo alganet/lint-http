@@ -237,6 +237,9 @@ pub fn validate_basic_credentials(token68: &str) -> Result<(), String> {
         return Err("Basic credentials token is empty".into());
     }
     // cite(RFC 7617 § 2): "and obtains the basic-credentials by encoding this octet sequence using Base64"
+    // Erroring out on a malformed encoding is RFC 4648's own instruction, not
+    // strictness for its own sake — and RFC 7617 does not state otherwise.
+    // cite(RFC 4648 § 3.3): "Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise."
     let decoded = base64::engine::general_purpose::STANDARD
         .decode(s)
         .map_err(|e| format!("Invalid base64 in Basic credentials: {}", e))?;
