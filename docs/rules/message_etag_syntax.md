@@ -12,7 +12,8 @@ Validate that the `ETag` response header contains a single, syntactically valid 
 
 ## Specifications
 
-- [RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): `ETag` and the `entity-tag` grammar. Both of this rule's references used to point here, one of them via §7.6 — which is Message Forwarding
+- [RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): `ETag` header field, the `ETag = entity-tag` field production, and the `entity-tag` grammar
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order: a non-list field (such as `ETag = entity-tag`) must not appear as multiple field lines
 
 ## Configuration
 
