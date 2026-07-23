@@ -23,21 +23,26 @@ impl Rule for ServerDeprecationHeaderSyntax {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Applies to responses only
+        // Deprecation is a response header field, which is why this rule is Server-scoped.
+        // cite(RFC 9745 § 2): "The Deprecation HTTP response header field allows a server to communicate to a client application that the resource in the context of the message will be or has been deprecated."
         let resp = tx.response.as_ref()?;
 
         let mut vals = Vec::new();
-        // cite(RFC 9745): "The Deprecation HTTP response header field is used to signal to consumers of a resource (identified by a URI) that the resource will be or has been deprecated."
         for hv in resp.headers.get_all("deprecation").iter() {
             vals.push(hv);
         }
 
-        // Multiple Deprecation header fields are prohibited
+        // Deprecation is an Item, not a List, so it is not a field whose lines may be
+        // recombined as a comma-separated list — the §5.3 exception does not apply and a
+        // sender must emit at most one Deprecation field line. RFC 9745 states no
+        // "more than one" rule of its own; the prohibition follows from Item + §5.3.
+        // cite(RFC 9745 § 2.1): "Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651]."
+        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
         if vals.len() > 1 {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
-                message: "Multiple Deprecation header fields present; servers MUST NOT include more than one Deprecation header field in the same response".into(),
+                message: "Multiple Deprecation header fields present; Deprecation is a single Structured Field Item (RFC 9745 §2.1), so a response carries at most one Deprecation field line (RFC 9110 §5.3)".into(),
             });
         }
 
@@ -54,12 +59,19 @@ impl Rule for ServerDeprecationHeaderSyntax {
             }
         };
 
-        // Structured Field Date syntax (RFC 9745 / RFC 9651): @DIGITS
+        // The valid form is a Structured Field Date: `@` followed by an integer epoch.
+        // (Digits-only, so a *negative* SF Date `@-N` — a legal pre-1970 delta per §3.3.7 —
+        // is treated as non-structured and falls through to the invalid branch; a negative
+        // Deprecation date is pathological. A deliberate narrowing, recorded in the tracker.)
+        // cite(RFC 9745 § 2.1): "Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651]."
+        // cite(RFC 9651 § 3.3.7): "their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@"."
         if s.starts_with('@') && s.len() > 1 && s[1..].chars().all(|c| c.is_ascii_digit()) {
-            return None; // valid per RFC 9745
+            return None; // valid Structured Field Date
         }
 
-        // Legacy forms: HTTP-date (IMF-fixdate) or literal 'true' were used historically.
+        // Every remaining form fails §2.1's "value MUST be a Date"; the specific 'true' and
+        // HTTP-date detections below are diagnostics that produce a more helpful message
+        // (both are legacy draft-era forms). Recorded as heuristics in the tracker.
         if s.eq_ignore_ascii_case("true") {
             return Some(Violation {
                 rule: self.id().into(),
@@ -73,7 +85,7 @@ impl Rule for ServerDeprecationHeaderSyntax {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
-                message: "Deprecation header uses legacy HTTP-date format; RFC 9745 specifies Deprecation as a structured date '@<seconds>' (see RFC 9745 §2)".into(),
+                message: "Deprecation header uses legacy HTTP-date format; RFC 9745 specifies Deprecation as a structured date '@<seconds>' (see RFC 9745 §2.1)".into(),
             });
         }
 
@@ -93,15 +105,21 @@ impl Rule for ServerDeprecationHeaderSyntax {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9745",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-2",
-                note: "The `Deprecation` HTTP Response Header Field",
+                section: Some("2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-2.1",
+                note: "Syntax: `Deprecation` is an Item Structured Header Field whose value MUST be a `Date`",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9651",
                 section: Some("3.3.7"),
                 url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7",
-                note: "Structured Field `Date` item syntax",
+                note: "Structured Field `Date` item syntax (leading `@`)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+                note: "Field Order: an Item field (non-list) must not appear as multiple field lines",
             },
         ]
     }
