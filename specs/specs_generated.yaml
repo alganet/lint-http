@@ -877,6 +877,12 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc8594.txt
   type: text/plain
   fragments:
+  - label: message_date_and_time_headers_consistency
+    section: § 3
+    snippet: The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
+      line: 123
   - label: message_sunset_and_deprecation_consistency
     section: § 1
     snippet: the Sunset HTTP response header field, which indicates that a URI is likely to become unresponsive at a specified point in the future.
@@ -1392,17 +1398,19 @@ sources:
     - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
       line: 90
   - label: message_date_and_time_headers_consistency
-    section: § 5.6.7
-    snippet: An HTTP-date value represents time as an instance of Coordinated Universal Time (UTC).
-    cited_by:
-    - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
-      line: 37
-  - label: message_date_and_time_headers_consistency (2)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated
     cited_by:
     - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
-      line: 36
+      line: 45
+    - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
+      line: 64
+  - label: message_date_and_time_headers_consistency (2)
+    section: § 8.8.2.1
+    snippet: An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
+      line: 93
   - label: message_extension_headers_registered
     section: § 5.1
     snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"
