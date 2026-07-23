@@ -252,11 +252,20 @@ pub fn get_cache_control_max_age(headers: &HeaderMap) -> Option<i64> {
 }
 
 /// Strip an optional weak (`W/`) prefix from an ETag value, leaving the
-/// quoted-string intact.  Comparison logic for conditional requests often
-/// treats weak and strong validators as equivalent (RFC 9111 §5.3.2) so the
-/// normalized form is useful for rule implementations.
+/// quoted-string intact.
+///
+/// Reducing both sides to their opaque-tag and comparing those character by
+/// character *is* weak comparison -- that is the sentence below, and it is the
+/// only thing this function is good for. It must not be used to prepare a strong
+/// comparison: the `W/` it discards is exactly what strong comparison turns on.
+///
+/// The pointer that stood here read "RFC 9111 §5.3.2". RFC 9111 § 5.3 is
+/// Expires and has no § 5.3.2 -- the section numbering goes straight to § 5.4,
+/// Pragma. So it was not merely the wrong document, it named nothing at all.
 ///
 /// The resulting string is trimmed but otherwise returned verbatim.
+///
+// cite(RFC 9110 § 8.8.3.2): "two entity tags are equivalent if their opaque- tags match character-by-character, regardless of either or both being tagged as "weak"."
 pub fn normalize_etag(s: &str) -> String {
     let trimmed = s.trim();
     if trimmed.len() >= 2 && (trimmed.starts_with("W/") || trimmed.starts_with("w/")) {
@@ -913,10 +922,23 @@ pub fn valid_qvalue(s: &str) -> bool {
     false
 }
 
-/// Validate an RFC 5987 `ext-value` (e.g. `UTF-8''%e2%82%ac%20rates`).
+/// Validate an RFC 8187 `ext-value` (e.g. `UTF-8''%e2%82%ac%20rates`).
 /// Returns Ok(()) if the value matches the expected pattern and contains
 /// only allowed characters/percent-escapes, or Err(msg) describing the
 /// problem.
+///
+/// This said RFC 5987, which RFC 8187 obsoletes and moved to Historic. The
+/// pointer is worth correcting and worth not overstating: the two documents'
+/// `ext-value`, `value-chars`, `pct-encoded` and `attr-char` productions are
+/// byte-for-byte identical, so nothing here changed meaning when the reference
+/// did. What 8187 changed is elsewhere -- the ISO-8859-1 requirement is gone,
+/// and it stopped trying to define a generic `parameter` rule.
+///
+/// The `charset` is checked only for being ASCII and quote-free, which is far
+/// looser than `mime-charset`, so that production is deliberately not quoted
+/// below -- it would describe a check this function does not make.
+///
+// cite(RFC 8187 § 3.2.1): "ext-value = charset  "'" [ language ] "'" value-chars"
 pub fn validate_ext_value(val: &str) -> Result<(), String> {
     // Must contain at least two single quotes separating charset, optional language, and value-chars
     let first_quote = val
@@ -947,8 +969,14 @@ pub fn validate_ext_value(val: &str) -> Result<(), String> {
 
     let mut i = 0usize;
     let bytes = value_chars.as_bytes();
+    // cite(RFC 8187 § 3.2.1): "value-chars   = *( pct-encoded / attr-char )"
     while i < bytes.len() {
         let b = bytes[i];
+        // This branch is why `%` is absent from the attr-char table below rather
+        // than merely unreachable in it: a `%` here is always the start of an
+        // escape, and the two productions do not overlap.
+        //
+        // cite(RFC 8187 § 3.2.1): "pct-encoded   = "%" HEXDIG HEXDIG"
         if b == b'%' {
             // Expect two hex digits
             if i + 2 >= bytes.len() {
@@ -963,11 +991,17 @@ pub fn validate_ext_value(val: &str) -> Result<(), String> {
             continue;
         }
         let ch = bytes[i] as char;
-        // attr-char per RFC 5987: ALPHA / DIGIT / "!" / "#" / "$" / "%" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
+        // The table carried a `'%'` for as long as it has existed, under a comment
+        // claiming it was RFC 5987's attr-char. It was not: both documents spell
+        // this production identically and both exclude `%`, along with `*` and `'`.
+        // It was dead as well as wrong -- the branch above consumes every `%` before
+        // this arm is reached -- so removing it moved no test.
+        //
+        // cite(RFC 8187 § 3.2.1): "attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )"
         if ch.is_ascii_alphanumeric()
             || matches!(
                 ch,
-                '!' | '#' | '$' | '%' | '&' | '+' | '-' | '.' | '^' | '_' | '`' | '|' | '~'
+                '!' | '#' | '$' | '&' | '+' | '-' | '.' | '^' | '_' | '`' | '|' | '~'
             )
         {
             i += 1;
@@ -1616,6 +1650,26 @@ mod tests {
         let res = validate_addr_spec("local@-example.com");
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("invalid domain"));
+    }
+
+    /// `%` is not an attr-char. It reaches this function only as the opening of a
+    /// `pct-encoded`, and the branch handling that runs first -- so a `%` that is
+    /// not two hex digits is an incomplete escape, never a literal.
+    #[test]
+    fn percent_is_only_ever_an_escape() {
+        assert!(validate_ext_value("UTF-8''%41").is_ok());
+        assert!(validate_ext_value("UTF-8''a%20b").is_ok());
+        assert!(validate_ext_value("UTF-8''%").is_err());
+        assert!(validate_ext_value("UTF-8''a%b").is_err());
+        assert!(validate_ext_value("UTF-8''100%").is_err());
+    }
+
+    /// The three characters `token` has and `attr-char` does not.
+    #[test]
+    fn attr_char_excludes_star_quote_and_percent() {
+        assert!(validate_ext_value("UTF-8''a*b").is_err());
+        assert!(validate_ext_value("UTF-8''a{b").is_err());
+        assert!(validate_ext_value("UTF-8''ok-name.ext~1").is_ok());
     }
 
     #[test]
