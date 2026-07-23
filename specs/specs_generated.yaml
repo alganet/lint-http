@@ -804,6 +804,23 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc9000.txt
   type: text/plain
   fragments:
+  - label: lint-http-proxy/src/h3_instrument.rs
+    snippet: For example, the eight-byte sequence 0xc2197c5eff14e88c decodes to the decimal value 151,288,809,941,952,652; the four-byte sequence 0x9d7f3e7d decodes to 494,878,333; the two-byte sequence 0x7bbd decodes to 15,293; and the single byte 0x25 decodes to 37 (as does the two-byte sequence 0x4025).
+    cited_by:
+    - file: lint-http-proxy/src/h3_instrument.rs
+      line: 492
+  - label: lint-http-proxy/src/h3_instrument.rs (2)
+    section: § 16
+    snippet: The QUIC variable-length integer encoding reserves the two most significant bits of the first byte to encode the base-2 logarithm of the integer encoding length in bytes.  The integer value is encoded on the remaining bits, in network byte order.
+    cited_by:
+    - file: lint-http-proxy/src/h3_instrument.rs
+      line: 40
+  - label: lint-http-proxy/src/h3_instrument.rs (3)
+    section: § 16
+    snippet: This means that integers are encoded on 1, 2, 4, or 8 bytes and can encode 6-, 14-, 30-, or 62-bit values, respectively.
+    cited_by:
+    - file: lint-http-proxy/src/h3_instrument.rs
+      line: 41
   - label: server_quic_transport_parameters
     section: § 18
     snippet: The extension_data field of the quic_transport_parameters extension defined in [QUIC-TLS] contains the QUIC transport parameters
@@ -1691,19 +1708,25 @@ sources:
   type: text/plain
   fragments:
   - label: lint-http-proxy/src/h3_instrument.rs
+    section: § 6.2.1
+    snippet: A control stream is indicated by a stream type of 0x00.
+    cited_by:
+    - file: lint-http-proxy/src/h3_instrument.rs
+      line: 131
+  - label: lint-http-proxy/src/h3_instrument.rs (2)
     section: § 7.2.4
     snippet: The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate
     cited_by:
     - file: lint-http-proxy/src/h3_instrument.rs
-      line: 119
+      line: 125
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
       line: 48
-  - label: lint-http-proxy/src/h3_instrument.rs (2)
+  - label: lint-http-proxy/src/h3_instrument.rs (3)
     section: § 7.2.7
     snippet: The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate.
     cited_by:
     - file: lint-http-proxy/src/h3_instrument.rs
-      line: 122
+      line: 128
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
       line: 40
   - label: message_http3_host_authority_consistency
