@@ -19,8 +19,8 @@ Validates that `101 Switching Protocols` responses follow correct HTTP upgrade s
 
 - [RFC 9110 §15.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2): 101 Switching Protocols
 - [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade
-- [RFC 9113 §8.6](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.6): The CONNECT Method (HTTP/2 forbids 101)
-- [RFC 9114 §4.5](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5): HTTP Upgrade (HTTP/3 forbids 101). This said §4.1, whose subject is HTTP Message Framing, under a note naming a section title RFC 9114 does not have
+- [RFC 9113 §8.6](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.6): The Upgrade Header Field (HTTP/2 forbids 101)
+- [RFC 9114 §4.5](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5): HTTP Upgrade — the only place RFC 9114 mentions 101; forbids it alongside the Upgrade mechanism
 
 ## Configuration
 

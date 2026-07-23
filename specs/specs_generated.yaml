@@ -1015,8 +1015,6 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/exchange.rs
       line: 380
-    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
-      line: 42
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs
     section: § 11.7.1
     snippet: Unlike WWW-Authenticate, the Proxy-Authenticate header field applies only to the next outbound client on the response chain.
@@ -1609,6 +1607,42 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_vary_header_valid.rs
       line: 34
+  - label: stateful_101_switching_protocols
+    section: § 15.2.2
+    snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+      line: 48
+  - label: stateful_101_switching_protocols (2)
+    section: § 15.2.2
+    snippet: The server MUST generate an Upgrade header field in the response that indicates which protocol(s) will be in effect after this response.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+      line: 138
+    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+      line: 180
+  - label: stateful_101_switching_protocols (3)
+    section: § 7.8
+    snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+      line: 125
+    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+      line: 167
+    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+      line: 194
+  - label: stateful_101_switching_protocols (4)
+    section: § 7.8
+    snippet: A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+      line: 78
+  - label: stateful_101_switching_protocols (5)
+    section: § 7.8
+    snippet: Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+      line: 155
   - label: stateful_authentication_failure_loop
     section: § 15.5.2
     snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
@@ -1831,6 +1865,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 33
+  - label: stateful_101_switching_protocols
+    section: § 8.6
+    snippet: HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+      line: 91
 - label: RFC 9114
   url: https://www.rfc-editor.org/rfc/rfc9114.txt
   type: text/plain
@@ -1913,6 +1953,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
       line: 40
+    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+      line: 105
   - label: stateful_http3_goaway_semantics
     section: § 5.2
     snippet: Endpoints MUST NOT initiate new requests or promise new pushes on the connection after receipt of a GOAWAY frame from the peer.
