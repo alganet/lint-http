@@ -28,16 +28,19 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+
+        // The event this rule recognizes is the MAX_PUSH_ID frame itself; every
+        // other protocol event is out of scope.
+        // cite(RFC 9114 § 7.2.7): "The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate."
         let current = match &event.kind {
             ProtocolEventKind::H3MaxPushId { push_id } => *push_id,
             _ => return None,
         };
 
-        // RFC 9114 §7.2.7: "A MAX_PUSH_ID frame cannot reduce the maximum
-        // push ID; receipt of a MAX_PUSH_ID frame that contains a smaller
-        // value than previously received MUST be treated as a connection
-        // error of type H3_ID_ERROR."
-        // cite(RFC 9114 § 7.2.7): "The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate."
+        // A value strictly smaller than one already received is the violation;
+        // the comparison is `<`, not `<=`, because equal does not reduce the
+        // maximum and is a legitimate idempotent re-send.
+        // cite(RFC 9114 § 7.2.7): "A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR"
         for prev in history.iter() {
             if let ProtocolEventKind::H3MaxPushId { push_id: prev_id } = &prev.kind {
                 if current < *prev_id {
@@ -51,13 +54,21 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
                         ),
                     });
                 }
-                // Only compare against the most recent prior MAX_PUSH_ID;
-                // earlier ones are necessarily ≤ that one if the rule has
-                // been holding.
+                // Compare only against the most recent prior MAX_PUSH_ID. On any
+                // connection that has not already violated, the running maximum
+                // is the most recent value, so this is exact; the spec's
+                // "previously received" only diverges from "most recent" after
+                // an earlier decrease, which was itself flagged at that step.
+                // Not a spec-licensed construct — a deliberate choice to avoid a
+                // redundant second finding (RULECITES §4.1).
                 break;
             }
         }
 
+        // No prior MAX_PUSH_ID: the maximum is unset at connection creation, so
+        // the first frame establishes it at any value (zero included) and is
+        // always accepted.
+        // cite(RFC 9114 § 7.2.7): "The maximum push ID is unset when an HTTP/3 connection is created, meaning that a server cannot push until it receives a MAX_PUSH_ID frame"
         None
     }
 
