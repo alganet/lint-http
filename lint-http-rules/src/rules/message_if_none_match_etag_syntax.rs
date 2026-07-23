@@ -6,7 +6,8 @@ use crate::lint::Violation;
 use crate::rules::Rule;
 
 /// `If-None-Match` header must be either `*` or a comma-separated list of entity-tags
-/// (possibly weak `W/"..."`). Validates basic ETag grammar per RFC 9110 §7.6/§7.8.4.
+/// (possibly weak `W/"..."`). Validates the field grammar (RFC 9110 §13.1.2); the
+/// entity-tag grammar itself is RFC 9110 §8.8.3, owned by `validate_entity_tag`.
 pub struct MessageIfNoneMatchEtagSyntax;
 
 impl Rule for MessageIfNoneMatchEtagSyntax {
@@ -38,10 +39,16 @@ impl Rule for MessageIfNoneMatchEtagSyntax {
                 }
             };
 
+            // The field is `*` or a comma-separated list of entity-tags. The `*`
+            // and the entity-tag grammar are both owned by `validate_entity_tag`
+            // (RFC 9110 §8.8.3); this rule enforces the §13.1.2 field structure.
+            // Syntax-only: a *weak* tag is valid here (§8.8.3), and If-None-Match is
+            // compared weakly anyway, so weak tags are accepted, not flagged. The
+            // weak-comparison MUST is owned by `inm_matches_known`, which performs it.
+            // cite(RFC 9110 § 13.1.2): "If-None-Match = "*" / #entity-tag"
             let mut seen_any = false;
             for member in crate::helpers::headers::parse_list_header(s) {
                 seen_any = true;
-                // cite(RFC 9110 § 13.1.2): "A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match"
                 if let Err(msg) = crate::helpers::headers::validate_entity_tag(member) {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -71,7 +78,7 @@ impl Rule for MessageIfNoneMatchEtagSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "`If-None-Match` headers must be either `*` or a comma-separated list of entity-tags. Entity-tags follow the grammar in RFC 9110 §7.6 and may be weak (prefix `W/`). This rule validates the basic syntax (quoting, escaping, and prohibition of control characters)."
+        "`If-None-Match` is either `*` or a comma-separated list of entity-tags (RFC 9110 §13.1.2). Each entity-tag follows the grammar in RFC 9110 §8.8.3 and may be weak (prefix `W/`); `If-None-Match` is evaluated with the weak comparison function, so weak tags are valid syntax here. This rule validates that field syntax (quoting, escaping, and prohibition of control characters); it does not perform the comparison."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {

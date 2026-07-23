@@ -1179,8 +1179,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 146
-    - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
-      line: 44
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 5.3
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP.
@@ -1451,6 +1449,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_if_modified_since_date_format.rs
       line: 53
+  - label: message_if_none_match_etag_syntax
+    section: § 13.1.2
+    snippet: 'If-None-Match = "*" / #entity-tag'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
+      line: 48
   - label: message_if_unmodified_since_date_format
     section: § 13.1.4
     snippet: If-Unmodified-Since = HTTP-date
