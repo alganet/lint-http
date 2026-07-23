@@ -1911,6 +1911,36 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
       line: 31
+  - label: stateful_http3_settings_frame
+    section: § 11.2.2
+    snippet: The entries in Table 3 are registered by this document
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
+      line: 24
+  - label: stateful_http3_settings_frame (2)
+    section: § 7.2.4
+    snippet: A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
+      line: 60
+  - label: stateful_http3_settings_frame (3)
+    section: § 7.2.4
+    snippet: An implementation MUST ignore any parameter with an identifier it does not understand
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
+      line: 92
+  - label: stateful_http3_settings_frame (4)
+    section: § 7.2.4
+    snippet: SETTINGS frames always apply to an entire HTTP/3 connection, never a single stream
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
+      line: 56
+  - label: stateful_http3_settings_frame (5)
+    section: § 7.2.4.1
+    snippet: These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
+      line: 75
 - label: RFC 9218
   url: https://www.rfc-editor.org/rfc/rfc9218.txt
   type: text/plain
