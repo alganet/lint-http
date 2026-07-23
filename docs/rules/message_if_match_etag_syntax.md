@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-`If-Match` header must be either `*` or a comma-separated list of entity-tags. Entity-tags follow the grammar in RFC 9110 §7.6 and may be weak (prefix `W/`). This rule validates the basic syntax (quoting, escaping, and prohibition of control characters).
+`If-Match` is either `*` or a comma-separated list of entity-tags (RFC 9110 §13.1.1). Each entity-tag follows the grammar in RFC 9110 §8.8.3 and may be weak (prefix `W/`); a weak tag is valid syntax here even though `If-Match` itself is evaluated with the strong comparison function. This rule validates that field syntax (quoting, escaping, and prohibition of control characters); it does not flag weak tags.
 
 ## Specifications
 

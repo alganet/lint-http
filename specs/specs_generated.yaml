@@ -1441,7 +1441,7 @@ sources:
       line: 92
   - label: message_if_match_etag_syntax
     section: § 13.1.1
-    snippet: An origin server MUST use the strong comparison function when comparing entity tags for If-Match
+    snippet: 'If-Match = "*" / #entity-tag'
     cited_by:
     - file: lint-http-rules/src/rules/message_if_match_etag_syntax.rs
       line: 47
