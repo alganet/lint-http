@@ -221,13 +221,21 @@ impl H3UpstreamClient {
         let mut endpoint = quinn::Endpoint::client(bind)?;
         endpoint.set_default_client_config(client_config);
 
+        // Canonicalize the configured authorities so an operator's intent matches
+        // a request authority whether or not either side spells out `:443`
+        // (unparseable entries are dropped).
         let authorities = cfg
             .general
             .h3_upstream_authorities
             .iter()
-            .cloned()
+            .filter_map(|a| normalize_authority(a))
             .collect();
-        let denylist = cfg.general.h3_upstream_denylist.iter().cloned().collect();
+        let denylist = cfg
+            .general
+            .h3_upstream_denylist
+            .iter()
+            .filter_map(|a| normalize_authority(a))
+            .collect();
 
         Ok(Some(Self {
             endpoint,
@@ -247,19 +255,25 @@ impl H3UpstreamClient {
     /// Whether `authority` is currently suppressed from H3 attempts by a live
     /// negative-cache backoff window.
     pub(super) fn is_suppressed(&self, authority: &str) -> bool {
+        let Some(key) = normalize_authority(authority) else {
+            return false;
+        };
         let map = self.negative.lock().unwrap();
-        map.get(authority).is_some_and(|e| e.until > Instant::now())
+        map.get(&key).is_some_and(|e| e.until > Instant::now())
     }
 
     /// Record a connect/handshake failure for `authority`, extending its
     /// backoff window (doubling per consecutive failure, capped).
     pub(super) fn record_failure(&self, authority: &str) {
+        let Some(key) = normalize_authority(authority) else {
+            return;
+        };
         let now = Instant::now();
         let mut map = self.negative.lock().unwrap();
         if map.len() >= NEGATIVE_CACHE_CAP {
             map.retain(|_, e| e.until > now);
         }
-        let entry = map.entry(authority.to_string()).or_insert(NegEntry {
+        let entry = map.entry(key).or_insert(NegEntry {
             until: now,
             failures: 0,
         });
@@ -277,7 +291,9 @@ impl H3UpstreamClient {
     /// Clear any negative-cache entry for `authority` after a successful H3
     /// exchange, so a recovered origin resumes H3 immediately.
     pub(super) fn record_success(&self, authority: &str) {
-        self.negative.lock().unwrap().remove(authority);
+        if let Some(key) = normalize_authority(authority) {
+            self.negative.lock().unwrap().remove(&key);
+        }
     }
 
     /// Resolve how to reach `authority` over HTTP/3, or `None` if it should not
@@ -286,24 +302,27 @@ impl H3UpstreamClient {
     /// the advertised endpoint. Either way the TLS name stays the origin host so
     /// the endpoint cert is validated for the origin (RFC 7838 §2.1).
     pub(super) fn route_for(&self, authority: &str) -> Option<H3Route> {
-        if self.denylist.contains(authority) {
+        // Match on the canonical key so allowlist/denylist/discovery/pool all
+        // agree regardless of whether `:443` is spelled out (host case-folded).
+        let key = normalize_authority(authority)?;
+        if self.denylist.contains(&key) {
             return None;
         }
-        let (host, port) = split_authority(authority)?;
-        if self.authorities.contains(authority) {
+        let (host, port) = split_authority(&key)?;
+        if self.authorities.contains(&key) {
             return Some(H3Route {
                 dial_host: host.clone(),
                 dial_port: port,
                 authority_host: host,
-                authority: authority.to_string(),
+                authority: key,
             });
         }
-        let (dial_host, dial_port) = self.discovered(authority)?;
+        let (dial_host, dial_port) = self.discovered(&key)?;
         Some(H3Route {
             dial_host,
             dial_port,
             authority_host: host,
-            authority: authority.to_string(),
+            authority: key,
         })
     }
 
@@ -325,6 +344,12 @@ impl H3UpstreamClient {
         if !self.trust_alt_svc {
             return;
         }
+        // Key discovery on the canonical authority so `route_for` finds it
+        // regardless of how the port was spelled on either side.
+        let Some(authority) = normalize_authority(authority) else {
+            return;
+        };
+        let authority = authority.as_str();
         let origin_host = origin_host.trim_start_matches('[').trim_end_matches(']');
         for hv in headers.get_all("alt-svc").iter() {
             let Ok(s) = hv.to_str() else { continue };
@@ -648,6 +673,24 @@ fn split_authority(authority: &str) -> Option<(String, u16)> {
         return None;
     }
     Some((host.to_string(), port))
+}
+
+/// Canonical authority key used for every H3 routing lookup: the port is
+/// defaulted to 443 (H3 is always TLS), the host is lower-cased (host
+/// comparison is case-insensitive, RFC 9110 §4.2.3), and an IPv6 literal is
+/// re-bracketed so the key round-trips through DNS/SNI unchanged. This collapses
+/// `example.com`, `example.com:443`, and `EXAMPLE.com:443` to one key so a
+/// config entry matches a request authority regardless of how the port was
+/// written. `None` when the authority cannot be parsed.
+fn normalize_authority(authority: &str) -> Option<String> {
+    let (host, port) = split_authority(authority)?;
+    let host = host.to_ascii_lowercase();
+    Some(if host.contains(':') {
+        // Bare IPv6 literal (split_authority stripped the brackets) — re-wrap it.
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    })
 }
 
 /// The routing-relevant content of an `Alt-Svc` header.
@@ -1077,6 +1120,97 @@ mod tests {
             split_authority("[::1]"),
             Some(("::1".to_string(), 443)),
             "bracketed IPv6 without a port defaults to 443, not a mis-split"
+        );
+    }
+
+    #[test]
+    fn normalize_authority_canonicalizes_port_case_and_ipv6() {
+        assert_eq!(
+            normalize_authority("example.com").as_deref(),
+            Some("example.com:443"),
+            "absent port defaults to 443"
+        );
+        assert_eq!(
+            normalize_authority("example.com:443").as_deref(),
+            Some("example.com:443"),
+            "explicit :443 is the same key as the bare host"
+        );
+        assert_eq!(
+            normalize_authority("EXAMPLE.com:8443").as_deref(),
+            Some("example.com:8443"),
+            "host is case-folded, non-443 port preserved"
+        );
+        assert_eq!(
+            normalize_authority("[::1]").as_deref(),
+            Some("[::1]:443"),
+            "IPv6 literal is re-bracketed with the default port"
+        );
+        assert_eq!(
+            normalize_authority("[::1]:8443").as_deref(),
+            Some("[::1]:8443")
+        );
+    }
+
+    #[tokio::test]
+    async fn allowlist_matches_regardless_of_port_spelling() {
+        // Configured without a port; requests may or may not carry `:443`.
+        let client = client_with(|g| {
+            g.h3_upstream_authorities = vec!["example.com".to_string()];
+        });
+        assert!(
+            client.route_for("example.com:443").is_some(),
+            "a `:443` request authority matches a no-port allowlist entry"
+        );
+        assert!(
+            client.route_for("example.com").is_some(),
+            "a no-port request authority also matches"
+        );
+        // Reciprocal: configured *with* a port, requested without.
+        let client = client_with(|g| {
+            g.h3_upstream_authorities = vec!["origin.example:443".to_string()];
+        });
+        assert!(client.route_for("origin.example").is_some());
+    }
+
+    #[tokio::test]
+    async fn denylist_matches_regardless_of_port_spelling() {
+        let client = client_with(|g| {
+            g.h3_upstream_authorities = vec!["deny.example:443".to_string()];
+            g.h3_upstream_denylist = vec!["deny.example".to_string()];
+        });
+        assert!(
+            client.route_for("deny.example:443").is_none(),
+            "a no-port denylist entry blocks a `:443` request authority"
+        );
+    }
+
+    #[tokio::test]
+    async fn discovery_matches_regardless_of_port_spelling() {
+        let client = client_with(|_| {});
+        // Advertisement recorded under the bare-host authority form.
+        client.record_alt_svc(
+            "origin.example",
+            "origin.example",
+            &alt_svc_headers(&["h3=\":8443\"; ma=3600"]),
+        );
+        let route = client
+            .route_for("origin.example:443")
+            .expect("discovery found via the `:443` form");
+        assert_eq!(route.dial_port, 8443);
+    }
+
+    #[tokio::test]
+    async fn negative_cache_normalizes_authority() {
+        let client = test_client(30);
+        client.record_failure("a.example");
+        assert!(
+            client.is_suppressed("a.example:443"),
+            "a failure recorded without a port suppresses the `:443` form"
+        );
+        client.record_success("a.example:443");
+        assert!(
+            !client.is_suppressed("a.example"),
+            "clearing the `:443` form clears the no-port form"
         );
     }
 
