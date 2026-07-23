@@ -65,7 +65,10 @@ mod tests {
         let event = ProtocolEvent {
             timestamp: Utc::now(),
             connection_id: Uuid::new_v4(),
-            kind: crate::protocol_event::ProtocolEventKind::H3GoawayReceived { stream_id: None },
+            kind: crate::protocol_event::ProtocolEventKind::H3GoawayReceived {
+                stream_id: None,
+                direction: crate::protocol_event::MessageDirection::Client,
+            },
         };
 
         let violations = lint_protocol_event(&event, &cfg, &store);

@@ -130,7 +130,7 @@ pub(super) async fn exchange(
     let resp: Result<hyper::Response<ResponseBody>, String> = if let Some((h3, authority, route)) =
         h3_target
     {
-        match h3.forward(upstream_req, &route).await {
+        match h3.forward(upstream_req, &route, shared).await {
             Ok(r) => {
                 h3.record_success(&authority);
                 Ok(r)

@@ -302,7 +302,10 @@ mod tests {
         let evt = ProtocolEvent {
             timestamp: Utc::now(),
             connection_id: Uuid::new_v4(),
-            kind: ProtocolEventKind::H3GoawayReceived { stream_id: None },
+            kind: ProtocolEventKind::H3GoawayReceived {
+                stream_id: None,
+                direction: MessageDirection::Client,
+            },
         };
         let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());

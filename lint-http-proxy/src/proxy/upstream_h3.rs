@@ -29,7 +29,7 @@ use std::collections::{HashMap, HashSet};
 use std::future::poll_fn;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
@@ -41,10 +41,14 @@ use hyper::http::uri::{PathAndQuery, Scheme};
 use hyper::{HeaderMap, Request, Response, Uri, Version};
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::CertificateDer;
+use tracing::warn;
+use uuid::Uuid;
 
 use crate::config::Config;
+use crate::h3_instrument::InstrumentedConnection;
+use crate::protocol_event::{MessageDirection, ProtocolEvent, ProtocolEventKind};
 
-use super::{BoxError, ClientBody, ResponseBody};
+use super::{BoxError, ClientBody, ResponseBody, Shared};
 
 /// Upper bound on distinct authorities held in the negative cache; expired
 /// entries are pruned before this is exceeded so a churn of one-off origins
@@ -122,6 +126,13 @@ struct PooledConn {
     send: H3Send,
     driver: tokio::task::JoinHandle<()>,
     last_used: Mutex<Instant>,
+    /// This upstream connection's own id, distinct from any client connection.
+    /// Origin-sent control-frame events (SETTINGS/MAX_PUSH_ID/GOAWAY) are
+    /// recorded under it so they never conflate with a client leg's history.
+    /// The sink emits on a copy of this id; the field is read only by the
+    /// test-only [`Self::pooled_connection_id`] accessor.
+    #[cfg_attr(not(test), allow(dead_code))]
+    connection_id: Uuid,
 }
 
 impl Drop for PooledConn {
@@ -341,11 +352,35 @@ impl H3UpstreamClient {
 
     /// Open a fresh QUIC connection to the route's endpoint (validated for the
     /// origin authority) and spawn its driver, bounded by the connect timeout.
-    async fn connect(&self, route: &H3Route) -> anyhow::Result<PooledConn> {
+    /// The connection is instrumented so the origin's control-stream frames are
+    /// observed and emitted as `Server`-tagged events under a freshly-minted
+    /// upstream `connection_id`, routed through `shared`'s protocol-event
+    /// pipeline (via a weak ref, so the pool never keeps `Shared` alive).
+    ///
+    /// Observable set: the H3 control-stream frames (SETTINGS / MAX_PUSH_ID /
+    /// GOAWAY). The origin's *QUIC transport parameters* are **not** emitted —
+    /// quinn exposes no API to read a peer's transport parameters — so no
+    /// `Server`-tagged `QuicTransportParams` event exists on this leg. A future
+    /// `server_quic_transport_parameters` activation would need a different
+    /// source than this path.
+    async fn connect(&self, route: &H3Route, shared: &Arc<Shared>) -> anyhow::Result<PooledConn> {
         let addr = lookup_endpoint(&route.dial_host, route.dial_port).await?;
+        let connection_id = crate::connection::ConnectionMetadata::new_quic(addr).id;
+
+        let weak = Arc::downgrade(shared);
+        let sink: crate::h3_instrument::EventSink = Arc::new(move |kind| {
+            emit_upstream_h3_event(kind, connection_id, &weak);
+        });
+
         let handshake = async {
             let conn = self.endpoint.connect(addr, &route.authority_host)?.await?;
-            let pair = h3::client::new(h3_quinn::Connection::new(conn)).await?;
+            // Server leg: observed control-stream frames are origin-sent.
+            let instrumented = InstrumentedConnection::new(
+                h3_quinn::Connection::new(conn),
+                sink,
+                MessageDirection::Server,
+            );
+            let pair = h3::client::new(instrumented).await?;
             Ok::<_, anyhow::Error>(pair)
         };
         let (mut driver, send) = match tokio::time::timeout(self.connect_timeout, handshake).await {
@@ -360,6 +395,7 @@ impl H3UpstreamClient {
             send,
             driver,
             last_used: Mutex::new(Instant::now()),
+            connection_id,
         })
     }
 
@@ -371,6 +407,7 @@ impl H3UpstreamClient {
         &self,
         route: &H3Route,
         force_fresh: bool,
+        shared: &Arc<Shared>,
     ) -> anyhow::Result<(Arc<PooledConn>, bool)> {
         if !force_fresh {
             let mut pool = self.pool.lock().unwrap();
@@ -387,7 +424,7 @@ impl H3UpstreamClient {
 
         // Connect outside the lock (async); a rare concurrent race may open two
         // connections to the same origin — acceptable (§3.3 is SHOULD NOT).
-        let conn = Arc::new(self.connect(route).await?);
+        let conn = Arc::new(self.connect(route, shared).await?);
         let mut pool = self.pool.lock().unwrap();
         if pool.len() >= self.pool_max && !pool.contains_key(&route.authority) {
             if let Some(lru) = pool
@@ -412,6 +449,14 @@ impl H3UpstreamClient {
         }
     }
 
+    /// The upstream `connection_id` of the pooled connection for `authority`,
+    /// under which its origin-sent protocol events are recorded — used by tests
+    /// to assert where those events land.
+    #[cfg(test)]
+    pub(super) fn pooled_connection_id(&self, authority: &str) -> Option<Uuid> {
+        Some(self.pool.lock().unwrap().get(authority)?.connection_id)
+    }
+
     /// Evict pooled connections that are idle past `pool_idle` or whose driver
     /// has ended. Meant to be called periodically from the maintenance loop.
     pub(super) fn sweep_idle(&self) {
@@ -432,6 +477,7 @@ impl H3UpstreamClient {
         &self,
         req: Request<ClientBody>,
         route: &H3Route,
+        shared: &Arc<Shared>,
     ) -> Result<Response<ResponseBody>, H3Failure> {
         // Build the https target from the request URI *without consuming* `req`,
         // so it can be handed back for fall-back. The head keeps the origin
@@ -454,7 +500,7 @@ impl H3UpstreamClient {
                 Ok(h) => h,
                 Err(error) => return Err(pre_request(error, req)),
             };
-            let (conn, reused) = match self.get_or_connect(route, force_fresh).await {
+            let (conn, reused) = match self.get_or_connect(route, force_fresh, shared).await {
                 Ok(c) => c,
                 Err(error) => return Err(pre_request(error, req)),
             };
@@ -539,6 +585,30 @@ impl H3UpstreamClient {
         builder
             .body(resp_body)
             .map_err(|e| H3Failure::Consumed { error: e.into() })
+    }
+}
+
+/// Lint + record an origin-sent HTTP/3 protocol event on the upstream
+/// `connection_id`, routed through the proxy's protocol-event pipeline. Holds
+/// only a weak ref to `Shared` (captured by the connection's frame-observer
+/// sink), so a live pooled connection never keeps the whole proxy alive; if the
+/// proxy has shut down the event is simply dropped.
+fn emit_upstream_h3_event(kind: ProtocolEventKind, connection_id: Uuid, shared: &Weak<Shared>) {
+    let Some(shared) = shared.upgrade() else {
+        return;
+    };
+    let pe = ProtocolEvent {
+        timestamp: chrono::Utc::now(),
+        connection_id,
+        kind,
+    };
+    for v in shared.protocol_event_pipeline().commit(&pe) {
+        warn!(
+            rule = %v.rule,
+            severity = ?v.severity,
+            "H3 upstream protocol violation: {}",
+            v.message
+        );
     }
 }
 
@@ -1008,5 +1078,152 @@ mod tests {
             Some(("::1".to_string(), 443)),
             "bracketed IPv6 without a port defaults to 443, not a mis-split"
         );
+    }
+
+    /// Mint a CA + a leaf cert valid for 127.0.0.1, returning (ca_pem, leaf DER,
+    /// leaf key DER) for an in-process origin the proxy can trust.
+    fn test_certs() -> (
+        String,
+        rustls::pki_types::CertificateDer<'static>,
+        rustls::pki_types::PrivateKeyDer<'static>,
+    ) {
+        use rcgen::{
+            BasicConstraints, CertificateParams, IsCa, Issuer, KeyPair, SanType,
+            PKCS_ECDSA_P256_SHA256,
+        };
+        let mut ca_params = CertificateParams::new(Vec::new()).unwrap();
+        ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+        let ca_key = KeyPair::generate_for(&PKCS_ECDSA_P256_SHA256).unwrap();
+        let ca_pem = ca_params.self_signed(&ca_key).unwrap().pem();
+
+        let mut leaf = CertificateParams::new(Vec::new()).unwrap();
+        leaf.subject_alt_names = vec![SanType::IpAddress(std::net::IpAddr::V4(
+            std::net::Ipv4Addr::new(127, 0, 0, 1),
+        ))];
+        let leaf_key = KeyPair::generate_for(&PKCS_ECDSA_P256_SHA256).unwrap();
+        let issuer = Issuer::new(ca_params, ca_key);
+        let leaf_cert = leaf.signed_by(&leaf_key, &issuer).unwrap();
+        (
+            ca_pem,
+            leaf_cert.der().clone(),
+            rustls::pki_types::PrivatePkcs8KeyDer::from(leaf_key.serialize_der()).into(),
+        )
+    }
+
+    /// A minimal in-process HTTP/3 origin that answers 200 for one request. Its
+    /// h3 server sends SETTINGS on its control stream during the handshake — the
+    /// server-sent frame this test observes on the upstream leg.
+    fn spawn_h3_origin(
+        leaf: rustls::pki_types::CertificateDer<'static>,
+        key: rustls::pki_types::PrivateKeyDer<'static>,
+    ) -> SocketAddr {
+        let mut tls = rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(vec![leaf], key)
+            .unwrap();
+        tls.alpn_protocols = vec![b"h3".to_vec()];
+        let quic =
+            quinn::crypto::rustls::QuicServerConfig::try_from(tls).expect("quic server config");
+        let endpoint = quinn::Endpoint::server(
+            quinn::ServerConfig::with_crypto(Arc::new(quic)),
+            "127.0.0.1:0".parse().unwrap(),
+        )
+        .unwrap();
+        let addr = endpoint.local_addr().unwrap();
+        tokio::spawn(async move {
+            while let Some(incoming) = endpoint.accept().await {
+                tokio::spawn(async move {
+                    let Ok(conn) = incoming.await else { return };
+                    let Ok(mut h3) =
+                        h3::server::Connection::<_, Bytes>::new(h3_quinn::Connection::new(conn))
+                            .await
+                    else {
+                        return;
+                    };
+                    while let Ok(Some(resolver)) = h3.accept().await {
+                        tokio::spawn(async move {
+                            if let Ok((_req, mut stream)) = resolver.resolve_request().await {
+                                let resp = http::Response::builder().status(200).body(()).unwrap();
+                                let _ = stream.send_response(resp).await;
+                                let _ = stream.finish().await;
+                            }
+                        });
+                    }
+                });
+            }
+        });
+        addr
+    }
+
+    #[tokio::test]
+    async fn origin_settings_appear_as_server_events_on_the_upstream_connection() {
+        let (ca_pem, leaf, key) = test_certs();
+        let ca_path = std::env::temp_dir().join(format!("lint_p5_ca_{}.pem", uuid::Uuid::new_v4()));
+        tokio::fs::write(&ca_path, ca_pem.as_bytes()).await.unwrap();
+
+        let origin = spawn_h3_origin(leaf, key);
+        let authority = origin.to_string();
+
+        let mut cfg = Config::default();
+        cfg.general.h3_upstream_enabled = true;
+        cfg.general.h3_upstream_authorities = vec![authority.clone()];
+        cfg.general.h3_upstream_extra_ca_certs = vec![ca_path.to_string_lossy().to_string()];
+        let (shared, tmp, _cw) =
+            crate::proxy::test_support::make_shared_with_cfg(Arc::new(cfg), None)
+                .await
+                .unwrap();
+
+        let h3 = shared.upstream.h3.as_ref().expect("h3 client");
+        let route = h3.route_for(&authority).expect("allowlisted route");
+        let body = http_body_util::Empty::<Bytes>::new()
+            .map_err(|e| -> BoxError { match e {} })
+            .boxed_unsync();
+        let req = Request::builder()
+            .method("GET")
+            .uri(format!("http://{authority}/x"))
+            .body(body)
+            .unwrap();
+
+        let resp = match h3.forward(req, &route, &shared).await {
+            Ok(r) => r,
+            Err(H3Failure::Retryable { error, .. } | H3Failure::Consumed { error }) => {
+                panic!("forward failed: {error}")
+            }
+        };
+        assert_eq!(resp.status(), 200);
+        let _ = resp.into_body().collect().await;
+
+        let conn_id = h3
+            .pooled_connection_id(&authority)
+            .expect("origin connection pooled");
+
+        // The origin's SETTINGS arrive on its control stream and are recorded as
+        // a Server-tagged event under the upstream connection id.
+        let mut found = false;
+        for _ in 0..100 {
+            let events = shared
+                .protocol_event_store
+                .get_history_for_connection(conn_id);
+            if events.iter().any(|e| {
+                matches!(
+                    e.kind,
+                    ProtocolEventKind::H3SettingsReceived {
+                        direction: MessageDirection::Server,
+                        ..
+                    }
+                )
+            }) {
+                found = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert!(
+            found,
+            "origin SETTINGS should be recorded as a Server event on the upstream connection_id"
+        );
+
+        let _ = tokio::fs::remove_file(&tmp).await;
+        let _ = tokio::fs::remove_file(&ca_path).await;
     }
 }

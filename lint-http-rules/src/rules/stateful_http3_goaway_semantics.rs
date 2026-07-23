@@ -34,9 +34,13 @@ impl ProtocolRule for StatefulHttp3GoawaySemantics {
             // increase beyond the value sent in a previous GOAWAY.
             ProtocolEventKind::H3GoawayReceived {
                 stream_id: current_id,
+                ..
             } => {
                 for prev in history.iter() {
-                    if let ProtocolEventKind::H3GoawayReceived { stream_id: prev_id } = &prev.kind {
+                    if let ProtocolEventKind::H3GoawayReceived {
+                        stream_id: prev_id, ..
+                    } = &prev.kind
+                    {
                         if let (Some(curr), Some(prev)) = (current_id, prev_id) {
                             if curr > prev {
                                 return Some(Violation {
@@ -64,6 +68,7 @@ impl ProtocolRule for StatefulHttp3GoawaySemantics {
                 for prev in history.iter() {
                     if let ProtocolEventKind::H3GoawayReceived {
                         stream_id: Some(goaway_id),
+                        ..
                     } = &prev.kind
                     {
                         if stream_id > goaway_id {
@@ -133,6 +138,7 @@ static REGISTRATION: &dyn crate::rules::ProtocolRule = &StatefulHttp3GoawaySeman
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol_event::MessageDirection;
     use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
     use chrono::{DateTime, Utc};
     use uuid::Uuid;
@@ -163,7 +169,13 @@ mod tests {
     }
 
     fn make_goaway(conn: Uuid, stream_id: Option<u64>) -> ProtocolEvent {
-        make_event(conn, ProtocolEventKind::H3GoawayReceived { stream_id })
+        make_event(
+            conn,
+            ProtocolEventKind::H3GoawayReceived {
+                stream_id,
+                direction: MessageDirection::Client,
+            },
+        )
     }
 
     fn make_stream_opened(conn: Uuid, stream_id: u64) -> ProtocolEvent {
@@ -356,6 +368,7 @@ mod tests {
             conn,
             ProtocolEventKind::H3GoawayReceived {
                 stream_id: Some(10),
+                direction: MessageDirection::Client,
             },
             t + chrono::Duration::seconds(1),
         );
@@ -380,7 +393,10 @@ mod tests {
         );
         let goaway = make_event_at(
             conn,
-            ProtocolEventKind::H3GoawayReceived { stream_id: Some(2) },
+            ProtocolEventKind::H3GoawayReceived {
+                stream_id: Some(2),
+                direction: MessageDirection::Client,
+            },
             t,
         );
         let history = ProtocolEventHistory::new(vec![closed, goaway]);
@@ -399,13 +415,17 @@ mod tests {
         // History (newest first): goaway(6) at t+1, goaway(10) at t
         let g1 = make_event_at(
             conn,
-            ProtocolEventKind::H3GoawayReceived { stream_id: Some(6) },
+            ProtocolEventKind::H3GoawayReceived {
+                stream_id: Some(6),
+                direction: MessageDirection::Client,
+            },
             t + chrono::Duration::seconds(1),
         );
         let g2 = make_event_at(
             conn,
             ProtocolEventKind::H3GoawayReceived {
                 stream_id: Some(10),
+                direction: MessageDirection::Client,
             },
             t,
         );

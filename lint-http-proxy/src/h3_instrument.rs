@@ -20,7 +20,7 @@ use std::task::{self, Poll};
 use bytes::{Buf, Bytes};
 use h3::quic;
 
-use crate::protocol_event::ProtocolEventKind;
+use crate::protocol_event::{MessageDirection, ProtocolEventKind};
 
 /// Callback type for emitting protocol events from within stream wrappers.
 pub type EventSink = Arc<dyn Fn(ProtocolEventKind) + Send + Sync>;
@@ -127,6 +127,9 @@ const H3_FRAME_SETTINGS: u64 = 0x04;
 /// HTTP/3 frame type: MAX_PUSH_ID.
 // cite(RFC 9114 § 7.2.7): "The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate."
 const H3_FRAME_MAX_PUSH_ID: u64 = 0x0D;
+/// HTTP/3 frame type: GOAWAY.
+// cite(RFC 9114 § 7.2.6): "The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint."
+const H3_FRAME_GOAWAY: u64 = 0x07;
 /// HTTP/3 unidirectional stream type for the control stream.
 // cite(RFC 9114 § 6.2.1): "A control stream is indicated by a stream type of 0x00."
 const H3_STREAM_TYPE_CONTROL: u64 = 0x00;
@@ -167,6 +170,9 @@ struct FrameObserver {
     frame_remaining: u64,
     payload_buf: Vec<u8>,
     sink: EventSink,
+    /// Which peer's control stream this observes — stamped on every event it
+    /// emits (`Client` for the downstream leg, `Server` for the upstream leg).
+    direction: MessageDirection,
 }
 
 impl std::fmt::Debug for FrameObserver {
@@ -180,7 +186,7 @@ impl std::fmt::Debug for FrameObserver {
 }
 
 impl FrameObserver {
-    fn new(sink: EventSink) -> Self {
+    fn new(sink: EventSink, direction: MessageDirection) -> Self {
         Self {
             state: ObserverState::ReadingStreamType,
             varint: VarIntReader::new(),
@@ -188,6 +194,7 @@ impl FrameObserver {
             frame_remaining: 0,
             payload_buf: Vec::new(),
             sink,
+            direction,
         }
     }
 
@@ -227,7 +234,8 @@ impl FrameObserver {
                         self.frame_remaining = length;
 
                         let dominated = self.frame_type == H3_FRAME_SETTINGS
-                            || self.frame_type == H3_FRAME_MAX_PUSH_ID;
+                            || self.frame_type == H3_FRAME_MAX_PUSH_ID
+                            || self.frame_type == H3_FRAME_GOAWAY;
 
                         if length == 0 && dominated {
                             self.payload_buf.clear();
@@ -270,16 +278,31 @@ impl FrameObserver {
         }
     }
 
-    /// Parse the buffered payload and emit the corresponding protocol event.
+    /// Parse the buffered payload and emit the corresponding protocol event,
+    /// stamped with the observed peer's direction.
     fn emit_frame(&mut self) {
+        let direction = self.direction;
         match self.frame_type {
             H3_FRAME_SETTINGS => {
                 let settings = self.parse_settings();
-                (self.sink)(ProtocolEventKind::H3SettingsReceived { settings });
+                (self.sink)(ProtocolEventKind::H3SettingsReceived {
+                    settings,
+                    direction,
+                });
             }
             H3_FRAME_MAX_PUSH_ID => {
                 if let Some(push_id) = parse_varint_at(&self.payload_buf, 0).map(|(v, _)| v) {
-                    (self.sink)(ProtocolEventKind::H3MaxPushId { push_id });
+                    (self.sink)(ProtocolEventKind::H3MaxPushId { push_id, direction });
+                }
+            }
+            H3_FRAME_GOAWAY => {
+                // GOAWAY carries a single varint id (request stream ID from a
+                // server, push ID from a client — RFC 9114 §7.2.6).
+                if let Some(id) = parse_varint_at(&self.payload_buf, 0).map(|(v, _)| v) {
+                    (self.sink)(ProtocolEventKind::H3GoawayReceived {
+                        stream_id: Some(id),
+                        direction,
+                    });
                 }
             }
             _ => {}
@@ -351,16 +374,24 @@ impl quic::RecvStream for InstrumentedRecvStream {
 pub struct InstrumentedConnection {
     inner: h3_quinn::Connection,
     sink: EventSink,
+    /// The peer role of this connection, stamped on every emitted event —
+    /// `Client` toward the downstream client, `Server` toward an upstream origin.
+    direction: MessageDirection,
 }
 
 impl InstrumentedConnection {
-    /// Wrap an existing [`h3_quinn::Connection`].
+    /// Wrap an existing [`h3_quinn::Connection`], observing the peer identified
+    /// by `direction`.
     ///
     /// Every unidirectional stream accepted via [`poll_accept_recv`] will be
     /// wrapped in an [`InstrumentedRecvStream`] whose frame observer emits
-    /// events through `sink`.
-    pub fn new(conn: h3_quinn::Connection, sink: EventSink) -> Self {
-        Self { inner: conn, sink }
+    /// events through `sink`, tagged with `direction`.
+    pub fn new(conn: h3_quinn::Connection, sink: EventSink, direction: MessageDirection) -> Self {
+        Self {
+            inner: conn,
+            sink,
+            direction,
+        }
     }
 }
 
@@ -398,7 +429,7 @@ impl<B: Buf> quic::Connection<B> for InstrumentedConnection {
         match <h3_quinn::Connection as quic::Connection<B>>::poll_accept_recv(&mut self.inner, cx) {
             Poll::Ready(Ok(stream)) => Poll::Ready(Ok(InstrumentedRecvStream {
                 inner: stream,
-                observer: FrameObserver::new(self.sink.clone()),
+                observer: FrameObserver::new(self.sink.clone(), self.direction),
             })),
             Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
             Poll::Pending => Poll::Pending,
@@ -561,7 +592,7 @@ mod tests {
     #[test]
     fn non_control_stream_passthrough() {
         let (sink, events) = test_sink();
-        let mut obs = FrameObserver::new(sink);
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
         // Stream type 0x02 (QPACK encoder) — not a control stream.
         obs.observe(&[0x02, 0xFF, 0xFF, 0xFF]);
         assert!(events.lock().unwrap().is_empty());
@@ -573,7 +604,7 @@ mod tests {
     #[test]
     fn settings_single_chunk() {
         let (sink, events) = test_sink();
-        let mut obs = FrameObserver::new(sink);
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
 
         // Control stream type (0x00), then SETTINGS frame:
         // Frame type 0x04, length 4 (two setting pairs: id=0x06 val=0x10, id=0x01 val=0x00)
@@ -588,7 +619,7 @@ mod tests {
 
         let evts = events.lock().unwrap();
         assert_eq!(evts.len(), 1);
-        if let ProtocolEventKind::H3SettingsReceived { ref settings } = evts[0] {
+        if let ProtocolEventKind::H3SettingsReceived { ref settings, .. } = evts[0] {
             assert_eq!(settings, &[(0x06, 16), (0x01, 0)]);
         } else {
             panic!("expected H3SettingsReceived, got {:?}", evts[0]);
@@ -598,7 +629,7 @@ mod tests {
     #[test]
     fn settings_split_across_chunks() {
         let (sink, events) = test_sink();
-        let mut obs = FrameObserver::new(sink);
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
 
         // Split the same SETTINGS frame across multiple observe() calls.
         obs.observe(&[0x00]); // stream type
@@ -609,7 +640,7 @@ mod tests {
 
         let evts = events.lock().unwrap();
         assert_eq!(evts.len(), 1);
-        if let ProtocolEventKind::H3SettingsReceived { ref settings } = evts[0] {
+        if let ProtocolEventKind::H3SettingsReceived { ref settings, .. } = evts[0] {
             assert_eq!(settings, &[(0x06, 16)]);
         } else {
             panic!("expected H3SettingsReceived");
@@ -619,14 +650,14 @@ mod tests {
     #[test]
     fn settings_empty_payload() {
         let (sink, events) = test_sink();
-        let mut obs = FrameObserver::new(sink);
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
 
         // SETTINGS with zero-length payload (no settings).
         obs.observe(&[0x00, 0x04, 0x00]);
 
         let evts = events.lock().unwrap();
         assert_eq!(evts.len(), 1);
-        if let ProtocolEventKind::H3SettingsReceived { ref settings } = evts[0] {
+        if let ProtocolEventKind::H3SettingsReceived { ref settings, .. } = evts[0] {
             assert!(settings.is_empty());
         } else {
             panic!("expected H3SettingsReceived");
@@ -638,7 +669,7 @@ mod tests {
     #[test]
     fn max_push_id_frame() {
         let (sink, events) = test_sink();
-        let mut obs = FrameObserver::new(sink);
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
 
         // Control stream, then a dummy SETTINGS (required first), then MAX_PUSH_ID.
         obs.observe(&[
@@ -651,7 +682,7 @@ mod tests {
 
         let evts = events.lock().unwrap();
         assert_eq!(evts.len(), 2); // SETTINGS + MAX_PUSH_ID
-        if let ProtocolEventKind::H3MaxPushId { push_id } = evts[1] {
+        if let ProtocolEventKind::H3MaxPushId { push_id, .. } = evts[1] {
             assert_eq!(push_id, 7);
         } else {
             panic!("expected H3MaxPushId, got {:?}", evts[1]);
@@ -663,7 +694,7 @@ mod tests {
     #[test]
     fn unknown_frame_skipped() {
         let (sink, events) = test_sink();
-        let mut obs = FrameObserver::new(sink);
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
 
         obs.observe(&[
             0x00, // control stream
@@ -678,7 +709,7 @@ mod tests {
 
         let evts = events.lock().unwrap();
         assert_eq!(evts.len(), 2); // SETTINGS + MAX_PUSH_ID
-        if let ProtocolEventKind::H3MaxPushId { push_id } = evts[1] {
+        if let ProtocolEventKind::H3MaxPushId { push_id, .. } = evts[1] {
             assert_eq!(push_id, 2);
         } else {
             panic!("expected H3MaxPushId");
@@ -688,7 +719,7 @@ mod tests {
     #[test]
     fn unknown_frame_split_across_chunks() {
         let (sink, events) = test_sink();
-        let mut obs = FrameObserver::new(sink);
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
 
         // Control stream + SETTINGS
         obs.observe(&[0x00, 0x04, 0x00]);
@@ -700,7 +731,7 @@ mod tests {
 
         let evts = events.lock().unwrap();
         assert_eq!(evts.len(), 2);
-        if let ProtocolEventKind::H3MaxPushId { push_id } = evts[1] {
+        if let ProtocolEventKind::H3MaxPushId { push_id, .. } = evts[1] {
             assert_eq!(push_id, 9);
         } else {
             panic!("expected H3MaxPushId");
@@ -712,7 +743,7 @@ mod tests {
     #[test]
     fn settings_with_2byte_varint_values() {
         let (sink, events) = test_sink();
-        let mut obs = FrameObserver::new(sink);
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
 
         // SETTINGS_MAX_FIELD_SECTION_SIZE (0x06) = 1000 (2-byte varint 0x43E8)
         // Payload: 0x06 (1) + 0x43,0xE8 (2) + 0x01 (1) + 0x00 (1) = 5 bytes
@@ -729,7 +760,7 @@ mod tests {
 
         let evts = events.lock().unwrap();
         assert_eq!(evts.len(), 1);
-        if let ProtocolEventKind::H3SettingsReceived { ref settings } = evts[0] {
+        if let ProtocolEventKind::H3SettingsReceived { ref settings, .. } = evts[0] {
             assert_eq!(settings, &[(0x06, 1000), (0x01, 0)]);
         } else {
             panic!("expected H3SettingsReceived");
@@ -741,7 +772,7 @@ mod tests {
     #[test]
     fn two_byte_stream_type_non_control() {
         let (sink, events) = test_sink();
-        let mut obs = FrameObserver::new(sink);
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
 
         // Stream type 0x41 (2-byte varint for value 1 = push stream).
         obs.observe(&[0x40, 0x01, 0xFF, 0xFF]);
@@ -754,7 +785,7 @@ mod tests {
     #[test]
     fn zero_length_settings_after_nonempty_settings_emits_empty() {
         let (sink, events) = test_sink();
-        let mut obs = FrameObserver::new(sink);
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
 
         // First SETTINGS with one pair, then a zero-length SETTINGS.
         obs.observe(&[
@@ -767,7 +798,7 @@ mod tests {
         let evts = events.lock().unwrap();
         assert_eq!(evts.len(), 2);
         // Second SETTINGS must have an empty settings vec, not stale data.
-        if let ProtocolEventKind::H3SettingsReceived { ref settings } = evts[1] {
+        if let ProtocolEventKind::H3SettingsReceived { ref settings, .. } = evts[1] {
             assert!(settings.is_empty());
         } else {
             panic!("expected H3SettingsReceived, got {:?}", evts[1]);
@@ -777,7 +808,7 @@ mod tests {
     #[test]
     fn zero_length_max_push_id_does_not_emit() {
         let (sink, events) = test_sink();
-        let mut obs = FrameObserver::new(sink);
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
 
         // Control stream, SETTINGS (empty), then MAX_PUSH_ID with length=0.
         // A zero-length MAX_PUSH_ID has no varint to parse, so no event.
@@ -801,7 +832,7 @@ mod tests {
     #[test]
     fn oversized_settings_frame_is_skipped() {
         let (sink, events) = test_sink();
-        let mut obs = FrameObserver::new(sink);
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
 
         // Control stream, then a SETTINGS frame claiming a payload larger
         // than MAX_BUFFERED_PAYLOAD.  The observer must skip it rather
@@ -826,7 +857,7 @@ mod tests {
     #[test]
     fn frame_after_oversized_frame_still_observed() {
         let (sink, events) = test_sink();
-        let mut obs = FrameObserver::new(sink);
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
 
         // Control stream, oversized SETTINGS (skipped), then normal MAX_PUSH_ID.
         obs.observe(&[0x00, 0x04, 0x67, 0x10]); // SETTINGS, length=10000
@@ -835,10 +866,76 @@ mod tests {
 
         let evts = events.lock().unwrap();
         assert_eq!(evts.len(), 1);
-        if let ProtocolEventKind::H3MaxPushId { push_id } = evts[0] {
+        if let ProtocolEventKind::H3MaxPushId { push_id, .. } = evts[0] {
             assert_eq!(push_id, 5);
         } else {
             panic!("expected H3MaxPushId");
+        }
+    }
+
+    // ── FrameObserver: direction tagging ─────────────────────────────
+
+    #[test]
+    fn observed_events_carry_the_configured_direction() {
+        // The same control-stream bytes tagged Server (an upstream leg) yield
+        // Server-directed events; Client yields Client-directed ones.
+        for dir in [MessageDirection::Client, MessageDirection::Server] {
+            let (sink, events) = test_sink();
+            let mut obs = FrameObserver::new(sink, dir);
+            // Control stream, SETTINGS (empty), then MAX_PUSH_ID push_id=3.
+            obs.observe(&[0x00, 0x04, 0x00, 0x0D, 0x01, 0x03]);
+            let evts = events.lock().unwrap();
+            assert_eq!(evts.len(), 2);
+            match evts[0] {
+                ProtocolEventKind::H3SettingsReceived { direction, .. } => {
+                    assert_eq!(direction, dir)
+                }
+                _ => panic!("expected SETTINGS"),
+            }
+            match evts[1] {
+                ProtocolEventKind::H3MaxPushId { direction, .. } => assert_eq!(direction, dir),
+                _ => panic!("expected MAX_PUSH_ID"),
+            }
+        }
+    }
+
+    // ── FrameObserver: GOAWAY ────────────────────────────────────────
+
+    #[test]
+    fn goaway_frame_is_parsed_with_id_and_direction() {
+        let (sink, events) = test_sink();
+        let mut obs = FrameObserver::new(sink, MessageDirection::Server);
+        // Control stream, SETTINGS (empty), then GOAWAY (type 0x07) length=1 id=8.
+        obs.observe(&[0x00, 0x04, 0x00, 0x07, 0x01, 0x08]);
+        let evts = events.lock().unwrap();
+        assert_eq!(evts.len(), 2);
+        match evts[1] {
+            ProtocolEventKind::H3GoawayReceived {
+                stream_id,
+                direction,
+            } => {
+                assert_eq!(stream_id, Some(8));
+                assert_eq!(direction, MessageDirection::Server);
+            }
+            _ => panic!("expected a GOAWAY event, got {:?}", evts[1]),
+        }
+    }
+
+    #[test]
+    fn goaway_frame_split_across_observe_calls() {
+        let (sink, events) = test_sink();
+        let mut obs = FrameObserver::new(sink, MessageDirection::Client);
+        obs.observe(&[0x00, 0x04, 0x00]); // control stream + empty SETTINGS
+        obs.observe(&[0x07]); // GOAWAY frame type
+        obs.observe(&[0x02]); // length = 2
+        obs.observe(&[0x44, 0x00]); // 2-byte varint id = 0x0400 = 1024
+        let evts = events.lock().unwrap();
+        assert_eq!(evts.len(), 2);
+        match evts[1] {
+            ProtocolEventKind::H3GoawayReceived { stream_id, .. } => {
+                assert_eq!(stream_id, Some(1024))
+            }
+            _ => panic!("expected a GOAWAY event"),
         }
     }
 }

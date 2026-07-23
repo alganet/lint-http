@@ -33,7 +33,7 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
         // other protocol event is out of scope.
         // cite(RFC 9114 § 7.2.7): "The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate."
         let current = match &event.kind {
-            ProtocolEventKind::H3MaxPushId { push_id } => *push_id,
+            ProtocolEventKind::H3MaxPushId { push_id, .. } => *push_id,
             _ => return None,
         };
 
@@ -42,7 +42,10 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
         // maximum and is a legitimate idempotent re-send.
         // cite(RFC 9114 § 7.2.7): "A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR"
         for prev in history.iter() {
-            if let ProtocolEventKind::H3MaxPushId { push_id: prev_id } = &prev.kind {
+            if let ProtocolEventKind::H3MaxPushId {
+                push_id: prev_id, ..
+            } = &prev.kind
+            {
                 if current < *prev_id {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -121,6 +124,7 @@ static REGISTRATION: &dyn crate::rules::ProtocolRule = &StatefulHttp3MaxPushId;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol_event::MessageDirection;
     use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
     use chrono::{DateTime, Utc};
     use uuid::Uuid;
@@ -148,7 +152,13 @@ mod tests {
     }
 
     fn make_max_push_id(conn: Uuid, push_id: u64) -> ProtocolEvent {
-        make_event(conn, ProtocolEventKind::H3MaxPushId { push_id })
+        make_event(
+            conn,
+            ProtocolEventKind::H3MaxPushId {
+                push_id,
+                direction: MessageDirection::Client,
+            },
+        )
     }
 
     // ── First MAX_PUSH_ID on a connection: any value is valid ────────────
@@ -257,15 +267,28 @@ mod tests {
         // History (newest first): 20, 10, 5
         let g1 = make_event_at(
             conn,
-            ProtocolEventKind::H3MaxPushId { push_id: 20 },
+            ProtocolEventKind::H3MaxPushId {
+                push_id: 20,
+                direction: MessageDirection::Client,
+            },
             t + chrono::Duration::seconds(2),
         );
         let g2 = make_event_at(
             conn,
-            ProtocolEventKind::H3MaxPushId { push_id: 10 },
+            ProtocolEventKind::H3MaxPushId {
+                push_id: 10,
+                direction: MessageDirection::Client,
+            },
             t + chrono::Duration::seconds(1),
         );
-        let g3 = make_event_at(conn, ProtocolEventKind::H3MaxPushId { push_id: 5 }, t);
+        let g3 = make_event_at(
+            conn,
+            ProtocolEventKind::H3MaxPushId {
+                push_id: 5,
+                direction: MessageDirection::Client,
+            },
+            t,
+        );
         let history = ProtocolEventHistory::new(vec![g1, g2, g3]);
         // 20 (most recent) == 20 -> OK
         let evt = make_max_push_id(conn, 20);
@@ -285,10 +308,20 @@ mod tests {
         let t = base_ts();
         let newer = make_event_at(
             conn,
-            ProtocolEventKind::H3MaxPushId { push_id: 5 },
+            ProtocolEventKind::H3MaxPushId {
+                push_id: 5,
+                direction: MessageDirection::Client,
+            },
             t + chrono::Duration::seconds(1),
         );
-        let older = make_event_at(conn, ProtocolEventKind::H3MaxPushId { push_id: 50 }, t);
+        let older = make_event_at(
+            conn,
+            ProtocolEventKind::H3MaxPushId {
+                push_id: 50,
+                direction: MessageDirection::Client,
+            },
+            t,
+        );
         let history = ProtocolEventHistory::new(vec![newer, older]);
         let evt = make_max_push_id(conn, 8);
         let result = rule.check_event(&evt, &history, &make_config());
@@ -303,10 +336,20 @@ mod tests {
         let t = base_ts();
         let newer = make_event_at(
             conn,
-            ProtocolEventKind::H3MaxPushId { push_id: 20 },
+            ProtocolEventKind::H3MaxPushId {
+                push_id: 20,
+                direction: MessageDirection::Client,
+            },
             t + chrono::Duration::seconds(1),
         );
-        let older = make_event_at(conn, ProtocolEventKind::H3MaxPushId { push_id: 5 }, t);
+        let older = make_event_at(
+            conn,
+            ProtocolEventKind::H3MaxPushId {
+                push_id: 5,
+                direction: MessageDirection::Client,
+            },
+            t,
+        );
         let history = ProtocolEventHistory::new(vec![newer, older]);
         let evt = make_max_push_id(conn, 10);
         let result = rule.check_event(&evt, &history, &make_config());
@@ -327,12 +370,16 @@ mod tests {
             conn,
             ProtocolEventKind::H3SettingsReceived {
                 settings: vec![(0x06, 8192)],
+                direction: MessageDirection::Client,
             },
             t + chrono::Duration::seconds(2),
         );
         let prev = make_event_at(
             conn,
-            ProtocolEventKind::H3MaxPushId { push_id: 10 },
+            ProtocolEventKind::H3MaxPushId {
+                push_id: 10,
+                direction: MessageDirection::Client,
+            },
             t + chrono::Duration::seconds(1),
         );
         let stream = make_event_at(conn, ProtocolEventKind::H3StreamOpened { stream_id: 0 }, t);
@@ -353,6 +400,7 @@ mod tests {
             conn,
             ProtocolEventKind::H3SettingsReceived {
                 settings: vec![(0x06, 8192)],
+                direction: MessageDirection::Client,
             },
             t + chrono::Duration::seconds(1),
         );
@@ -374,6 +422,7 @@ mod tests {
             conn,
             ProtocolEventKind::H3SettingsReceived {
                 settings: vec![(0x06, 4096)],
+                direction: MessageDirection::Client,
             },
         );
         let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
@@ -386,7 +435,10 @@ mod tests {
         let conn = Uuid::new_v4();
         let evt = make_event(
             conn,
-            ProtocolEventKind::H3GoawayReceived { stream_id: Some(4) },
+            ProtocolEventKind::H3GoawayReceived {
+                stream_id: Some(4),
+                direction: MessageDirection::Client,
+            },
         );
         let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
@@ -459,7 +511,10 @@ mod tests {
         for i in 0..10 {
             history_vec.push(make_event_at(
                 conn,
-                ProtocolEventKind::H3MaxPushId { push_id: 7 },
+                ProtocolEventKind::H3MaxPushId {
+                    push_id: 7,
+                    direction: MessageDirection::Client,
+                },
                 t + chrono::Duration::seconds(10 - i),
             ));
         }
@@ -483,6 +538,7 @@ mod tests {
             conn,
             ProtocolEventKind::H3SettingsReceived {
                 settings: vec![(0x06, 8192)],
+                direction: MessageDirection::Client,
             },
             t + chrono::Duration::seconds(100),
         )];
@@ -500,7 +556,10 @@ mod tests {
         }
         history_vec.push(make_event_at(
             conn,
-            ProtocolEventKind::H3MaxPushId { push_id: 15 },
+            ProtocolEventKind::H3MaxPushId {
+                push_id: 15,
+                direction: MessageDirection::Client,
+            },
             t,
         ));
         let history = ProtocolEventHistory::new(history_vec);
