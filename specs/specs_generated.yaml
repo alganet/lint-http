@@ -898,7 +898,7 @@ sources:
     snippet: For example, the eight-byte sequence 0xc2197c5eff14e88c decodes to the decimal value 151,288,809,941,952,652; the four-byte sequence 0x9d7f3e7d decodes to 494,878,333; the two-byte sequence 0x7bbd decodes to 15,293; and the single byte 0x25 decodes to 37 (as does the two-byte sequence 0x4025).
     cited_by:
     - file: lint-http-proxy/src/h3_instrument.rs
-      line: 490
+      line: 521
   - label: server_quic_transport_parameters
     section: § 18
     snippet: The extension_data field of the quic_transport_parameters extension defined in [QUIC-TLS] contains the QUIC transport parameters
@@ -1840,7 +1840,7 @@ sources:
     snippet: A control stream is indicated by a stream type of 0x00.
     cited_by:
     - file: lint-http-proxy/src/h3_instrument.rs
-      line: 131
+      line: 134
   - label: lint-http-proxy/src/h3_instrument.rs (2)
     section: § 7.2.4
     snippet: The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate
@@ -1850,6 +1850,14 @@ sources:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
       line: 50
   - label: lint-http-proxy/src/h3_instrument.rs (3)
+    section: § 7.2.6
+    snippet: The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint.
+    cited_by:
+    - file: lint-http-proxy/src/h3_instrument.rs
+      line: 131
+    - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
+      line: 31
+  - label: lint-http-proxy/src/h3_instrument.rs (4)
     section: § 7.2.7
     snippet: The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate.
     cited_by:
@@ -1905,12 +1913,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
       line: 40
-  - label: stateful_http3_goaway_semantics
-    section: § 7.2.6
-    snippet: The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
-      line: 31
   - label: stateful_http3_max_push_id
     section: § 7.2.7
     snippet: A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR
@@ -1922,7 +1924,7 @@ sources:
     snippet: The maximum push ID is unset when an HTTP/3 connection is created, meaning that a server cannot push until it receives a MAX_PUSH_ID frame
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
-      line: 71
+      line: 74
   - label: stateful_http3_settings_frame
     section: § 11.2.2
     snippet: The entries in Table 3 are registered by this document

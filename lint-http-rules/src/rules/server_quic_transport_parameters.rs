@@ -37,7 +37,7 @@ impl ProtocolRule for ServerQuicTransportParameters {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let params = match &event.kind {
-            ProtocolEventKind::QuicTransportParams { params } => params,
+            ProtocolEventKind::QuicTransportParams { params, .. } => params,
             _ => return None,
         };
 
@@ -187,7 +187,8 @@ static REGISTRATION: &dyn crate::rules::ProtocolRule = &ServerQuicTransportParam
 mod tests {
     use super::*;
     use crate::protocol_event::{
-        ProtocolEvent, ProtocolEventHistory, ProtocolEventKind, QuicTransportParameters,
+        MessageDirection, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
+        QuicTransportParameters,
     };
     use chrono::{DateTime, Utc};
     use uuid::Uuid;
@@ -208,7 +209,10 @@ mod tests {
         ProtocolEvent {
             timestamp: base_ts(),
             connection_id: Uuid::new_v4(),
-            kind: ProtocolEventKind::QuicTransportParams { params },
+            kind: ProtocolEventKind::QuicTransportParams {
+                params,
+                direction: MessageDirection::Client,
+            },
         }
     }
 

@@ -177,16 +177,23 @@ async fn handle_h3_connection(
         })
     };
 
-    let instrumented =
-        crate::h3_instrument::InstrumentedConnection::new(h3_quinn::Connection::new(conn), sink);
+    // This connection faces the downstream client, so its observed control-stream
+    // frames are client-sent.
+    let instrumented = crate::h3_instrument::InstrumentedConnection::new(
+        h3_quinn::Connection::new(conn),
+        sink,
+        crate::protocol_event::MessageDirection::Client,
+    );
     let mut h3_conn = h3::server::Connection::new(instrumented).await?;
 
     // Emit the QUIC transport parameters that this server advertised
-    // during the handshake, so protocol-level rules can validate them.
+    // during the handshake, so protocol-level rules can validate them. These are
+    // the proxy's own client-facing parameters (Client leg).
     if let Some(ref params) = shared.quic_transport_params {
         emit_h3_protocol_event(
             crate::protocol_event::ProtocolEventKind::QuicTransportParams {
                 params: params.clone(),
+                direction: crate::protocol_event::MessageDirection::Client,
             },
             connection_id,
             &shared,
@@ -235,13 +242,10 @@ async fn handle_h3_connection(
                 });
             }
             Ok(None) => {
-                // Connection closed gracefully.  The h3 crate does not
-                // expose the GOAWAY stream ID, so we emit None.
-                emit_h3_protocol_event(
-                    crate::protocol_event::ProtocolEventKind::H3GoawayReceived { stream_id: None },
-                    connection_id,
-                    &shared,
-                );
+                // Connection closed gracefully. A real client GOAWAY (with its
+                // id and `Client` direction) is emitted by the frame observer on
+                // the control stream, so nothing is synthesized here — a plain
+                // close is not a GOAWAY.
                 break;
             }
             Err(e) => {

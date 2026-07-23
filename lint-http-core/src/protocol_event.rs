@@ -19,7 +19,13 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use uuid::Uuid;
 
-/// Direction of a WebSocket message relative to the proxy.
+/// Direction of a message relative to the proxy: which peer sent it. For a
+/// WebSocket frame this is the message direction; for an HTTP/3 or QUIC event it
+/// identifies the *sender's role on the observed connection* — `Client` for a
+/// frame the downstream client sent (or the proxy's own client-facing leg),
+/// `Server` for a frame an upstream origin server sent (the upstream leg). This
+/// is what lets a rule tell an origin-sent MAX_PUSH_ID (a violation, RFC 9114
+/// §7.2.7) from a client-sent one.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum MessageDirection {
@@ -27,6 +33,13 @@ pub enum MessageDirection {
     Client,
     /// Server to client.
     Server,
+}
+
+/// Default direction for H3/QUIC events deserialized from records written
+/// before the field existed: the proxy only observed the client-facing leg
+/// then, so those events were client-sent.
+fn default_direction_client() -> MessageDirection {
+    MessageDirection::Client
 }
 
 /// A single protocol-level event observed on a connection.
@@ -68,6 +81,10 @@ pub enum ProtocolEventKind {
     H3GoawayReceived {
         /// Stream ID from the GOAWAY frame, if the h3 crate exposes it.
         stream_id: Option<u64>,
+        /// Which peer sent the GOAWAY (a server GOAWAY carries a request stream
+        /// ID; a client GOAWAY carries a push ID — RFC 9114 §5.2).
+        #[serde(default = "default_direction_client")]
+        direction: MessageDirection,
     },
 
     /// A new HTTP/3 request stream was accepted.
@@ -84,14 +101,30 @@ pub enum ProtocolEventKind {
     H3SettingsReceived {
         /// (setting_id, value) pairs.
         settings: Vec<(u64, u64)>,
+        /// Which peer sent the SETTINGS (each peer sends its own on its control
+        /// stream, so this scopes duplicate-frame checks per direction).
+        #[serde(default = "default_direction_client")]
+        direction: MessageDirection,
     },
 
     /// MAX_PUSH_ID frame received.
-    H3MaxPushId { push_id: u64 },
+    H3MaxPushId {
+        push_id: u64,
+        /// Which peer sent it — a server MUST NOT send MAX_PUSH_ID (RFC 9114
+        /// §7.2.7), so `Server` here is a violation.
+        #[serde(default = "default_direction_client")]
+        direction: MessageDirection,
+    },
 
     // ── QUIC transport-level ───────────────────────────────────────────
     /// Negotiated QUIC transport parameters after handshake.
-    QuicTransportParams { params: QuicTransportParameters },
+    QuicTransportParams {
+        params: QuicTransportParameters,
+        /// Whose parameters these are: `Client` for the proxy's own client-facing
+        /// advertisement, `Server` for an upstream origin's real parameters.
+        #[serde(default = "default_direction_client")]
+        direction: MessageDirection,
+    },
 
     /// QUIC flow-control window update.
     QuicFlowControlUpdate {
@@ -206,7 +239,10 @@ mod tests {
         let e1 = ProtocolEvent {
             timestamp: Utc::now() + chrono::Duration::seconds(1),
             connection_id: conn,
-            kind: ProtocolEventKind::H3GoawayReceived { stream_id: None },
+            kind: ProtocolEventKind::H3GoawayReceived {
+                stream_id: None,
+                direction: MessageDirection::Client,
+            },
         };
         let e2 = ProtocolEvent {
             timestamp: Utc::now(),
@@ -236,10 +272,13 @@ mod tests {
 
     #[test]
     fn serde_roundtrip_h3_goaway() {
-        let evt = make_event(ProtocolEventKind::H3GoawayReceived { stream_id: Some(4) });
+        let evt = make_event(ProtocolEventKind::H3GoawayReceived {
+            stream_id: Some(4),
+            direction: MessageDirection::Client,
+        });
         let json = serde_json::to_string(&evt).unwrap();
         let deserialized: ProtocolEvent = serde_json::from_str(&json).unwrap();
-        if let ProtocolEventKind::H3GoawayReceived { stream_id } = deserialized.kind {
+        if let ProtocolEventKind::H3GoawayReceived { stream_id, .. } = deserialized.kind {
             assert_eq!(stream_id, Some(4));
         } else {
             panic!("unexpected variant");

@@ -49,7 +49,7 @@ impl ProtocolRule for StatefulHttp3SettingsFrame {
         // other protocol event is out of scope.
         // cite(RFC 9114 § 7.2.4): "The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate"
         let settings = match &event.kind {
-            ProtocolEventKind::H3SettingsReceived { settings } => settings,
+            ProtocolEventKind::H3SettingsReceived { settings, .. } => settings,
             _ => return None,
         };
 
@@ -179,6 +179,7 @@ static REGISTRATION: &dyn crate::rules::ProtocolRule = &StatefulHttp3SettingsFra
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol_event::MessageDirection;
     use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
     use chrono::{DateTime, Utc};
     use uuid::Uuid;
@@ -206,7 +207,13 @@ mod tests {
     }
 
     fn make_settings(conn: Uuid, settings: Vec<(u64, u64)>) -> ProtocolEvent {
-        make_event(conn, ProtocolEventKind::H3SettingsReceived { settings })
+        make_event(
+            conn,
+            ProtocolEventKind::H3SettingsReceived {
+                settings,
+                direction: MessageDirection::Client,
+            },
+        )
     }
 
     // ── First SETTINGS on a connection: valid cases ──────────────────
@@ -305,6 +312,7 @@ mod tests {
             conn,
             ProtocolEventKind::H3SettingsReceived {
                 settings: vec![(0x06, 4096)],
+                direction: MessageDirection::Client,
             },
             t + chrono::Duration::seconds(1),
         );
@@ -319,6 +327,7 @@ mod tests {
                     initial_max_stream_data_bidi_remote: None,
                     initial_max_stream_data_uni: None,
                 },
+                direction: MessageDirection::Client,
             },
             t,
         );
@@ -507,7 +516,10 @@ mod tests {
         let conn = Uuid::new_v4();
         let evt = make_event(
             conn,
-            ProtocolEventKind::H3GoawayReceived { stream_id: Some(4) },
+            ProtocolEventKind::H3GoawayReceived {
+                stream_id: Some(4),
+                direction: MessageDirection::Client,
+            },
         );
         let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
@@ -517,7 +529,13 @@ mod tests {
     fn max_push_id_event_ignored() {
         let rule = StatefulHttp3SettingsFrame;
         let conn = Uuid::new_v4();
-        let evt = make_event(conn, ProtocolEventKind::H3MaxPushId { push_id: 10 });
+        let evt = make_event(
+            conn,
+            ProtocolEventKind::H3MaxPushId {
+                push_id: 10,
+                direction: MessageDirection::Client,
+            },
+        );
         let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
         assert!(result.is_none());
     }
