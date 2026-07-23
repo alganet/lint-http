@@ -1409,6 +1409,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 77
+    - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
+      line: 40
   - label: message_etag_syntax (2)
     section: § 8.8.3
     snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
@@ -2292,6 +2294,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_sunset_and_deprecation_consistency.rs
       line: 62
+    - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
+      line: 67
 - label: RFC 9745
   url: https://www.rfc-editor.org/rfc/rfc9745.txt
   type: text/plain
@@ -2302,6 +2306,10 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_sunset_and_deprecation_consistency.rs
       line: 61
+    - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
+      line: 39
+    - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
+      line: 66
   - label: message_sunset_and_deprecation_consistency (2)
     section: § 4
     snippet: The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field.
@@ -2309,7 +2317,8 @@ sources:
     - file: lint-http-rules/src/rules/message_sunset_and_deprecation_consistency.rs
       line: 101
   - label: server_deprecation_header_syntax
-    snippet: The Deprecation HTTP response header field is used to signal to consumers of a resource (identified by a URI) that the resource will be or has been deprecated.
+    section: § 2
+    snippet: The Deprecation HTTP response header field allows a server to communicate to a client application that the resource in the context of the message will be or has been deprecated.
     cited_by:
     - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
-      line: 30
+      line: 27
