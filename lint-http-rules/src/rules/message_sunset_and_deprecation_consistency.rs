@@ -28,7 +28,10 @@ impl Rule for MessageSunsetAndDeprecationConsistency {
         // only applies to responses
         let resp = tx.response.as_ref()?;
 
-        // Get Sunset header (HTTP-date) if present and parseable
+        // Get Sunset header if present and parseable. Recipient parse (all three
+        // HTTP-date formats, helper-owned), so a failure is "not any HTTP-date" —
+        // not "IMF-fixdate"; RFC 8594 itself calls the value an HTTP-date.
+        // cite(RFC 8594 § 3): "The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future."
         let sunset_opt = match crate::helpers::headers::get_header_str(&resp.headers, "sunset") {
             Some(s) => match crate::http_date::parse_http_date_to_datetime(s) {
                 Ok(dt) => Some((s.to_string(), dt)),
@@ -36,7 +39,7 @@ impl Rule for MessageSunsetAndDeprecationConsistency {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
-                        message: "Sunset header is not a valid IMF-fixdate (RFC 8594)".into(),
+                        message: "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
                     });
                 }
             },
@@ -50,8 +53,16 @@ impl Rule for MessageSunsetAndDeprecationConsistency {
             Some(hv) => match hv.to_str() {
                 Ok(s_raw) => {
                     let s = s_raw.trim();
-                    // cite(RFC 8594 § 1): "the Sunset HTTP response header field, which indicates that a URI is likely to become unresponsive at a specified point in the future."
-                    // cite(RFC 9745): "The Deprecation HTTP response header field is used to signal to consumers of a resource (identified by a URI) that the resource will be or has been deprecated."
+                    // Deprecation is a Structured Field Date (`@` + integer epoch
+                    // seconds); this recognises exactly that form and defers the
+                    // legacy/invalid forms to `server_deprecation_header_syntax`.
+                    // (The previous cites here were mis-anchored — a Sunset
+                    // *definition* and an Abstract blurb, neither governing this parse.)
+                    // cite(RFC 9745 § 2.1): "Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651]."
+                    // cite(RFC 9651 § 3.3.7): "their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@"."
+                    // (Digits-only, so a *negative* SF Date `@-N` — a legal pre-1970
+                    // instant — is treated as non-structured and deferred; recorded
+                    // in the audit ledger. Such a Deprecation date is pathological.)
                     if s.starts_with('@')
                         && s.len() > 1
                         && s[1..].chars().all(|c| c.is_ascii_digit())
@@ -83,17 +94,19 @@ impl Rule for MessageSunsetAndDeprecationConsistency {
             None => None,
         };
 
-        // If both parseable values present, ensure logical ordering:
-        // Deprecation timestamp SHOULD be <= Sunset datetime (deprecation happens before removal)
+        // If both parseable values present, enforce the ordering RFC 9745 §4
+        // requires (Sunset not before Deprecation). The 60s skew is a linter
+        // tolerance — no spec licenses it; against a strict MUST NOT it only makes
+        // the rule more lenient (recorded in the audit ledger, not cited).
+        // cite(RFC 9745 § 4): "The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field."
         if let (Some((dep_raw, dep_dt)), Some((sun_raw, sun_dt))) = (deprecation_opt, sunset_opt) {
-            // allow small skew (60s) for clock/time-format differences
             let allowed_skew = chrono::Duration::seconds(60);
             if dep_dt > sun_dt + allowed_skew {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
                     message: format!(
-                        "Deprecation '{}' indicates a time after Sunset '{}'; Deprecation should be earlier than or equal to Sunset",
+                        "Deprecation '{}' indicates a time after Sunset '{}'; the Sunset timestamp must not be earlier than Deprecation (RFC 9745 §4)",
                         dep_raw, sun_raw
                     ),
                 });
@@ -108,7 +121,7 @@ impl Rule for MessageSunsetAndDeprecationConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "When both `Sunset` and `Deprecation` response headers are present, they should be logically consistent: `Deprecation` indicates when a resource was (or will be) deprecated and `Sunset` indicates the removal/shutdown date. This rule validates that, when both headers are parseable, the `Deprecation` timestamp is not later than the `Sunset` date. Additionally, the rule validates the `Sunset` header syntax: if a `Sunset` header is present but not a valid IMF-fixdate, the rule reports a violation (the `Sunset` header must be a valid IMF-fixdate per RFC 8594), even when `Deprecation` is absent."
+        "When both `Sunset` and `Deprecation` response headers are present they must be logically consistent: `Deprecation` (a Structured Field Date, `@<seconds>`, RFC 9745 §2.1) marks when a resource was or will be deprecated, and `Sunset` (an HTTP-date, RFC 8594 §3) marks the removal date. RFC 9745 §4 requires that the Sunset timestamp not be earlier than the Deprecation timestamp; this rule flags the reverse (subject to a small clock-skew tolerance). It also validates the `Sunset` syntax: a `Sunset` header that is not a parseable HTTP-date is reported even when `Deprecation` is absent. Legacy/non-structured `Deprecation` forms are left to `server_deprecation_header_syntax`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -117,13 +130,19 @@ impl Rule for MessageSunsetAndDeprecationConsistency {
                 spec: "RFC 8594",
                 section: Some("3"),
                 url: "https://www.rfc-editor.org/rfc/rfc8594.html#section-3",
-                note: "`Sunset` header semantics (IMF-fixdate)",
+                note: "`Sunset` header semantics (HTTP-date)",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9745",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-2",
-                note: "`Deprecation` structured Date item (`@<seconds>`) and legacy forms",
+                section: Some("2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-2.1",
+                note: "`Deprecation` is a Structured Field Date (`@<seconds>`)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9745",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-4",
+                note: "Sunset MUST NOT be earlier than Deprecation",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9651",
@@ -314,7 +333,7 @@ mod tests {
         );
         assert!(v.is_some());
         let msg = v.unwrap().message;
-        assert!(msg.contains("Sunset header is not a valid IMF-fixdate"));
+        assert!(msg.contains("Sunset header is not a valid HTTP-date"));
     }
 
     #[test]
