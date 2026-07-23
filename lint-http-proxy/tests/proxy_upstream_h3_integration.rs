@@ -833,13 +833,23 @@ async fn upstream_h3_discovered_via_alt_svc_is_used_on_next_request() -> anyhow:
         "second request is served over H3 (discovered)"
     );
 
-    let caps = read_captures(&captures_path).await?;
-    let versions: Vec<&str> = caps
-        .iter()
-        .filter_map(|v| v["response"]["version"].as_str())
-        .collect();
+    // The capture is written asynchronously, so the H3 request's record may not
+    // be on disk the instant its response returns. Poll until it appears rather
+    // than reading once and racing the writer under a loaded CI CPU.
+    let deadline = std::time::Instant::now() + startup_timeout();
+    let versions = loop {
+        let caps = read_captures(&captures_path).await?;
+        let versions: Vec<String> = caps
+            .iter()
+            .filter_map(|v| v["response"]["version"].as_str().map(str::to_string))
+            .collect();
+        if versions.iter().any(|v| v == "HTTP/3") || std::time::Instant::now() > deadline {
+            break versions;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    };
     assert!(
-        versions.contains(&"HTTP/3"),
+        versions.iter().any(|v| v == "HTTP/3"),
         "a request should have been forwarded over H3 after discovery: {versions:?}"
     );
 
