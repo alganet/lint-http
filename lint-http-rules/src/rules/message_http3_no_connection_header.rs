@@ -6,6 +6,14 @@ use crate::lint::Violation;
 use crate::rules::Rule;
 
 /// Connection-specific headers that MUST NOT appear in HTTP/3 messages.
+///
+/// RFC 9114 §4.2 forbids "connection-specific header fields as discussed in
+/// Section 7.6.1 of [HTTP]"; §7.6.1 is what enumerates them. Its bullet list
+/// names Keep-Alive, Proxy-Connection, Transfer-Encoding, and Upgrade (TE is
+/// there too, but HTTP/3 keeps it as the exception below, so it is not here);
+/// `connection` is the Connection header field §7.6.1 defines and §4.2 says
+/// HTTP/3 does not use.
+/// cite(RFC 9110 § 7.6.1): "Furthermore, intermediaries SHOULD remove or replace fields that are known to require removal before forwarding, whether or not they appear as a connection-option, after applying those fields' semantics."
 const FORBIDDEN_HEADERS: &[&str] = &[
     "connection",
     "keep-alive",
@@ -32,8 +40,12 @@ impl Rule for MessageHttp3NoConnectionHeader {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Only applies to HTTP/3 transactions.
-        // cite(RFC 9114 § 4.2): "An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP]"
+        // Only applies to HTTP/3 transactions. Scoping cite: HTTP/3's field model
+        // is why this rule exists. (The previous cite here — the *intermediary*
+        // MUST-remove sentence — did not govern this request version gate; it is
+        // re-homed to the reverse-proxy response gate below, and the enforcing
+        // "MUST NOT generate … MUST be treated as malformed" now sits on the check.)
+        // cite(RFC 9114 § 4.2): "HTTP/3 does not use the Connection header field to indicate connection-specific fields; in this protocol, connection-specific metadata is conveyed by other means."
         if tx.request.version != "HTTP/3" {
             return None;
         }
@@ -56,10 +68,13 @@ impl Rule for MessageHttp3NoConnectionHeader {
             });
         }
 
-        // Check response headers only when the response itself is HTTP/3.
-        // In a reverse-proxy setup the upstream response may be HTTP/1.1 or
-        // HTTP/2 and legitimately carry Connection/Transfer-Encoding headers
-        // that are later stripped before forwarding over HTTP/3.
+        // Check response headers only when the response itself is HTTP/3. In a
+        // reverse-proxy setup the upstream response may be HTTP/1.1 or HTTP/2 and
+        // legitimately carry Connection/Transfer-Encoding headers; the transforming
+        // intermediary must strip them, and it is that post-transformation HTTP/3
+        // message this gate scopes to — the sentence that governs the reverse-proxy
+        // case the previous version-gate cite was mis-anchored on.
+        // cite(RFC 9114 § 4.2): "An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/3 endpoints as malformed."
         if let Some(resp) = &tx.response {
             if resp.version == "HTTP/3" {
                 if let Some(msg) = check_forbidden_headers(&resp.headers) {
@@ -70,8 +85,13 @@ impl Rule for MessageHttp3NoConnectionHeader {
                     });
                 }
 
-                // TE is a request-only header (RFC 9110 §10.1.4); any
-                // presence in an HTTP/3 response is invalid.
+                // TE is connection-specific (RFC 9110 §7.6.1) and thus forbidden in
+                // HTTP/3 — the §4.2 exception restores it only "in an HTTP/3 request
+                // header", so a response gets no exception and any TE there is an
+                // unexcepted connection-specific field. The request-scope of the
+                // same exception sentence is what governs here (TE is registered as
+                // a Request Context Field, RFC 9110 §10.1.4).
+                // cite(RFC 9114 § 4.2): "The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers"."
                 if resp.headers.contains_key("te") {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -151,6 +171,10 @@ impl Rule for MessageHttp3NoConnectionHeader {
 }
 
 /// Check for the presence of any forbidden connection-specific header.
+///
+/// Enforces the HTTP/3 prohibition for both request and response call sites
+/// (this helper owns the quote; §7.6.1 defines the set, in the const above).
+/// cite(RFC 9114 § 4.2): "An endpoint MUST NOT generate an HTTP/3 field section containing connection-specific fields; any message containing connection-specific fields MUST be treated as malformed."
 fn check_forbidden_headers(headers: &hyper::HeaderMap) -> Option<String> {
     for &name in FORBIDDEN_HEADERS {
         if headers.contains_key(name) {
@@ -164,6 +188,11 @@ fn check_forbidden_headers(headers: &hyper::HeaderMap) -> Option<String> {
 }
 
 /// Check that the TE header, if present, contains only "trailers".
+///
+/// TE is the one connection-specific field HTTP/3 permits in a request, and only
+/// with the value "trailers" (matched case-insensitively — transfer-coding names
+/// are case-insensitive tokens).
+/// cite(RFC 9114 § 4.2): "The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers"."
 fn check_te_header(headers: &hyper::HeaderMap) -> Option<String> {
     if let Some(val) = headers.get("te") {
         if let Ok(s) = val.to_str() {
@@ -175,6 +204,9 @@ fn check_te_header(headers: &hyper::HeaderMap) -> Option<String> {
                 );
             }
         } else {
+            // Defensive guard: a value that is not valid UTF-8 cannot be a
+            // "trailers" token. No specific sentence governs this; §4.2's
+            // malformed-field rule is about field *names*, not values.
             return Some("HTTP/3 TE header contains non-UTF-8 value".into());
         }
     }

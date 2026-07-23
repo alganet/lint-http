@@ -1063,6 +1063,8 @@ sources:
       line: 20
     - file: lint-http-rules/src/helpers/headers.rs
       line: 695
+    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
+      line: 16
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (6)
     section: § 7.6.1
     snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message).
@@ -1935,10 +1937,30 @@ sources:
       line: 53
   - label: message_http3_no_connection_header
     section: § 4.2
-    snippet: An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP]
+    snippet: An endpoint MUST NOT generate an HTTP/3 field section containing connection-specific fields; any message containing connection-specific fields MUST be treated as malformed.
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 36
+      line: 177
+  - label: message_http3_no_connection_header (2)
+    section: § 4.2
+    snippet: An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/3 endpoints as malformed.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
+      line: 77
+  - label: message_http3_no_connection_header (3)
+    section: § 4.2
+    snippet: HTTP/3 does not use the Connection header field to indicate connection-specific fields; in this protocol, connection-specific metadata is conveyed by other means.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
+      line: 48
+  - label: message_http3_no_connection_header (4)
+    section: § 4.2
+    snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
+      line: 94
+    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
+      line: 195
   - label: message_http3_pseudo_headers_validity
     section: § 4.3.1
     snippet: All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4.
