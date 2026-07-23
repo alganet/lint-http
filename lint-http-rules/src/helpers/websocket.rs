@@ -34,7 +34,9 @@ const WS_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 /// string** concatenated with the well-known GUID — not of the bytes it decodes to.
 pub fn compute_accept(key: &str) -> Option<String> {
     let key_trim = key.trim();
-    // decode key to ensure it is 16 bytes long
+    // decode key to ensure it is 16 bytes long. Returning None on a malformed
+    // encoding is RFC 4648's instruction, and RFC 6455 does not state otherwise.
+    // cite(RFC 4648 § 3.3): "Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise."
     match base64::engine::general_purpose::STANDARD.decode(key_trim) {
         // cite(RFC 6455 § 4.1): "The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded"
         Ok(bytes) if bytes.len() == 16 => {

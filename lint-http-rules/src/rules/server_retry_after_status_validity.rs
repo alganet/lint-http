@@ -28,6 +28,12 @@ impl Rule for ServerRetryAfterStatusValidity {
         resp.headers.get_all("retry-after").iter().next()?;
 
         let status = resp.status;
+        // Each arm of the allowed set is one sentence: RFC 9110 names 503 and the 3xx
+        // class; RFC 6585 is where 429 gets its Retry-After, since RFC 9110 never
+        // mentions that status.
+        // cite(RFC 9110 § 10.2.3): "When sent with a 503 (Service Unavailable) response, Retry-After indicates how long the service is expected to be unavailable to the client."
+        // cite(RFC 9110 § 10.2.3): "When sent with any 3xx (Redirection) response, Retry-After indicates the minimum time that the user agent is asked to wait before issuing the redirected request."
+        // cite(RFC 6585 § 4): "The response representations SHOULD include details explaining the condition, and MAY include a Retry-After header indicating how long to wait before making a new request."
         let allowed =
             status == 503 || status == 429 || crate::helpers::status::is_redirection_status(status);
         if allowed {

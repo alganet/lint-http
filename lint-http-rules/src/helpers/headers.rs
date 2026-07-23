@@ -1161,7 +1161,11 @@ pub fn validate_mailbox_list(val: &str) -> Result<(), String> {
     }
 
     for p in parts {
-        // Validate each mailbox: either contains '<' '>' with addr-spec inside or is addr-spec directly
+        // Validate each mailbox: either contains '<' '>' with addr-spec inside or is
+        // addr-spec directly. The two branches are RFC 5322's two forms of a mailbox —
+        // the display-name in front of the angle-addr is why everything before '<' is
+        // skipped rather than rejected.
+        // cite(RFC 5322 § 3.4): "Normally, a mailbox is composed of two parts: (1) an optional display name that indicates the name of the recipient (which can be a person or a system) that could be displayed to the user of a mail application, and (2) an addr-spec address enclosed in angle brackets"
         if let Some(open) = p.find('<') {
             let close = p.rfind('>');
             let end = match close {
@@ -1174,6 +1178,7 @@ pub fn validate_mailbox_list(val: &str) -> Result<(), String> {
             }
         } else {
             // Bare addr-spec
+            // cite(RFC 5322 § 3.4): "There is an alternate simple form of a mailbox where the addr-spec address appears alone, without the recipient's name or the angle brackets."
             if let Err(e) = validate_addr_spec(p) {
                 return Err(format!("Invalid addr-spec '{}': {}", p, e));
             }
@@ -1188,6 +1193,13 @@ fn validate_addr_spec(addr: &str) -> Result<(), String> {
         return Err("empty addr-spec".into());
     }
 
+    // Both branches below enforce the same three-part shape — something local, one
+    // "@", something domain — with the local side deliberately held to RFC 5322's
+    // prose rather than its full grammar.
+    // cite(RFC 5322 § 3.4.1): "An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain."
+    // The leading-DQUOTE dispatch is the sentence's alternative made literal: a
+    // quoted-string can only begin with '"', and a dot-atom never can.
+    // cite(RFC 5322 § 3.4.1): "The locally interpreted string is either a quoted-string or a dot-atom."
     if addr.starts_with('"') {
         // quoted local-part style: "local"@domain
         if let Some(at_pos) = addr.rfind('@') {

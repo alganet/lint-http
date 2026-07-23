@@ -101,7 +101,9 @@ impl Rule for ClientSecWebsocketHeadersConsistency {
         if let Some(hv) =
             crate::helpers::headers::get_header_str(&tx.request.headers, "sec-websocket-key")
         {
-            // Validate base64
+            // Validate base64. Reporting a malformed encoding is RFC 4648's own
+            // instruction, and RFC 6455 does not state otherwise.
+            // cite(RFC 4648 § 3.3): "Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise."
             match base64::engine::general_purpose::STANDARD.decode(hv.trim()) {
                 Ok(bytes) => {
                     if bytes.len() != 16 {

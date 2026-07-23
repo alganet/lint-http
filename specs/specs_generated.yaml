@@ -302,6 +302,48 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/ipv6.rs
       line: 78
+- label: RFC 4648
+  url: https://www.rfc-editor.org/rfc/rfc4648.txt
+  type: text/plain
+  fragments:
+  - label: lint-http-rules/src/helpers/auth.rs
+    section: § 3.3
+    snippet: Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise.
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 242
+    - file: lint-http-rules/src/helpers/websocket.rs
+      line: 39
+    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
+      line: 106
+- label: RFC 5322
+  url: https://www.rfc-editor.org/rfc/rfc5322.txt
+  type: text/plain
+  fragments:
+  - label: lint-http-rules/src/helpers/headers.rs
+    section: § 3.4
+    snippet: 'Normally, a mailbox is composed of two parts: (1) an optional display name that indicates the name of the recipient (which can be a person or a system) that could be displayed to the user of a mail application, and (2) an addr-spec address enclosed in angle brackets'
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1168
+  - label: lint-http-rules/src/helpers/headers.rs (2)
+    section: § 3.4
+    snippet: There is an alternate simple form of a mailbox where the addr-spec address appears alone, without the recipient's name or the angle brackets.
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1181
+  - label: lint-http-rules/src/helpers/headers.rs (3)
+    section: § 3.4.1
+    snippet: An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain.
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1199
+  - label: lint-http-rules/src/helpers/headers.rs (4)
+    section: § 3.4.1
+    snippet: The locally interpreted string is either a quoted-string or a dot-atom.
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1202
 - label: RFC 5646
   url: https://www.rfc-editor.org/rfc/rfc5646.txt
   type: text/plain
@@ -507,13 +549,13 @@ sources:
     snippet: (as a string, not base64-decoded) with the string
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 46
+      line: 48
   - label: lint-http-rules/src/helpers/websocket.rs (2)
     section: § 4.1
     snippet: The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 39
+      line: 41
     - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
       line: 28
   - label: lint-http-rules/src/helpers/websocket.rs (3)
@@ -527,7 +569,7 @@ sources:
     snippet: taking the SHA-1 hash of this concatenated value to obtain a 20-byte value
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
-      line: 49
+      line: 51
   - label: stateful_websocket_frame_opcode_sequence
     section: § 11.8
     snippet: The opcode denotes the frame type of the WebSocket frame,
@@ -546,6 +588,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
       line: 43
+- label: RFC 6585
+  url: https://www.rfc-editor.org/rfc/rfc6585.txt
+  type: text/plain
+  fragments:
+  - label: server_retry_after_status_validity
+    section: § 4
+    snippet: The response representations SHOULD include details explaining the condition, and MAY include a Retry-After header indicating how long to wait before making a new request.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_retry_after_status_validity.rs
+      line: 36
 - label: RFC 6749
   url: https://www.rfc-editor.org/rfc/rfc6749.txt
   type: text/plain
@@ -565,7 +617,7 @@ sources:
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 295
+      line: 298
     - file: lint-http-rules/src/rules/message_bearer_token_format_validity.rs
       line: 51
 - label: RFC 6797
@@ -647,7 +699,7 @@ sources:
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 356
+      line: 359
   - label: message_digest_auth_validity
     section: § 3.4
     snippet: 'For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque.'
@@ -675,7 +727,7 @@ sources:
     snippet: The user-id and password MUST NOT contain any control characters
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 257
+      line: 260
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 2
     snippet: and obtains the basic-credentials by encoding this octet sequence using Base64
@@ -689,7 +741,7 @@ sources:
     snippet: constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 247
+      line: 250
 - label: RFC 7807
   url: https://www.rfc-editor.org/rfc/rfc7807.txt
   type: text/plain
@@ -1154,7 +1206,7 @@ sources:
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1310
+      line: 1322
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 90
   - label: lint-http-rules/src/helpers/headers.rs (15)
@@ -1170,7 +1222,7 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1269
+      line: 1281
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 58
   - label: lint-http-rules/src/helpers/headers.rs (17)
@@ -1501,10 +1553,22 @@ sources:
       line: 27
   - label: server_retry_after_status_validity
     section: § 10.2.3
+    snippet: When sent with a 503 (Service Unavailable) response, Retry-After indicates how long the service is expected to be unavailable to the client.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_retry_after_status_validity.rs
+      line: 34
+  - label: server_retry_after_status_validity (2)
+    section: § 10.2.3
+    snippet: When sent with any 3xx (Redirection) response, Retry-After indicates the minimum time that the user agent is asked to wait before issuing the redirected request.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_retry_after_status_validity.rs
+      line: 35
+  - label: server_retry_after_status_validity (3)
+    section: § 10.2.3
     snippet: the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request.
     cited_by:
     - file: lint-http-rules/src/rules/server_retry_after_status_validity.rs
-      line: 40
+      line: 46
   - label: server_status_code_valid_range
     section: § 15
     snippet: The status code of a response is a three-digit integer code that describes the result of the request
