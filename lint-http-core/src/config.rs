@@ -122,10 +122,20 @@ pub struct GeneralConfig {
     pub h3_upstream_extra_ca_certs: Vec<String>,
 
     /// How long (ms) to wait for the HTTP/3 upstream QUIC connect + handshake
-    /// (and the response head) before treating the attempt as failed and
-    /// falling back to H1/H2 (default: 5000).
+    /// before treating the attempt as failed and falling back to H1/H2
+    /// (default: 5000).
     #[serde(default = "default_h3_upstream_connect_timeout_ms")]
     pub h3_upstream_connect_timeout_ms: u64,
+
+    /// How long (ms) to wait for the HTTP/3 upstream *response head* (first byte
+    /// from the origin) once the request has been sent. This is application
+    /// think-time, not transport setup, so it is bounded separately from — and
+    /// far more generously than — the connect timeout: a slow-but-healthy origin
+    /// must not be dropped at the connect budget. An idempotent, bodyless request
+    /// that hits this timeout is retried on H1/H2 (RFC 9110 §9.2.2); anything
+    /// else surfaces a 502 (default: 30000).
+    #[serde(default = "default_h3_upstream_response_timeout_ms")]
+    pub h3_upstream_response_timeout_ms: u64,
 
     /// Base backoff (seconds) for the H3 upstream negative cache: after a
     /// connect/handshake failure an origin authority is not retried over H3
@@ -196,6 +206,10 @@ const fn default_h3_upstream_negative_ttl_seconds() -> u64 {
     30
 }
 
+const fn default_h3_upstream_response_timeout_ms() -> u64 {
+    30_000
+}
+
 const fn default_h3_upstream_trust_alt_svc() -> bool {
     true
 }
@@ -247,6 +261,7 @@ impl Default for GeneralConfig {
             h3_upstream_bind: None,
             h3_upstream_extra_ca_certs: Vec::new(),
             h3_upstream_connect_timeout_ms: default_h3_upstream_connect_timeout_ms(),
+            h3_upstream_response_timeout_ms: default_h3_upstream_response_timeout_ms(),
             h3_upstream_negative_ttl_seconds: default_h3_upstream_negative_ttl_seconds(),
             h3_upstream_pool_idle_ms: default_h3_upstream_pool_idle_ms(),
             h3_upstream_pool_max: default_h3_upstream_pool_max(),

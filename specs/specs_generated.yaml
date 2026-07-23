@@ -1014,7 +1014,7 @@ sources:
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
     cited_by:
     - file: lint-http-proxy/src/proxy/exchange.rs
-      line: 358
+      line: 369
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
       line: 42
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs
