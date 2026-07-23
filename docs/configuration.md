@@ -132,6 +132,39 @@ suppress_headers = []             # Headers to suppress from server responses
 - **passthrough_domains**: A list of domains (e.g., `["bank.com"]`) that should not be intercepted. Traffic to these domains will be tunneled opaque.
 - **suppress_headers**: A list of response headers to remove before sending to the client (e.g., `["Strict-Transport-Security"]` to prevent HSTS issues during testing).
 
+### HTTP/3 Upstream (Optional)
+
+By default the proxy forwards to origins over HTTP/1.1 or HTTP/2 (the hyper client). It can additionally forward the *proxy → origin* leg over **HTTP/3 (QUIC)** so that leg is exercised and linted like any other traffic. Selection is **capability-driven**: HTTP/3 is used for an origin when it is on the allowlist or has been discovered via `Alt-Svc`, and the proxy transparently falls back to HTTP/1.1/HTTP/2 when HTTP/3 is unavailable. These live in the `[general]` section and are all optional (the feature is off unless `h3_upstream_enabled = true`).
+
+```toml
+[general]
+h3_upstream_enabled = false                       # Master switch. Default: false
+h3_upstream_authorities = ["origin.example:443"]  # Origins always tried over H3 (pre-seeds discovery)
+h3_upstream_denylist = ["legacy.example:443"]     # Origins that must never use H3
+h3_upstream_trust_alt_svc = true                  # Learn H3 endpoints from origin Alt-Svc headers. Default: true
+h3_upstream_bind = "0.0.0.0:0"                    # UDP bind address for the H3 client. Default: "0.0.0.0:0"
+h3_upstream_extra_ca_certs = []                   # Extra CA PEM files to trust for origin H3 endpoint certs
+h3_upstream_connect_timeout_ms = 5000             # Connect + QUIC handshake budget. Default: 5000
+h3_upstream_response_timeout_ms = 30000           # Response-head (first byte) budget. Default: 30000
+h3_upstream_negative_ttl_seconds = 30             # Base backoff after an H3 failure. Default: 30
+h3_upstream_pool_idle_ms = 25000                  # Idle time before a pooled H3 connection is evicted. Default: 25000
+h3_upstream_pool_max = 256                        # Max pooled H3 connections (one per origin). Default: 256
+```
+
+- **h3_upstream_enabled**: Master switch. When `false` (default), every origin uses the HTTP/1.1/HTTP/2 client and none of the settings below have any effect.
+- **h3_upstream_authorities**: Origin authorities (`host:port`) always attempted over HTTP/3. This pre-seeds selection — the *first* request to an origin cannot have learned `Alt-Svc` yet, so without an allowlist entry HTTP/3 is inherently second-connection-onward. The port is optional and defaults to `443`, and matching is case-insensitive, so `example.com` and `example.com:443` are equivalent.
+- **h3_upstream_denylist**: Origin authorities that must **never** use HTTP/3, overriding both the allowlist and `Alt-Svc` discovery. Same `host[:port]` normalization as the allowlist.
+- **h3_upstream_trust_alt_svc**: When `true` (default), an origin's `Alt-Svc: h3=...` response header adds an HTTP/3 route for that origin at runtime (honoring `ma`/`clear`). A discovered endpoint is only *used* once its certificate validates **for the origin authority** (RFC 7838 §2.1 / RFC 9114 §3.3) — a mismatched cert fails the handshake and the proxy falls back. Set `false` to route HTTP/3 solely from `h3_upstream_authorities`.
+- **h3_upstream_bind**: The local UDP socket the HTTP/3 client binds. Default `"0.0.0.0:0"` (any interface, ephemeral port).
+- **h3_upstream_extra_ca_certs**: Extra CA PEM files (private CAs) to trust when validating origin HTTP/3 endpoint certificates, layered on top of the system roots. Useful for an internal origin under test.
+- **h3_upstream_connect_timeout_ms**: How long to wait for the QUIC connect + handshake before treating the attempt as failed and falling back to HTTP/1.1/HTTP/2 (default: 5000).
+- **h3_upstream_response_timeout_ms**: How long to wait for the origin's **response head** (first byte) once the request has been sent (default: 30000). This is origin think-time, bounded separately from — and far more generously than — the connect timeout so a slow-but-healthy origin is not dropped. An idempotent, bodyless request that hits this timeout is retried on HTTP/1.1/HTTP/2 (RFC 9110 §9.2.2); anything else returns `502`.
+- **h3_upstream_negative_ttl_seconds**: After a connect/handshake failure, an origin is not retried over HTTP/3 for this window (doubling per consecutive failure, capped), so a non-HTTP/3 origin is not probed on every request (default: 30). A successful HTTP/3 exchange clears the entry immediately. A response-head timeout does **not** negative-cache — the origin is healthy, just slow.
+- **h3_upstream_pool_idle_ms**: How long a pooled HTTP/3 connection may sit idle before eviction (default: 25000). Kept below the QUIC idle timeout so only still-live connections are reused.
+- **h3_upstream_pool_max**: Maximum pooled HTTP/3 connections, one per origin authority; the least-recently-used is evicted past this (default: 256).
+
+Which leg served each request is recorded in the capture: `response.version` is `HTTP/3` when the origin leg used HTTP/3, or `HTTP/1.1`/`HTTP/2` when it fell back. Enable `debug`-level logging to see per-request selection (H3 chosen, negative-cache suppression, pool reuse vs. fresh connect, and fallbacks).
+
 ### Lint Rules Configuration
 
 The `[rules]` section allows you to enable, disable, or configure specific lint rules. If a rule is omitted, it defaults to `false` (disabled).

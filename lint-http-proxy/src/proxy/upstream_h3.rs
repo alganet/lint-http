@@ -456,6 +456,7 @@ impl H3UpstreamClient {
                     && !conn.driver.is_finished();
                 if fresh {
                     *conn.last_used.lock().unwrap() = Instant::now();
+                    tracing::debug!(authority = %route.authority, "h3 upstream reusing pooled connection");
                     return Ok((conn.clone(), true));
                 }
                 pool.remove(&route.authority);
@@ -464,6 +465,7 @@ impl H3UpstreamClient {
 
         // Connect outside the lock (async); a rare concurrent race may open two
         // connections to the same origin — acceptable (§3.3 is SHOULD NOT).
+        tracing::debug!(authority = %route.authority, dial = %format!("{}:{}", route.dial_host, route.dial_port), "h3 upstream opening fresh connection");
         let conn = Arc::new(self.connect(route, shared).await?);
         let mut pool = self.pool.lock().unwrap();
         if pool.len() >= self.pool_max && !pool.contains_key(&route.authority) {

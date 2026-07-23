@@ -19,7 +19,7 @@ use hyper::{HeaderMap, Method, Request, Uri};
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tokio::time::Instant;
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 use crate::state::ClientIdentifier;
@@ -122,14 +122,25 @@ pub(super) async fn exchange(
         let authority = a.as_str();
         let h3 = shared.upstream.h3.as_ref()?;
         if h3.is_suppressed(authority) {
+            debug!(%authority, "h3 upstream suppressed by negative cache; using H1/H2");
             return None;
         }
         h3.route_for(authority)
             .map(|route| (h3, authority.to_string(), route))
     });
+    if h3_target.is_none() {
+        if let Some(a) = uri.authority() {
+            // Only interesting when H3 is configured at all; otherwise this is
+            // the ordinary H1/H2 path and not worth a line per request.
+            if shared.upstream.h3.is_some() {
+                debug!(authority = %a, "no h3 route for origin; using H1/H2");
+            }
+        }
+    }
     let resp: Result<hyper::Response<ResponseBody>, String> = if let Some((h3, authority, route)) =
         h3_target
     {
+        debug!(%authority, "forwarding upstream over HTTP/3");
         match h3.forward(upstream_req, &route, shared).await {
             Ok(r) => {
                 h3.record_success(&authority);
