@@ -240,10 +240,11 @@ sources:
   type: text/plain
   fragments:
   - label: lint-http-rules/src/helpers/domain.rs
+    section: § 2.1
     snippet: the restriction on the first character is relaxed to allow either a letter or a digit.
     cited_by:
     - file: lint-http-rules/src/helpers/domain.rs
-      line: 70
+      line: 67
 - label: RFC 2045
   url: https://www.rfc-editor.org/rfc/rfc2045.txt
   type: text/plain

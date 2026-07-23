@@ -64,10 +64,7 @@ pub fn validate_cookie_domain(s: &str) -> Result<(), String> {
         // reject — so the quote below is deliberately the clause about the *end* and
         // the interior, which is the part this branch actually enforces.
         // cite(RFC 1035 § 2.3.1): "end with a letter or digit, and have as interior characters only letters, digits, and hyphen."
-        // (RFC 1123's § 2.1 heading is the old indented style with no trailing period,
-        // which the section resolver does not match, so this cite names the document
-        // and lets the sentence locate itself.)
-        // cite(RFC 1123): "the restriction on the first character is relaxed to allow either a letter or a digit."
+        // cite(RFC 1123 § 2.1): "the restriction on the first character is relaxed to allow either a letter or a digit."
         if first == '-' || last == '-' {
             return Err("domain label must not start or end with '-'".into());
         }
