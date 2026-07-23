@@ -6,7 +6,8 @@
 //!
 //! Checks:
 //! - SETTINGS is the first frame on the control stream and is not sent
-//!   subsequently, so a second one on the connection is a violation.
+//!   subsequently *by that peer*, so a second one from the same peer on the
+//!   connection is a violation (the other peer's SETTINGS is its own first frame).
 //! - Reserved setting identifiers (0x00, 0x02–0x05 — the `Reserved` rows of
 //!   Table 3 in RFC 9114 §11.2.2) must not appear; their receipt is a
 //!   connection error of type H3_SETTINGS_ERROR (RFC 9114 §7.2.4.1).
@@ -48,8 +49,11 @@ impl ProtocolRule for StatefulHttp3SettingsFrame {
         // The event this rule recognizes is the SETTINGS frame itself; every
         // other protocol event is out of scope.
         // cite(RFC 9114 § 7.2.4): "The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate"
-        let settings = match &event.kind {
-            ProtocolEventKind::H3SettingsReceived { settings, .. } => settings,
+        let (settings, direction) = match &event.kind {
+            ProtocolEventKind::H3SettingsReceived {
+                settings,
+                direction,
+            } => (settings, *direction),
             _ => return None,
         };
 
@@ -57,16 +61,26 @@ impl ProtocolRule for StatefulHttp3SettingsFrame {
         // is what makes a second SETTINGS visible at all.
         // cite(RFC 9114 § 7.2.4): "SETTINGS frames always apply to an entire HTTP/3 connection, never a single stream"
         //
-        // A prior SETTINGS on this connection means this one was sent
-        // subsequently, which is the violation.
+        // A prior SETTINGS *from the same peer* means this one was sent
+        // subsequently, which is the violation. The rule is per peer ("by each
+        // peer"), so the other peer's SETTINGS — now observable on the upstream
+        // leg — is its own legitimate first frame, not a duplicate of this one.
         // cite(RFC 9114 § 7.2.4): "A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently"
         for prev in history.iter() {
-            if matches!(&prev.kind, ProtocolEventKind::H3SettingsReceived { .. }) {
+            if let ProtocolEventKind::H3SettingsReceived {
+                direction: prev_dir,
+                ..
+            } = &prev.kind
+            {
+                if *prev_dir != direction {
+                    continue;
+                }
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
                     message:
-                        "HTTP/3 duplicate SETTINGS frame on the same connection (RFC 9114 §7.2.4)"
+                        "HTTP/3 duplicate SETTINGS frame from the same peer on one connection \
+                         (RFC 9114 §7.2.4)"
                             .into(),
                 });
             }
@@ -119,7 +133,7 @@ impl ProtocolRule for StatefulHttp3SettingsFrame {
     }
 
     fn description(&self) -> &'static str {
-        "Validates HTTP/3 SETTINGS frame semantics on the control stream.  This rule inspects protocol-level events emitted by the QUIC stream wrapper and checks:\n\n* **No duplicate SETTINGS** — a SETTINGS frame MUST be sent as the first frame of each control stream by each peer, and it MUST NOT be sent subsequently (RFC 9114 §7.2.4).  SETTINGS applies to the entire connection, never a single stream, so a second `H3SettingsReceived` event on the same connection is a violation.\n* **No reserved setting identifiers** — the `Reserved` rows of the \"HTTP/3 Settings\" registry (RFC 9114 Table 3, §11.2.2) MUST NOT be sent, and their receipt MUST be treated as a connection error of type `H3_SETTINGS_ERROR` (RFC 9114 §7.2.4.1).  The reserved identifiers are `0x00` (no HTTP/2 counterpart), `0x02` (SETTINGS_ENABLE_PUSH in HTTP/2), `0x03` (SETTINGS_MAX_CONCURRENT_STREAMS), `0x04` (SETTINGS_INITIAL_WINDOW_SIZE), and `0x05` (SETTINGS_MAX_FRAME_SIZE).\n\n* **No repeated setting identifier** — the same setting identifier MUST NOT occur more than once in the SETTINGS frame (RFC 9114 §7.2.4).  A receiver MAY treat duplicates as a connection error of type `H3_SETTINGS_ERROR`; the sender's obligation is unconditional, so a repeated identifier within one frame is a violation.\n\nIdentifiers outside the reserved set — including the `0x1f * N + 0x21` greasing values and unregistered extensions — are ignored, per RFC 9114 §7.2.4's requirement that unknown parameters be ignored."
+        "Validates HTTP/3 SETTINGS frame semantics on the control stream.  This rule inspects protocol-level events emitted by the QUIC stream wrapper and checks:\n\n* **No duplicate SETTINGS** — a SETTINGS frame MUST be sent as the first frame of each control stream by each peer, and it MUST NOT be sent subsequently (RFC 9114 §7.2.4).  SETTINGS applies to the entire connection, never a single stream, so a second `H3SettingsReceived` event *from the same peer* on the connection is a violation.  Because the obligation is per peer, the other peer's SETTINGS (observable on the upstream leg) is its own legitimate first frame, not a duplicate.\n* **No reserved setting identifiers** — the `Reserved` rows of the \"HTTP/3 Settings\" registry (RFC 9114 Table 3, §11.2.2) MUST NOT be sent, and their receipt MUST be treated as a connection error of type `H3_SETTINGS_ERROR` (RFC 9114 §7.2.4.1).  The reserved identifiers are `0x00` (no HTTP/2 counterpart), `0x02` (SETTINGS_ENABLE_PUSH in HTTP/2), `0x03` (SETTINGS_MAX_CONCURRENT_STREAMS), `0x04` (SETTINGS_INITIAL_WINDOW_SIZE), and `0x05` (SETTINGS_MAX_FRAME_SIZE).\n\n* **No repeated setting identifier** — the same setting identifier MUST NOT occur more than once in the SETTINGS frame (RFC 9114 §7.2.4).  A receiver MAY treat duplicates as a connection error of type `H3_SETTINGS_ERROR`; the sender's obligation is unconditional, so a repeated identifier within one frame is a violation.\n\nIdentifiers outside the reserved set — including the `0x1f * N + 0x21` greasing values and unregistered extensions — are ignored, per RFC 9114 §7.2.4's requirement that unknown parameters be ignored."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -214,6 +228,29 @@ mod tests {
                 direction: MessageDirection::Client,
             },
         )
+    }
+
+    fn make_server_settings(conn: Uuid, settings: Vec<(u64, u64)>) -> ProtocolEvent {
+        make_event(
+            conn,
+            ProtocolEventKind::H3SettingsReceived {
+                settings,
+                direction: MessageDirection::Server,
+            },
+        )
+    }
+
+    #[test]
+    fn other_peers_settings_is_not_a_duplicate() {
+        // The SETTINGS rule is per peer: a server SETTINGS following a client
+        // SETTINGS on one connection is the server's own first frame, not a
+        // duplicate of the client's.
+        let rule = StatefulHttp3SettingsFrame;
+        let conn = Uuid::new_v4();
+        let prior_client = make_settings(conn, vec![(0x06, 4096)]);
+        let history = ProtocolEventHistory::new(vec![prior_client]);
+        let evt = make_server_settings(conn, vec![(0x06, 8192)]);
+        assert!(rule.check_event(&evt, &history, &make_config()).is_none());
     }
 
     // ── First SETTINGS on a connection: valid cases ──────────────────

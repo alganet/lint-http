@@ -10,6 +10,8 @@ SPDX-License-Identifier: ISC
 
 Validates HTTP/3 `MAX_PUSH_ID` frame semantics across the lifetime of a connection.  This rule inspects protocol-level events emitted by the HTTP/3 control-stream parser and checks:
 
+* **A server must not send `MAX_PUSH_ID`** — `MAX_PUSH_ID` is a client-only frame; a `MAX_PUSH_ID` observed from a server is a connection error of type `H3_FRAME_UNEXPECTED` (RFC 9114 §7.2.7), regardless of its value.
+
 * **MAX_PUSH_ID must not decrease** — when multiple `MAX_PUSH_ID` frames are received on the same connection, each successive value MUST be greater than or equal to the previous one.  Receipt of a smaller value is a connection error of type `H3_ID_ERROR` (RFC 9114 §7.2.7).
 
 The first `MAX_PUSH_ID` on a connection establishes the initial limit and is always accepted, regardless of value (zero is valid and means the server is not allowed to push).
@@ -44,4 +46,11 @@ severity = "warn"
 # Client sends MAX_PUSH_ID { push_id: 10 }
 # Client sends MAX_PUSH_ID { push_id: 4 }
 # Violation: MAX_PUSH_ID 4 decreased from previous 10 (RFC 9114 §7.2.7, H3_ID_ERROR)
+```
+
+### ❌ Bad (server-sent MAX_PUSH_ID)
+
+```http
+# Server sends MAX_PUSH_ID { push_id: 5 }
+# Violation: a server MUST NOT send MAX_PUSH_ID (RFC 9114 §7.2.7, H3_FRAME_UNEXPECTED)
 ```

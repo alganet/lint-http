@@ -8,10 +8,10 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validates HTTP/3 GOAWAY frame semantics during connection lifecycle.  This rule inspects protocol-level events and checks:
+Validates HTTP/3 GOAWAY frame semantics during connection lifecycle.  A GOAWAY's identifier depends on who sent it: a server sends a client-initiated request stream ID, a client sends a push ID (RFC 9114 §5.2), so the checks below are scoped by sender.  This rule inspects protocol-level events and checks:
 
-* **GOAWAY stream ID must not increase** — when multiple GOAWAY frames are received on the same connection, the stream ID in each subsequent GOAWAY MUST NOT be greater than the previous one (RFC 9114 §5.2).
-* **No streams beyond GOAWAY limit** — after a GOAWAY frame is received, no new request streams should be opened with an ID greater than the indicated last stream ID (RFC 9114 §5.2).
+* **GOAWAY identifier must not increase** — when multiple GOAWAY frames are received from the same peer on a connection, the identifier in each subsequent GOAWAY MUST NOT be greater than the previous one (RFC 9114 §5.2).
+* **No request streams beyond a server GOAWAY limit** — after a *server* GOAWAY (whose identifier is a request stream ID), no new request stream should be opened with an ID greater than the indicated last stream ID (RFC 9114 §5.2).  A client GOAWAY carries a push ID and does not constrain request streams.
 
 ## Specifications
 

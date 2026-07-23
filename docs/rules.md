@@ -205,7 +205,7 @@ Generated index of every rule in the catalogue. Each entry links to the per-rule
 ## Protocol Rules
 
 - [server_quic_transport_parameters](rules/server_quic_transport_parameters.md) — Validates that QUIC transport parameters negotiated during the handshake are reasonable for HTTP/3 usage.  This rule inspects protocol-level `QuicTransportParams` events and checks:
-- [stateful_http3_goaway_semantics](rules/stateful_http3_goaway_semantics.md) — Validates HTTP/3 GOAWAY frame semantics during connection lifecycle.  This rule inspects protocol-level events and checks:
+- [stateful_http3_goaway_semantics](rules/stateful_http3_goaway_semantics.md) — Validates HTTP/3 GOAWAY frame semantics during connection lifecycle.  A GOAWAY's identifier depends on who sent it: a server sends a client-initiated request stream ID, a client sends a push ID (RFC 9114 §5.2), so the checks below are scoped by sender.  This rule inspects protocol-level events and checks:
 - [stateful_http3_max_push_id](rules/stateful_http3_max_push_id.md) — Validates HTTP/3 `MAX_PUSH_ID` frame semantics across the lifetime of a connection.  This rule inspects protocol-level events emitted by the HTTP/3 control-stream parser and checks:
 - [stateful_http3_settings_frame](rules/stateful_http3_settings_frame.md) — Validates HTTP/3 SETTINGS frame semantics on the control stream.  This rule inspects protocol-level events emitted by the QUIC stream wrapper and checks:
 - [stateful_websocket_frame_opcode_sequence](rules/stateful_websocket_frame_opcode_sequence.md) — Validates message-level opcode sequencing rules for WebSocket frames observed during relay.  This rule inspects each frame event and checks:
