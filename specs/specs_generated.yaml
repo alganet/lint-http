@@ -711,25 +711,25 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1005
+      line: 1040
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 946
+      line: 981
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 984
+      line: 1019
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 977
+      line: 1012
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
@@ -1017,7 +1017,7 @@ sources:
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 913
+      line: 948
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 78
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
@@ -1031,20 +1031,56 @@ sources:
     - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
       line: 44
   - label: lint-http-rules/src/helpers/headers.rs (3)
+    section: § 5.6.4
+    snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 913
+  - label: lint-http-rules/src/helpers/headers.rs (4)
+    section: § 5.6.4
+    snippet: qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 844
+  - label: lint-http-rules/src/helpers/headers.rs (5)
+    section: § 5.6.4
+    snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 861
+  - label: lint-http-rules/src/helpers/headers.rs (6)
+    section: § 5.6.4
+    snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 843
+  - label: lint-http-rules/src/helpers/headers.rs (7)
+    section: § 5.6.5
+    snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 690
+  - label: lint-http-rules/src/helpers/headers.rs (8)
+    section: § 5.6.5
+    snippet: ctext          = HTAB / SP / %x21-27 / %x2A-5B / %x5D-7E / obs-text
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 691
+  - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 574
-  - label: lint-http-rules/src/helpers/headers.rs (4)
+  - label: lint-http-rules/src/helpers/headers.rs (10)
     section: § 8.3.1
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1217
+      line: 1252
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 90
-  - label: lint-http-rules/src/helpers/headers.rs (5)
+  - label: lint-http-rules/src/helpers/headers.rs (11)
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
     cited_by:
@@ -1052,15 +1088,15 @@ sources:
       line: 42
     - file: lint-http-rules/src/rules/message_content_length.rs
       line: 27
-  - label: lint-http-rules/src/helpers/headers.rs (6)
+  - label: lint-http-rules/src/helpers/headers.rs (12)
     section: § 8.8.3
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1176
+      line: 1211
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 58
-  - label: lint-http-rules/src/helpers/headers.rs (7)
+  - label: lint-http-rules/src/helpers/headers.rs (13)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque- tags match character-by-character, regardless of either or both being tagged as "weak".
     cited_by:

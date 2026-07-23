@@ -674,6 +674,21 @@ pub fn is_nominated_by_connection(name: &str, connection_header_value: Option<&s
 /// This supports simple comment removal as used in headers like `User-Agent`.
 /// It handles backslash escapes and nested parentheses. Returns `Err` if
 /// comments are unbalanced or the input contains control characters.
+///
+/// `depth` is not a convenience for tracking parentheses -- it is the production
+/// below being self-referential. `comment` appears inside its own definition, so
+/// a comment may contain a comment, and a single "seen an open paren" flag would
+/// be wrong rather than merely coarse: `(a (b) c)` would end at the first `)`
+/// and leak ` c)` into the output.
+///
+/// `ctext` excludes the parentheses themselves (%x21-27 stops before `(` at
+/// %x28, and %x2A-5B resumes after `)` at %x29), which is what makes the
+/// counting sound -- an unescaped paren inside a comment can only ever be
+/// structure, never text. The escape handling below is the other half of that:
+/// `quoted-pair` is in `comment`'s definition too, so `\(` is text.
+///
+// cite(RFC 9110 § 5.6.5): "comment        = "(" *( ctext / quoted-pair / comment ) ")""
+// cite(RFC 9110 § 5.6.5): "ctext          = HTAB / SP / %x21-27 / %x2A-5B / %x5D-7E / obs-text"
 pub fn strip_comments(val: &str) -> Result<String, String> {
     let bytes = val.as_bytes();
     let mut res = String::with_capacity(val.len());
@@ -818,6 +833,15 @@ pub fn split_semicolons_respecting_quotes(s: &str) -> Vec<&str> {
 /// Validate a quoted-string per HTTP rules: must start and end with DQUOTE, support backslash escapes,
 /// must not contain unescaped control characters (except HTAB). Returns Ok(()) on success, Err(msg)
 /// on failure.
+///
+/// The two octet sets below are worth reading side by side, because the whole
+/// function is the difference between them. `qdtext` is what may appear bare;
+/// `quoted-pair` is what may appear after a backslash. HTAB and obs-text are in
+/// both -- HTTP is not Structured Fields, and the same-looking helper in
+/// `structured_fields.rs` is right to reject exactly what this one accepts.
+///
+// cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
+// cite(RFC 9110 § 5.6.4): "qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text"
 pub fn validate_quoted_string(val: &str) -> Result<(), String> {
     let bytes = val.as_bytes();
     if bytes.len() < 2 || bytes[0] != b'"' || bytes[bytes.len() - 1] != b'"' {
@@ -833,6 +857,8 @@ pub fn validate_quoted_string(val: &str) -> Result<(), String> {
             // A backslash does not make anything quotable. The escaped octet has its
             // own set, and it is not the same as qdtext's: SP and VCHAR and HTAB and
             // obs-text may follow a backslash, the remaining controls may not.
+            //
+            // cite(RFC 9110 § 5.6.4): "quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )"
             if !(b == b'\t' || (0x20..=0x7e).contains(&b) || b >= 0x80) {
                 return Err(format!("Invalid quoted-pair in quoted-string: '{}'", val));
             }
@@ -876,6 +902,15 @@ pub fn quoted_string_inner_trimmed_is_empty(val: &str) -> Result<bool, String> {
 /// - Returns `Ok(inner_string)` on success or `Err(msg)` if the input is not a valid quoted-string.
 ///
 /// This helper centralizes quoted-string unescaping to avoid duplication across rules.
+///
+/// Unlike its neighbours, the sentence below is not a grammar -- it is an
+/// instruction about what a recipient must *do*, and every caller here is a
+/// recipient. It also says why the substitution is unconditional: the octet
+/// following the backslash, not some interpretation of it, which is why there is
+/// no escape table in this function and should never be one. `\n` in a
+/// quoted-string is the letter n.
+///
+// cite(RFC 9110 § 5.6.4): "Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash."
 pub fn unescape_quoted_string(val: &str) -> Result<String, String> {
     validate_quoted_string(val)?;
     let bytes = val.as_bytes();
