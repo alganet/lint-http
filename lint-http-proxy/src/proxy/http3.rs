@@ -19,11 +19,21 @@ use super::exchange::{exchange, ProxiedRequest};
 use super::Shared;
 use super::{http3_body, tee_body};
 
-/// QUIC transport parameter defaults for the HTTP/3 proxy.
+/// QUIC transport parameter values for the HTTP/3 proxy. **These are this
+/// proxy's policy, not anyone's defaults.**
 ///
-/// These are chosen to be reasonable for HTTP/3 usage per RFC 9114 / RFC 9000
-/// §18.2.  The values are recorded in a [`QuicTransportParameters`] so they
-/// can be emitted as protocol events and validated by lint rules.
+/// This said the values were "chosen to be reasonable for HTTP/3 usage per RFC
+/// 9114 / RFC 9000 §18.2", which reads as though § 18.2 endorses them. It does
+/// not. § 18.2 defines what each parameter *means* and what its absence means --
+/// that an absent or zero stream limit leaves the peer unable to open streams
+/// until a MAX_STREAMS frame arrives, and that an omitted or zero idle timeout
+/// disables the timeout entirely. That is why these must be set to something
+/// non-zero. It is not why they are 256, 8 and 30s; nothing in either document
+/// recommends a number. Those are ours, and they are uncited because there is
+/// no sentence to cite -- which is the honest answer, not a gap to fill later.
+///
+/// The values are recorded in a [`QuicTransportParameters`] so they can be
+/// emitted as protocol events and validated by lint rules.
 const QUIC_MAX_CONCURRENT_BIDI_STREAMS: u64 = 256;
 const QUIC_MAX_CONCURRENT_UNI_STREAMS: u64 = 8;
 const QUIC_MAX_IDLE_TIMEOUT_MS: u64 = 30_000;
