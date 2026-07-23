@@ -40,7 +40,15 @@ captures_include_body = false
 # whose authority is in h3_upstream_authorities are attempted over H3; all others
 # use the H1/H2 client. Default: false.
 # h3_upstream_enabled = false
+# Origins always tried over H3 (pre-seeds discovery; the first request to an
+# origin can't have learned Alt-Svc yet).
 # h3_upstream_authorities = ["origin.example.com:443"]
+# Origins that must never use H3, even if Alt-Svc advertises it.
+# h3_upstream_denylist = ["legacy.example.com:443"]
+# Trust an origin's Alt-Svc header to discover an H3 endpoint at runtime. A
+# discovered endpoint is still only used once its cert validates for the origin
+# authority. Set false to route H3 solely from h3_upstream_authorities. Default: true.
+# h3_upstream_trust_alt_svc = true
 # UDP bind address for the H3 upstream client. Default: "0.0.0.0:0".
 # h3_upstream_bind = "0.0.0.0:0"
 # Extra CA PEM files to trust for origin H3 endpoint certificates (private CAs),

@@ -120,17 +120,17 @@ pub(super) async fn exchange(
     // what lands in `tx.response.version` (a fall-back records its real version).
     let h3_target = uri.authority().and_then(|a| {
         let authority = a.as_str();
-        shared
-            .upstream
-            .h3
-            .as_ref()
-            .filter(|h3| h3.handles(authority) && !h3.is_suppressed(authority))
-            .map(|h3| (h3, authority.to_string()))
+        let h3 = shared.upstream.h3.as_ref()?;
+        if h3.is_suppressed(authority) {
+            return None;
+        }
+        h3.route_for(authority)
+            .map(|route| (h3, authority.to_string(), route))
     });
-    let resp: Result<hyper::Response<ResponseBody>, String> = if let Some((h3, authority)) =
+    let resp: Result<hyper::Response<ResponseBody>, String> = if let Some((h3, authority, route)) =
         h3_target
     {
-        match h3.forward(upstream_req).await {
+        match h3.forward(upstream_req, &route).await {
             Ok(r) => {
                 h3.record_success(&authority);
                 Ok(r)
@@ -192,6 +192,15 @@ pub(super) async fn exchange(
     let status = resp.status().as_u16();
     let upstream_headers = resp.headers().clone();
     let resp_ver = format_http_version(resp.version());
+
+    // Feed any `Alt-Svc` advertisement (seen on whichever leg served this
+    // response) into the H3 discovery cache, so a later request to this origin
+    // can opportunistically use H3 (RFC 7838 / RFC 9114 §3.1.1).
+    if let Some(h3) = shared.upstream.h3.as_ref() {
+        if let Some(a) = uri.authority() {
+            h3.record_alt_svc(a.as_str(), a.host(), &upstream_headers);
+        }
+    }
 
     // Status, headers, and upgrade info are known immediately. The body streams
     // to the client unbuffered while `TeeBody` copies a bounded prefix and sums
