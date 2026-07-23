@@ -238,6 +238,26 @@ async fn run_proxy_inner(
         shutdown: shutdown.clone(),
     });
 
+    // Periodically evict idle pooled H3 *upstream* connections. Only spawned when
+    // the H3 upstream client exists; cancelled on shutdown.
+    let pool_sweep_handle = shared.upstream.h3.is_some().then(|| {
+        let shared_sweep = shared.clone();
+        let sweep_shutdown = shutdown.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(30));
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        if let Some(h3) = shared_sweep.upstream.h3.as_ref() {
+                            h3.sweep_idle();
+                        }
+                    }
+                    _ = sweep_shutdown.cancelled() => break,
+                }
+            }
+        })
+    });
+
     // Start HTTP/3 (QUIC) accept loop if an endpoint was created. It shares the
     // same connection semaphore as TCP, so `max_connections` bounds both
     // transports and the drain barrier below waits for live H3 connections too.
@@ -311,6 +331,9 @@ async fn run_proxy_inner(
 
     let _ = cleanup_handle.await;
     if let Some(handle) = h3_handle {
+        let _ = handle.await;
+    }
+    if let Some(handle) = pool_sweep_handle {
         let _ = handle.await;
     }
 

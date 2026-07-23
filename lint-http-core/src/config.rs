@@ -134,6 +134,19 @@ pub struct GeneralConfig {
     #[serde(default = "default_h3_upstream_negative_ttl_seconds")]
     pub h3_upstream_negative_ttl_seconds: u64,
 
+    /// How long (ms) a pooled H3 upstream connection may sit idle before it is
+    /// evicted and a fresh connection is opened on the next request. Kept below
+    /// the QUIC idle timeout so the pool reuses only still-live connections
+    /// (default: 25000).
+    #[serde(default = "default_h3_upstream_pool_idle_ms")]
+    pub h3_upstream_pool_idle_ms: u64,
+
+    /// Maximum number of pooled H3 upstream connections (one per origin
+    /// authority). When exceeded, the least-recently-used connection is evicted
+    /// (default: 256).
+    #[serde(default = "default_h3_upstream_pool_max")]
+    pub h3_upstream_pool_max: usize,
+
     /// Whether the live capture stream endpoint (`GET /_lint_http/stream`, an
     /// SSE feed of each transaction as it commits) is served. It exposes every
     /// proxied transaction (and body prefixes when `captures_include_body` is
@@ -187,6 +200,14 @@ const fn default_h3_upstream_trust_alt_svc() -> bool {
     true
 }
 
+const fn default_h3_upstream_pool_idle_ms() -> u64 {
+    25_000
+}
+
+const fn default_h3_upstream_pool_max() -> usize {
+    256
+}
+
 fn default_listen() -> String {
     "127.0.0.1:3000".to_string()
 }
@@ -227,6 +248,8 @@ impl Default for GeneralConfig {
             h3_upstream_extra_ca_certs: Vec::new(),
             h3_upstream_connect_timeout_ms: default_h3_upstream_connect_timeout_ms(),
             h3_upstream_negative_ttl_seconds: default_h3_upstream_negative_ttl_seconds(),
+            h3_upstream_pool_idle_ms: default_h3_upstream_pool_idle_ms(),
+            h3_upstream_pool_max: default_h3_upstream_pool_max(),
             live_stream_enabled: default_live_stream_enabled(),
         }
     }

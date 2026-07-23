@@ -99,11 +99,35 @@ struct DiscoveryEntry {
 /// endpoint to dial (the origin itself, or an Alt-Svc alternative) and the TLS
 /// server name — always the **origin** authority host, so the endpoint's
 /// certificate must validate *for the origin* (RFC 7838 §2.1 / RFC 9114 §3.3),
-/// not merely for the alternative's own name.
+/// not merely for the alternative's own name. `authority` is the pool key.
 pub(super) struct H3Route {
     dial_host: String,
     dial_port: u16,
     authority_host: String,
+    authority: String,
+}
+
+/// The clonable request-sender handle for a pooled h3 connection. `SendRequest`
+/// is `Clone` (an internal refcount keeps the connection open while any clone
+/// lives), so one pooled connection multiplexes many concurrent request streams.
+type H3Send = h3::client::SendRequest<h3_quinn::OpenStreams, Bytes>;
+
+/// A live, pooled HTTP/3 connection to one origin, reused across requests
+/// (RFC 9114 §3.3: SHOULD NOT open more than one connection to a given endpoint).
+/// Held behind an `Arc`: the pool keeps one strong ref, and each in-flight
+/// response body keeps another, so eviction never tears down a connection whose
+/// response is still streaming — the driver is aborted only when the last ref
+/// drops.
+struct PooledConn {
+    send: H3Send,
+    driver: tokio::task::JoinHandle<()>,
+    last_used: Mutex<Instant>,
+}
+
+impl Drop for PooledConn {
+    fn drop(&mut self) {
+        self.driver.abort();
+    }
 }
 
 /// Shared HTTP/3 upstream client: one quinn client endpoint plus the set of
@@ -127,6 +151,12 @@ pub(super) struct H3UpstreamClient {
     negative: Mutex<HashMap<String, NegEntry>>,
     /// Alt-Svc discovery cache: origin authority → advertised H3 endpoints.
     discovery: Mutex<HashMap<String, DiscoveryEntry>>,
+    /// Connection pool: origin authority → live reusable connection.
+    pool: Mutex<HashMap<String, Arc<PooledConn>>>,
+    /// Idle window after which a pooled connection is evicted.
+    pool_idle: Duration,
+    /// Maximum pooled connections; LRU-evicted past this.
+    pool_max: usize,
 }
 
 impl H3UpstreamClient {
@@ -197,6 +227,9 @@ impl H3UpstreamClient {
             negative_ttl: Duration::from_secs(cfg.general.h3_upstream_negative_ttl_seconds),
             negative: Mutex::new(HashMap::new()),
             discovery: Mutex::new(HashMap::new()),
+            pool: Mutex::new(HashMap::new()),
+            pool_idle: Duration::from_millis(cfg.general.h3_upstream_pool_idle_ms),
+            pool_max: cfg.general.h3_upstream_pool_max.max(1),
         }))
     }
 
@@ -251,6 +284,7 @@ impl H3UpstreamClient {
                 dial_host: host.clone(),
                 dial_port: port,
                 authority_host: host,
+                authority: authority.to_string(),
             });
         }
         let (dial_host, dial_port) = self.discovered(authority)?;
@@ -258,6 +292,7 @@ impl H3UpstreamClient {
             dial_host,
             dial_port,
             authority_host: host,
+            authority: authority.to_string(),
         })
     }
 
@@ -304,72 +339,140 @@ impl H3UpstreamClient {
         }
     }
 
+    /// Open a fresh QUIC connection to the route's endpoint (validated for the
+    /// origin authority) and spawn its driver, bounded by the connect timeout.
+    async fn connect(&self, route: &H3Route) -> anyhow::Result<PooledConn> {
+        let addr = lookup_endpoint(&route.dial_host, route.dial_port).await?;
+        let handshake = async {
+            let conn = self.endpoint.connect(addr, &route.authority_host)?.await?;
+            let pair = h3::client::new(h3_quinn::Connection::new(conn)).await?;
+            Ok::<_, anyhow::Error>(pair)
+        };
+        let (mut driver, send) = match tokio::time::timeout(self.connect_timeout, handshake).await {
+            Ok(Ok(pair)) => pair,
+            Ok(Err(e)) => return Err(e),
+            Err(_) => return Err(anyhow::anyhow!("h3 upstream connect timed out")),
+        };
+        let driver = tokio::spawn(async move {
+            let _ = poll_fn(|cx| driver.poll_close(cx)).await;
+        });
+        Ok(PooledConn {
+            send,
+            driver,
+            last_used: Mutex::new(Instant::now()),
+        })
+    }
+
+    /// Return a pooled connection for the route's authority — reusing a live,
+    /// non-idle one when possible (`reused = true`), otherwise connecting a fresh
+    /// one and inserting it (evicting the LRU past `pool_max`). `force_fresh`
+    /// skips reuse (used to retry after a pooled connection refused a stream).
+    async fn get_or_connect(
+        &self,
+        route: &H3Route,
+        force_fresh: bool,
+    ) -> anyhow::Result<(Arc<PooledConn>, bool)> {
+        if !force_fresh {
+            let mut pool = self.pool.lock().unwrap();
+            if let Some(conn) = pool.get(&route.authority) {
+                let fresh = conn.last_used.lock().unwrap().elapsed() < self.pool_idle
+                    && !conn.driver.is_finished();
+                if fresh {
+                    *conn.last_used.lock().unwrap() = Instant::now();
+                    return Ok((conn.clone(), true));
+                }
+                pool.remove(&route.authority);
+            }
+        }
+
+        // Connect outside the lock (async); a rare concurrent race may open two
+        // connections to the same origin — acceptable (§3.3 is SHOULD NOT).
+        let conn = Arc::new(self.connect(route).await?);
+        let mut pool = self.pool.lock().unwrap();
+        if pool.len() >= self.pool_max && !pool.contains_key(&route.authority) {
+            if let Some(lru) = pool
+                .iter()
+                .min_by_key(|(_, c)| *c.last_used.lock().unwrap())
+                .map(|(k, _)| k.clone())
+            {
+                pool.remove(&lru);
+            }
+        }
+        pool.insert(route.authority.clone(), conn.clone());
+        Ok((conn, false))
+    }
+
+    /// Drop `conn` from the pool if it is still the mapped connection for
+    /// `authority` (a newer replacement is left untouched). In-flight response
+    /// bodies holding a clone keep it alive until they finish.
+    fn invalidate(&self, authority: &str, conn: &Arc<PooledConn>) {
+        let mut pool = self.pool.lock().unwrap();
+        if pool.get(authority).is_some_and(|c| Arc::ptr_eq(c, conn)) {
+            pool.remove(authority);
+        }
+    }
+
+    /// Evict pooled connections that are idle past `pool_idle` or whose driver
+    /// has ended. Meant to be called periodically from the maintenance loop.
+    pub(super) fn sweep_idle(&self) {
+        let mut pool = self.pool.lock().unwrap();
+        pool.retain(|_, c| {
+            c.last_used.lock().unwrap().elapsed() < self.pool_idle && !c.driver.is_finished()
+        });
+    }
+
     /// Forward `req` (already hop-by-hop stripped) to its origin over HTTP/3 and
     /// return a `hyper::Response` whose body streams the origin's response.
-    /// Opens a fresh QUIC connection each call (P1: no pool). On failure the
-    /// [`H3Failure`] tells the caller whether the request is safe to fall back
-    /// to H1/H2.
+    /// Reuses a pooled connection when possible; on a refused stream (origin
+    /// GOAWAY or a dead idle connection — RFC 9114 §5.2, retry-safe for any
+    /// method) it invalidates that connection and retries once on a fresh one.
+    /// On failure the [`H3Failure`] tells the caller whether the request is safe
+    /// to fall back to H1/H2.
     pub(super) async fn forward(
         &self,
         req: Request<ClientBody>,
         route: &H3Route,
     ) -> Result<Response<ResponseBody>, H3Failure> {
-        // Build the https target + H3 head from the request URI *without
-        // consuming* `req`, so it can be handed back for fall-back. The head
-        // keeps the origin authority (`:authority`); only the dialed socket comes
-        // from the route (an Alt-Svc alternative may differ from the origin).
+        // Build the https target from the request URI *without consuming* `req`,
+        // so it can be handed back for fall-back. The head keeps the origin
+        // authority (`:authority`); only the dialed socket comes from the route.
         let https_uri = match force_https(req.uri()) {
             Ok(u) => u,
             Err(error) => return Err(pre_request(error, req)),
         };
-        let head = match build_h3_head(&req, https_uri) {
-            Ok(h) => h,
-            Err(error) => return Err(pre_request(error, req)),
-        };
-        let addr = match lookup_endpoint(&route.dial_host, route.dial_port).await {
-            Ok(a) => a,
-            Err(error) => return Err(pre_request(error, req)),
-        };
 
-        // Connect + handshake, bounded by the configured timeout. Nothing has
-        // reached the origin yet, so any failure here is safe to retry for any
-        // method and triggers the negative cache. The TLS name is the *origin*
-        // authority host, so a discovered endpoint's cert is validated for the
-        // origin (RFC 7838 §2.1); a mismatch fails here and falls back.
-        let connect = async {
-            let conn = self.endpoint.connect(addr, &route.authority_host)?.await?;
-            let pair = h3::client::new(h3_quinn::Connection::new(conn)).await?;
-            Ok::<_, anyhow::Error>(pair)
-        };
-        let (mut driver, mut send_request) =
-            match tokio::time::timeout(self.connect_timeout, connect).await {
-                Ok(Ok(pair)) => pair,
-                Ok(Err(error)) => return Err(pre_request(error, req)),
-                Err(_) => {
-                    return Err(pre_request(
-                        anyhow::anyhow!("h3 upstream connect timed out"),
-                        req,
-                    ))
-                }
+        // Acquire a stream, reusing a pooled connection when possible. A reused
+        // connection may refuse the stream (origin GOAWAY, or a connection that
+        // died while idle) — those refusals are pre-processing, so per RFC 9114
+        // §5.2 the request is retried once on a fresh connection, safe for any
+        // method. A fresh connection that still can't open a stream is a genuine
+        // pre-request failure (safe to fall back to H1/H2).
+        let mut force_fresh = false;
+        let (mut stream, conn) = loop {
+            // `send_request` consumes the head, so rebuild it per attempt.
+            let head = match build_h3_head(&req, https_uri.clone()) {
+                Ok(h) => h,
+                Err(error) => return Err(pre_request(error, req)),
             };
-        // Drive the connection in the background so request/response frames make
-        // progress; aborted when the response body is dropped (see `ConnGuard`).
-        let driver = tokio::spawn(async move {
-            let _ = poll_fn(|cx| driver.poll_close(cx)).await;
-        });
-
-        // Open the request stream and send the header section. The origin may
-        // have seen the header bytes, but the body is still intact, so fall-back
-        // is safe only for an idempotent method (`pre_request = false`).
-        let mut stream = match send_request.send_request(head).await {
-            Ok(s) => s,
-            Err(e) => {
-                driver.abort();
-                return Err(H3Failure::Retryable {
-                    error: anyhow::anyhow!("h3 upstream send_request: {e}"),
-                    request: Box::new(req),
-                    pre_request: false,
-                });
+            let (conn, reused) = match self.get_or_connect(route, force_fresh).await {
+                Ok(c) => c,
+                Err(error) => return Err(pre_request(error, req)),
+            };
+            match conn.send.clone().send_request(head).await {
+                Ok(stream) => break (stream, conn),
+                Err(e) => {
+                    self.invalidate(&route.authority, &conn);
+                    if reused {
+                        // The pooled connection refused the stream; retry fresh.
+                        force_fresh = true;
+                        continue;
+                    }
+                    return Err(H3Failure::Retryable {
+                        error: anyhow::anyhow!("h3 upstream send_request: {e}"),
+                        request: Box::new(req),
+                        pre_request: true,
+                    });
+                }
             }
         };
 
@@ -395,7 +498,6 @@ impl H3UpstreamClient {
             Ok::<_, anyhow::Error>(())
         };
         if let Err(error) = send_body.await {
-            driver.abort();
             return Err(H3Failure::Consumed { error });
         }
 
@@ -403,19 +505,17 @@ impl H3UpstreamClient {
             match tokio::time::timeout(self.connect_timeout, stream.recv_response()).await {
                 Ok(Ok(r)) => r,
                 Ok(Err(e)) => {
-                    driver.abort();
                     return Err(H3Failure::Consumed {
                         error: anyhow::anyhow!("h3 upstream recv_response: {e}"),
                     });
                 }
                 Err(_) => {
-                    driver.abort();
                     return Err(H3Failure::Consumed {
                         error: anyhow::anyhow!("h3 upstream response timed out"),
                     });
                 }
             };
-        let (send_half, recv_half) = stream.split();
+        let (_send_half, recv_half) = stream.split();
 
         // Record the origin leg's version as HTTP/3 (see the exchange core, which
         // reads `resp.version()` into `tx.response.version`).
@@ -426,15 +526,13 @@ impl H3UpstreamClient {
             builder = builder.header(name, value);
         }
 
-        let guard = ConnGuard {
-            _send_request: Box::new(send_request),
-            _send_half: Box::new(send_half),
-            driver,
-        };
+        // The response body keeps the pooled connection alive while it streams
+        // (the pool holds another ref); it does not abort the driver — the
+        // connection stays pooled for reuse and is torn down only on eviction.
         let resp_body = H3ResponseBody {
             recv: recv_half,
             state: RespState::Data,
-            _guard: guard,
+            _conn: conn,
         }
         .boxed_unsync();
 
@@ -596,24 +694,6 @@ fn force_https(uri: &Uri) -> anyhow::Result<Uri> {
     Ok(Uri::from_parts(parts)?)
 }
 
-/// Keeps the QUIC connection alive for as long as the response body streams.
-///
-/// Dropping the last `SendRequest` triggers a client-initiated connection close
-/// in the h3 crate, and the connection only advances while its driver task runs;
-/// so both are held here until the body is fully read (or dropped), at which
-/// point the driver is aborted and the connection winds down.
-struct ConnGuard {
-    _send_request: Box<dyn Send>,
-    _send_half: Box<dyn Send>,
-    driver: tokio::task::JoinHandle<()>,
-}
-
-impl Drop for ConnGuard {
-    fn drop(&mut self) {
-        self.driver.abort();
-    }
-}
-
 /// Whether the next poll reads response data, then trailers, then ends — the
 /// receive-side mirror of [`super::http3_body`]'s request-body adapter.
 enum RespState {
@@ -624,11 +704,12 @@ enum RespState {
 
 /// Streams the origin's HTTP/3 response body out of the recv half of the client
 /// request stream, yielding a trailers frame after the data if the origin sent
-/// any. Owns a [`ConnGuard`] so the connection outlives the stream.
+/// any. Holds an `Arc` to the pooled connection so it outlives the stream even
+/// if the pool evicts the connection mid-response.
 struct H3ResponseBody<S> {
     recv: h3::client::RequestStream<S, Bytes>,
     state: RespState,
-    _guard: ConnGuard,
+    _conn: Arc<PooledConn>,
 }
 
 impl<S> Body for H3ResponseBody<S>
