@@ -30,9 +30,15 @@ pub type EventSink = Arc<dyn Fn(ProtocolEventKind) + Send + Sync>;
 /// The encoded length in bytes of a QUIC variable-length integer, read from
 /// the first byte.
 ///
-/// The shift is not a trick. The two most significant bits hold the *base-2
-/// logarithm* of the length, so `1 << prefix` is the length itself and the
-/// only lengths that exist are 1, 2, 4 and 8.
+/// The shift is not a trick, and the sentence below is why: the two most
+/// significant bits hold the *base-2 logarithm* of the length, so `1 << prefix`
+/// is the length itself and the only lengths that can exist are 1, 2, 4 and 8.
+/// The second sentence is what licenses `varint_value`'s four arms and no
+/// others -- and note it also rules out a "minimal encoding" assumption, which
+/// § 16 spends a later paragraph forbidding: 0x4025 and 0x25 both mean 37.
+///
+// cite(RFC 9000 § 16): "The QUIC variable-length integer encoding reserves the two most significant bits of the first byte to encode the base-2 logarithm of the integer encoding length in bytes.  The integer value is encoded on the remaining bits, in network byte order."
+// cite(RFC 9000 § 16): "This means that integers are encoded on 1, 2, 4, or 8 bytes and can encode 6-, 14-, 30-, or 62-bit values, respectively."
 fn varint_len(first: u8) -> usize {
     1usize << (first >> 6)
 }
@@ -121,7 +127,8 @@ const H3_FRAME_SETTINGS: u64 = 0x04;
 /// HTTP/3 frame type: MAX_PUSH_ID.
 // cite(RFC 9114 § 7.2.7): "The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate."
 const H3_FRAME_MAX_PUSH_ID: u64 = 0x0D;
-/// HTTP/3 unidirectional stream type for the control stream (RFC 9114 §6.2.1).
+/// HTTP/3 unidirectional stream type for the control stream.
+// cite(RFC 9114 § 6.2.1): "A control stream is indicated by a stream type of 0x00."
 const H3_STREAM_TYPE_CONTROL: u64 = 0x00;
 
 /// Maximum payload we buffer for a single frame.  Frames larger than this
@@ -461,15 +468,57 @@ mod tests {
         assert_eq!(r.feed(bytes[7]), Some(151_288_809_941_952_652));
     }
 
+    /// Every worked example RFC 9000 states, against both decoders.
+    ///
+    /// The four `varint_Nbyte` tests above are already this document's vectors --
+    /// 0x25, 0x7bbd, 0x9d7f3e7d and 0xc2197c5eff14e88c are A.1's, written in hex
+    /// with the provenance left off. This says where they come from, adds the one
+    /// the set was missing, and runs them through `parse_varint_at` too, which
+    /// had never seen them.
+    ///
+    /// The last vector is the interesting one: 0x4025 is 37 encoded on two bytes
+    /// rather than one. A minimal-encoding assumption anywhere in the decoder
+    /// would pass every other case here and fail this one.
+    ///
+    /// The cite names no section, and that is not laziness. This sentence is in
+    /// Appendix A.1, and no appendix is addressable: a `§` selector compares a
+    /// *digit* prefix, so the `A. Pseudocode` node the parser does build can
+    /// never be selected, and `A.1.` is not recognised as a heading at all --
+    /// it has no "Appendix" prefix to match on. `§ A` and `§ A.1` both resolve
+    /// to nothing. Omitting the section is the documented way through: the
+    /// quote locates itself in the whole document, and verification is exactly
+    /// as strong.
+    ///
+    // cite(RFC 9000): "For example, the eight-byte sequence 0xc2197c5eff14e88c decodes to the decimal value 151,288,809,941,952,652; the four-byte sequence 0x9d7f3e7d decodes to 494,878,333; the two-byte sequence 0x7bbd decodes to 15,293; and the single byte 0x25 decodes to 37 (as does the two-byte sequence 0x4025)."
     #[test]
-    fn varint_8byte_example() {
-        let mut r = VarIntReader::new();
-        // From RFC 9000 §A.1: 0xC2197C5EFF14E88C → 151288809941952652
-        let bytes = [0xC2, 0x19, 0x7C, 0x5E, 0xFF, 0x14, 0xE8, 0x8C];
-        for &b in &bytes[..7] {
-            assert_eq!(r.feed(b), None);
+    fn rfc9000_a1_worked_examples() {
+        let vectors: &[(&[u8], u64)] = &[
+            (
+                &[0xC2, 0x19, 0x7C, 0x5E, 0xFF, 0x14, 0xE8, 0x8C],
+                151_288_809_941_952_652,
+            ),
+            (&[0x9D, 0x7F, 0x3E, 0x7D], 494_878_333),
+            (&[0x7B, 0xBD], 15_293),
+            (&[0x25], 37),
+            (&[0x40, 0x25], 37),
+        ];
+
+        for (bytes, expected) in vectors {
+            // fed one byte at a time
+            let mut r = VarIntReader::new();
+            let mut got = None;
+            for &b in *bytes {
+                got = r.feed(b);
+            }
+            assert_eq!(got, Some(*expected), "VarIntReader on {bytes:02X?}");
+
+            // and read from a buffer
+            assert_eq!(
+                parse_varint_at(bytes, 0),
+                Some((*expected, bytes.len())),
+                "parse_varint_at on {bytes:02X?}"
+            );
         }
-        assert_eq!(r.feed(bytes[7]), Some(151_288_809_941_952_652));
     }
 
     #[test]
