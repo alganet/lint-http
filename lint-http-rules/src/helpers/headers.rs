@@ -50,7 +50,7 @@ pub fn validate_content_length(headers: &HeaderMap) -> Result<Option<u128>, Cont
         for t in parse_list_header(s) {
             saw_value = true;
 
-            // cite(RFC 9110 § 8.6): "Content-Length = 1*DIGIT"
+            // cite(RFC 9110 § 8.6, label: Content-Length grammar): "Content-Length = 1*DIGIT"
             if !t.chars().all(|c| c.is_ascii_digit()) {
                 return Err(ContentLengthError::InvalidCharacter(s.to_string()));
             }
@@ -143,7 +143,7 @@ pub fn get_all_header_values(headers: &HeaderMap, name: &str) -> Option<String> 
 pub fn inm_matches_known(inm: &str, known: &str) -> bool {
     fn normalize(s: &str) -> &str {
         let s = s.trim();
-        // cite(RFC 9110 § 13.1.2): "A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match"
+        // cite(RFC 9110 § 13.1.2, label: If-None-Match weak comparison): "A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match"
         if let Some(rest) = s.strip_prefix("W/") {
             rest.trim()
         } else {
@@ -323,7 +323,7 @@ pub fn get_cache_control_max_age(headers: &HeaderMap) -> Option<i64> {
 ///
 /// The resulting string is trimmed but otherwise returned verbatim.
 ///
-// cite(RFC 9110 § 8.8.3.2): "two entity tags are equivalent if their opaque- tags match character-by-character, regardless of either or both being tagged as "weak"."
+// cite(RFC 9110 § 8.8.3.2): "two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak"."
 pub fn normalize_etag(s: &str) -> String {
     let trimmed = s.trim();
     if trimmed.len() >= 2 && (trimmed.starts_with("W/") || trimmed.starts_with("w/")) {
@@ -1003,7 +1003,7 @@ pub fn valid_qvalue(s: &str) -> bool {
     let s = s.trim();
     // The three-decimal cap and the "1 may only be followed by zeroes" asymmetry are
     // both in the production; neither is arbitrary.
-    // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
+    // cite(RFC 9110 § 12.4.2, label: qvalue grammar): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
     if s == "1" || s == "1.0" || s == "1.00" || s == "1.000" {
         return true;
     }
@@ -1278,7 +1278,7 @@ fn validate_domain(domain: &str) -> bool {
 /// Validate an entity-tag (ETag) value. Accepts '*' or an entity-tag
 /// which may be weak (prefix 'W/'). Returns Ok(()) on success or Err(msg) describing the problem.
 pub fn validate_entity_tag(val: &str) -> Result<(), String> {
-    // cite(RFC 9110 § 8.8.3): "entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE"
+    // cite(RFC 9110 § 8.8.3, label: entity-tag grammar): "entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE"
     let s = val.trim();
     if s == "*" {
         return Ok(());
@@ -1319,7 +1319,7 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
         .trim();
     let params = parts.next().map(|p| p.trim()).filter(|p| !p.is_empty());
 
-    // cite(RFC 9110 § 8.3.1): "media-type = type "/" subtype parameters"
+    // cite(RFC 9110 § 8.3.1, label: media-type grammar): "media-type = type "/" subtype parameters"
     if !media.contains('/') {
         return Err(format!(
             "Invalid media-type '{}': missing '/' between type and subtype",
