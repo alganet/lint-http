@@ -32,20 +32,62 @@ label = "{stem}"
 match = "**/*"
 label = "{path}"
 
-# The migration, made monotone. The baseline lists the rule files that carry no
-# cite yet; CI fails if a file *enters* it — a new rule without a citation, or a
-# migrated rule that regressed. `--write` may only remove lines, so putting a file
-# back takes a human edit that a reviewer sees. The baseline only ever shrinks,
-# and shrinking it is the migration. When it is empty, the ratchet *is* the
-# permanent rule, with no second mechanism to keep in step.
+# The migration, made monotone. The baseline lists the files in scope that carry
+# no cite yet; CI fails if a file *enters* it — a new rule without a citation, or
+# a migrated rule that regressed. `--write` may only remove lines, so putting a
+# file back takes a human edit that a reviewer sees. The baseline only ever
+# shrinks, and shrinking it is the migration. When it is empty, the ratchet *is*
+# the permanent rule, with no second mechanism to keep in step.
+#
+# The scope was `lint-http-rules/src/rules/*.rs` while `helpers/` was migrating.
+# It is the whole crate now, and the baseline is *still* empty — which is the only
+# reason this widening is allowed to happen. Widening to a non-empty baseline
+# would have traded "every file in scope is cited" for "every file in scope is
+# cited eventually", and there is no second mechanism to hold the difference.
+# 208 files, 196 cited, 12 excluded below, 0 to migrate.
+#
+# `lint-http-core` and `lint-http-proxy` are deliberately still out of scope, and
+# not because their cites do not work — they do, and both crates carry some. It is
+# that 10 of 11 core files and 18 of 22 proxy files are uncited, and excluding
+# them would mean making 28 claims of "no normative content" about files nobody
+# has read for one. Two of those claims would already be false: `protocol_event.rs`
+# holds the WebSocket opcode table as prose and is citable the day it becomes an
+# enum. An exclude list is a set of assertions, so it may only ever contain
+# assertions someone checked.
 [ratchet]
-scope = "lint-http-rules/src/rules/*.rs"
+scope = "lint-http-rules/src/*.rs"
 baseline = "specs/ratchet.txt"
 
-# `mod.rs` is in that directory but is not a rule: it holds the traits, the
-# registry, and `SpecRef` itself, and enforces no sentence of any specification.
-# It can never earn a citation, so without this it would sit in the baseline
-# forever and the baseline could never empty — which is the one thing the ratchet
-# is counting down to. Excluding it is a claim that it has no normative content,
-# and this is where a reviewer sees the claim.
-exclude = ["lint-http-rules/src/rules/mod.rs"]
+# Every entry here is a claim that a file enforces no sentence of any
+# specification, and this is where a reviewer sees the claim. `*` crosses `/`, so
+# the scope above catches the whole crate and each of these has to earn its line.
+#
+# The two `mod.rs` files hold traits, registries and re-exports. `rules/mod.rs`
+# also holds `SpecRef` itself. Neither can ever earn a citation, and without these
+# they would sit in the baseline forever — so the baseline could never empty,
+# which is the one thing the ratchet is counting down to.
+#
+# `engine.rs` dispatches rules and `lint_protocol.rs` is the protocol-event
+# entry point: both decide *which* rule runs, never what any rule means.
+# `test_helpers.rs` builds fixtures. `lib.rs` is declarations.
+#
+# `gendocs.rs` mentions RFC 9110 and is still plumbing: it renders whatever
+# `SpecRef` a rule declares and formats the URL. The spec strings in it are test
+# fixtures. It enforces nothing; it prints.
+#
+# `queries/` groups stored transactions — by connection, origin, resource. The
+# one to look at twice is `by_origin.rs`, whose doc comment names RFC 6454. It
+# does not implement it: the origin arrives as a caller-supplied string and the
+# query is a URI prefix filter, so no part of `scheme + host + port` is ever
+# parsed or compared. Real origin matching lives in
+# `rules/semantic_origin_matching_for_cors.rs`, and is cited there.
+exclude = [
+    "lint-http-rules/src/rules/mod.rs",
+    "lint-http-rules/src/helpers/mod.rs",
+    "lint-http-rules/src/queries/*.rs",
+    "lint-http-rules/src/engine.rs",
+    "lint-http-rules/src/gendocs.rs",
+    "lint-http-rules/src/lib.rs",
+    "lint-http-rules/src/lint_protocol.rs",
+    "lint-http-rules/src/test_helpers.rs",
+]
