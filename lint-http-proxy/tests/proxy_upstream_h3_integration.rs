@@ -81,6 +81,19 @@ fn gen_test_pki_san(san: rcgen::SanType) -> anyhow::Result<TestPki> {
 /// Captured request headers the origin saw, for the field-discipline assertions.
 type CapturedHeaders = Arc<Mutex<Option<Vec<(String, String)>>>>;
 
+/// Build a QUIC server endpoint for the in-process H3 origin, using `pki`'s leaf
+/// cert and ALPN `h3`.
+fn h3_server_endpoint(pki: &TestPki, bind: SocketAddr) -> anyhow::Result<quinn::Endpoint> {
+    let mut tls = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(vec![pki.leaf_cert.clone()], pki.leaf_key.clone_key())?;
+    tls.alpn_protocols = vec![b"h3".to_vec()];
+    let quic = quinn::crypto::rustls::QuicServerConfig::try_from(tls)
+        .map_err(|e| anyhow::anyhow!("origin QUIC server config: {e}"))?;
+    let server_config = quinn::ServerConfig::with_crypto(Arc::new(quic));
+    Ok(quinn::Endpoint::server(server_config, bind)?)
+}
+
 /// Start an in-process HTTP/3 origin that replies `200` `"world"` with an
 /// `x-origin: h3` header and records the request headers it received. Returns
 /// its UDP address, the captured-headers handle, and the accept-loop task.
@@ -88,15 +101,7 @@ fn start_h3_origin(
     pki: &TestPki,
     bind: SocketAddr,
 ) -> anyhow::Result<(SocketAddr, CapturedHeaders, tokio::task::JoinHandle<()>)> {
-    let mut tls = rustls::ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(vec![pki.leaf_cert.clone()], pki.leaf_key.clone_key())?;
-    tls.alpn_protocols = vec![b"h3".to_vec()];
-
-    let quic = quinn::crypto::rustls::QuicServerConfig::try_from(tls)
-        .map_err(|e| anyhow::anyhow!("origin QUIC server config: {e}"))?;
-    let server_config = quinn::ServerConfig::with_crypto(Arc::new(quic));
-    let endpoint = quinn::Endpoint::server(server_config, bind)?;
+    let endpoint = h3_server_endpoint(pki, bind)?;
     let addr = endpoint.local_addr()?;
 
     let captured: CapturedHeaders = Arc::new(Mutex::new(None));
@@ -609,6 +614,168 @@ async fn upstream_h3_discovered_endpoint_with_wrong_cert_is_not_used() -> anyhow
 
     proxy_handle.abort();
     e_handle.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    let _ = tokio::fs::remove_file(&ca_pem_path).await;
+    Ok(())
+}
+
+/// An H3 origin that counts accepted QUIC connections and serves `200`/"world"
+/// for every request stream (multiplexed), so a test can assert that pooling
+/// reuses one connection across requests.
+fn start_h3_origin_counting(
+    pki: &TestPki,
+    bind: SocketAddr,
+) -> anyhow::Result<(SocketAddr, Arc<AtomicUsize>, tokio::task::JoinHandle<()>)> {
+    let endpoint = h3_server_endpoint(pki, bind)?;
+    let addr = endpoint.local_addr()?;
+    let conns = Arc::new(AtomicUsize::new(0));
+    let conns_loop = conns.clone();
+    let handle = tokio::spawn(async move {
+        while let Some(incoming) = endpoint.accept().await {
+            conns_loop.fetch_add(1, Ordering::SeqCst);
+            tokio::spawn(async move {
+                let Ok(conn) = incoming.await else { return };
+                let Ok(mut h3) =
+                    h3::server::Connection::<_, Bytes>::new(h3_quinn::Connection::new(conn)).await
+                else {
+                    return;
+                };
+                while let Ok(Some(resolver)) = h3.accept().await {
+                    tokio::spawn(async move {
+                        if let Ok((_req, mut stream)) = resolver.resolve_request().await {
+                            let resp = http::Response::builder().status(200).body(()).unwrap();
+                            let _ = stream.send_response(resp).await;
+                            let _ = stream.send_data(Bytes::from_static(b"world")).await;
+                            let _ = stream.finish().await;
+                        }
+                    });
+                }
+            });
+        }
+    });
+    Ok((addr, conns, handle))
+}
+
+/// An H3 origin that counts accepted connections, serves exactly one request per
+/// connection, then sends GOAWAY (via `shutdown`) refusing further streams — so
+/// a reused pooled connection is refused and the proxy must retry on a fresh one.
+fn start_h3_origin_goaway(
+    pki: &TestPki,
+    bind: SocketAddr,
+) -> anyhow::Result<(SocketAddr, Arc<AtomicUsize>, tokio::task::JoinHandle<()>)> {
+    let endpoint = h3_server_endpoint(pki, bind)?;
+    let addr = endpoint.local_addr()?;
+    let conns = Arc::new(AtomicUsize::new(0));
+    let conns_loop = conns.clone();
+    let handle = tokio::spawn(async move {
+        while let Some(incoming) = endpoint.accept().await {
+            conns_loop.fetch_add(1, Ordering::SeqCst);
+            tokio::spawn(async move {
+                let Ok(conn) = incoming.await else { return };
+                let Ok(mut h3) =
+                    h3::server::Connection::<_, Bytes>::new(h3_quinn::Connection::new(conn)).await
+                else {
+                    return;
+                };
+                if let Ok(Some(resolver)) = h3.accept().await {
+                    if let Ok((_req, mut stream)) = resolver.resolve_request().await {
+                        let resp = http::Response::builder().status(200).body(()).unwrap();
+                        let _ = stream.send_response(resp).await;
+                        let _ = stream.send_data(Bytes::from_static(b"world")).await;
+                        let _ = stream.finish().await;
+                    }
+                }
+                // GOAWAY allowing the request just served (grace = 1) but refusing
+                // any further stream; keep the connection alive briefly so it is
+                // the GOAWAY — not a connection close — that refuses the retry.
+                let _ = h3.shutdown(1).await;
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            });
+        }
+    });
+    Ok((addr, conns, handle))
+}
+
+#[tokio::test]
+async fn upstream_h3_pool_reuses_one_connection_across_requests() -> anyhow::Result<()> {
+    let pki = gen_test_pki()?;
+    let ca_pem_path =
+        std::env::temp_dir().join(format!("lint_pool_ca_{}.pem", uuid::Uuid::new_v4()));
+    tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
+
+    let (origin_addr, conns, origin_handle) =
+        start_h3_origin_counting(&pki, "127.0.0.1:0".parse()?)?;
+    let authority = origin_addr.to_string();
+
+    let mut cfg = Config::default();
+    cfg.general.h3_upstream_enabled = true;
+    cfg.general.h3_upstream_authorities = vec![authority.clone()];
+    cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
+    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    // Three sequential requests to the same origin should share one pooled
+    // QUIC connection.
+    for _ in 0..3 {
+        let (status, _h, body) = proxy_get(proxy_addr, &authority, "/p", &[]).await?;
+        assert_eq!(status, 200);
+        assert_eq!(body, b"world");
+    }
+
+    assert_eq!(
+        conns.load(Ordering::SeqCst),
+        1,
+        "three requests should reuse a single pooled H3 connection"
+    );
+
+    proxy_handle.abort();
+    origin_handle.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    let _ = tokio::fs::remove_file(&ca_pem_path).await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn upstream_h3_goaway_refused_request_is_retried_on_fresh_connection() -> anyhow::Result<()> {
+    let pki = gen_test_pki()?;
+    let ca_pem_path =
+        std::env::temp_dir().join(format!("lint_goaway_ca_{}.pem", uuid::Uuid::new_v4()));
+    tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
+
+    let (origin_addr, conns, origin_handle) = start_h3_origin_goaway(&pki, "127.0.0.1:0".parse()?)?;
+    let authority = origin_addr.to_string();
+
+    let mut cfg = Config::default();
+    cfg.general.h3_upstream_enabled = true;
+    cfg.general.h3_upstream_authorities = vec![authority.clone()];
+    cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
+    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    // First request opens and pools a connection; the origin GOAWAYs it after
+    // serving. The second request reuses the pooled connection, is refused, and
+    // must be retried on a fresh connection — so both succeed and the origin
+    // accepts a second connection.
+    let (s1, _h1, b1) = proxy_get(proxy_addr, &authority, "/g", &[]).await?;
+    assert_eq!(s1, 200);
+    assert_eq!(b1, b"world");
+
+    // Let the origin's GOAWAY reach the pooled connection before reusing it.
+    tokio::time::sleep(Duration::from_millis(150)).await;
+
+    let (s2, _h2, b2) = proxy_get(proxy_addr, &authority, "/g", &[]).await?;
+    assert_eq!(
+        s2, 200,
+        "the GOAWAY-refused request is retried on a fresh connection"
+    );
+    assert_eq!(b2, b"world");
+
+    assert!(
+        conns.load(Ordering::SeqCst) >= 2,
+        "a second connection is opened to retry the refused request, got {}",
+        conns.load(Ordering::SeqCst)
+    );
+
+    proxy_handle.abort();
+    origin_handle.abort();
     let _ = tokio::fs::remove_file(&captures_path).await;
     let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())

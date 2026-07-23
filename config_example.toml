@@ -61,6 +61,12 @@ captures_include_body = false
 # failure an origin is not retried over H3 until this window (doubling per
 # consecutive failure) passes. Default: 30.
 # h3_upstream_negative_ttl_seconds = 30
+# Idle time (ms) after which a pooled H3 connection is evicted; kept under the
+# QUIC idle timeout so only live connections are reused. Default: 25000.
+# h3_upstream_pool_idle_ms = 25000
+# Maximum pooled H3 connections (one per origin); LRU-evicted past this.
+# Default: 256.
+# h3_upstream_pool_max = 256
 # Serve the live capture stream at GET /_lint_http/stream (Server-Sent Events,
 # one event per transaction as it commits). Exposes all proxied traffic to
 # anyone who can reach the proxy port, so it is opt-in. Default: false.
