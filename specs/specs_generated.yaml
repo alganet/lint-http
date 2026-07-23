@@ -1695,7 +1695,7 @@ sources:
     snippet: The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate
     cited_by:
     - file: lint-http-proxy/src/h3_instrument.rs
-      line: 125
+      line: 119
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
       line: 48
   - label: lint-http-proxy/src/h3_instrument.rs (2)
@@ -1703,7 +1703,7 @@ sources:
     snippet: The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate.
     cited_by:
     - file: lint-http-proxy/src/h3_instrument.rs
-      line: 128
+      line: 122
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
       line: 40
   - label: message_http3_host_authority_consistency

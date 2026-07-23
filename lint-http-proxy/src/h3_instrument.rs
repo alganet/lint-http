@@ -27,6 +27,36 @@ pub type EventSink = Arc<dyn Fn(ProtocolEventKind) + Send + Sync>;
 
 // ── QUIC variable-length integer helpers ─────────────────────────────
 
+/// The encoded length in bytes of a QUIC variable-length integer, read from
+/// the first byte.
+///
+/// The shift is not a trick. The two most significant bits hold the *base-2
+/// logarithm* of the length, so `1 << prefix` is the length itself and the
+/// only lengths that exist are 1, 2, 4 and 8.
+fn varint_len(first: u8) -> usize {
+    1usize << (first >> 6)
+}
+
+/// The value of a complete QUIC variable-length integer.
+///
+/// `bytes` must be exactly one encoded integer -- `varint_len` bytes of it.
+/// The mask per length is the other half of the same sentence: the two bits
+/// that carried the length are not part of the value, leaving 6, 14, 30 or 62
+/// usable bits.
+fn varint_value(bytes: &[u8]) -> u64 {
+    match bytes.len() {
+        1 => u64::from(bytes[0] & 0x3F),
+        2 => u64::from(u16::from_be_bytes([bytes[0], bytes[1]]) & 0x3FFF),
+        4 => u64::from(u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) & 0x3FFF_FFFF),
+        8 => {
+            let mut arr = [0u8; 8];
+            arr.copy_from_slice(bytes);
+            u64::from_be_bytes(arr) & 0x3FFF_FFFF_FFFF_FFFF
+        }
+        _ => unreachable!("varint_value takes a varint_len-sized slice"),
+    }
+}
+
 /// Incremental parser for QUIC variable-length integers (RFC 9000 §16).
 ///
 /// Feed one byte at a time; the parser returns `Some(value)` once the
@@ -59,31 +89,14 @@ impl VarIntReader {
         self.len += 1;
 
         if self.len == 1 {
-            self.expected = 1 << (byte >> 6);
+            self.expected = varint_len(byte);
         }
 
         if self.len < self.expected {
             return None;
         }
 
-        let value = match self.expected {
-            1 => u64::from(self.buf[0] & 0x3F),
-            2 => {
-                let v = u16::from_be_bytes([self.buf[0], self.buf[1]]);
-                u64::from(v & 0x3FFF)
-            }
-            4 => {
-                let v = u32::from_be_bytes([self.buf[0], self.buf[1], self.buf[2], self.buf[3]]);
-                u64::from(v & 0x3FFF_FFFF)
-            }
-            8 => {
-                let v = u64::from_be_bytes(self.buf);
-                v & 0x3FFF_FFFF_FFFF_FFFF
-            }
-            _ => unreachable!(),
-        };
-
-        Some(value)
+        Some(varint_value(&self.buf[..self.expected]))
     }
 }
 
@@ -93,30 +106,11 @@ fn parse_varint_at(buf: &[u8], pos: usize) -> Option<(u64, usize)> {
     if pos >= buf.len() {
         return None;
     }
-    let first = buf[pos];
-    let len = 1usize << (first >> 6);
+    let len = varint_len(buf[pos]);
     if pos + len > buf.len() {
         return None;
     }
-    let value = match len {
-        1 => u64::from(first & 0x3F),
-        2 => {
-            let v = u16::from_be_bytes([buf[pos], buf[pos + 1]]);
-            u64::from(v & 0x3FFF)
-        }
-        4 => {
-            let v = u32::from_be_bytes([buf[pos], buf[pos + 1], buf[pos + 2], buf[pos + 3]]);
-            u64::from(v & 0x3FFF_FFFF)
-        }
-        8 => {
-            let mut arr = [0u8; 8];
-            arr.copy_from_slice(&buf[pos..pos + 8]);
-            let v = u64::from_be_bytes(arr);
-            v & 0x3FFF_FFFF_FFFF_FFFF
-        }
-        _ => unreachable!(),
-    };
-    Some((value, len))
+    Some((varint_value(&buf[pos..pos + len]), len))
 }
 
 // ── Frame observer state machine ─────────────────────────────────────
