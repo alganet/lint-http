@@ -26,20 +26,28 @@ impl Rule for MessageDateAndTimeHeadersConsistency {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         use chrono::Duration;
 
-        // Tolerate some small clock skew when comparing dates
+        // Tolerate some small clock skew when comparing dates. 60s is a linter
+        // heuristic — no spec licenses it; §8.8.2.1's "MUST NOT ... later than ...
+        // Date" is strict, so this only makes the rule *more* lenient (recorded in
+        // the audit ledger, not cited).
         const ALLOWED_SKEW_SECS: i64 = 60;
         let skew = Duration::seconds(ALLOWED_SKEW_SECS);
 
         // Check Date header (request or response)
         if let Some(hv) = tx.request.headers.get_all("date").iter().next() {
             if let Ok(s) = hv.to_str() {
+                // This is a *recipient* parse: `parse_http_date_to_datetime` owns the
+                // §5.6.7 HTTP-date grammar and the accept-all-three-formats obligation
+                // (so those quotes live there, not duplicated here). The failure below
+                // therefore fires only on an unparseable value — hence "HTTP-date",
+                // not "IMF-fixdate"; the sender's IMF-fixdate obligation is a separate
+                // rule's concern. This rule's own claim is only what Date *is*:
                 // cite(RFC 9110 § 6.6.1): "The "Date" header field represents the date and time at which the message was originated"
-                // cite(RFC 9110 § 5.6.7): "An HTTP-date value represents time as an instance of Coordinated Universal Time (UTC)."
                 if crate::http_date::parse_http_date_to_datetime(s).is_err() {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
-                        message: "Date header is not a valid IMF-fixdate (RFC 9110)".into(),
+                        message: "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)".into(),
                     });
                 }
             } else {
@@ -52,14 +60,16 @@ impl Rule for MessageDateAndTimeHeadersConsistency {
         }
 
         if let Some(resp) = &tx.response {
-            // Response Date check
+            // Response Date check — same recipient parse as the request Date above.
+            // cite(RFC 9110 § 6.6.1): "The "Date" header field represents the date and time at which the message was originated"
             if let Some(hv) = resp.headers.get_all("date").iter().next() {
                 if let Ok(s) = hv.to_str() {
                     if crate::http_date::parse_http_date_to_datetime(s).is_err() {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: config.severity,
-                            message: "Date header is not a valid IMF-fixdate (RFC 9110)".into(),
+                            message: "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)"
+                                .into(),
                         });
                     }
                 } else {
@@ -80,6 +90,7 @@ impl Rule for MessageDateAndTimeHeadersConsistency {
                             Ok(lm_str) => {
                                 match crate::http_date::parse_http_date_to_datetime(lm_str) {
                                     Ok(lm_dt) => {
+                                        // cite(RFC 9110 § 8.8.2.1): "An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1)."
                                         if lm_dt > date_dt + skew {
                                             return Some(Violation {
                                             rule: self.id().into(),
@@ -106,7 +117,10 @@ impl Rule for MessageDateAndTimeHeadersConsistency {
                         }
                     }
 
-                    // Sunset header: must be a valid HTTP-date and should be in the future or at least not in the past relative to Date
+                    // Sunset header: a valid HTTP-date that SHOULD be in the future.
+                    // One §3 sentence licenses both halves — the HTTP-date format and
+                    // the future check below (the skew makes the past-check lenient).
+                    // cite(RFC 8594 § 3): "The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future."
                     for hv in resp.headers.get_all("sunset").iter() {
                         match hv.to_str() {
                             Ok(s) => {
@@ -127,7 +141,7 @@ impl Rule for MessageDateAndTimeHeadersConsistency {
                                         return Some(Violation {
                                         rule: self.id().into(),
                                         severity: config.severity,
-                                        message: "Sunset header is not a valid IMF-fixdate (RFC 8594)".into(),
+                                        message: "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
                                     });
                                     }
                                 }
@@ -146,7 +160,12 @@ impl Rule for MessageDateAndTimeHeadersConsistency {
             }
         }
 
-        // Request-level If-Modified-Since: if Date header present in request, ensure If-Modified-Since not in the future relative to Date
+        // Request-level If-Modified-Since: if a Date header is present, flag an
+        // If-Modified-Since later than it. No spec sentence mandates this ordering
+        // (a conditional date after the request's own Date is merely nonsensical),
+        // so it is a reasonableness heuristic — uncited, recorded in the ledger. The
+        // format of If-Modified-Since is owned by its dedicated rule (parse errors
+        // are skipped here to avoid duplicate reports).
         if let Some(ifms_hv) = tx
             .request
             .headers
@@ -199,7 +218,7 @@ impl Rule for MessageDateAndTimeHeadersConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Validate that date/time related headers are well-formed and mutually consistent. This rule checks `Date`, `Last-Modified`, `If-Modified-Since`, and `Sunset` for valid IMF-fixdate syntax and simple logical consistency: e.g., `Last-Modified` SHOULD NOT be later than `Date`, `Sunset` SHOULD indicate a future time relative to `Date`, and conditional request `If-Modified-Since` values should not be in the future relative to the request `Date`."
+        "Validate that date/time related headers are well-formed and mutually consistent. Each header is parsed as an HTTP-date (a recipient accepts all three formats; the sender-only IMF-fixdate obligation is checked by the per-header format rules), then compared: `Last-Modified` MUST NOT be later than `Date` (RFC 9110 §8.8.2.1), `Sunset` SHOULD indicate a future time relative to `Date` (RFC 8594 §3), and — as a reasonableness check with no direct spec basis — a conditional-request `If-Modified-Since` should not be later than the request's own `Date`. A small clock-skew tolerance is allowed. Values that are not a parseable HTTP-date, or that contain non-UTF8 bytes, are flagged."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -208,7 +227,7 @@ impl Rule for MessageDateAndTimeHeadersConsistency {
                 spec: "RFC 9110",
                 section: Some("6.6.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1",
-                note: "`Date` header (IMF-fixdate)",
+                note: "`Date` header (parsed as HTTP-date for comparison)",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
@@ -280,7 +299,7 @@ mod tests {
         if expect_violation {
             assert!(v.is_some());
             let m = v.unwrap().message;
-            assert!(m.contains("Date header is not a valid IMF-fixdate") || m.contains("non-UTF8"));
+            assert!(m.contains("Date header is not a valid HTTP-date") || m.contains("non-UTF8"));
         } else {
             assert!(v.is_none());
         }
@@ -383,7 +402,7 @@ mod tests {
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
-        assert!(m.contains("Sunset header is not a valid IMF-fixdate"));
+        assert!(m.contains("Sunset header is not a valid HTTP-date"));
         Ok(())
     }
 
@@ -448,7 +467,7 @@ mod tests {
         );
         assert!(v.is_some());
         let m = v.unwrap().message;
-        assert!(m.contains("Date header is not a valid IMF-fixdate"));
+        assert!(m.contains("Date header is not a valid HTTP-date"));
         Ok(())
     }
 
