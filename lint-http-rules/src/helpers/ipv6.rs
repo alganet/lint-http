@@ -16,7 +16,14 @@
 ///
 /// Returns `None` when the bracket is unmatched, the inner part is empty, or the
 /// trailing part is present but not in the form `:digits`.
+///
+/// The sentence cited below is about the brackets and nothing else, which is all
+/// this function decides. `IP-literal = "[" ( IPv6address / IPvFuture ) "]"` is
+/// deliberately *not* quoted here: the inner text is handed back unexamined, so
+/// quoting a production that constrains it would claim a check that happens --
+/// when it happens at all -- in the caller.
 pub fn parse_bracketed_ipv6(s: &str) -> Option<(&str, Option<&str>)> {
+    // cite(RFC 3986 § 3.2.2): "A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]")."
     if !s.starts_with('[') {
         return None;
     }
@@ -59,6 +66,16 @@ pub fn parse_port_str(port: &str) -> Option<u16> {
 /// Detects an unbracketed IPv6-ish string that contains a port-like suffix,
 /// e.g., `fe80::1:80` — callers should treat these as violations for headers
 /// where IPv6+port must be bracketed.
+///
+/// This is the same sentence as `parse_bracketed_ipv6`'s, read the other way
+/// round: the brackets are what distinguish an IPv6 literal host, so a bare
+/// `fe80::1:80` cannot be one, and the trailing `:80` is unreachable as a port
+/// because nothing marks where the address stopped. The second sentence is why
+/// the answer is knowable at all -- brackets appear nowhere else in the syntax,
+/// so their absence is not ambiguous.
+///
+// cite(RFC 3986 § 3.2.2): "A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]")."
+// cite(RFC 3986 § 3.2.2): "This is the only place where square bracket characters are allowed in the URI syntax."
 pub fn looks_like_unbracketed_ipv6_with_port(s: &str) -> bool {
     // Conservative check: ensure trailing ':<digits>' exists and the part before the last ':'
     // parses as an IPv6 address. This avoids misclassifying strings like "::1" as having a

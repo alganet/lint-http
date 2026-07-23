@@ -288,6 +288,48 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
       line: 27
+  - label: lint-http-rules/src/helpers/ipv6.rs
+    section: § 3.2.2
+    snippet: A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]").
+    cited_by:
+    - file: lint-http-rules/src/helpers/ipv6.rs
+      line: 26
+    - file: lint-http-rules/src/helpers/ipv6.rs
+      line: 77
+  - label: lint-http-rules/src/helpers/ipv6.rs (2)
+    section: § 3.2.2
+    snippet: This is the only place where square bracket characters are allowed in the URI syntax.
+    cited_by:
+    - file: lint-http-rules/src/helpers/ipv6.rs
+      line: 78
+- label: RFC 5646
+  url: https://www.rfc-editor.org/rfc/rfc5646.txt
+  type: text/plain
+  fragments:
+  - label: lint-http-rules/src/helpers/language.rs
+    section: § 2.1
+    snippet: A language tag is composed from a sequence of one or more "subtags", each of which refines or narrows the range of language identified by the overall tag.
+    cited_by:
+    - file: lint-http-rules/src/helpers/language.rs
+      line: 51
+  - label: lint-http-rules/src/helpers/language.rs (2)
+    section: § 2.1
+    snippet: All subtags have a maximum length of eight characters.
+    cited_by:
+    - file: lint-http-rules/src/helpers/language.rs
+      line: 60
+  - label: lint-http-rules/src/helpers/language.rs (3)
+    section: § 2.1
+    snippet: Subtags, in turn, are a sequence of alphanumeric characters (letters and digits), distinguished and separated from other subtags in a tag by a hyphen ("-", [Unicode] U+002D).
+    cited_by:
+    - file: lint-http-rules/src/helpers/language.rs
+      line: 37
+  - label: lint-http-rules/src/helpers/language.rs (4)
+    section: § 2.1
+    snippet: Whitespace is not permitted in a language tag.
+    cited_by:
+    - file: lint-http-rules/src/helpers/language.rs
+      line: 31
 - label: RFC 5789
   url: https://www.rfc-editor.org/rfc/rfc5789.txt
   type: text/plain
