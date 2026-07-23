@@ -830,7 +830,12 @@ pub fn validate_quoted_string(val: &str) -> Result<(), String> {
     while i + 1 < bytes.len() {
         let b = bytes[i];
         if prev_backslash {
-            // escaped char allowed
+            // A backslash does not make anything quotable. The escaped octet has its
+            // own set, and it is not the same as qdtext's: SP and VCHAR and HTAB and
+            // obs-text may follow a backslash, the remaining controls may not.
+            if !(b == b'\t' || (0x20..=0x7e).contains(&b) || b >= 0x80) {
+                return Err(format!("Invalid quoted-pair in quoted-string: '{}'", val));
+            }
             prev_backslash = false;
         } else if b == b'\\' {
             prev_backslash = true;
@@ -1511,6 +1516,30 @@ mod tests {
     }
 
     // Quoted-string helper tests
+    /// `qdtext` and `quoted-pair` allow different octets after their respective
+    /// positions, and a backslash does not widen the set to "anything".
+    #[test]
+    fn quoted_pair_octet_is_constrained() {
+        // HTAB / SP / VCHAR / obs-text may follow a backslash.
+        assert!(validate_quoted_string("\"\\\t\"").is_ok());
+        assert!(validate_quoted_string("\"\\ \"").is_ok());
+        assert!(validate_quoted_string("\"\\a\"").is_ok());
+        assert!(validate_quoted_string("\"\\\u{80}\"").is_ok());
+        // The other controls may not, escaped or otherwise.
+        assert!(validate_quoted_string("\"\\\u{1}\"").is_err());
+        assert!(validate_quoted_string("\"\\\n\"").is_err());
+        assert!(validate_quoted_string("\"\\\u{7f}\"").is_err());
+    }
+
+    /// HTTP's `qdtext` admits HTAB and obs-text, which is the opposite of the
+    /// Structured Fields String rule -- same shape, different document.
+    #[test]
+    fn qdtext_admits_htab_and_obs_text() {
+        assert!(validate_quoted_string("\"a\tb\"").is_ok());
+        assert!(validate_quoted_string("\"caf\u{e9}\"").is_ok());
+        assert!(validate_quoted_string("\"a\u{1}b\"").is_err());
+    }
+
     #[test]
     fn validate_quoted_string_control_char_reports_violation() {
         let s = "\"bad\x01str\"";
