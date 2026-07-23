@@ -26,6 +26,7 @@ use crate::state::ClientIdentifier;
 
 use super::hop_by_hop::{format_http_version, is_hop_by_hop_header, parse_connection_tokens};
 use super::tee_body::{self, CapturedBody};
+use super::upstream_h3::H3Failure;
 use super::{boxed_full, BoxError, ClientBody, ResponseBody, Shared};
 
 /// The post-front-half request inputs both transports compute, ready for the
@@ -112,27 +113,58 @@ pub(super) async fn exchange(
     };
 
     // Choose the upstream transport at this single seam: HTTP/3 when the origin
-    // authority is on the H3 allowlist (capability-driven, opt-in), else the
-    // hyper H1/H2 client. Both branches yield a `Response<ResponseBody>` so the
-    // tee/commit machinery below is identical; the H3 branch stamps the response
-    // version as HTTP/3, which is what lands in `tx.response.version`.
-    let h3_client = uri.authority().and_then(|a| {
+    // authority is on the H3 allowlist (capability-driven, opt-in) and not
+    // currently negative-cached, else the hyper H1/H2 client. Both branches
+    // yield a `Response<ResponseBody>` so the tee/commit machinery below is
+    // identical; the H3 branch stamps the response version as HTTP/3, which is
+    // what lands in `tx.response.version` (a fall-back records its real version).
+    let h3_target = uri.authority().and_then(|a| {
+        let authority = a.as_str();
         shared
             .upstream
             .h3
             .as_ref()
-            .filter(|h3| h3.handles(a.as_str()))
+            .filter(|h3| h3.handles(authority) && !h3.is_suppressed(authority))
+            .map(|h3| (h3, authority.to_string()))
     });
-    let resp: Result<hyper::Response<ResponseBody>, String> = if let Some(h3) = h3_client {
-        h3.forward(upstream_req).await.map_err(|e| e.to_string())
+    let resp: Result<hyper::Response<ResponseBody>, String> = if let Some((h3, authority)) =
+        h3_target
+    {
+        match h3.forward(upstream_req).await {
+            Ok(r) => {
+                h3.record_success(&authority);
+                Ok(r)
+            }
+            Err(H3Failure::Retryable {
+                error,
+                request,
+                pre_request,
+            }) => {
+                // A connect/handshake failure marks the origin as not currently
+                // reachable over H3. Fall back to H1/H2 when it is safe: always
+                // for a pre-request failure (nothing reached the origin), else
+                // only for an idempotent method (RFC 9110 §9.2.2) — a header-sent
+                // failure of a non-idempotent method must not be blindly retried.
+                if pre_request {
+                    h3.record_failure(&authority);
+                }
+                if pre_request || method.is_idempotent() {
+                    warn!(%authority, error = %error, "h3 upstream unavailable; falling back to H1/H2");
+                    forward_via_hyper(shared, *request).await
+                } else {
+                    Err(format!(
+                        "h3 upstream error (non-idempotent, not retried): {error}"
+                    ))
+                }
+            }
+            Err(H3Failure::Consumed { error }) => {
+                // Request bytes were in flight with no response; the streaming
+                // body cannot be replayed, so surface the failure as-is.
+                Err(format!("h3 upstream error: {error}"))
+            }
+        }
     } else {
-        shared
-            .upstream
-            .client
-            .request(upstream_req)
-            .await
-            .map(|r| r.map(|b| b.map_err(|e| -> BoxError { e.into() }).boxed_unsync()))
-            .map_err(|e| e.to_string())
+        forward_via_hyper(shared, upstream_req).await
     };
     let resp = match resp {
         Ok(r) => r,
@@ -233,6 +265,22 @@ pub(super) async fn exchange(
         headers: out_headers,
         body: resp_body,
     }
+}
+
+/// Send `req` through the hyper H1/H2 client, boxing its response body into the
+/// shared [`ResponseBody`] shape. Used both for non-H3 origins and as the H3
+/// fall-back path, so the two produce an identical result type.
+async fn forward_via_hyper(
+    shared: &Arc<Shared>,
+    req: Request<ClientBody>,
+) -> Result<hyper::Response<ResponseBody>, String> {
+    shared
+        .upstream
+        .client
+        .request(req)
+        .await
+        .map(|r| r.map(|b| b.map_err(|e| -> BoxError { e.into() }).boxed_unsync()))
+        .map_err(|e| e.to_string())
 }
 
 /// Build the upstream request line + headers (method, URI, client headers minus

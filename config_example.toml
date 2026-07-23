@@ -46,6 +46,13 @@ captures_include_body = false
 # Extra CA PEM files to trust for origin H3 endpoint certificates (private CAs),
 # in addition to the platform trust store.
 # h3_upstream_extra_ca_certs = ["/etc/lint-http/origin-ca.pem"]
+# Timeout (ms) for the H3 upstream connect/handshake and response head before
+# falling back to H1/H2. Default: 5000.
+# h3_upstream_connect_timeout_ms = 5000
+# Base backoff (seconds) for the H3 negative cache: after a connect/handshake
+# failure an origin is not retried over H3 until this window (doubling per
+# consecutive failure) passes. Default: 30.
+# h3_upstream_negative_ttl_seconds = 30
 # Serve the live capture stream at GET /_lint_http/stream (Server-Sent Events,
 # one event per transaction as it commits). Exposes all proxied traffic to
 # anyone who can reach the proxy port, so it is opt-in. Default: false.
