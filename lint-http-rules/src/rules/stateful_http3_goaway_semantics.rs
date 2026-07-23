@@ -11,7 +11,9 @@
 //!   indicated last stream ID should be initiated.
 
 use crate::lint::Violation;
-use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
+use crate::protocol_event::{
+    MessageDirection, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
+};
 use crate::rules::ProtocolRule;
 
 pub struct StatefulHttp3GoawaySemantics;
@@ -34,55 +36,78 @@ impl ProtocolRule for StatefulHttp3GoawaySemantics {
             // increase beyond the value sent in a previous GOAWAY.
             ProtocolEventKind::H3GoawayReceived {
                 stream_id: current_id,
-                ..
+                direction: current_dir,
             } => {
                 for prev in history.iter() {
                     if let ProtocolEventKind::H3GoawayReceived {
-                        stream_id: prev_id, ..
+                        stream_id: prev_id,
+                        direction: prev_dir,
                     } = &prev.kind
                     {
+                        // Compare only same-sender GOAWAYs: a server's identifier
+                        // is a request stream ID, a client's is a push ID — two
+                        // different id spaces, so monotonicity holds within each.
+                        // cite(RFC 9114 § 5.2): "The server sends a client-initiated bidirectional stream ID; the client sends a push ID."
+                        if current_dir != prev_dir {
+                            continue;
+                        }
+                        // A later identifier above an earlier one is the error;
+                        // `>` (not `>=`) because re-sending the same value is
+                        // allowed.
+                        // cite(RFC 9114 § 5.2): "Receiving a GOAWAY containing a larger identifier than previously received MUST be treated as a connection error of type H3_ID_ERROR."
                         if let (Some(curr), Some(prev)) = (current_id, prev_id) {
                             if curr > prev {
                                 return Some(Violation {
                                     rule: self.id().into(),
                                     severity: config.severity,
                                     message: format!(
-                                        "HTTP/3 GOAWAY stream ID {} increased from previous {} \
+                                        "HTTP/3 GOAWAY identifier {} increased from previous {} \
                                          (RFC 9114 §5.2)",
                                         curr, prev
                                     ),
                                 });
                             }
                         }
-                        break; // Only check the most recent prior GOAWAY
+                        break; // Only check the most recent prior same-sender GOAWAY
                     }
                 }
                 None
             }
 
-            // After a GOAWAY with a known stream ID, no streams beyond that
-            // ID should open.  When the GOAWAY stream ID is unknown (None)
-            // we cannot determine the limit, so we skip the check to avoid
-            // false positives.
+            // After a *server* GOAWAY with a known stream ID, no request streams
+            // beyond that ID should open. Only a server GOAWAY carries a request
+            // stream ID comparable to an opened stream; a client GOAWAY's push ID
+            // is a different space, so scoping to server GOAWAYs is what makes
+            // this check valid. A `None` id or a non-server GOAWAY is skipped.
             ProtocolEventKind::H3StreamOpened { stream_id } => {
                 for prev in history.iter() {
                     if let ProtocolEventKind::H3GoawayReceived {
-                        stream_id: Some(goaway_id),
-                        ..
+                        stream_id: goaway_id,
+                        direction,
                     } = &prev.kind
                     {
-                        if stream_id > goaway_id {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "HTTP/3 stream {} opened after GOAWAY with last \
-                                     stream ID {} (RFC 9114 §5.2)",
-                                    stream_id, goaway_id
-                                ),
-                            });
+                        // cite(RFC 9114 § 5.2): "The server sends a client-initiated bidirectional stream ID; the client sends a push ID."
+                        if *direction != MessageDirection::Server {
+                            continue;
                         }
-                        break; // Only check the most recent GOAWAY
+                        // Opening a request stream at or beyond the server's
+                        // last-processed stream ID is initiating a new request
+                        // after the GOAWAY, which the endpoint must not do.
+                        // cite(RFC 9114 § 5.2): "Endpoints MUST NOT initiate new requests or promise new pushes on the connection after receipt of a GOAWAY frame from the peer."
+                        if let Some(goaway_id) = goaway_id {
+                            if stream_id > goaway_id {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: config.severity,
+                                    message: format!(
+                                        "HTTP/3 stream {} opened after server GOAWAY with last \
+                                         stream ID {} (RFC 9114 §5.2)",
+                                        stream_id, goaway_id
+                                    ),
+                                });
+                            }
+                        }
+                        break; // Only the most recent server GOAWAY sets the limit
                     }
                 }
                 None
@@ -97,7 +122,7 @@ impl ProtocolRule for StatefulHttp3GoawaySemantics {
     }
 
     fn description(&self) -> &'static str {
-        "Validates HTTP/3 GOAWAY frame semantics during connection lifecycle.  This rule inspects protocol-level events and checks:\n\n* **GOAWAY stream ID must not increase** — when multiple GOAWAY frames are received on the same connection, the stream ID in each subsequent GOAWAY MUST NOT be greater than the previous one (RFC 9114 §5.2).\n* **No streams beyond GOAWAY limit** — after a GOAWAY frame is received, no new request streams should be opened with an ID greater than the indicated last stream ID (RFC 9114 §5.2)."
+        "Validates HTTP/3 GOAWAY frame semantics during connection lifecycle.  A GOAWAY's identifier depends on who sent it: a server sends a client-initiated request stream ID, a client sends a push ID (RFC 9114 §5.2), so the checks below are scoped by sender.  This rule inspects protocol-level events and checks:\n\n* **GOAWAY identifier must not increase** — when multiple GOAWAY frames are received from the same peer on a connection, the identifier in each subsequent GOAWAY MUST NOT be greater than the previous one (RFC 9114 §5.2).\n* **No request streams beyond a server GOAWAY limit** — after a *server* GOAWAY (whose identifier is a request stream ID), no new request stream should be opened with an ID greater than the indicated last stream ID (RFC 9114 §5.2).  A client GOAWAY carries a push ID and does not constrain request streams."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -174,6 +199,18 @@ mod tests {
             ProtocolEventKind::H3GoawayReceived {
                 stream_id,
                 direction: MessageDirection::Client,
+            },
+        )
+    }
+
+    /// A server GOAWAY, whose identifier is a request stream ID — the only kind
+    /// that limits how far client request streams may open.
+    fn make_server_goaway(conn: Uuid, stream_id: Option<u64>) -> ProtocolEvent {
+        make_event(
+            conn,
+            ProtocolEventKind::H3GoawayReceived {
+                stream_id,
+                direction: MessageDirection::Server,
             },
         )
     }
@@ -291,7 +328,7 @@ mod tests {
     fn stream_opened_beyond_goaway_limit_fails() {
         let rule = StatefulHttp3GoawaySemantics;
         let conn = Uuid::new_v4();
-        let goaway = make_goaway(conn, Some(4));
+        let goaway = make_server_goaway(conn, Some(4));
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 5);
         let result = rule.check_event(&evt, &history, &make_config());
@@ -299,6 +336,19 @@ mod tests {
         let msg = result.unwrap().message;
         assert!(msg.contains("stream 5"));
         assert!(msg.contains("last stream ID 4"));
+    }
+
+    #[test]
+    fn stream_opened_after_client_goaway_is_not_a_stream_violation() {
+        // A client GOAWAY carries a *push ID*, not a request stream ID, so it
+        // must not constrain how far request streams may open (the false
+        // positive this scoping prevents).
+        let rule = StatefulHttp3GoawaySemantics;
+        let conn = Uuid::new_v4();
+        let goaway = make_goaway(conn, Some(4)); // client GOAWAY (push id 4)
+        let history = ProtocolEventHistory::new(vec![goaway]);
+        let evt = make_stream_opened(conn, 5);
+        assert!(rule.check_event(&evt, &history, &make_config()).is_none());
     }
 
     #[test]
@@ -395,7 +445,7 @@ mod tests {
             conn,
             ProtocolEventKind::H3GoawayReceived {
                 stream_id: Some(2),
-                direction: MessageDirection::Client,
+                direction: MessageDirection::Server,
             },
             t,
         );
@@ -465,7 +515,7 @@ mod tests {
         // GOAWAY with stream_id=0 means only stream 0 allowed; stream 1 is beyond.
         let rule = StatefulHttp3GoawaySemantics;
         let conn = Uuid::new_v4();
-        let goaway = make_goaway(conn, Some(0));
+        let goaway = make_server_goaway(conn, Some(0));
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 1);
         let result = rule.check_event(&evt, &history, &make_config());

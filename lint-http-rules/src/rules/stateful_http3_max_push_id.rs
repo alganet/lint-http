@@ -11,7 +11,9 @@
 //!   type H3_ID_ERROR.
 
 use crate::lint::Violation;
-use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
+use crate::protocol_event::{
+    MessageDirection, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
+};
 use crate::rules::ProtocolRule;
 
 pub struct StatefulHttp3MaxPushId;
@@ -32,10 +34,27 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
         // The event this rule recognizes is the MAX_PUSH_ID frame itself; every
         // other protocol event is out of scope.
         // cite(RFC 9114 § 7.2.7): "The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate."
-        let current = match &event.kind {
-            ProtocolEventKind::H3MaxPushId { push_id, .. } => *push_id,
+        let (current, direction) = match &event.kind {
+            ProtocolEventKind::H3MaxPushId { push_id, direction } => (*push_id, *direction),
             _ => return None,
         };
+
+        // MAX_PUSH_ID is a client-only frame: a server sending one at all is the
+        // violation, whatever its value. This became checkable once the upstream
+        // leg is observed with a sender direction — a `Server` MAX_PUSH_ID is one
+        // the origin sent to this proxy, which as the receiving client must reject.
+        // cite(RFC 9114 § 7.2.7): "A server MUST NOT send a MAX_PUSH_ID frame.  A client MUST treat the receipt of a MAX_PUSH_ID frame as a connection error of type H3_FRAME_UNEXPECTED."
+        if direction == MessageDirection::Server {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: format!(
+                    "HTTP/3 MAX_PUSH_ID (push_id {}) sent by a server; a server MUST NOT \
+                     send MAX_PUSH_ID (RFC 9114 §7.2.7, H3_FRAME_UNEXPECTED)",
+                    current
+                ),
+            });
+        }
 
         // A value strictly smaller than one already received is the violation;
         // the comparison is `<`, not `<=`, because equal does not reduce the
@@ -80,7 +99,7 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
     }
 
     fn description(&self) -> &'static str {
-        "Validates HTTP/3 `MAX_PUSH_ID` frame semantics across the lifetime of a connection.  This rule inspects protocol-level events emitted by the HTTP/3 control-stream parser and checks:\n\n* **MAX_PUSH_ID must not decrease** — when multiple `MAX_PUSH_ID` frames are received on the same connection, each successive value MUST be greater than or equal to the previous one.  Receipt of a smaller value is a connection error of type `H3_ID_ERROR` (RFC 9114 §7.2.7).\n\nThe first `MAX_PUSH_ID` on a connection establishes the initial limit and is always accepted, regardless of value (zero is valid and means the server is not allowed to push)."
+        "Validates HTTP/3 `MAX_PUSH_ID` frame semantics across the lifetime of a connection.  This rule inspects protocol-level events emitted by the HTTP/3 control-stream parser and checks:\n\n* **A server must not send `MAX_PUSH_ID`** — `MAX_PUSH_ID` is a client-only frame; a `MAX_PUSH_ID` observed from a server is a connection error of type `H3_FRAME_UNEXPECTED` (RFC 9114 §7.2.7), regardless of its value.\n\n* **MAX_PUSH_ID must not decrease** — when multiple `MAX_PUSH_ID` frames are received on the same connection, each successive value MUST be greater than or equal to the previous one.  Receipt of a smaller value is a connection error of type `H3_ID_ERROR` (RFC 9114 §7.2.7).\n\nThe first `MAX_PUSH_ID` on a connection establishes the initial limit and is always accepted, regardless of value (zero is valid and means the server is not allowed to push)."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -112,6 +131,11 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
                 compliance: Compliance::NonCompliant,
                 label: Some("(decreasing MAX_PUSH_ID)"),
                 snippet: "# Client sends MAX_PUSH_ID { push_id: 10 }\n# Client sends MAX_PUSH_ID { push_id: 4 }\n# Violation: MAX_PUSH_ID 4 decreased from previous 10 (RFC 9114 §7.2.7, H3_ID_ERROR)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(server-sent MAX_PUSH_ID)"),
+                snippet: "# Server sends MAX_PUSH_ID { push_id: 5 }\n# Violation: a server MUST NOT send MAX_PUSH_ID (RFC 9114 §7.2.7, H3_FRAME_UNEXPECTED)",
             },
         ]
     }
@@ -159,6 +183,37 @@ mod tests {
                 direction: MessageDirection::Client,
             },
         )
+    }
+
+    // ── A server MUST NOT send MAX_PUSH_ID (RFC 9114 §7.2.7) ──────────────
+
+    #[test]
+    fn server_sent_max_push_id_is_a_violation() {
+        let rule = StatefulHttp3MaxPushId;
+        let conn = Uuid::new_v4();
+        let evt = make_event(
+            conn,
+            ProtocolEventKind::H3MaxPushId {
+                push_id: 5,
+                direction: MessageDirection::Server,
+            },
+        );
+        let v = rule
+            .check_event(&evt, &ProtocolEventHistory::empty(), &make_config())
+            .expect("a server-sent MAX_PUSH_ID must be flagged");
+        assert!(v.message.contains("server"));
+        assert!(v.message.contains("H3_FRAME_UNEXPECTED"));
+    }
+
+    #[test]
+    fn client_sent_max_push_id_is_not_flagged_by_the_server_check() {
+        // The server-only check must not fire for a normal client MAX_PUSH_ID.
+        let rule = StatefulHttp3MaxPushId;
+        let conn = Uuid::new_v4();
+        let evt = make_max_push_id(conn, 5);
+        assert!(rule
+            .check_event(&evt, &ProtocolEventHistory::empty(), &make_config())
+            .is_none());
     }
 
     // ── First MAX_PUSH_ID on a connection: any value is valid ────────────

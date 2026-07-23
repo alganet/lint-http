@@ -1848,7 +1848,7 @@ sources:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 125
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 50
+      line: 51
   - label: lint-http-proxy/src/h3_instrument.rs (3)
     section: § 7.2.6
     snippet: The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint.
@@ -1856,7 +1856,7 @@ sources:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 131
     - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
-      line: 31
+      line: 33
   - label: lint-http-proxy/src/h3_instrument.rs (4)
     section: § 7.2.7
     snippet: The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate.
@@ -1864,7 +1864,7 @@ sources:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 128
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
-      line: 34
+      line: 36
   - label: message_http3_host_authority_consistency
     section: § 4.3.1
     snippet: If both fields are present, they MUST contain the same value.
@@ -1913,54 +1913,80 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
       line: 40
+  - label: stateful_http3_goaway_semantics
+    section: § 5.2
+    snippet: Endpoints MUST NOT initiate new requests or promise new pushes on the connection after receipt of a GOAWAY frame from the peer.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
+      line: 96
+  - label: stateful_http3_goaway_semantics (2)
+    section: § 5.2
+    snippet: Receiving a GOAWAY containing a larger identifier than previously received MUST be treated as a connection error of type H3_ID_ERROR.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
+      line: 57
+  - label: stateful_http3_goaway_semantics (3)
+    section: § 5.2
+    snippet: The server sends a client-initiated bidirectional stream ID; the client sends a push ID.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
+      line: 50
+    - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
+      line: 89
   - label: stateful_http3_max_push_id
     section: § 7.2.7
     snippet: A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
-      line: 43
+      line: 62
   - label: stateful_http3_max_push_id (2)
+    section: § 7.2.7
+    snippet: A server MUST NOT send a MAX_PUSH_ID frame.  A client MUST treat the receipt of a MAX_PUSH_ID frame as a connection error of type H3_FRAME_UNEXPECTED.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
+      line: 46
+  - label: stateful_http3_max_push_id (3)
     section: § 7.2.7
     snippet: The maximum push ID is unset when an HTTP/3 connection is created, meaning that a server cannot push until it receives a MAX_PUSH_ID frame
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
-      line: 74
+      line: 93
   - label: stateful_http3_settings_frame
     section: § 11.2.2
     snippet: The entries in Table 3 are registered by this document
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 26
+      line: 27
   - label: stateful_http3_settings_frame (2)
     section: § 7.2.4
     snippet: A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 62
+      line: 68
   - label: stateful_http3_settings_frame (3)
     section: § 7.2.4
     snippet: An implementation MUST ignore any parameter with an identifier it does not understand
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 113
+      line: 127
   - label: stateful_http3_settings_frame (4)
     section: § 7.2.4
     snippet: SETTINGS frames always apply to an entire HTTP/3 connection, never a single stream
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 58
+      line: 62
   - label: stateful_http3_settings_frame (5)
     section: § 7.2.4
     snippet: The same setting identifier MUST NOT occur more than once in the SETTINGS frame
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 96
+      line: 110
   - label: stateful_http3_settings_frame (6)
     section: § 7.2.4.1
     snippet: These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 77
+      line: 91
 - label: RFC 9218
   url: https://www.rfc-editor.org/rfc/rfc9218.txt
   type: text/plain
