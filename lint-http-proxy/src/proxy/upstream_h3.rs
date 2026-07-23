@@ -121,6 +121,10 @@ pub(super) struct H3Route {
     authority: String,
 }
 
+/// Handle to the spawned request-body pump: it returns the bytes actually sent
+/// and any (post-response-head-benign) send error, or a body-read error.
+type PumpHandle = tokio::task::JoinHandle<Result<(u64, Option<anyhow::Error>), anyhow::Error>>;
+
 /// The clonable request-sender handle for a pooled h3 connection. `SendRequest`
 /// is `Clone` (an internal refcount keeps the connection open while any clone
 /// lives), so one pooled connection multiplexes many concurrent request streams.
@@ -536,7 +540,7 @@ impl H3UpstreamClient {
         // method. A fresh connection that still can't open a stream is a genuine
         // pre-request failure (safe to fall back to H1/H2).
         let mut force_fresh = false;
-        let (mut stream, conn) = loop {
+        let (stream, conn) = loop {
             // `send_request` consumes the head, so rebuild it per attempt.
             let head = match build_h3_head(&req, https_uri.clone()) {
                 Ok(h) => h,
@@ -564,70 +568,109 @@ impl H3UpstreamClient {
             }
         };
 
-        // From here the request body streams to the origin and can no longer be
-        // replayed, so any failure is non-retryable. Mirror the response side of
-        // the client-facing handler: data frames forward as QUIC DATA, a trailing
-        // trailers frame as an H3 trailers section.
+        // From here the request body streams to the origin. Split the stream so
+        // the body is sent *concurrently* with awaiting the response head: an
+        // origin that answers early (e.g. 401/413 before draining a large upload)
+        // is seen immediately instead of only after the whole body is sent.
+        let (mut send, mut recv) = stream.split();
         let (parts, body) = req.into_parts();
         let idempotent = parts.method.is_idempotent();
-        // Count the request-body bytes actually put on the wire. Because the body
-        // is fully sent before the response head is read (send-then-recv), a zero
-        // count at response time is a reliable "the request was bodyless" — a far
-        // sturdier signal than `Body::is_end_stream`, which hyper's streaming
-        // `Incoming` reports as `false` even for an empty body.
-        let send_body = async {
+
+        // Pump the request body on its own task. It always drains the body to the
+        // end (the tee's `Drop` fires `body_done` regardless, so the capture
+        // commit never hangs) and keeps the full-body capture faithful; once the
+        // origin stops reading — `send_data` errors after an early response — it
+        // stops sending but keeps draining. It returns the bytes actually sent
+        // plus any send error, which is benign once a response head has arrived.
+        // Data frames forward as QUIC DATA, a trailing trailers frame as an H3
+        // trailers section (mirroring the client-facing handler).
+        let pump = tokio::spawn(async move {
             let mut body = body;
             let mut sent: u64 = 0;
+            let mut send_err: Option<anyhow::Error> = None;
             while let Some(frame) = body.frame().await {
-                let frame = frame.map_err(|e| anyhow::anyhow!("h3 upstream request body: {e}"))?;
+                let frame = match frame {
+                    Ok(f) => f,
+                    // A client-side body read error ends the upload; the tee's
+                    // `Drop` still fires `body_done`. Report it as the cause.
+                    Err(e) => return Err(anyhow::anyhow!("h3 upstream request body: {e}")),
+                };
+                if send_err.is_some() {
+                    // Origin stopped reading; keep draining so the capture is
+                    // complete, but do not touch the (reset) send half.
+                    continue;
+                }
                 match frame.into_data() {
                     Ok(data) => {
-                        sent += data.len() as u64;
-                        stream.send_data(data).await?;
+                        let n = data.len() as u64;
+                        match send.send_data(data).await {
+                            Ok(()) => sent += n,
+                            Err(e) => send_err = Some(e.into()),
+                        }
                     }
                     Err(frame) => {
                         if let Ok(trailers) = frame.into_trailers() {
-                            stream.send_trailers(trailers).await?;
+                            if let Err(e) = send.send_trailers(trailers).await {
+                                send_err = Some(e.into());
+                            }
                         }
                     }
                 }
             }
-            stream.finish().await?;
-            Ok::<_, anyhow::Error>(sent)
-        };
-        let sent = match send_body.await {
-            Ok(n) => n,
-            Err(error) => return Err(H3Failure::Consumed { error }),
-        };
+            if send_err.is_none() {
+                let _ = send.finish().await;
+            }
+            Ok::<(u64, Option<anyhow::Error>), anyhow::Error>((sent, send_err))
+        });
 
         let resp_head =
-            match tokio::time::timeout(self.response_timeout, stream.recv_response()).await {
+            match tokio::time::timeout(self.response_timeout, recv.recv_response()).await {
                 Ok(Ok(r)) => r,
                 Ok(Err(e)) => {
+                    // No response head; the stream/connection failed. Abort the
+                    // pump so it drops the request body and fires `body_done`
+                    // (a pump parked on flow control would otherwise never run its
+                    // `Drop`), then surface the error. The body is (partly) in
+                    // flight, so this is not replayable.
+                    pump.abort();
                     return Err(H3Failure::Consumed {
                         error: anyhow::anyhow!("h3 upstream recv_response: {e}"),
                     });
                 }
                 Err(_) => {
-                    // The request was fully sent but the origin produced no
-                    // response head in time. This is not proof the origin didn't
-                    // process it, so retry on H1/H2 only when the request was
-                    // idempotent *and* bodyless (`sent == 0`) — the one case the
-                    // body can be replayed and re-execution is harmless
-                    // (RFC 9110 §9.2.2). Otherwise surface the failure as a 502.
-                    let replay = (idempotent && sent == 0).then(|| {
-                        let empty = http_body_util::Empty::<Bytes>::new()
-                            .map_err(|e| -> BoxError { match e {} })
-                            .boxed_unsync();
-                        Box::new(Request::from_parts(parts, empty))
-                    });
+                    // Response-head timeout. This is not proof the origin didn't
+                    // process the request, so retry on H1/H2 only when the request
+                    // was genuinely bodyless: the pump finished having produced no
+                    // data frames *and no send error* (`(0, None)`) — the one case
+                    // the body can be replayed as `Empty` and re-execution is
+                    // harmless for an idempotent method (RFC 9110 §9.2.2). A send
+                    // error also leaves `sent == 0`, so it must be excluded or a
+                    // body-bearing request would be replayed empty (dropping its
+                    // payload while keeping its Content-Length).
+                    let replay = if idempotent && pump.is_finished() {
+                        match pump.await {
+                            Ok(Ok((0, None))) => Some(Box::new(Request::from_parts(
+                                parts,
+                                http_body_util::Empty::<Bytes>::new()
+                                    .map_err(|e| -> BoxError { match e {} })
+                                    .boxed_unsync(),
+                            ))),
+                            _ => None,
+                        }
+                    } else {
+                        // Not replayable: cancel the pump so a body still in flight
+                        // is dropped and `body_done` fires (else the 502 path would
+                        // block awaiting a capture that never completes).
+                        pump.abort();
+                        None
+                    };
                     return Err(H3Failure::ResponseTimeout {
                         error: anyhow::anyhow!("h3 upstream response timed out"),
                         replay,
                     });
                 }
             };
-        let (_send_half, recv_half) = stream.split();
+        let recv_half = recv;
 
         // Record the origin leg's version as HTTP/3 (see the exchange core, which
         // reads `resp.version()` into `tx.response.version`).
@@ -641,10 +684,17 @@ impl H3UpstreamClient {
         // The response body keeps the pooled connection alive while it streams
         // (the pool holds another ref); it does not abort the driver — the
         // connection stays pooled for reuse and is torn down only on eviction.
+        // It also owns the body pump: for a normal request the pump has already
+        // finished (the origin read the body before responding); when it hasn't
+        // (an origin that responded early without draining the upload, so the
+        // pump may be parked on QUIC flow control), the response body's `Drop`
+        // aborts it, dropping the request body so `body_done` fires. This bounds
+        // the pump to the response's lifetime — it can never leak or park forever.
         let resp_body = H3ResponseBody {
             recv: recv_half,
             state: RespState::Data,
             _conn: conn,
+            pump: Some(pump),
         }
         .boxed_unsync();
 
@@ -864,6 +914,21 @@ struct H3ResponseBody<S> {
     recv: h3::client::RequestStream<S, Bytes>,
     state: RespState,
     _conn: Arc<PooledConn>,
+    /// The request-body pump task. Held so it is aborted when this response body
+    /// is dropped — see the construction site: this is what guarantees the
+    /// request tee is dropped (firing `body_done`) even if the pump was parked
+    /// on QUIC flow control after the origin responded without draining the body.
+    pump: Option<PumpHandle>,
+}
+
+impl<S> Drop for H3ResponseBody<S> {
+    fn drop(&mut self) {
+        if let Some(pump) = self.pump.take() {
+            // No-op if the pump already finished (normal request); otherwise
+            // cancels a still-running/parked pump so the request body is dropped.
+            pump.abort();
+        }
+    }
 }
 
 impl<S> Body for H3ResponseBody<S>
