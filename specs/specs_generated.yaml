@@ -770,11 +770,27 @@ sources:
   type: text/plain
   fragments:
   - label: server_alt_svc_h3_advertisement_valid
+    section: § 3
+    snippet: A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_h3_advertisement_valid.rs
+      line: 61
+  - label: server_alt_svc_h3_advertisement_valid (2)
+    section: § 3
+    snippet: An HTTP(S) origin server can advertise the availability of alternative services to clients by adding an Alt-Svc header field to responses.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_h3_advertisement_valid.rs
+      line: 38
+  - label: server_alt_svc_h3_advertisement_valid (3)
+    section: § 3.1
+    snippet: The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_h3_advertisement_valid.rs
+      line: 179
+  - label: server_alt_svc_header_syntax
     section: § 1
     snippet: This specification defines a new concept in HTTP, "Alternative Services", that allows an origin server to nominate additional means of interacting with it
     cited_by:
-    - file: lint-http-rules/src/rules/server_alt_svc_h3_advertisement_valid.rs
-      line: 33
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 30
     - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
@@ -1947,6 +1963,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
       line: 52
+  - label: server_alt_svc_h3_advertisement_valid
+    section: § 3.1.1
+    snippet: An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_h3_advertisement_valid.rs
+      line: 87
   - label: server_http3_status_code_validity
     section: § 4.5
     snippet: HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
