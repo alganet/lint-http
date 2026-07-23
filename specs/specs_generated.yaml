@@ -484,6 +484,24 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc6455.txt
   type: text/plain
   fragments:
+  - label: lint-http-proxy/src/proxy/websocket.rs
+    section: § 4.1
+    snippet: The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/websocket.rs
+      line: 38
+  - label: lint-http-proxy/src/proxy/websocket.rs (2)
+    section: § 4.1
+    snippet: The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/websocket.rs
+      line: 37
+  - label: lint-http-proxy/src/proxy/websocket.rs (3)
+    section: § 5.2
+    snippet: '%x0 denotes a continuation frame * %x1 denotes a text frame * %x2 denotes a binary frame * %x3-7 are reserved for further non-control frames * %x8 denotes a connection close * %x9 denotes a ping * %xA denotes a pong'
+    cited_by:
+    - file: lint-http-proxy/src/proxy/websocket.rs
+      line: 481
   - label: lint-http-rules/src/helpers/websocket.rs
     section: § 4.1
     snippet: (as a string, not base64-decoded) with the string
@@ -940,18 +958,30 @@ sources:
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
       line: 42
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs
+    section: § 11.7.1
+    snippet: Unlike WWW-Authenticate, the Proxy-Authenticate header field applies only to the next outbound client on the response chain.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 40
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (2)
+    section: § 11.7.2
+    snippet: Unlike Authorization, the Proxy-Authorization header field applies only to the next inbound proxy that demanded authentication using the Proxy-Authenticate header field.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 42
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (3)
     section: § 7.6.1
     snippet: 'Connection = #connection-option connection-option = token'
     cited_by:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 52
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (2)
+      line: 65
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (4)
     section: § 7.6.1
     snippet: Connection options are case-insensitive.
     cited_by:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 55
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (3)
+      line: 68
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (5)
     section: § 7.6.1
     snippet: Furthermore, intermediaries SHOULD remove or replace fields that are known to require removal before forwarding, whether or not they appear as a connection-option, after applying those fields' semantics.
     cited_by:
@@ -959,14 +989,20 @@ sources:
       line: 20
     - file: lint-http-rules/src/helpers/headers.rs
       line: 695
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (4)
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (6)
     section: § 7.6.1
     snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message).
     cited_by:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 72
+      line: 85
     - file: lint-http-rules/src/helpers/headers.rs
       line: 722
+  - label: lint-http-proxy/src/proxy/websocket.rs
+    section: § 15.2
+    snippet: A 1xx response is terminated by the end of the header section; it cannot contain content or trailers.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/websocket.rs
+      line: 144
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 11.1
     snippet: It uses a case-insensitive token to identify the authentication scheme

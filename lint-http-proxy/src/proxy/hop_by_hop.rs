@@ -25,8 +25,21 @@ pub(super) static HOP_BY_HOP_HEADERS: &[&str] = &[
     "te",
     "transfer-encoding",
     "upgrade",
-    // Not § 7.6.1's list: these two are single-hop by their own definition.
+    // Not § 7.6.1's list, and the reason these two belong is not the reason the
+    // five above do. § 7.6.1 nowhere mentions them; each is single-hop by its own
+    // definition, in its own section, and needs its own sentence. No single quote
+    // can cover this table -- three entries, three provenances.
+    //
+    // Note what the sentences do *not* say. Neither forbids forwarding -- § 11.7.2
+    // even allows a proxy to relay credentials onward where proxies cooperatively
+    // authenticate. Removing them is therefore a decision, not compliance, and the
+    // decision is easy: this proxy never demands proxy authentication, so it is the
+    // "next inbound proxy" for any Proxy-Authorization a client sends it, and there
+    // is no cooperating hierarchy for it to pass anything to.
+    //
+    // cite(RFC 9110 § 11.7.1): "Unlike WWW-Authenticate, the Proxy-Authenticate header field applies only to the next outbound client on the response chain."
     "proxy-authenticate",
+    // cite(RFC 9110 § 11.7.2): "Unlike Authorization, the Proxy-Authorization header field applies only to the next inbound proxy that demanded authentication using the Proxy-Authenticate header field."
     "proxy-authorization",
 ];
 
