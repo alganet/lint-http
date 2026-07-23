@@ -711,25 +711,25 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1040
+      line: 1062
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 981
+      line: 1003
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1019
+      line: 1041
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1012
+      line: 1034
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
@@ -941,7 +941,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 20
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 637
+      line: 659
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (4)
     section: § 7.6.1
     snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message).
@@ -949,7 +949,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 72
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 664
+      line: 686
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 11.1
     snippet: It uses a case-insensitive token to identify the authentication scheme
@@ -1017,7 +1017,7 @@ sources:
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 948
+      line: 970
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 78
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
@@ -1027,7 +1027,7 @@ sources:
     snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 104
+      line: 126
     - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
       line: 44
   - label: lint-http-rules/src/helpers/headers.rs (3)
@@ -1035,49 +1035,49 @@ sources:
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 913
+      line: 935
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 5.6.4
     snippet: qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 844
+      line: 866
   - label: lint-http-rules/src/helpers/headers.rs (5)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 861
+      line: 883
   - label: lint-http-rules/src/helpers/headers.rs (6)
     section: § 5.6.4
     snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 843
+      line: 865
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 690
+      line: 712
   - label: lint-http-rules/src/helpers/headers.rs (8)
     section: § 5.6.5
     snippet: ctext          = HTAB / SP / %x21-27 / %x2A-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 691
+      line: 713
   - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 574
+      line: 596
   - label: lint-http-rules/src/helpers/headers.rs (10)
     section: § 8.3.1
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1252
+      line: 1274
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 90
   - label: lint-http-rules/src/helpers/headers.rs (11)
@@ -1085,7 +1085,7 @@ sources:
     snippet: Content-Length = 1*DIGIT
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 42
+      line: 53
     - file: lint-http-rules/src/rules/message_content_length.rs
       line: 27
   - label: lint-http-rules/src/helpers/headers.rs (12)
@@ -1093,7 +1093,7 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1211
+      line: 1233
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 58
   - label: lint-http-rules/src/helpers/headers.rs (13)
@@ -1101,7 +1101,7 @@ sources:
     snippet: two entity tags are equivalent if their opaque- tags match character-by-character, regardless of either or both being tagged as "weak".
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 268
+      line: 290
   - label: lint-http-rules/src/helpers/status.rs
     section: § 15.4
     snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
@@ -1461,13 +1461,13 @@ sources:
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or * If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 349
+      line: 371
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 4.2.1
     snippet: Note that this calculation is intended to reduce clock skew by using the clock information provided by the origin server whenever possible.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 359
+      line: 381
   - label: message_age_header_numeric
     section: § 5.1
     snippet: The Age field value is a non-negative integer, representing time in seconds
@@ -1598,6 +1598,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
       line: 31
+  - label: lint-http-rules/src/helpers/headers.rs
+    section: § 6.3
+    snippet: If a message is received without Transfer-Encoding and with an invalid Content-Length header field, then the message framing is invalid and the recipient MUST treat it as an unrecoverable error, unless the field value can be successfully parsed as a comma-separated list (Section 5.6.1 of [HTTP]), all values in the list are valid, and all values in the list are the same (in which case, the message is processed with that single value used as the Content-Length field value).
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 48
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 3.2
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form

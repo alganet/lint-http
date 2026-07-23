@@ -35,27 +35,49 @@ pub fn validate_content_length(headers: &HeaderMap) -> Result<Option<u128>, Cont
     let mut first_val: Option<u128> = None;
     let mut first_raw: String = String::new();
 
-    for (i, hv) in entries.iter().enumerate() {
+    for hv in entries.iter() {
         let s = hv.to_str().map_err(|_| ContentLengthError::NonUtf8)?;
-        let t = s.trim();
 
-        // cite(RFC 9110 § 8.6): "Content-Length = 1*DIGIT"
-        if t.is_empty() || !t.chars().all(|c| c.is_ascii_digit()) {
-            return Err(ContentLengthError::InvalidCharacter(s.to_string()));
+        // A single field line may itself carry a comma-separated list, and that is
+        // not automatically a violation. The sentence below makes `5, 5` valid and
+        // says what it means: one value, 5. Splitting here is what keeps this
+        // function's answer the same for a message however its field lines were
+        // merged -- two `Content-Length: 5` lines and one `Content-Length: 5, 5`
+        // line are the same message by § 5.3, and used to get opposite answers.
+        //
+        // cite(RFC 9112 § 6.3): "If a message is received without Transfer-Encoding and with an invalid Content-Length header field, then the message framing is invalid and the recipient MUST treat it as an unrecoverable error, unless the field value can be successfully parsed as a comma-separated list (Section 5.6.1 of [HTTP]), all values in the list are valid, and all values in the list are the same (in which case, the message is processed with that single value used as the Content-Length field value)."
+        let mut saw_value = false;
+        for t in parse_list_header(s) {
+            saw_value = true;
+
+            // cite(RFC 9110 § 8.6): "Content-Length = 1*DIGIT"
+            if !t.chars().all(|c| c.is_ascii_digit()) {
+                return Err(ContentLengthError::InvalidCharacter(s.to_string()));
+            }
+
+            let n = t
+                .parse::<u128>()
+                .map_err(|_| ContentLengthError::TooLarge(s.to_string()))?;
+
+            match first_val {
+                None => {
+                    first_val = Some(n);
+                    first_raw = s.to_string();
+                }
+                Some(f) if f != n => {
+                    return Err(ContentLengthError::MultipleValuesDiffer(
+                        first_raw,
+                        s.to_string(),
+                    ));
+                }
+                _ => {}
+            }
         }
 
-        let n = t
-            .parse::<u128>()
-            .map_err(|_| ContentLengthError::TooLarge(s.to_string()))?;
-
-        if i == 0 {
-            first_val = Some(n);
-            first_raw = s.to_string();
-        } else if Some(n) != first_val {
-            return Err(ContentLengthError::MultipleValuesDiffer(
-                first_raw,
-                s.to_string(),
-            ));
+        // An empty field line has no values to be "all the same", and one is not a
+        // list of none: `Content-Length:` is simply not `1*DIGIT`.
+        if !saw_value {
+            return Err(ContentLengthError::InvalidCharacter(s.to_string()));
         }
     }
 
@@ -1551,6 +1573,50 @@ mod tests {
     }
 
     // Quoted-string helper tests
+    /// Two `Content-Length: 5` field lines and one `Content-Length: 5, 5` line are
+    /// the same message -- § 5.3 lets a recipient combine the former into the
+    /// latter -- so they must get the same answer. They used to get opposite ones.
+    #[test]
+    fn content_length_comma_list_matches_repeated_field_lines() {
+        fn one(raw: &str) -> Result<Option<u128>, ContentLengthError> {
+            let mut h = HeaderMap::new();
+            h.append(
+                "content-length",
+                raw.parse::<hyper::header::HeaderValue>().unwrap(),
+            );
+            validate_content_length(&h)
+        }
+        fn many(raws: &[&str]) -> Result<Option<u128>, ContentLengthError> {
+            let mut h = HeaderMap::new();
+            for r in raws {
+                h.append(
+                    "content-length",
+                    r.parse::<hyper::header::HeaderValue>().unwrap(),
+                );
+            }
+            validate_content_length(&h)
+        }
+
+        assert_eq!(one("5, 5"), Ok(Some(5)));
+        assert_eq!(one("5,5"), Ok(Some(5)));
+        assert_eq!(one("5, 5"), many(&["5", "5"]));
+
+        // Differing values are an unrecoverable error either way round.
+        assert!(matches!(
+            one("5, 6"),
+            Err(ContentLengthError::MultipleValuesDiffer(_, _))
+        ));
+        assert!(matches!(
+            many(&["5", "6"]),
+            Err(ContentLengthError::MultipleValuesDiffer(_, _))
+        ));
+
+        // Still not a list of digits.
+        assert!(one("").is_err());
+        assert!(one("5, x").is_err());
+        assert!(one("abc").is_err());
+    }
+
     /// `qdtext` and `quoted-pair` allow different octets after their respective
     /// positions, and a backslash does not widen the set to "anything".
     #[test]
