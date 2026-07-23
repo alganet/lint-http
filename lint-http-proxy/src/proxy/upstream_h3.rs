@@ -38,7 +38,7 @@ use h3::quic::RecvStream;
 use http_body_util::BodyExt;
 use hyper::body::{Body, Frame};
 use hyper::http::uri::{PathAndQuery, Scheme};
-use hyper::{Request, Response, Uri, Version};
+use hyper::{HeaderMap, Request, Response, Uri, Version};
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::CertificateDer;
 
@@ -50,6 +50,10 @@ use super::{BoxError, ClientBody, ResponseBody};
 /// entries are pruned before this is exceeded so a churn of one-off origins
 /// can't grow the map without bound.
 const NEGATIVE_CACHE_CAP: usize = 1024;
+
+/// Same bound for the Alt-Svc discovery cache — a proxy that sees many distinct
+/// origins advertising H3 must not accumulate mappings without limit.
+const DISCOVERY_CACHE_CAP: usize = 1024;
 
 /// Why an HTTP/3 upstream attempt failed, carrying enough context for the
 /// caller to decide whether a fall-back to H1/H2 is safe (RFC 9110 §9.2.2).
@@ -79,14 +83,41 @@ struct NegEntry {
     failures: u32,
 }
 
+/// Default freshness for a discovered Alt-Svc mapping when it carries no `ma`
+/// (RFC 7838 §3.1 leaves the default to the client; 24h is the common choice,
+/// matching the alt-svc rule's documented assumption).
+const DEFAULT_ALT_SVC_MA_SECS: u64 = 24 * 60 * 60;
+
+/// A discovered Alt-Svc mapping: the advertised H3 endpoints and when the
+/// mapping stops being fresh (`ma`).
+struct DiscoveryEntry {
+    endpoints: Vec<(String, u16)>,
+    expiry: Instant,
+}
+
+/// Where and how to open an H3 connection for an origin authority: the QUIC
+/// endpoint to dial (the origin itself, or an Alt-Svc alternative) and the TLS
+/// server name — always the **origin** authority host, so the endpoint's
+/// certificate must validate *for the origin* (RFC 7838 §2.1 / RFC 9114 §3.3),
+/// not merely for the alternative's own name.
+pub(super) struct H3Route {
+    dial_host: String,
+    dial_port: u16,
+    authority_host: String,
+}
+
 /// Shared HTTP/3 upstream client: one quinn client endpoint plus the set of
 /// origin authorities eligible for H3 forwarding.
 pub(super) struct H3UpstreamClient {
     endpoint: quinn::Endpoint,
-    /// Origin authorities (`host:port`) the operator opted into forwarding over
-    /// H3. Until Alt-Svc discovery lands this allowlist is the sole capability
-    /// signal.
+    /// Origin authorities (`host:port`) the operator opted into always
+    /// forwarding over H3, pre-seeding discovery.
     authorities: HashSet<String>,
+    /// Origin authorities that must never use H3, overriding both the allowlist
+    /// and Alt-Svc discovery.
+    denylist: HashSet<String>,
+    /// Whether an origin's Alt-Svc header may add an H3 route at runtime.
+    trust_alt_svc: bool,
     /// Bound on the connect + handshake (and the response head).
     connect_timeout: Duration,
     /// Base backoff window for the negative cache.
@@ -94,6 +125,8 @@ pub(super) struct H3UpstreamClient {
     /// Authorities whose H3 connect/handshake recently failed, suppressed from
     /// H3 attempts until their backoff window elapses.
     negative: Mutex<HashMap<String, NegEntry>>,
+    /// Alt-Svc discovery cache: origin authority → advertised H3 endpoints.
+    discovery: Mutex<HashMap<String, DiscoveryEntry>>,
 }
 
 impl H3UpstreamClient {
@@ -153,13 +186,17 @@ impl H3UpstreamClient {
             .iter()
             .cloned()
             .collect();
+        let denylist = cfg.general.h3_upstream_denylist.iter().cloned().collect();
 
         Ok(Some(Self {
             endpoint,
             authorities,
+            denylist,
+            trust_alt_svc: cfg.general.h3_upstream_trust_alt_svc,
             connect_timeout: Duration::from_millis(cfg.general.h3_upstream_connect_timeout_ms),
             negative_ttl: Duration::from_secs(cfg.general.h3_upstream_negative_ttl_seconds),
             negative: Mutex::new(HashMap::new()),
+            discovery: Mutex::new(HashMap::new()),
         }))
     }
 
@@ -199,9 +236,72 @@ impl H3UpstreamClient {
         self.negative.lock().unwrap().remove(authority);
     }
 
-    /// Whether requests to `authority` should be forwarded over HTTP/3.
-    pub(super) fn handles(&self, authority: &str) -> bool {
-        self.authorities.contains(authority)
+    /// Resolve how to reach `authority` over HTTP/3, or `None` if it should not
+    /// be attempted. The denylist wins over everything; otherwise the configured
+    /// allowlist dials the origin directly, and a fresh Alt-Svc discovery dials
+    /// the advertised endpoint. Either way the TLS name stays the origin host so
+    /// the endpoint cert is validated for the origin (RFC 7838 §2.1).
+    pub(super) fn route_for(&self, authority: &str) -> Option<H3Route> {
+        if self.denylist.contains(authority) {
+            return None;
+        }
+        let (host, port) = split_authority(authority)?;
+        if self.authorities.contains(authority) {
+            return Some(H3Route {
+                dial_host: host.clone(),
+                dial_port: port,
+                authority_host: host,
+            });
+        }
+        let (dial_host, dial_port) = self.discovered(authority)?;
+        Some(H3Route {
+            dial_host,
+            dial_port,
+            authority_host: host,
+        })
+    }
+
+    /// Return a fresh discovered H3 endpoint for `authority`, if any.
+    fn discovered(&self, authority: &str) -> Option<(String, u16)> {
+        let map = self.discovery.lock().unwrap();
+        let entry = map.get(authority)?;
+        if entry.expiry <= Instant::now() {
+            return None;
+        }
+        entry.endpoints.first().cloned()
+    }
+
+    /// Fold an origin's `Alt-Svc` response header(s) into the discovery cache:
+    /// `clear` drops the mapping, an `h3` advertisement (re)populates it with the
+    /// advertised endpoints and an `ma`-derived expiry. No-op when Alt-Svc trust
+    /// is disabled. `origin_host` resolves the `":port"` (same-host) form.
+    pub(super) fn record_alt_svc(&self, authority: &str, origin_host: &str, headers: &HeaderMap) {
+        if !self.trust_alt_svc {
+            return;
+        }
+        let origin_host = origin_host.trim_start_matches('[').trim_end_matches(']');
+        for hv in headers.get_all("alt-svc").iter() {
+            let Ok(s) = hv.to_str() else { continue };
+            match parse_alt_svc(s, origin_host) {
+                Some(AltSvc::Clear) => {
+                    self.discovery.lock().unwrap().remove(authority);
+                }
+                Some(AltSvc::Advertise { endpoints, ma }) => {
+                    let now = Instant::now();
+                    let expiry = now
+                        .checked_add(Duration::from_secs(ma))
+                        .unwrap_or_else(|| now + Duration::from_secs(DEFAULT_ALT_SVC_MA_SECS));
+                    let mut map = self.discovery.lock().unwrap();
+                    // Bound the map: drop stale mappings before admitting a new
+                    // authority (refreshing an existing key never grows it).
+                    if map.len() >= DISCOVERY_CACHE_CAP && !map.contains_key(authority) {
+                        map.retain(|_, e| e.expiry > now);
+                    }
+                    map.insert(authority.to_string(), DiscoveryEntry { endpoints, expiry });
+                }
+                None => {}
+            }
+        }
     }
 
     /// Forward `req` (already hop-by-hop stripped) to its origin over HTTP/3 and
@@ -212,23 +312,32 @@ impl H3UpstreamClient {
     pub(super) async fn forward(
         &self,
         req: Request<ClientBody>,
+        route: &H3Route,
     ) -> Result<Response<ResponseBody>, H3Failure> {
-        // Resolve the origin address / TLS name / https target from the request
-        // URI *without consuming* `req`, so it can be handed back for fall-back.
-        let (addr, host, https_uri) = match resolve_target(req.uri()).await {
-            Ok(t) => t,
+        // Build the https target + H3 head from the request URI *without
+        // consuming* `req`, so it can be handed back for fall-back. The head
+        // keeps the origin authority (`:authority`); only the dialed socket comes
+        // from the route (an Alt-Svc alternative may differ from the origin).
+        let https_uri = match force_https(req.uri()) {
+            Ok(u) => u,
             Err(error) => return Err(pre_request(error, req)),
         };
         let head = match build_h3_head(&req, https_uri) {
             Ok(h) => h,
             Err(error) => return Err(pre_request(error, req)),
         };
+        let addr = match lookup_endpoint(&route.dial_host, route.dial_port).await {
+            Ok(a) => a,
+            Err(error) => return Err(pre_request(error, req)),
+        };
 
         // Connect + handshake, bounded by the configured timeout. Nothing has
         // reached the origin yet, so any failure here is safe to retry for any
-        // method and triggers the negative cache.
+        // method and triggers the negative cache. The TLS name is the *origin*
+        // authority host, so a discovered endpoint's cert is validated for the
+        // origin (RFC 7838 §2.1); a mismatch fails here and falls back.
         let connect = async {
-            let conn = self.endpoint.connect(addr, &host)?.await?;
+            let conn = self.endpoint.connect(addr, &route.authority_host)?.await?;
             let pair = h3::client::new(h3_quinn::Connection::new(conn)).await?;
             Ok::<_, anyhow::Error>(pair)
         };
@@ -345,27 +454,121 @@ fn pre_request(error: anyhow::Error, request: Request<ClientBody>) -> H3Failure 
     }
 }
 
-/// Resolve the origin socket address, TLS server name, and https target URI
-/// from a request URI, without consuming anything.
-async fn resolve_target(uri: &Uri) -> anyhow::Result<(SocketAddr, String, Uri)> {
-    let https_uri = force_https(uri)?;
-    let authority = https_uri
-        .authority()
-        .ok_or_else(|| anyhow::anyhow!("h3 upstream: request URI has no authority"))?;
-    // `Authority::host()` keeps the brackets on an IPv6 literal (`[::1]`), which
-    // neither `lookup_host` nor a rustls `ServerName` accepts — strip them so
-    // both the DNS/socket lookup and the TLS name are well-formed.
-    let host = authority
-        .host()
-        .trim_start_matches('[')
-        .trim_end_matches(']')
-        .to_string();
-    let port = authority.port_u16().unwrap_or(443);
-    let addr = tokio::net::lookup_host((host.as_str(), port))
+/// Resolve `host:port` to a socket address for dialing the QUIC endpoint.
+async fn lookup_endpoint(host: &str, port: u16) -> anyhow::Result<SocketAddr> {
+    tokio::net::lookup_host((host, port))
         .await?
         .next()
-        .ok_or_else(|| anyhow::anyhow!("h3 upstream: could not resolve {authority}"))?;
-    Ok((addr, host, https_uri))
+        .ok_or_else(|| anyhow::anyhow!("h3 upstream: could not resolve {host}:{port}"))
+}
+
+/// Split an `host[:port]` authority into its bracket-stripped host and port,
+/// defaulting the port to 443 when absent (H3 is always TLS — this mirrors the
+/// original `port_u16().unwrap_or(443)` so a no-port allowlist entry still
+/// routes over H3). `Authority::host()` keeps the brackets on an IPv6 literal
+/// (`[::1]`), which neither `lookup_host` nor a rustls `ServerName` accepts.
+fn split_authority(authority: &str) -> Option<(String, u16)> {
+    let (host_part, port) = match authority.rfind(':') {
+        // A ':' inside a bracketed IPv6 literal (before the closing ']') is not
+        // a port separator, e.g. bare "[::1]".
+        Some(i) if authority[i..].contains(']') => (authority, 443),
+        Some(i) => (&authority[..i], authority[i + 1..].parse().ok()?),
+        None => (authority, 443),
+    };
+    let host = host_part.trim_start_matches('[').trim_end_matches(']');
+    if host.is_empty() {
+        return None;
+    }
+    Some((host.to_string(), port))
+}
+
+/// The routing-relevant content of an `Alt-Svc` header.
+enum AltSvc {
+    /// `Alt-Svc: clear` — drop any cached mapping for the origin.
+    Clear,
+    /// One or more `h3=` advertisements plus the smallest `ma` seen.
+    Advertise {
+        endpoints: Vec<(String, u16)>,
+        ma: u64,
+    },
+}
+
+/// Parse an `Alt-Svc` header value for HTTP/3 routing. Reuses the alt-svc rules'
+/// list/param splitting (`crate::helpers::headers`) and their acceptance
+/// criteria — only the final `h3` token (draft `h3-NN` is rejected, as
+/// `server_alt_svc_h3_advertisement_valid` flags). `origin_host` resolves the
+/// `":port"` (same-host) advertisement form. Returns `None` when the header
+/// carries no usable h3 route and no `clear`.
+fn parse_alt_svc(header: &str, origin_host: &str) -> Option<AltSvc> {
+    use crate::helpers::headers::{parse_list_header, split_semicolons_respecting_quotes};
+
+    let mut endpoints = Vec::new();
+    let mut ma = DEFAULT_ALT_SVC_MA_SECS;
+    for entry in parse_list_header(header) {
+        let mut parts = entry.splitn(2, ';');
+        let proto_auth = parts.next().unwrap_or("").trim();
+        let params = parts.next().unwrap_or("");
+
+        if proto_auth.eq_ignore_ascii_case("clear") {
+            return Some(AltSvc::Clear);
+        }
+        let Some(eq) = proto_auth.find('=') else {
+            continue;
+        };
+        // Only the final `h3` ALPN token routes; draft `h3-NN` is not usable
+        // (mirrors `server_alt_svc_h3_advertisement_valid`).
+        if !proto_auth[..eq].trim().eq_ignore_ascii_case("h3") {
+            continue;
+        }
+        let auth = proto_auth[eq + 1..].trim().trim_matches('"');
+        let Some(endpoint) = parse_alt_authority(auth, origin_host) else {
+            continue;
+        };
+
+        // An `ma=0` invalidates the advertisement; otherwise track the smallest
+        // freshness across the h3 entries as the mapping's expiry.
+        if let Some(entry_ma) = alt_svc_ma(&split_semicolons_respecting_quotes(params)) {
+            if entry_ma == 0 {
+                continue;
+            }
+            ma = ma.min(entry_ma);
+        }
+        endpoints.push(endpoint);
+    }
+
+    (!endpoints.is_empty()).then_some(AltSvc::Advertise { endpoints, ma })
+}
+
+/// Parse an Alt-Svc `alt-authority` (`[uri-host] ":" port`) into a dialable
+/// `(host, port)`; an empty host means "same host as the origin".
+fn parse_alt_authority(auth: &str, origin_host: &str) -> Option<(String, u16)> {
+    let colon = auth.rfind(':')?;
+    let port: u16 = auth[colon + 1..].parse().ok()?;
+    let host = auth[..colon].trim_start_matches('[').trim_end_matches(']');
+    let host = if host.is_empty() {
+        origin_host.to_string()
+    } else {
+        host.to_string()
+    };
+    Some((host, port))
+}
+
+/// Extract the `ma` (max-age) parameter value from split Alt-Svc params, if any.
+fn alt_svc_ma(params: &[&str]) -> Option<u64> {
+    for param in params {
+        let mut kv = param.splitn(2, '=');
+        let key = kv.next().unwrap_or("").trim();
+        if !key.eq_ignore_ascii_case("ma") {
+            continue;
+        }
+        let raw = kv.next().unwrap_or("").trim();
+        let val = raw
+            .strip_prefix('"')
+            .and_then(|v| v.strip_suffix('"'))
+            .unwrap_or(raw);
+        return val.parse::<u64>().ok();
+    }
+    None
 }
 
 /// Build the HTTP/3 request head (method, https target, headers) from the
@@ -541,6 +744,188 @@ mod tests {
         assert!(
             !client.is_suppressed("b.example:443"),
             "suppression is per authority"
+        );
+    }
+
+    fn client_with(mutate: impl FnOnce(&mut crate::config::GeneralConfig)) -> H3UpstreamClient {
+        let mut cfg = Config::default();
+        cfg.general.h3_upstream_enabled = true;
+        mutate(&mut cfg.general);
+        let roots = rustls::RootCertStore::empty();
+        H3UpstreamClient::build(&cfg, &roots)
+            .expect("build h3 client")
+            .expect("h3 client is Some when enabled")
+    }
+
+    fn alt_svc_headers(values: &[&str]) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        for v in values {
+            h.append("alt-svc", v.parse().unwrap());
+        }
+        h
+    }
+
+    #[test]
+    fn parse_alt_svc_same_host_and_explicit_host() {
+        match parse_alt_svc("h3=\":443\"; ma=3600", "example.com") {
+            Some(AltSvc::Advertise { endpoints, ma }) => {
+                assert_eq!(endpoints, vec![("example.com".to_string(), 443)]);
+                assert_eq!(ma, 3600);
+            }
+            _ => panic!("expected an h3 advertisement"),
+        }
+        match parse_alt_svc("h3=\"alt.example.com:8443\"", "example.com") {
+            Some(AltSvc::Advertise { endpoints, ma }) => {
+                assert_eq!(endpoints, vec![("alt.example.com".to_string(), 8443)]);
+                assert_eq!(ma, DEFAULT_ALT_SVC_MA_SECS, "absent ma defaults");
+            }
+            _ => panic!("expected advertise"),
+        }
+    }
+
+    #[test]
+    fn parse_alt_svc_rejects_draft_and_non_h3_and_clear() {
+        assert!(
+            parse_alt_svc("h3-29=\":443\"", "example.com").is_none(),
+            "draft h3-NN is not a usable route"
+        );
+        assert!(
+            parse_alt_svc("h2=\":443\"", "example.com").is_none(),
+            "non-h3 protocols do not route H3"
+        );
+        assert!(matches!(
+            parse_alt_svc("clear", "example.com"),
+            Some(AltSvc::Clear)
+        ));
+        // ma=0 invalidates the h3 entry.
+        assert!(parse_alt_svc("h3=\":443\"; ma=0", "example.com").is_none());
+    }
+
+    #[tokio::test]
+    async fn discovery_populates_consults_and_clears() {
+        let client = client_with(|_| {});
+        let auth = "origin.example:443";
+
+        assert!(client.route_for(auth).is_none(), "nothing discovered yet");
+
+        client.record_alt_svc(
+            auth,
+            "origin.example",
+            &alt_svc_headers(&["h3=\":8443\"; ma=3600"]),
+        );
+        let route = client.route_for(auth).expect("discovered route");
+        assert_eq!(route.dial_host, "origin.example");
+        assert_eq!(route.dial_port, 8443);
+        assert_eq!(
+            route.authority_host, "origin.example",
+            "TLS name stays the origin authority (cert-for-origin)"
+        );
+
+        client.record_alt_svc(auth, "origin.example", &alt_svc_headers(&["clear"]));
+        assert!(
+            client.route_for(auth).is_none(),
+            "Alt-Svc: clear drops the mapping"
+        );
+    }
+
+    #[tokio::test]
+    async fn discovery_honours_ma_expiry() {
+        let client = client_with(|_| {});
+        let auth = "origin.example:443";
+        // A fresh mapping is consulted.
+        client.record_alt_svc(
+            auth,
+            "origin.example",
+            &alt_svc_headers(&["h3=\":8443\"; ma=3600"]),
+        );
+        assert!(
+            client.route_for(auth).is_some(),
+            "fresh mapping is consulted"
+        );
+
+        // Force the entry's expiry into the past: it must no longer be consulted.
+        {
+            let mut map = client.discovery.lock().unwrap();
+            let entry = map.get_mut(auth).unwrap();
+            entry.expiry = Instant::now() - Duration::from_secs(1);
+        }
+        assert!(
+            client.route_for(auth).is_none(),
+            "an expired mapping (ma elapsed) is not consulted"
+        );
+    }
+
+    #[tokio::test]
+    async fn discovery_ignored_when_trust_disabled() {
+        let client = client_with(|g| g.h3_upstream_trust_alt_svc = false);
+        let auth = "origin.example:443";
+        client.record_alt_svc(
+            auth,
+            "origin.example",
+            &alt_svc_headers(&["h3=\":8443\"; ma=3600"]),
+        );
+        assert!(
+            client.route_for(auth).is_none(),
+            "Alt-Svc discovery is off, so no route"
+        );
+    }
+
+    #[tokio::test]
+    async fn route_allowlist_and_denylist() {
+        let client = client_with(|g| {
+            g.h3_upstream_authorities = vec!["allow.example:443".to_string()];
+            g.h3_upstream_denylist = vec!["deny.example:443".to_string()];
+        });
+        let route = client.route_for("allow.example:443").expect("allowlisted");
+        assert_eq!(route.dial_host, "allow.example");
+        assert_eq!(route.dial_port, 443);
+        assert!(
+            client.route_for("other.example:443").is_none(),
+            "not allowlisted, not discovered"
+        );
+
+        // Denylist wins even over a discovered mapping.
+        client.record_alt_svc(
+            "deny.example:443",
+            "deny.example",
+            &alt_svc_headers(&["h3=\":8443\"; ma=3600"]),
+        );
+        assert!(
+            client.route_for("deny.example:443").is_none(),
+            "denylist overrides discovery"
+        );
+    }
+
+    #[tokio::test]
+    async fn route_defaults_missing_port_to_443() {
+        // A no-port allowlist entry still routes over H3 (H3 is always TLS), as
+        // it did before Alt-Svc routing landed.
+        let client = client_with(|g| {
+            g.h3_upstream_authorities = vec!["example.com".to_string()];
+        });
+        let route = client
+            .route_for("example.com")
+            .expect("no-port entry routes");
+        assert_eq!(route.dial_host, "example.com");
+        assert_eq!(route.dial_port, 443);
+    }
+
+    #[test]
+    fn split_authority_forms() {
+        assert_eq!(
+            split_authority("example.com:8443"),
+            Some(("example.com".to_string(), 8443))
+        );
+        assert_eq!(
+            split_authority("example.com"),
+            Some(("example.com".to_string(), 443)),
+            "absent port defaults to 443"
+        );
+        assert_eq!(split_authority("[::1]:443"), Some(("::1".to_string(), 443)));
+        assert_eq!(
+            split_authority("[::1]"),
+            Some(("::1".to_string(), 443)),
+            "bracketed IPv6 without a port defaults to 443, not a mis-split"
         );
     }
 }

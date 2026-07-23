@@ -88,11 +88,26 @@ pub struct GeneralConfig {
     #[serde(default)]
     pub h3_upstream_enabled: bool,
 
-    /// Origin authorities (`host:port`) to forward over HTTP/3 when
-    /// `h3_upstream_enabled` is set. Until Alt-Svc discovery lands, this
-    /// allowlist is the only capability signal that an origin speaks H3.
+    /// Origin authorities (`host:port`) to always forward over HTTP/3 when
+    /// `h3_upstream_enabled` is set. This pre-seeds H3 (the first request to an
+    /// origin can't have learned Alt-Svc yet); origins discovered via Alt-Svc
+    /// are added on top at runtime.
     #[serde(default)]
     pub h3_upstream_authorities: Vec<String>,
+
+    /// Origin authorities (`host:port`) that must never be forwarded over HTTP/3,
+    /// even when Alt-Svc advertises it. Layered on top of the allowlist and
+    /// discovery cache. Empty by default.
+    #[serde(default)]
+    pub h3_upstream_denylist: Vec<String>,
+
+    /// Whether to trust an origin's `Alt-Svc` advertisement to discover an H3
+    /// endpoint at runtime. When false, only `h3_upstream_authorities` selects
+    /// H3 (Alt-Svc is ignored for routing). Default: true. Note that syntactic
+    /// trust is not sufficient — a discovered endpoint is used only once its
+    /// certificate validates for the origin authority (RFC 7838 §2.1).
+    #[serde(default = "default_h3_upstream_trust_alt_svc")]
+    pub h3_upstream_trust_alt_svc: bool,
 
     /// UDP socket address the HTTP/3 upstream client binds for its QUIC
     /// endpoint. Defaults to "0.0.0.0:0" (ephemeral) when omitted.
@@ -168,6 +183,10 @@ const fn default_h3_upstream_negative_ttl_seconds() -> u64 {
     30
 }
 
+const fn default_h3_upstream_trust_alt_svc() -> bool {
+    true
+}
+
 fn default_listen() -> String {
     "127.0.0.1:3000".to_string()
 }
@@ -202,6 +221,8 @@ impl Default for GeneralConfig {
             h3_server_name: None,
             h3_upstream_enabled: false,
             h3_upstream_authorities: Vec::new(),
+            h3_upstream_denylist: Vec::new(),
+            h3_upstream_trust_alt_svc: default_h3_upstream_trust_alt_svc(),
             h3_upstream_bind: None,
             h3_upstream_extra_ca_certs: Vec::new(),
             h3_upstream_connect_timeout_ms: default_h3_upstream_connect_timeout_ms(),

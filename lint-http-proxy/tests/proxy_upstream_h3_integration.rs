@@ -38,9 +38,15 @@ struct TestPki {
 /// H3 upstream client (configured to trust the CA) validates the origin's
 /// endpoint certificate for its authority.
 fn gen_test_pki() -> anyhow::Result<TestPki> {
+    use rcgen::SanType;
+    gen_test_pki_san(SanType::IpAddress(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))))
+}
+
+/// Like [`gen_test_pki`] but with a caller-chosen SAN, so a test can mint a leaf
+/// that is *not* valid for 127.0.0.1 (to exercise the cert-for-origin gate).
+fn gen_test_pki_san(san: rcgen::SanType) -> anyhow::Result<TestPki> {
     use rcgen::{
-        BasicConstraints, CertificateParams, DnType, IsCa, Issuer, KeyPair, SanType,
-        PKCS_ECDSA_P256_SHA256,
+        BasicConstraints, CertificateParams, DnType, IsCa, Issuer, KeyPair, PKCS_ECDSA_P256_SHA256,
     };
 
     let mut ca_params = CertificateParams::new(Vec::new())?;
@@ -53,11 +59,10 @@ fn gen_test_pki() -> anyhow::Result<TestPki> {
     let ca_pem = ca_cert.pem();
 
     let mut leaf_params = CertificateParams::new(Vec::new())?;
-    leaf_params.subject_alt_names =
-        vec![SanType::IpAddress(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))];
+    leaf_params.subject_alt_names = vec![san];
     leaf_params
         .distinguished_name
-        .push(DnType::CommonName, "127.0.0.1");
+        .push(DnType::CommonName, "lint-http upstream-h3 test leaf");
     let leaf_key = KeyPair::generate_for(&PKCS_ECDSA_P256_SHA256)?;
 
     let issuer = Issuer::new(ca_params, ca_key);
@@ -81,6 +86,7 @@ type CapturedHeaders = Arc<Mutex<Option<Vec<(String, String)>>>>;
 /// its UDP address, the captured-headers handle, and the accept-loop task.
 fn start_h3_origin(
     pki: &TestPki,
+    bind: SocketAddr,
 ) -> anyhow::Result<(SocketAddr, CapturedHeaders, tokio::task::JoinHandle<()>)> {
     let mut tls = rustls::ServerConfig::builder()
         .with_no_client_auth()
@@ -90,7 +96,7 @@ fn start_h3_origin(
     let quic = quinn::crypto::rustls::QuicServerConfig::try_from(tls)
         .map_err(|e| anyhow::anyhow!("origin QUIC server config: {e}"))?;
     let server_config = quinn::ServerConfig::with_crypto(Arc::new(quic));
-    let endpoint = quinn::Endpoint::server(server_config, "127.0.0.1:0".parse()?)?;
+    let endpoint = quinn::Endpoint::server(server_config, bind)?;
     let addr = endpoint.local_addr()?;
 
     let captured: CapturedHeaders = Arc::new(Mutex::new(None));
@@ -203,7 +209,7 @@ async fn upstream_h3_forwards_with_capture_parity_and_strips_connection_field() 
         std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
-    let (origin_addr, captured, origin_handle) = start_h3_origin(&pki)?;
+    let (origin_addr, captured, origin_handle) = start_h3_origin(&pki, "127.0.0.1:0".parse()?)?;
     let origin_authority = origin_addr.to_string();
 
     let mut cfg = Config::default();
@@ -466,6 +472,143 @@ async fn upstream_h3_non_idempotent_not_retried_after_midflight_failure() -> any
     proxy_handle.abort();
     h3_origin.abort();
     h1_origin.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    let _ = tokio::fs::remove_file(&ca_pem_path).await;
+    Ok(())
+}
+
+/// Reserve an ephemeral UDP port, then release it so a caller can bind it.
+fn reserve_udp_port() -> anyhow::Result<u16> {
+    let s = std::net::UdpSocket::bind("127.0.0.1:0")?;
+    let port = s.local_addr()?.port();
+    drop(s);
+    Ok(port)
+}
+
+#[tokio::test]
+async fn upstream_h3_discovered_via_alt_svc_is_used_on_next_request() -> anyhow::Result<()> {
+    // An H1 origin advertises H3 via Alt-Svc. The first request goes H1 (nothing
+    // discovered yet) and populates the discovery cache; the second request is
+    // routed over H3 to the advertised endpoint.
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let pki = gen_test_pki()?;
+    let ca_pem_path =
+        std::env::temp_dir().join(format!("lint_disc_ca_{}.pem", uuid::Uuid::new_v4()));
+    tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
+
+    // The advertised H3 endpoint (serves "world" over H3), bound to a known port.
+    let port_e = reserve_udp_port()?;
+    let (_e_addr, _captured, e_handle) =
+        start_h3_origin(&pki, format!("127.0.0.1:{port_e}").parse()?)?;
+
+    // The H1 origin advertises `h3=":port_e"` (same host, the H3 port).
+    let mock = MockServer::start().await;
+    Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/d"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string("h1")
+                .insert_header("alt-svc", format!("h3=\":{port_e}\"; ma=3600").as_str()),
+        )
+        .mount(&mock)
+        .await;
+    let authority = format!("127.0.0.1:{}", mock.address().port());
+
+    let mut cfg = Config::default();
+    cfg.general.h3_upstream_enabled = true;
+    // No allowlist: H3 is reached purely through Alt-Svc discovery.
+    cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
+    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    // First request: H1 (wiremock), which advertises Alt-Svc.
+    let (s1, _h1, b1) = proxy_get(proxy_addr, &authority, "/d", &[]).await?;
+    assert_eq!(s1, 200);
+    assert_eq!(b1, b"h1", "first request is served by the H1 origin");
+
+    // Second request: discovered → H3 endpoint, which answers "world".
+    let (s2, _h2, b2) = proxy_get(proxy_addr, &authority, "/d", &[]).await?;
+    assert_eq!(s2, 200);
+    assert_eq!(
+        b2, b"world",
+        "second request is served over H3 (discovered)"
+    );
+
+    let caps = read_captures(&captures_path).await?;
+    let versions: Vec<&str> = caps
+        .iter()
+        .filter_map(|v| v["response"]["version"].as_str())
+        .collect();
+    assert!(
+        versions.contains(&"HTTP/3"),
+        "a request should have been forwarded over H3 after discovery: {versions:?}"
+    );
+
+    proxy_handle.abort();
+    e_handle.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    let _ = tokio::fs::remove_file(&ca_pem_path).await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn upstream_h3_discovered_endpoint_with_wrong_cert_is_not_used() -> anyhow::Result<()> {
+    // The discovered H3 endpoint presents a (trusted-CA) certificate that is
+    // valid for "wrong.example", NOT for the origin's 127.0.0.1 authority. Per
+    // RFC 7838 §2.1 the mapping must not be used: the H3 handshake fails the
+    // name check and the proxy falls back to H1, leaving the H3 endpoint unused.
+    use rcgen::SanType;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    // Leaf valid for "wrong.example" only.
+    let pki = gen_test_pki_san(SanType::DnsName("wrong.example".try_into()?))?;
+    let ca_pem_path =
+        std::env::temp_dir().join(format!("lint_disc_badca_{}.pem", uuid::Uuid::new_v4()));
+    tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
+
+    let port_e = reserve_udp_port()?;
+    let (_e_addr, e_captured, e_handle) =
+        start_h3_origin(&pki, format!("127.0.0.1:{port_e}").parse()?)?;
+
+    let mock = MockServer::start().await;
+    Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/w"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string("h1-origin")
+                .insert_header("alt-svc", format!("h3=\":{port_e}\"; ma=3600").as_str()),
+        )
+        .mount(&mock)
+        .await;
+    let authority = format!("127.0.0.1:{}", mock.address().port());
+
+    let mut cfg = Config::default();
+    cfg.general.h3_upstream_enabled = true;
+    cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
+    cfg.general.h3_upstream_connect_timeout_ms = 2000;
+    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    // First request populates discovery; second would use H3 but the cert is
+    // not valid for the origin, so it falls back to H1.
+    let (s1, _h1, _b1) = proxy_get(proxy_addr, &authority, "/w", &[]).await?;
+    assert_eq!(s1, 200);
+    let (s2, _h2, b2) = proxy_get(proxy_addr, &authority, "/w", &[]).await?;
+    assert_eq!(s2, 200, "the request still succeeds by falling back to H1");
+    assert_eq!(
+        b2, b"h1-origin",
+        "served by the H1 origin, not the H3 endpoint"
+    );
+
+    // The H3 endpoint never served a request: its cert failed the origin-name
+    // check during the handshake, before any request was sent.
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert!(
+        e_captured.lock().unwrap().is_none(),
+        "an endpoint whose cert is not valid for the origin must not be used"
+    );
+
+    proxy_handle.abort();
+    e_handle.abort();
     let _ = tokio::fs::remove_file(&captures_path).await;
     let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
