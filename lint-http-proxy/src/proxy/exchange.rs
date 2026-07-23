@@ -162,6 +162,17 @@ pub(super) async fn exchange(
                 // body cannot be replayed, so surface the failure as-is.
                 Err(format!("h3 upstream error: {error}"))
             }
+            Err(H3Failure::ResponseTimeout { error, replay }) => match replay {
+                // A slow (not unreachable) origin: the request was fully sent but
+                // no head came in time. Retry an idempotent bodyless request on
+                // H1/H2; do *not* negative-cache — the origin is healthy, just
+                // slow, and suppressing H3 would punish it. Anything else 502s.
+                Some(request) => {
+                    warn!(%authority, error = %error, "h3 upstream response-head timeout; retrying idempotent request via H1/H2");
+                    forward_via_hyper(shared, *request).await
+                }
+                None => Err(format!("h3 upstream response timed out: {error}")),
+            },
         }
     } else {
         forward_via_hyper(shared, upstream_req).await

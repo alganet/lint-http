@@ -482,6 +482,171 @@ async fn upstream_h3_non_idempotent_not_retried_after_midflight_failure() -> any
     Ok(())
 }
 
+/// An H3 origin that completes the handshake, reads one request, then holds the
+/// connection open **without ever responding** — so the proxy's response-head
+/// read hits its response timeout (as opposed to erroring on a dropped
+/// connection). Binds `bind` (UDP) and returns its accept-loop handle.
+fn start_h3_origin_silent(
+    pki: &TestPki,
+    bind: SocketAddr,
+) -> anyhow::Result<tokio::task::JoinHandle<()>> {
+    let endpoint = h3_server_endpoint(pki, bind)?;
+    let handle = tokio::spawn(async move {
+        while let Some(incoming) = endpoint.accept().await {
+            tokio::spawn(async move {
+                let Ok(conn) = incoming.await else { return };
+                let Ok(mut h3) =
+                    h3::server::Connection::<_, Bytes>::new(h3_quinn::Connection::new(conn)).await
+                else {
+                    return;
+                };
+                // Read the request but never send a response; keep both the
+                // connection (`h3`) and the request stream alive by sleeping, so
+                // the client's `recv_response` blocks until its timeout fires.
+                if let Ok(Some(resolver)) = h3.accept().await {
+                    if let Ok((_req, _stream)) = resolver.resolve_request().await {
+                        tokio::time::sleep(Duration::from_secs(60)).await;
+                    }
+                }
+                tokio::time::sleep(Duration::from_secs(60)).await;
+            });
+        }
+    });
+    Ok(handle)
+}
+
+#[tokio::test]
+async fn upstream_h3_slow_origin_idempotent_get_falls_back_to_h1() -> anyhow::Result<()> {
+    // The H3 origin handshakes and reads the GET but never answers, so the proxy
+    // hits its (short) response-head timeout. A GET is idempotent and bodyless,
+    // so the request is replayable: the proxy falls back to an H1 origin on the
+    // same authority's TCP port and the client gets a 200 — a slow-but-healthy
+    // origin must not surface as a 502.
+    use tokio::io::AsyncWriteExt;
+
+    let pki = gen_test_pki()?;
+    let ca_pem_path =
+        std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
+    tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
+
+    let port = reserve_udp_port()?;
+    let authority = format!("127.0.0.1:{port}");
+    let bind: SocketAddr = authority.parse()?;
+
+    let h3_origin = start_h3_origin_silent(&pki, bind)?;
+
+    // H1 origin on the same TCP port: proves the fall-back landed.
+    let h1_hits = Arc::new(AtomicUsize::new(0));
+    let h1_hits_srv = h1_hits.clone();
+    let tcp = tokio::net::TcpListener::bind(bind).await?;
+    let h1_origin = tokio::spawn(async move {
+        while let Ok((mut sock, _)) = tcp.accept().await {
+            h1_hits_srv.fetch_add(1, Ordering::SeqCst);
+            tokio::spawn(async move {
+                let _ = sock
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\n\r\nfellback")
+                    .await;
+            });
+        }
+    });
+
+    let mut cfg = Config::default();
+    cfg.general.h3_upstream_enabled = true;
+    cfg.general.h3_upstream_authorities = vec![authority.clone()];
+    cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
+    // Handshake budget generous; response budget tiny so the timeout is prompt.
+    cfg.general.h3_upstream_connect_timeout_ms = 3000;
+    cfg.general.h3_upstream_response_timeout_ms = 300;
+
+    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    let (status, _headers, body) = proxy_get(proxy_addr, &authority, "/slow", &[]).await?;
+    assert_eq!(status, 200, "an idempotent GET should fall back to H1, not 502");
+    assert_eq!(body, b"fellback");
+    assert!(
+        h1_hits.load(Ordering::SeqCst) >= 1,
+        "the fall-back should have reached the H1 origin"
+    );
+
+    let caps = read_captures(&captures_path).await?;
+    let v = &caps[0];
+    assert_eq!(
+        v["response"]["version"].as_str(),
+        Some("HTTP/1.1"),
+        "a response-timeout fall-back records the leg actually used (H1)"
+    );
+
+    proxy_handle.abort();
+    h3_origin.abort();
+    h1_origin.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    let _ = tokio::fs::remove_file(&ca_pem_path).await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn upstream_h3_slow_origin_non_idempotent_post_502s() -> anyhow::Result<()> {
+    // Same silent H3 origin, but a POST carrying a body. The body is already in
+    // flight (sent > 0) and the method is non-idempotent, so a response-timeout
+    // is NOT replayable: the proxy must 502 rather than re-send to H1 (RFC 9110
+    // §9.2.2). An H1 origin on the same port proves it is never hit.
+    use tokio::io::AsyncWriteExt;
+
+    let pki = gen_test_pki()?;
+    let ca_pem_path =
+        std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
+    tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
+
+    let port = reserve_udp_port()?;
+    let authority = format!("127.0.0.1:{port}");
+    let bind: SocketAddr = authority.parse()?;
+
+    let h3_origin = start_h3_origin_silent(&pki, bind)?;
+
+    let h1_hits = Arc::new(AtomicUsize::new(0));
+    let h1_hits_srv = h1_hits.clone();
+    let tcp = tokio::net::TcpListener::bind(bind).await?;
+    let h1_origin = tokio::spawn(async move {
+        while let Ok((mut sock, _)) = tcp.accept().await {
+            h1_hits_srv.fetch_add(1, Ordering::SeqCst);
+            tokio::spawn(async move {
+                let _ = sock
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nh1")
+                    .await;
+            });
+        }
+    });
+
+    let mut cfg = Config::default();
+    cfg.general.h3_upstream_enabled = true;
+    cfg.general.h3_upstream_authorities = vec![authority.clone()];
+    cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
+    cfg.general.h3_upstream_connect_timeout_ms = 3000;
+    cfg.general.h3_upstream_response_timeout_ms = 300;
+
+    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    let (status, _body) = proxy_post(proxy_addr, &authority, "/x", b"payload").await?;
+    assert_eq!(
+        status, 502,
+        "a non-idempotent POST that times out mid-response is not replayable"
+    );
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(
+        h1_hits.load(Ordering::SeqCst),
+        0,
+        "a POST with a body must not be retried on H1 after a response timeout"
+    );
+
+    proxy_handle.abort();
+    h3_origin.abort();
+    h1_origin.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    let _ = tokio::fs::remove_file(&ca_pem_path).await;
+    Ok(())
+}
+
 /// Reserve an ephemeral UDP port, then release it so a caller can bind it.
 fn reserve_udp_port() -> anyhow::Result<u16> {
     let s = std::net::UdpSocket::bind("127.0.0.1:0")?;

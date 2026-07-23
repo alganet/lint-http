@@ -78,6 +78,16 @@ pub(super) enum H3Failure {
     /// The request body was already in flight; the streaming body cannot be
     /// replayed, so the caller must not retry (whatever the method).
     Consumed { error: anyhow::Error },
+    /// The request was fully sent but the origin did not produce a response head
+    /// within the response timeout. A timeout is not proof the origin didn't
+    /// process the request, so a fall-back is only safe when the request was
+    /// idempotent *and* bodyless (RFC 9110 §9.2.2) — the sole case the body can
+    /// be replayed and re-execution is harmless. `replay` carries a rebuilt
+    /// bodyless request then, else `None` (surface a 502).
+    ResponseTimeout {
+        error: anyhow::Error,
+        replay: Option<Box<Request<ClientBody>>>,
+    },
 }
 
 /// One negative-cache entry: the origin is not attempted over H3 until `until`,
@@ -153,8 +163,12 @@ pub(super) struct H3UpstreamClient {
     denylist: HashSet<String>,
     /// Whether an origin's Alt-Svc header may add an H3 route at runtime.
     trust_alt_svc: bool,
-    /// Bound on the connect + handshake (and the response head).
+    /// Bound on the connect + handshake.
     connect_timeout: Duration,
+    /// Bound on the response head (first origin byte) once the request is sent —
+    /// application think-time, kept separate from (and looser than) the connect
+    /// budget so a slow-but-healthy origin isn't dropped.
+    response_timeout: Duration,
     /// Base backoff window for the negative cache.
     negative_ttl: Duration,
     /// Authorities whose H3 connect/handshake recently failed, suppressed from
@@ -243,6 +257,7 @@ impl H3UpstreamClient {
             denylist,
             trust_alt_svc: cfg.general.h3_upstream_trust_alt_svc,
             connect_timeout: Duration::from_millis(cfg.general.h3_upstream_connect_timeout_ms),
+            response_timeout: Duration::from_millis(cfg.general.h3_upstream_response_timeout_ms),
             negative_ttl: Duration::from_secs(cfg.general.h3_upstream_negative_ttl_seconds),
             negative: Mutex::new(HashMap::new()),
             discovery: Mutex::new(HashMap::new()),
@@ -551,13 +566,23 @@ impl H3UpstreamClient {
         // replayed, so any failure is non-retryable. Mirror the response side of
         // the client-facing handler: data frames forward as QUIC DATA, a trailing
         // trailers frame as an H3 trailers section.
-        let (_, body) = req.into_parts();
+        let (parts, body) = req.into_parts();
+        let idempotent = parts.method.is_idempotent();
+        // Count the request-body bytes actually put on the wire. Because the body
+        // is fully sent before the response head is read (send-then-recv), a zero
+        // count at response time is a reliable "the request was bodyless" — a far
+        // sturdier signal than `Body::is_end_stream`, which hyper's streaming
+        // `Incoming` reports as `false` even for an empty body.
         let send_body = async {
             let mut body = body;
+            let mut sent: u64 = 0;
             while let Some(frame) = body.frame().await {
                 let frame = frame.map_err(|e| anyhow::anyhow!("h3 upstream request body: {e}"))?;
                 match frame.into_data() {
-                    Ok(data) => stream.send_data(data).await?,
+                    Ok(data) => {
+                        sent += data.len() as u64;
+                        stream.send_data(data).await?;
+                    }
                     Err(frame) => {
                         if let Ok(trailers) = frame.into_trailers() {
                             stream.send_trailers(trailers).await?;
@@ -566,14 +591,15 @@ impl H3UpstreamClient {
                 }
             }
             stream.finish().await?;
-            Ok::<_, anyhow::Error>(())
+            Ok::<_, anyhow::Error>(sent)
         };
-        if let Err(error) = send_body.await {
-            return Err(H3Failure::Consumed { error });
-        }
+        let sent = match send_body.await {
+            Ok(n) => n,
+            Err(error) => return Err(H3Failure::Consumed { error }),
+        };
 
         let resp_head =
-            match tokio::time::timeout(self.connect_timeout, stream.recv_response()).await {
+            match tokio::time::timeout(self.response_timeout, stream.recv_response()).await {
                 Ok(Ok(r)) => r,
                 Ok(Err(e)) => {
                     return Err(H3Failure::Consumed {
@@ -581,8 +607,21 @@ impl H3UpstreamClient {
                     });
                 }
                 Err(_) => {
-                    return Err(H3Failure::Consumed {
+                    // The request was fully sent but the origin produced no
+                    // response head in time. This is not proof the origin didn't
+                    // process it, so retry on H1/H2 only when the request was
+                    // idempotent *and* bodyless (`sent == 0`) — the one case the
+                    // body can be replayed and re-execution is harmless
+                    // (RFC 9110 §9.2.2). Otherwise surface the failure as a 502.
+                    let replay = (idempotent && sent == 0).then(|| {
+                        let empty = http_body_util::Empty::<Bytes>::new()
+                            .map_err(|e| -> BoxError { match e {} })
+                            .boxed_unsync();
+                        Box::new(Request::from_parts(parts, empty))
+                    });
+                    return Err(H3Failure::ResponseTimeout {
                         error: anyhow::anyhow!("h3 upstream response timed out"),
+                        replay,
                     });
                 }
             };
@@ -1320,7 +1359,11 @@ mod tests {
 
         let resp = match h3.forward(req, &route, &shared).await {
             Ok(r) => r,
-            Err(H3Failure::Retryable { error, .. } | H3Failure::Consumed { error }) => {
+            Err(
+                H3Failure::Retryable { error, .. }
+                | H3Failure::Consumed { error }
+                | H3Failure::ResponseTimeout { error, .. },
+            ) => {
                 panic!("forward failed: {error}")
             }
         };

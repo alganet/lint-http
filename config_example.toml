@@ -54,9 +54,15 @@ captures_include_body = false
 # Extra CA PEM files to trust for origin H3 endpoint certificates (private CAs),
 # in addition to the platform trust store.
 # h3_upstream_extra_ca_certs = ["/etc/lint-http/origin-ca.pem"]
-# Timeout (ms) for the H3 upstream connect/handshake and response head before
-# falling back to H1/H2. Default: 5000.
+# Timeout (ms) for the H3 upstream connect/handshake before falling back to
+# H1/H2. Default: 5000.
 # h3_upstream_connect_timeout_ms = 5000
+# Timeout (ms) for the H3 upstream response head (first origin byte) once the
+# request is sent. Bounded separately from the connect timeout — this is origin
+# think-time, so it is set far more generously to avoid dropping a slow-but-
+# healthy origin. An idempotent bodyless request that hits it is retried on
+# H1/H2; anything else returns 502. Default: 30000.
+# h3_upstream_response_timeout_ms = 30000
 # Base backoff (seconds) for the H3 negative cache: after a connect/handshake
 # failure an origin is not retried over H3 until this window (doubling per
 # consecutive failure) passes. Default: 30.
