@@ -904,7 +904,7 @@ sources:
     snippet: The extension_data field of the quic_transport_parameters extension defined in [QUIC-TLS] contains the QUIC transport parameters
     cited_by:
     - file: lint-http-rules/src/rules/server_quic_transport_parameters.rs
-      line: 46
+      line: 55
 - label: RFC 9110
   url: https://www.rfc-editor.org/rfc/rfc9110.txt
   type: text/plain
@@ -1014,7 +1014,7 @@ sources:
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
     cited_by:
     - file: lint-http-proxy/src/proxy/exchange.rs
-      line: 369
+      line: 380
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
       line: 42
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs

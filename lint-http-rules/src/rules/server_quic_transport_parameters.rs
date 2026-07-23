@@ -4,14 +4,23 @@
 
 //! QUIC transport parameter validation for HTTP/3 (RFC 9000 §18.2).
 //!
-//! Checks that the negotiated QUIC transport parameters are reasonable for
-//! HTTP/3 usage:
+//! Checks that the QUIC transport parameters carried by a `QuicTransportParams`
+//! event are reasonable for HTTP/3 usage:
 //! - `initial_max_streams_bidi` must be non-zero so that at least one
 //!   request stream can be opened.
 //! - `initial_max_data` (connection-level flow control) must be non-zero.
 //! - `max_idle_timeout_ms` should be set (non-zero) and not excessively large.
 //! - Per-stream flow-control windows (`initial_max_stream_data_*`) must be
 //!   non-zero.
+//!
+//! Scope: the only `QuicTransportParams` event the proxy currently produces
+//! carries the parameters **it advertises** on its own client-facing HTTP/3 leg
+//! (tagged `MessageDirection::Client`). The QUIC library (quinn) exposes no
+//! API to read a *peer's* transport parameters, so an origin's parameters on the
+//! upstream leg are not observable and are therefore not validated here — this
+//! rule lints the proxy's own advertised parameters, not a remote endpoint's.
+//! Reviving origin-side validation needs a QUIC stack that surfaces the peer's
+//! transport parameters.
 
 use crate::lint::Violation;
 use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
@@ -132,7 +141,7 @@ impl ProtocolRule for ServerQuicTransportParameters {
     }
 
     fn description(&self) -> &'static str {
-        "Validates that QUIC transport parameters negotiated during the handshake are reasonable for HTTP/3 usage.  This rule inspects protocol-level `QuicTransportParams` events and checks:\n\n* **Bidirectional streams allowed** — `initial_max_streams_bidi` must be non-zero so that at least one HTTP/3 request stream can be opened.\n* **Connection flow control** — `initial_max_data` must be non-zero so that data can actually be transferred.\n* **Stream flow control** — `initial_max_stream_data_bidi_local`, `initial_max_stream_data_bidi_remote`, and `initial_max_stream_data_uni` must be non-zero for their respective stream types to carry data.\n* **Idle timeout** — `max_idle_timeout_ms` should be set (non-zero) to prevent idle connections from consuming server resources indefinitely, and should not be excessively large (>10 minutes)."
+        "Validates that the QUIC transport parameters advertised for HTTP/3 are reasonable. The proxy emits a `QuicTransportParams` event for the parameters **it advertises on its own client-facing HTTP/3 endpoint**, and this rule checks those. It does **not** validate a remote origin's parameters on the upstream leg: the QUIC stack exposes no way to read a peer's transport parameters, so an origin's are not observable and go unchecked here. The checks:\n\n* **Bidirectional streams allowed** — `initial_max_streams_bidi` must be non-zero so that at least one HTTP/3 request stream can be opened.\n* **Connection flow control** — `initial_max_data` must be non-zero so that data can actually be transferred.\n* **Stream flow control** — `initial_max_stream_data_bidi_local`, `initial_max_stream_data_bidi_remote`, and `initial_max_stream_data_uni` must be non-zero for their respective stream types to carry data.\n* **Idle timeout** — `max_idle_timeout_ms` should be set (non-zero) to prevent idle connections from consuming server resources indefinitely, and should not be excessively large (>10 minutes)."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {

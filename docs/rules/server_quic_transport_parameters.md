@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validates that QUIC transport parameters negotiated during the handshake are reasonable for HTTP/3 usage.  This rule inspects protocol-level `QuicTransportParams` events and checks:
+Validates that the QUIC transport parameters advertised for HTTP/3 are reasonable. The proxy emits a `QuicTransportParams` event for the parameters **it advertises on its own client-facing HTTP/3 endpoint**, and this rule checks those. It does **not** validate a remote origin's parameters on the upstream leg: the QUIC stack exposes no way to read a peer's transport parameters, so an origin's are not observable and go unchecked here. The checks:
 
 * **Bidirectional streams allowed** — `initial_max_streams_bidi` must be non-zero so that at least one HTTP/3 request stream can be opened.
 * **Connection flow control** — `initial_max_data` must be non-zero so that data can actually be transferred.
