@@ -42,7 +42,10 @@ jobs:
       - name: Citations file is current
         run: apycite extract --frozen
 
-      # No new rule lands without a citation, and no migrated rule regresses.
+      # Nothing in lint-http-rules lands uncited, and nothing cited regresses.
+      # The scope is the whole crate now, not just `rules/` — a helper that loses
+      # its last citation fails here too. The excludes, and the argument for each,
+      # are in apycite.toml.
       - name: Ratchet
         run: apycite ratchet
 
