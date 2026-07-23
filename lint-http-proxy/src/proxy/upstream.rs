@@ -19,6 +19,9 @@ use hyper_util::client::legacy::Client as LegacyClient;
 use hyper_util::rt::TokioExecutor;
 use tracing::warn;
 
+use crate::config::Config;
+
+use super::upstream_h3::H3UpstreamClient;
 use super::ClientBody;
 
 /// Outbound connection resources, constructed once from a single trust-store
@@ -33,11 +36,18 @@ pub(crate) struct Upstream {
     /// client adds ALPN on top; the WebSocket upgrade path uses it bare. Shared
     /// so the trust store is loaded a single time.
     pub(super) tls_config: Arc<rustls::ClientConfig>,
+    /// HTTP/3 (QUIC) upstream client, present only when `h3_upstream_enabled`.
+    /// Built from the *same* native roots as the H1/H2 path (plus any configured
+    /// private CAs) so the trust store loads once. `None` when H3 forwarding is
+    /// off, in which case every request takes the hyper client above.
+    pub(super) h3: Option<H3UpstreamClient>,
 }
 
 impl Upstream {
-    /// Load the platform trust store once and build both outbound shapes from it.
-    pub(super) fn new() -> anyhow::Result<Self> {
+    /// Load the platform trust store once and build every outbound shape from it:
+    /// the H1/H2 forwarding client, the bare WebSocket-upgrade config, and — when
+    /// `h3_upstream_enabled` — the QUIC H3 upstream client.
+    pub(super) fn new(cfg: &Config) -> anyhow::Result<Self> {
         let loaded = rustls_native_certs::load_native_certs();
         if !loaded.errors.is_empty() {
             warn!(errors = ?loaded.errors, "errors loading platform certificates");
@@ -49,6 +59,11 @@ impl Upstream {
         if roots.is_empty() {
             anyhow::bail!("no native root certificates could be loaded");
         }
+
+        // Build the H3 upstream client before the base config consumes `roots`:
+        // it needs the same native roots plus any configured private CAs, and
+        // rustls bakes the roots into an immutable verifier at build time.
+        let h3 = H3UpstreamClient::build(cfg, &roots)?;
 
         // Base config carries no ALPN: `with_tls_config` asserts that, and the
         // WebSocket path needs it bare. The forwarding client adds h1/h2 below.
@@ -65,6 +80,10 @@ impl Upstream {
             .build();
         let client = LegacyClient::builder(TokioExecutor::new()).build(https);
 
-        Ok(Self { client, tls_config })
+        Ok(Self {
+            client,
+            tls_config,
+            h3,
+        })
     }
 }

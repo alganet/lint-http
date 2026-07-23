@@ -111,7 +111,30 @@ pub(super) async fn exchange(
         }
     };
 
-    let resp = match shared.upstream.client.request(upstream_req).await {
+    // Choose the upstream transport at this single seam: HTTP/3 when the origin
+    // authority is on the H3 allowlist (capability-driven, opt-in), else the
+    // hyper H1/H2 client. Both branches yield a `Response<ResponseBody>` so the
+    // tee/commit machinery below is identical; the H3 branch stamps the response
+    // version as HTTP/3, which is what lands in `tx.response.version`.
+    let h3_client = uri.authority().and_then(|a| {
+        shared
+            .upstream
+            .h3
+            .as_ref()
+            .filter(|h3| h3.handles(a.as_str()))
+    });
+    let resp: Result<hyper::Response<ResponseBody>, String> = if let Some(h3) = h3_client {
+        h3.forward(upstream_req).await.map_err(|e| e.to_string())
+    } else {
+        shared
+            .upstream
+            .client
+            .request(upstream_req)
+            .await
+            .map(|r| r.map(|b| b.map_err(|e| -> BoxError { e.into() }).boxed_unsync()))
+            .map_err(|e| e.to_string())
+    };
+    let resp = match resp {
         Ok(r) => r,
         Err(e) => {
             let duration = started.elapsed().as_millis() as u64;
@@ -153,10 +176,8 @@ pub(super) async fn exchange(
     };
 
     let prefix_cap = shared.cfg.general.captures_max_body_bytes;
-    let inner = resp
-        .into_body()
-        .map_err(|e| -> BoxError { e.into() })
-        .boxed_unsync();
+    // Already a `ResponseBody` from both upstream branches above.
+    let inner = resp.into_body();
     let (resp_body, done_rx) = tee_body::tee(inner, prefix_cap);
 
     // Commit once both body halves have finished streaming — the request body

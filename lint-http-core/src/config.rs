@@ -81,6 +81,31 @@ pub struct GeneralConfig {
     #[serde(default)]
     pub h3_server_name: Option<String>,
 
+    /// Enable the HTTP/3 (QUIC) *upstream* leg: when set, requests whose origin
+    /// authority is listed in `h3_upstream_authorities` are forwarded to the
+    /// origin over HTTP/3 instead of the hyper H1/H2 client (default: false).
+    /// Independent of `h3_listen` (that is the client-facing H3 *server*).
+    #[serde(default)]
+    pub h3_upstream_enabled: bool,
+
+    /// Origin authorities (`host:port`) to forward over HTTP/3 when
+    /// `h3_upstream_enabled` is set. Until Alt-Svc discovery lands, this
+    /// allowlist is the only capability signal that an origin speaks H3.
+    #[serde(default)]
+    pub h3_upstream_authorities: Vec<String>,
+
+    /// UDP socket address the HTTP/3 upstream client binds for its QUIC
+    /// endpoint. Defaults to "0.0.0.0:0" (ephemeral) when omitted.
+    #[serde(default)]
+    pub h3_upstream_bind: Option<String>,
+
+    /// Extra CA certificate PEM files to trust when validating an origin's
+    /// HTTP/3 endpoint certificate, in addition to the platform trust store.
+    /// For origins fronted by a private CA (and for driving an in-process H3
+    /// origin under test). Empty by default.
+    #[serde(default)]
+    pub h3_upstream_extra_ca_certs: Vec<String>,
+
     /// Whether the live capture stream endpoint (`GET /_lint_http/stream`, an
     /// SSE feed of each transaction as it commits) is served. It exposes every
     /// proxied transaction (and body prefixes when `captures_include_body` is
@@ -154,6 +179,10 @@ impl Default for GeneralConfig {
             shutdown_timeout_seconds: default_shutdown_timeout_seconds(),
             h3_listen: None,
             h3_server_name: None,
+            h3_upstream_enabled: false,
+            h3_upstream_authorities: Vec::new(),
+            h3_upstream_bind: None,
+            h3_upstream_extra_ca_certs: Vec::new(),
             live_stream_enabled: default_live_stream_enabled(),
         }
     }
