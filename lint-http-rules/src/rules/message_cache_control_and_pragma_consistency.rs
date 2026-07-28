@@ -47,10 +47,14 @@ impl Rule for MessageCacheControlAndPragmaConsistency {
                             {
                                 let name = part.split('=').next().unwrap().trim();
                                 if name.eq_ignore_ascii_case("only-if-cached") {
+                                    // No sentence says this combination is illegal; it is a
+                                    // heuristic — Pragma: no-cache asks a cache to revalidate,
+                                    // only-if-cached asks it to serve from cache or fail. Recorded
+                                    // in the tracker.
                                     return Some(Violation {
                                         rule: self.id().into(),
                                         severity: config.severity,
-                                        message: "Request contains 'Pragma: no-cache' and 'Cache-Control: only-if-cached' which are contradictory (RFC 7234 §5.4)".to_string(),
+                                        message: "Request contains 'Pragma: no-cache' and 'Cache-Control: only-if-cached' which are contradictory (RFC 9111 §5.4)".to_string(),
                                     });
                                 }
                             }
@@ -60,13 +64,17 @@ impl Rule for MessageCacheControlAndPragmaConsistency {
             }
         }
 
-        // Check responses: presence of Pragma (especially 'no-cache') is not specified and should be replaced by Cache-Control
+        // A Pragma in a response is deprecated, so flag any response Pragma. §5.4 also carries a
+        // gutter Note that "Pragma: no-cache" in responses "was never specified" and so cannot
+        // reliably replace Cache-Control: no-cache — that Note can't be machine-cited (its `|`
+        // gutter markers break extraction), so it is paraphrased in the message, not cited.
+        // cite(RFC 9111 § 5.4): "However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma."
         if let Some(resp) = &tx.response {
             if resp.headers.contains_key("pragma") {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
-                    message: "Response contains 'Pragma' header; the meaning of 'Pragma' in responses is not specified by RFC 7234 §5.4 - use 'Cache-Control' instead".into(),
+                    message: "Response contains 'Pragma' header; its meaning in responses was never specified and Pragma is deprecated — use 'Cache-Control' instead (RFC 9111 §5.4)".into(),
                 });
             }
         }

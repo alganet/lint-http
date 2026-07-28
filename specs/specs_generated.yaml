@@ -1787,6 +1787,12 @@ sources:
       line: 42
   - label: message_cache_control_and_pragma_consistency
     section: § 5.4
+    snippet: However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_cache_control_and_pragma_consistency.rs
+      line: 71
+  - label: message_cache_control_and_pragma_consistency (2)
+    section: § 5.4
     snippet: The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request
     cited_by:
     - file: lint-http-rules/src/rules/message_cache_control_and_pragma_consistency.rs
