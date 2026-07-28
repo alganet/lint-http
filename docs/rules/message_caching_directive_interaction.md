@@ -8,11 +8,13 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Detect contradictions or redundant combinations in `Cache-Control` directives that affect caching semantics. Examples include `public` and `private` appearing together (contradictory visibility), `no-store` combined with `public`/`private`, and `no-cache` together with `max-age=0` (redundant).
+Detect contradictions in `Cache-Control` directives that affect caching semantics: `public` and `private` together (contradictory visibility), `no-store` with `public`/`private`, differing repeated `max-age`/`s-maxage` values, and empty list elements. `no-cache` together with `max-age=0` is a legal combination and is not flagged.
 
 ## Specifications
 
-- [RFC 9111 §3](https://www.rfc-editor.org/rfc/rfc9111.html#section-3): Cache-Control directives and cache semantics
+- [RFC 9111 §5.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2): Response directives: public (§5.2.2.9), private (§5.2.2.7), no-store (§5.2.2.5), max-age/s-maxage
+- [RFC 9111 §4.2.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.1): Conflicting directives are resolved by the most restrictive; multiple values for a directive → first or stale
+- [RFC 9110 §5.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1): List (`#rule`) syntax: a sender MUST NOT generate empty list elements
 
 ## Configuration
 
@@ -37,5 +39,5 @@ Cache-Control: public, private
 
 Cache-Control: no-store, public
 
-Cache-Control: no-cache, max-age=0
+Cache-Control: max-age=60, max-age=30
 ```

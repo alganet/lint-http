@@ -5,12 +5,13 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-/// Detect obvious contradictions or redundant combinations of Cache-Control directives.
-/// Examples flagged:
+/// Detect obvious contradictions in Cache-Control directives. Flagged:
 /// - `public` and `private` present simultaneously (contradictory visibility)
-/// - `no-store` combined with `public` or `private` (contradiction — no-store forbids storing)
-/// - `no-cache` present with `max-age=0` (redundant: both indicate immediate staleness/revalidation)
-/// - Multiple `max-age` or `s-maxage` directives with differing values
+/// - `no-store` combined with `public` or `private` (no-store forbids storing)
+/// - multiple `max-age` or `s-maxage` directives with differing values
+/// - an empty list element (RFC 9110 §5.6.1.1)
+///
+/// `no-cache` with `max-age=0` is a legal, common combination and is intentionally NOT flagged.
 pub struct MessageCachingDirectiveInteraction;
 
 impl Rule for MessageCachingDirectiveInteraction {
@@ -48,8 +49,9 @@ impl Rule for MessageCachingDirectiveInteraction {
                     }
                 };
 
-                // An entirely empty Cache-Control value is a legal zero-element list, distinct
-                // from an empty element *within* a list (which is flagged below). Skip it.
+                // An entirely empty Cache-Control value is a zero-element list, which is legal
+                // (`#element => [ 1#element ]`); that is distinct from an empty *element*
+                // within a list, which the check below flags. Skip the empty-list case.
                 if s.trim().is_empty() {
                     continue;
                 }
@@ -57,6 +59,9 @@ impl Rule for MessageCachingDirectiveInteraction {
                 for member in split_commas_respecting_quotes(s) {
                     let m = member.trim();
                     if m.is_empty() {
+                        // Cache-Control is a `#cache-directive` list, and the sender (client on a
+                        // request, server on a response) must not emit empty list elements.
+                        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: config.severity,
@@ -82,9 +87,14 @@ impl Rule for MessageCachingDirectiveInteraction {
                 seen.entry(n).or_default().push(v);
             }
 
-            // public vs private contradiction. Only *unqualified* private forbids a shared
-            // cache from storing the whole response; qualified `private="field"` lets it store
-            // the rest, so that is not a contradiction with public.
+            // public vs private contradiction. Only *unqualified* private (no `=field-name`
+            // argument) forbids a shared cache from storing the whole response; qualified
+            // `private="…"` lets it store the rest, so it does not contradict public — the cite
+            // is explicitly about "unqualified private". For a shared cache the unqualified
+            // pair directly conflicts: public says it MAY store, private says it MUST NOT. The
+            // spec resolves conflicting directives by honoring the most restrictive (§4.2.1),
+            // so this flag is a misconfiguration heuristic, not an illegal combination.
+            // cite(RFC 9111 § 5.2.2.9): "The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3."
             // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
             let private_unqualified = seen
                 .get("private")
@@ -115,7 +125,10 @@ impl Rule for MessageCachingDirectiveInteraction {
             // Note: combinations like 'no-cache' with 'max-age=0' are allowed per RFC 9111 §3
             // and are intentionally *not* flagged as redundant by this rule.
 
-            // Multiple max-age or s-maxage conflicting values
+            // Multiple max-age or s-maxage with differing values is ambiguous; the spec says a
+            // cache should use the first occurrence or treat the response as stale, so flagging
+            // the divergence is a consistency heuristic.
+            // cite(RFC 9111 § 4.2.1): "When there is more than one value present for a given directive (e.g., two Expires header field lines or multiple Cache-Control: max-age directives), either the first occurrence should be used or the response should be considered stale."
             for key in ["max-age", "s-maxage"] {
                 if let Some(vals) = seen.get(key) {
                     // Collect numeric values (unquoted token form) and compare
@@ -162,16 +175,30 @@ impl Rule for MessageCachingDirectiveInteraction {
     }
 
     fn description(&self) -> &'static str {
-        "Detect contradictions or redundant combinations in `Cache-Control` directives that affect caching semantics. Examples include `public` and `private` appearing together (contradictory visibility), `no-store` combined with `public`/`private`, and `no-cache` together with `max-age=0` (redundant)."
+        "Detect contradictions in `Cache-Control` directives that affect caching semantics: `public` and `private` together (contradictory visibility), `no-store` with `public`/`private`, differing repeated `max-age`/`s-maxage` values, and empty list elements. `no-cache` together with `max-age=0` is a legal combination and is not flagged."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9111",
-            section: Some("3"),
-            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3",
-            note: "Cache-Control directives and cache semantics",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("5.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2",
+                note: "Response directives: public (§5.2.2.9), private (§5.2.2.7), no-store (§5.2.2.5), max-age/s-maxage",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("4.2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.1",
+                note: "Conflicting directives are resolved by the most restrictive; multiple values for a directive → first or stale",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.6.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
+                note: "List (`#rule`) syntax: a sender MUST NOT generate empty list elements",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -185,7 +212,7 @@ impl Rule for MessageCachingDirectiveInteraction {
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "Cache-Control: public, private\n\nCache-Control: no-store, public\n\nCache-Control: no-cache, max-age=0",
+                snippet: "Cache-Control: public, private\n\nCache-Control: no-store, public\n\nCache-Control: max-age=60, max-age=30",
             },
         ]
     }
