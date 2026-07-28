@@ -184,24 +184,42 @@ async fn proxy_get(
     Ok((status, headers, body))
 }
 
-async fn read_captures(path: &str) -> anyhow::Result<Vec<serde_json::Value>> {
+/// Poll the capture file until `predicate` holds over the parsed records, or the
+/// startup timeout elapses. Captures are written asynchronously after a response
+/// returns, so a test needing a *specific* record — a later request's, or a
+/// particular version — must wait for it rather than reading once and racing the
+/// writer under a loaded CI CPU.
+async fn read_captures_until(
+    path: &str,
+    predicate: impl Fn(&[serde_json::Value]) -> bool,
+) -> anyhow::Result<Vec<serde_json::Value>> {
     let deadline = std::time::Instant::now() + startup_timeout();
     loop {
-        if let Ok(content) = tokio::fs::read_to_string(path).await {
-            let lines: Vec<serde_json::Value> = content
+        let caps: Vec<serde_json::Value> = match tokio::fs::read_to_string(path).await {
+            Ok(content) => content
                 .lines()
                 .filter(|l| !l.trim().is_empty())
                 .filter_map(|l| serde_json::from_str(l).ok())
-                .collect();
-            if !lines.is_empty() {
-                return Ok(lines);
-            }
+                .collect(),
+            Err(_) => Vec::new(),
+        };
+        if predicate(&caps) {
+            return Ok(caps);
         }
         if std::time::Instant::now() > deadline {
-            anyhow::bail!("capture not written within timeout");
+            anyhow::bail!(
+                "captures did not satisfy the condition within the startup timeout ({} record(s) present)",
+                caps.len()
+            );
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
+}
+
+/// Wait for at least one capture record to be flushed. Callers that assert on a
+/// *specific* record should use [`read_captures_until`] instead.
+async fn read_captures(path: &str) -> anyhow::Result<Vec<serde_json::Value>> {
+    read_captures_until(path, |caps| !caps.is_empty()).await
 }
 
 #[tokio::test]
