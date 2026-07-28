@@ -40,8 +40,11 @@ impl Rule for MessageRetryAfterDateOrDelay {
                 }
             };
 
-            // Try parse non-negative integer first
-            if s.parse::<u64>().is_ok() {
+            // The delay-seconds alternative is `1*DIGIT` — a non-negative decimal integer.
+            // Check digits-only rather than via `u64::parse`, which diverges from the grammar
+            // in both directions: it accepts a leading `+` (not in `1*DIGIT`) and rejects an
+            // in-grammar value above u64::MAX. `s` is already trimmed.
+            if !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) {
                 continue;
             }
 
@@ -113,6 +116,10 @@ mod tests {
     #[case(503, &[("retry-after", "Wed, 21 Oct 2015 07:28:00 GMT")], false)]
     #[case(503, &[("retry-after", "tomorrow")], true)]
     #[case(503, &[("retry-after", "-1")], true)]
+    // `+120` is not valid `1*DIGIT` (no sign), though `u64::parse` would accept it.
+    #[case(503, &[("retry-after", "+120")], true)]
+    // A digit run above u64::MAX is still valid `1*DIGIT`, so it must not be flagged.
+    #[case(503, &[("retry-after", "99999999999999999999999999")], false)]
     fn check_cases(
         #[case] status: u16,
         #[case] hdrs: &[(&str, &str)],
