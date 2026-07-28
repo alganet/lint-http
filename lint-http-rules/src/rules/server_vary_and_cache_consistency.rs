@@ -6,7 +6,7 @@ use crate::lint::Violation;
 use crate::rules::Rule;
 
 /// Responses that include `Vary: *` cannot be selected by caches for
-/// subsequent requests (a `Vary: *` always fails to match; see RFC 7234 §4.1).
+/// subsequent requests (a `Vary: *` always fails to match; see RFC 9111 §4.1).
 /// If a response also advertises explicit cacheability directives such as
 /// `Cache-Control: max-age`/`s-maxage` or `public`, those directives are
 /// likely ineffective because caches cannot select stored responses when
@@ -31,15 +31,16 @@ impl Rule for ServerVaryAndCacheConsistency {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
-        // Detect Vary: * across all Vary header fields
+        // Detect Vary: * across all Vary header fields. A `Vary: *` can never be matched by a
+        // cache, so any explicit cacheability directive on the same response is ineffective.
         let mut saw_star = false;
-        // cite(RFC 9111 § 4.1): "the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request"
         for hv in resp.headers.get_all("vary").iter() {
             let s = match hv.to_str() {
                 Ok(s) => s,
                 Err(_) => return None, // other rules handle non-utf8 vary values
             };
             for token in crate::helpers::headers::parse_list_header(s) {
+                // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
                 if token == "*" {
                     saw_star = true;
                     break;
@@ -54,7 +55,9 @@ impl Rule for ServerVaryAndCacheConsistency {
             return None;
         }
 
-        // If Vary: * is present, check cache-control directives for explicit cacheability
+        // If Vary: * is present, an explicit cacheability directive is likely ineffective (the
+        // response can never be selected). No sentence says this pairing is illegal, so this is
+        // a misconfiguration heuristic, recorded in the tracker.
         for hv in resp.headers.get_all("cache-control").iter() {
             let s = match hv.to_str() {
                 Ok(s) => s,
@@ -74,12 +77,15 @@ impl Rule for ServerVaryAndCacheConsistency {
                     .trim()
                     .to_ascii_lowercase();
                 match name.as_str() {
+                    // Only directives that *advertise reuse* are flagged. `no-cache` is
+                    // deliberately excluded: it promises no reuse benefit (it requires
+                    // revalidation), so pairing it with Vary: * is not a misconfiguration signal.
                     "max-age" | "s-maxage" | "public" => {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: config.severity,
                             message: format!(
-                                "Response includes Vary: '*' and Cache-Control directive '{}'; Vary: '*' prevents caches from selecting stored responses, making cache directives like '{}' ineffective (see RFC 7234 §4.1)",
+                                "Response includes Vary: '*' and Cache-Control directive '{}'; Vary: '*' prevents caches from selecting stored responses, making cache directives like '{}' ineffective (see RFC 9111 §4.1)",
                                 name, name
                             ),
                         });
@@ -106,7 +112,8 @@ impl Rule for ServerVaryAndCacheConsistency {
                 spec: "RFC 9111",
                 section: Some("4.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
-                note: "Calculating Secondary Keys with Vary (Vary semantics)",
+                note:
+                    "Calculating Cache Keys with the Vary Header Field (a `Vary: *` never matches)",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9111",

@@ -1883,12 +1883,10 @@ sources:
       line: 36
   - label: server_vary_and_cache_consistency
     section: § 4.1
-    snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request
+    snippet: A stored response with a Vary header field value containing a member "*" always fails to match.
     cited_by:
     - file: lint-http-rules/src/rules/server_vary_and_cache_consistency.rs
-      line: 36
-    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
-      line: 172
+      line: 43
   - label: stateful_cache_validation_chain
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
@@ -1925,6 +1923,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_s_max_age_enforcement.rs
       line: 93
+  - label: stateful_vary_header_cache_validity
+    section: § 4.1
+    snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
+      line: 172
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.txt
   type: text/plain
