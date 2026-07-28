@@ -23,11 +23,12 @@ impl Rule for MessageRetryAfterDateOrDelay {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Applies to responses only
+        // Retry-After is a server-sent response field, which is why this rule is Server-scoped.
+        // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
         let resp = tx.response.as_ref()?;
 
-        // Iterate all Retry-After header occurrences; each value must be either
-        // a non-negative integer (delta-seconds) or an IMF-fixdate (HTTP-date)
+        // Each value is either a delay-seconds count or an HTTP-date.
+        // cite(RFC 9110 § 10.2.3): "Retry-After = HTTP-date / delay-seconds"
         for val in resp.headers.get_all("retry-after").iter() {
             let s = match val.to_str() {
                 Ok(s) => s.trim(),
@@ -41,15 +42,17 @@ impl Rule for MessageRetryAfterDateOrDelay {
             };
 
             // The delay-seconds alternative is `1*DIGIT` — a non-negative decimal integer.
-            // Check digits-only rather than via `u64::parse`, which diverges from the grammar
-            // in both directions: it accepts a leading `+` (not in `1*DIGIT`) and rejects an
-            // in-grammar value above u64::MAX. `s` is already trimmed.
+            // Check digits-only directly rather than via `u64::parse`, which diverges from the
+            // grammar in both directions: it accepts a leading `+` (not in `1*DIGIT`) and
+            // rejects an in-grammar value above u64::MAX. `s` is already trimmed.
+            // cite(RFC 9110 § 10.2.3): "A delay-seconds value is a non-negative decimal integer, representing time in seconds."
             if !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) {
                 continue;
             }
 
-            // Try parse HTTP-date (IMF-fixdate) using shared helper
-            // cite(RFC 9110 § 10.2.3): "Retry-After = HTTP-date / delay-seconds"
+            // The HTTP-date alternative. `is_valid_http_date` owns the HTTP-date grammar
+            // (§5.6.7) and accepts all three formats; this rule does not enforce the §5.6.7
+            // sender-MUST IMF-fixdate strictness against the server (recorded in the tracker).
             if crate::http_date::is_valid_http_date(s) {
                 continue;
             }
@@ -58,7 +61,7 @@ impl Rule for MessageRetryAfterDateOrDelay {
                 rule: self.id().into(),
                 severity: config.severity,
                 message: format!(
-                    "Retry-After value '{}' is invalid: must be a non-negative delta-seconds integer or an HTTP-date (IMF-fixdate)",
+                    "Retry-After value '{}' is invalid: must be a non-negative delay-seconds integer or an HTTP-date",
                     s
                 ),
             });
@@ -72,7 +75,7 @@ impl Rule for MessageRetryAfterDateOrDelay {
     }
 
     fn description(&self) -> &'static str {
-        "The `Retry-After` header, when present in responses, MUST be either a non-negative integer (delay-seconds) or an HTTP-date (IMF-fixdate). This rule flags `Retry-After` values that do not match either form."
+        "The `Retry-After` header, when present in responses, MUST be either a non-negative integer (delay-seconds) or an HTTP-date. This rule flags `Retry-After` values that do not match either form. The HTTP-date is accepted in any of the three formats a recipient must parse; this rule does not additionally enforce the sender's IMF-fixdate obligation."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
