@@ -57,10 +57,10 @@ impl Rule for StatefulConditionalRequestHandling {
         // Previous transaction must include a response with validators when
         // entity-tag/date conditionals are used.
         if let Some(resp) = &prev.response {
-            // An entity-tag precondition is only meaningful against a validator the client
-            // was actually given. Without an ETag on the earlier response there is nothing
-            // for the comparison function to compare.
-            // cite(RFC 9110 § 8.8.3): "An entity tag is an opaque validator for differentiating between multiple representations of the same resource"
+            // An entity-tag precondition compares against a validator (an ETag). Requiring the
+            // client to have *previously observed* that validator is a stateful heuristic with
+            // no governing MUST/SHOULD in RFC 9110 (recorded §4.1) — e.g. `If-None-Match: *`
+            // legitimately needs no prior tag — so this construct carries no cite.
             if (has_inm || has_imatch) && resp.headers.get("etag").is_none() {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -69,7 +69,8 @@ impl Rule for StatefulConditionalRequestHandling {
                 });
             }
 
-            // cite(RFC 9110 § 8.8.2): "The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified"
+            // Same shape for a date-based precondition (a Last-Modified validator): the
+            // prior-observation requirement is the same uncited stateful heuristic.
             if (has_ifm || has_iunmod) && resp.headers.get("last-modified").is_none() {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -88,8 +89,12 @@ impl Rule for StatefulConditionalRequestHandling {
         }
 
         // Response-side sanity checks for common conditional patterns (GET/HEAD):
-        // - If-None-Match: if response ETag equals one of the request's ETags and
-        //   server returned 200 for GET/HEAD, recommend 304.
+        // - If-None-Match: if the response ETag matches one of the request's tags (or the
+        //   request sent `*` against an existing representation) and the server returned 200
+        //   for GET/HEAD, the If-None-Match condition was false — §13.1.2 requires a 304, not
+        //   a 200. (Exact string match, not the weak comparison §8.8.3.2 mandates: a deliberate
+        //   narrowing that only under-flags — an exact match is also a weak match.)
+        // cite(RFC 9110 § 13.1.2): "An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods."
         if has_inm
             && (req.method.eq_ignore_ascii_case("GET") || req.method.eq_ignore_ascii_case("HEAD"))
         {
@@ -107,7 +112,7 @@ impl Rule for StatefulConditionalRequestHandling {
                                             return Some(Violation {
                                                 rule: self.id().into(),
                                                 severity: config.severity,
-                                                message: "Conditional GET/HEAD used If-None-Match but server returned 200 while ETag matched; consider returning 304 Not Modified".into(),
+                                                message: "Conditional GET/HEAD: the If-None-Match condition was not met (response ETag matched) but the server returned 200; RFC 9110 §13.1.2 requires a 304 (Not Modified) for GET/HEAD".into(),
                                             });
                                         }
                                     }
@@ -119,11 +124,14 @@ impl Rule for StatefulConditionalRequestHandling {
             }
         }
 
-        // - If-Modified-Since: if response Last-Modified equals the conditional
-        //   value and server returned 200 for GET/HEAD, recommend 304.
-        // Guarded by `!has_inm`: per §13.2.2, If-Modified-Since is evaluated only when
-        // If-None-Match is absent. With both present the If-None-Match branch governs and a
-        // 200 can be legal (INM condition true), so flagging here would be a false positive.
+        // - If-Modified-Since: if the response Last-Modified is not more recent than the
+        //   conditional value and the server returned 200 for GET/HEAD, the condition was
+        //   false, so a 304 SHOULD have been sent. (A SHOULD here, unlike §13.1.2's MUST.)
+        //   Guarded by `!has_inm`: per §13.2.2, If-Modified-Since is evaluated only when
+        //   If-None-Match is absent, so if both are present the If-None-Match branch governs
+        //   and a 200 may be legal (INM condition true) — flagging here would be a false
+        //   positive.
+        // cite(RFC 9110 § 13.1.3): "An origin server that evaluates an If-Modified-Since condition SHOULD NOT perform the requested method if the condition evaluates to false; instead, the origin server SHOULD generate a 304 (Not Modified) response"
         // cite(RFC 9110 § 13.2.2): "When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition"
         if has_ifm
             && !has_inm
@@ -172,6 +180,18 @@ impl Rule for StatefulConditionalRequestHandling {
                 section: Some("13.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1",
                 note: "Preconditions",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("13.1.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2",
+                note: "If-None-Match: GET/HEAD with a false condition MUST get 304",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("13.1.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
+                note: "If-Modified-Since: a false condition SHOULD get 304",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
@@ -376,7 +396,9 @@ mod tests {
             ]),
         );
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("consider returning 304"));
+        let msg = v.unwrap().message;
+        assert!(msg.contains("304"));
+        assert!(msg.contains("§13.1.2"));
     }
 
     #[test]

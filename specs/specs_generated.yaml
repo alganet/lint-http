@@ -1629,8 +1629,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_etag_or_last_modified.rs
       line: 33
-    - file: lint-http-rules/src/rules/stateful_conditional_request_handling.rs
-      line: 63
   - label: server_last_modified_rfc1123_format
     section: § 8.8.2
     snippet: Last-Modified = HTTP-date
@@ -1730,17 +1728,23 @@ sources:
     - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
       line: 50
   - label: stateful_conditional_request_handling
+    section: § 13.1.2
+    snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_conditional_request_handling.rs
+      line: 97
+  - label: stateful_conditional_request_handling (2)
+    section: § 13.1.3
+    snippet: An origin server that evaluates an If-Modified-Since condition SHOULD NOT perform the requested method if the condition evaluates to false; instead, the origin server SHOULD generate a 304 (Not Modified) response
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_conditional_request_handling.rs
+      line: 134
+  - label: stateful_conditional_request_handling (3)
     section: § 13.2.2
     snippet: When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition
     cited_by:
     - file: lint-http-rules/src/rules/stateful_conditional_request_handling.rs
-      line: 127
-  - label: stateful_conditional_request_handling (2)
-    section: § 8.8.2
-    snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_conditional_request_handling.rs
-      line: 72
+      line: 135
 - label: RFC 9111
   url: https://www.rfc-editor.org/rfc/rfc9111.txt
   type: text/plain
