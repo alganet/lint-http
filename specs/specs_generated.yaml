@@ -1816,7 +1816,21 @@ sources:
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or * If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field
     cited_by:
     - file: lint-http-rules/src/rules/message_expires_and_cache_control_consistency.rs
-      line: 111
+      line: 119
+  - label: message_expires_and_cache_control_consistency (2)
+    section: § 5.3
+    snippet: If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_expires_and_cache_control_consistency.rs
+      line: 118
+    - file: lint-http-rules/src/rules/message_expires_and_cache_control_consistency.rs
+      line: 136
+  - label: message_expires_and_cache_control_consistency (3)
+    section: § 5.3
+    snippet: The Expires field value is an HTTP-date timestamp, as defined in Section 5.6.7 of [HTTP].
+    cited_by:
+    - file: lint-http-rules/src/rules/message_expires_and_cache_control_consistency.rs
+      line: 38
   - label: message_warning_header_syntax
     section: § 5.5
     snippet: The "Warning" header field was used to carry additional information about the status or transformation of a message

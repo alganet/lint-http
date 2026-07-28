@@ -33,6 +33,9 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
         // If either header is missing, nothing to check
         let mut has_expires = false;
         let mut expires_dt: Option<DateTime<Utc>> = None;
+        // Expires is an HTTP-date; parse it with the recipient parser (the HTTP-date grammar
+        // itself, §5.6.7, is owned by the http_date helper).
+        // cite(RFC 9111 § 5.3): "The Expires field value is an HTTP-date timestamp, as defined in Section 5.6.7 of [HTTP]."
         if let Some(hv) = resp.headers.get_all("expires").iter().next() {
             if let Ok(s) = hv.to_str() {
                 has_expires = true;
@@ -46,10 +49,11 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
         }
 
         let mut cc_present = false;
-        // Collect Cache-Control response directives of interest.  We still
-        // explicitly track `no-cache`/`no-store` because they factor into
-        // contradiction checks; the numeric values for max-age and s-maxage are
-        // obtained via helpers to centralize parsing logic.
+        // Collect the Cache-Control response directives of interest. `no-cache`/`no-store`
+        // and `max-age` are parsed inline here; `s-maxage` uses a shared helper below.
+        // (NOTE: `get_cache_control_max_age` exists but is intentionally *not* used — it
+        // returns None when no-cache/no-store is also present, whereas the contradiction
+        // checks need the raw max-age even then. This divergence is recorded in the tracker.)
         let mut cc_no_cache = false;
         let mut cc_no_store = false;
         let mut cc_max_age: Option<i64> = None;
@@ -104,24 +108,32 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
             tx.timestamp
         };
 
-        // If no-cache or no-store or max-age=0 but Expires in the future => contradiction.
-        // The precedence is not stated as a rule about Expires; it falls out of the
-        // freshness calculation, which consults max-age *before* it consults Expires and
-        // stops at the first match.
+        // Expires and the Cache-Control freshness directives can disagree. The spec resolves
+        // that by *precedence*, not by calling it an error — so flagging the disagreement is
+        // this rule's misconfiguration heuristic, built on two facts: for max-age the
+        // recipient MUST ignore Expires (§5.3), and the freshness calculation consults max-age
+        // before Expires, stopping at the first match (§4.2.1). no-cache/no-store do not
+        // "ignore Expires" — their contradiction with a future Expires is a pure heuristic
+        // (recorded in the tracker).
+        // cite(RFC 9111 § 5.3): "If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field."
         // cite(RFC 9111 § 4.2.1): "If the max-age response directive (Section 5.2.2.1) is present, use its value, or * If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field"
         if (cc_no_cache || cc_no_store || cc_max_age == Some(0)) && expires > date_ref {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
                 message: format!(
-                    "Response contains Cache-Control directives {:?} which prevent caching, but Expires indicates freshness until {} — Cache-Control takes precedence (RFC 9111 §4.2.1)",
+                    "Response contains Cache-Control directives {:?} that make it non-fresh, but Expires indicates freshness until {} — Cache-Control takes precedence (RFC 9111 §4.2.1)",
                     if cc_no_cache { "no-cache" } else if cc_no_store { "no-store" } else { "max-age=0" },
                     expires
                 ),
             });
         }
 
-        // If max-age or s-maxage is positive, but Expires is earlier than Date (already expired) => contradiction
+        // Same misconfiguration heuristic, the other way round: a positive max-age (or, for a
+        // shared cache, s-maxage) says "fresh" while Expires is already stale. Per §5.3/§4.2.1
+        // the directive wins and Expires is ignored, so this is a consistency flag, not a spec
+        // violation — the two values simply disagree.
+        // cite(RFC 9111 § 5.3): "If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field."
         if (cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0) && expires <= date_ref {
             return Some(Violation {
                 rule: self.id().into(),
@@ -133,7 +145,10 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
             });
         }
 
-        // If max-age exists and Date is present, check that Expires roughly matches Date + max-age (best-effort)
+        // Best-effort consistency: when Date is present, warn if Expires and Date+max-age
+        // diverge by more than a second. No requirement makes Expires equal Date+max-age —
+        // they are alternatives and max-age wins (§4.2.1/§5.3) — so this is a heuristic with a
+        // 1-second formatting/rounding leeway, recorded in the tracker.
         if resp.headers.contains_key("date") {
             if let Some(max_age) = cc_max_age {
                 if max_age >= 0 {
@@ -167,7 +182,7 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
                 spec: "RFC 9111",
                 section: Some("5.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3",
-                note: "Cache-Control directives override Expires; recipients MUST ignore the Expires header field when max-age/s-maxage is present",
+                note: "Cache-Control overrides Expires: a recipient MUST ignore Expires when max-age is present, and a shared cache MUST ignore it when s-maxage is present",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9111",
