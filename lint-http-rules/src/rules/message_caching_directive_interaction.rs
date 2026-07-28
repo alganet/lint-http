@@ -48,6 +48,12 @@ impl Rule for MessageCachingDirectiveInteraction {
                     }
                 };
 
+                // An entirely empty Cache-Control value is a legal zero-element list, distinct
+                // from an empty element *within* a list (which is flagged below). Skip it.
+                if s.trim().is_empty() {
+                    continue;
+                }
+
                 for member in split_commas_respecting_quotes(s) {
                     let m = member.trim();
                     if m.is_empty() {
@@ -76,9 +82,14 @@ impl Rule for MessageCachingDirectiveInteraction {
                 seen.entry(n).or_default().push(v);
             }
 
-            // public vs private contradiction
+            // public vs private contradiction. Only *unqualified* private forbids a shared
+            // cache from storing the whole response; qualified `private="field"` lets it store
+            // the rest, so that is not a contradiction with public.
             // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
-            if seen.contains_key("public") && seen.contains_key("private") {
+            let private_unqualified = seen
+                .get("private")
+                .is_some_and(|vs| vs.iter().any(|v| v.is_none()));
+            if seen.contains_key("public") && private_unqualified {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
@@ -212,6 +223,11 @@ mod tests {
     #[case("max-age=60, max-age=30", true)]
     #[case("s-maxage=60, s-maxage=60", false)]
     #[case("s-maxage=60, s-maxage=30", true)]
+    // Qualified `private="field"` lets a shared cache store the rest, so `public` + qualified
+    // private is not a contradiction (only *unqualified* private is).
+    #[case("public, private=\"Set-Cookie\"", false)]
+    // An entirely empty Cache-Control value is a legal zero-element list, not an empty element.
+    #[case("", false)]
     fn request_cases(#[case] val: &str, #[case] expect_violation: bool) {
         let rule = MessageCachingDirectiveInteraction;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[

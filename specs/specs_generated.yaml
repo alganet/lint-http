@@ -1800,7 +1800,7 @@ sources:
     snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request.
     cited_by:
     - file: lint-http-rules/src/rules/message_caching_directive_interaction.rs
-      line: 96
+      line: 107
     - file: lint-http-rules/src/rules/stateful_no_store_enforcement.rs
       line: 150
   - label: message_caching_directive_interaction (2)
@@ -1808,7 +1808,7 @@ sources:
     snippet: The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user).
     cited_by:
     - file: lint-http-rules/src/rules/message_caching_directive_interaction.rs
-      line: 80
+      line: 88
     - file: lint-http-rules/src/rules/stateful_private_cache_visibility.rs
       line: 77
   - label: message_expires_and_cache_control_consistency
