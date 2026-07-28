@@ -1730,6 +1730,12 @@ sources:
     - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
       line: 50
   - label: stateful_conditional_request_handling
+    section: § 13.2.2
+    snippet: When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_conditional_request_handling.rs
+      line: 127
+  - label: stateful_conditional_request_handling (2)
     section: § 8.8.2
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
     cited_by:

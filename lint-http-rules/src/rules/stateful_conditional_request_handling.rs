@@ -121,7 +121,12 @@ impl Rule for StatefulConditionalRequestHandling {
 
         // - If-Modified-Since: if response Last-Modified equals the conditional
         //   value and server returned 200 for GET/HEAD, recommend 304.
+        // Guarded by `!has_inm`: per §13.2.2, If-Modified-Since is evaluated only when
+        // If-None-Match is absent. With both present the If-None-Match branch governs and a
+        // 200 can be legal (INM condition true), so flagging here would be a false positive.
+        // cite(RFC 9110 § 13.2.2): "When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition"
         if has_ifm
+            && !has_inm
             && (req.method.eq_ignore_ascii_case("GET") || req.method.eq_ignore_ascii_case("HEAD"))
         {
             if let Some(resp) = &tx.response {
@@ -398,6 +403,44 @@ mod tests {
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("consider returning 304"));
+    }
+
+    #[test]
+    fn ims_304_not_flagged_when_if_none_match_present() {
+        // Both If-None-Match and If-Modified-Since present. Per RFC 9110 §13.2.2, only
+        // If-None-Match is evaluated; its condition is TRUE here (response ETag "b" does not
+        // match the request tag "a"), so the 200 is legal and the If-Modified-Since→304
+        // check must NOT fire even though Last-Modified is not more recent than the IMS value.
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("etag", "\"b\""),
+                ("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT"),
+            ],
+        );
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("if-none-match", "\"a\""),
+            ("if-modified-since", "Wed, 21 Oct 2015 07:28:00 GMT"),
+        ]);
+        tx.request.method = "GET".to_string();
+
+        let prev = make_prev_with_headers(&[
+            ("etag", "\"a\""),
+            ("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT"),
+        ]);
+
+        let rule = StatefulConditionalRequestHandling;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_conditional_request_handling",
+            ]),
+        );
+        assert!(
+            v.is_none(),
+            "IMS→304 must not fire when If-None-Match is present: {v:?}"
+        );
     }
 
     #[test]
