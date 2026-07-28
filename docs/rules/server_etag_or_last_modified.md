@@ -14,8 +14,8 @@ These headers act as validators, allowing clients to perform conditional request
 
 ## Specifications
 
-- [RFC 9110 §8.8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2): Last-Modified header
-- [RFC 9110 §8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3): ETag header
+- [RFC 9110 §8.8.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2.1): Generation: an origin server SHOULD send Last-Modified
+- [RFC 9110 §8.8.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3.1): Generation: an origin server SHOULD send an ETag
 
 ## Configuration
 
