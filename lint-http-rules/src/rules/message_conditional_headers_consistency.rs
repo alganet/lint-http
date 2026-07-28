@@ -59,6 +59,7 @@ impl Rule for MessageConditionalHeadersConsistency {
         // If-Range should only be sent in requests that contain Range
         if let Some(hv) = req.headers.get_all("if-range").iter().next() {
             // If-Range exists
+            // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field."
             if req.headers.get("range").is_none() {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -67,10 +68,12 @@ impl Rule for MessageConditionalHeadersConsistency {
                 });
             }
 
-            // Validate If-Range content: if it's an entity-tag, it MUST NOT be weak
+            // Validate If-Range content: if it's an entity-tag, it MUST NOT be weak.
+            // (A weak marker is the `W/` prefix; a bare quoted-string is a strong tag and
+            // fine, and a date is left to date-validity rules.)
             if let Ok(s) = hv.to_str() {
                 let trimmed = s.trim();
-                // If it looks like an entity-tag (starts with W/ or '"'), check weak
+                // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak."
                 if trimmed.starts_with("W/") {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -90,6 +93,10 @@ impl Rule for MessageConditionalHeadersConsistency {
         }
 
         // If-Modified-Since only meaningful for GET/HEAD. If present on other methods, flag it.
+        // (The cited sentence bundles three ignore-conditions; this rule enforces the
+        // method one. The not-a-valid-HTTP-date clause is owned by the date-format rule;
+        // the "more than one member" clause is currently enforced by no rule.)
+        // cite(RFC 9110 § 13.1.3): "A recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD."
         if has_if_modified_since
             && !(req.method.eq_ignore_ascii_case("GET") || req.method.eq_ignore_ascii_case("HEAD"))
         {
@@ -104,7 +111,7 @@ impl Rule for MessageConditionalHeadersConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Validate consistency and mutual exclusivity of conditional request headers. This rule enforces the evaluation precedence of conditional headers (ETag-based conditionals take precedence over date-based ones), ensures `If-Range` is only used with `Range` requests, and disallows weak ETags in `If-Range` when an entity-tag is used."
+        "Validate consistency and mutual exclusivity of conditional request headers. When an ETag-based conditional is present, this rule flags a redundant date-based conditional that the recipient is required to ignore (RFC 9110 §13.1.3, §13.1.4); it also ensures `If-Range` is only used with `Range` requests, disallows a weak entity-tag in `If-Range`, and flags `If-Modified-Since` on methods other than GET/HEAD."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -117,6 +124,12 @@ impl Rule for MessageConditionalHeadersConsistency {
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
+                section: Some("13.1.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5",
+                note: "If-Range: no If-Range without Range; no weak entity-tag in If-Range",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
                 section: Some("13.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2",
                 note: "Evaluation of Preconditions (precedence rules)",
@@ -125,7 +138,7 @@ impl Rule for MessageConditionalHeadersConsistency {
                 spec: "RFC 9110",
                 section: Some("14.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
-                note: "Range (If-Range interplay)",
+                note: "Range (the header If-Range depends on)",
             },
         ]
     }

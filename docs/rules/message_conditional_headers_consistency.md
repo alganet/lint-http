@@ -8,13 +8,14 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate consistency and mutual exclusivity of conditional request headers. This rule enforces the evaluation precedence of conditional headers (ETag-based conditionals take precedence over date-based ones), ensures `If-Range` is only used with `Range` requests, and disallows weak ETags in `If-Range` when an entity-tag is used.
+Validate consistency and mutual exclusivity of conditional request headers. When an ETag-based conditional is present, this rule flags a redundant date-based conditional that the recipient is required to ignore (RFC 9110 §13.1.3, §13.1.4); it also ensures `If-Range` is only used with `Range` requests, disallows a weak entity-tag in `If-Range`, and flags `If-Modified-Since` on methods other than GET/HEAD.
 
 ## Specifications
 
 - [RFC 9110 §13.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1): Preconditions
+- [RFC 9110 §13.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5): If-Range: no If-Range without Range; no weak entity-tag in If-Range
 - [RFC 9110 §13.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2): Evaluation of Preconditions (precedence rules)
-- [RFC 9110 §14.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2): Range (If-Range interplay)
+- [RFC 9110 §14.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2): Range (the header If-Range depends on)
 
 ## Configuration
 
