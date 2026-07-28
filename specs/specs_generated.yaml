@@ -1618,17 +1618,17 @@ sources:
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 57
   - label: server_etag_or_last_modified
-    section: § 8.8.2
+    section: § 8.8.2.1
     snippet: An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined
     cited_by:
     - file: lint-http-rules/src/rules/server_etag_or_last_modified.rs
-      line: 32
+      line: 36
   - label: server_etag_or_last_modified (2)
-    section: § 8.8.3
-    snippet: An entity tag is an opaque validator for differentiating between multiple representations of the same resource
+    section: § 8.8.3.1
+    snippet: An origin server SHOULD send an ETag for any selected representation for which detection of changes can be reasonably and consistently determined
     cited_by:
     - file: lint-http-rules/src/rules/server_etag_or_last_modified.rs
-      line: 33
+      line: 37
   - label: server_last_modified_rfc1123_format
     section: § 8.8.2
     snippet: Last-Modified = HTTP-date
