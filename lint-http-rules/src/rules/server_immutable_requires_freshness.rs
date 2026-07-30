@@ -5,10 +5,11 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-/// `immutable` is only meaningful while a response is fresh, so pairing it with a
-/// directive that guarantees the response is never fresh — `no-store`, `no-cache`,
-/// `max-age=0`, `s-maxage=0` — is a contradiction: the promise has no window in
-/// which to apply.
+/// `immutable` only acts while a response is fresh, so pairing it with a directive that
+/// leaves the promise nothing to act on is a contradiction. Each flagged directive nullifies
+/// the window a different way: `no-store` prevents storing at all, `no-cache` mandates
+/// revalidation before reuse, `max-age=0` zeroes the freshness lifetime, and `s-maxage=0`
+/// does the same for shared caches.
 ///
 /// This replaces `server_must_revalidate_and_immutable_mismatch`, which flagged
 /// `immutable` alongside `must-revalidate`. That pairing is *correct*, not a mistake:
@@ -18,8 +19,11 @@ use crate::rules::Rule;
 /// no sentence in RFC 9111 or RFC 8246 could be found to justify it.
 pub struct ServerImmutableRequiresFreshness;
 
-/// Directives that leave a response with no freshness lifetime at all. Each is a
-/// reason `immutable` standing next to it is dead text.
+/// Directives that nullify `immutable`'s fresh-window promise — each either prevents storing
+/// the response (`no-store`), mandates revalidation before reuse (`no-cache`), or zeroes the
+/// freshness lifetime (`max-age=0`; `s-maxage=0` for shared caches). Any of them makes
+/// `immutable` standing next to it dead text. (Not "no freshness lifetime at all": `no-cache`
+/// with a positive `max-age` is still *fresh*, it just cannot be reused without revalidation.)
 const NEVER_FRESH: &[&str] = &["no-store", "no-cache", "max-age=0", "s-maxage=0"];
 
 impl Rule for ServerImmutableRequiresFreshness {
@@ -66,6 +70,11 @@ impl Rule for ServerImmutableRequiresFreshness {
                 };
                 let lname = name.to_ascii_lowercase();
 
+                // `immutable` is the RFC 8246 §2 Cache-Control extension: it tells clients the
+                // origin will not update the representation during the response's freshness
+                // lifetime. (Its defining sentence resists machine extraction from the RFC HTML,
+                // so the two §2 cites on the violation below — its freshness-window behaviour —
+                // carry the spec reference for this rule.)
                 if lname == "immutable" {
                     found_immutable = true;
                     continue;
@@ -114,7 +123,7 @@ impl Rule for ServerImmutableRequiresFreshness {
     }
 
     fn description(&self) -> &'static str {
-        "This rule flags responses whose `Cache-Control` header pairs `immutable` with a directive that leaves the response no freshness lifetime — `no-store`, `no-cache`, `max-age=0`, or `s-maxage=0`. Per RFC 8246, `immutable` only applies during a stored response's freshness lifetime: it tells clients the representation will not change while the response is fresh, and asks them not to revalidate during that window. A response that can never be fresh has no such window, so `immutable` has nothing to act on, and one of the two directives is a mistake.\n\nNote: `immutable` together with `must-revalidate` is **not** flagged. Those directives govern disjoint windows — `immutable` applies while the response is fresh, `must-revalidate` binds once it has gone stale — and RFC 8246 says stale responses \"SHOULD be revalidated as they normally would be in the absence of the immutable extension\". `Cache-Control: max-age=3600, immutable, must-revalidate` is coherent. An earlier version of this rule (`server_must_revalidate_and_immutable_mismatch`) reported that pairing as an error. It was wrong: no sentence in RFC 9111 or RFC 8246 supported it."
+        "This rule flags responses whose `Cache-Control` header pairs `immutable` with a directive that nullifies its fresh-window promise — `no-store` (nothing is stored), `no-cache` (reuse always requires revalidation), `max-age=0`, or `s-maxage=0` (zero freshness lifetime, the latter for shared caches). Per RFC 8246, `immutable` only applies during a stored response's freshness lifetime: it tells clients the representation will not change while the response is fresh, and asks them not to revalidate during that window. A response that can never be fresh has no such window, so `immutable` has nothing to act on, and one of the two directives is a mistake.\n\nNote: `immutable` together with `must-revalidate` is **not** flagged. Those directives govern disjoint windows — `immutable` applies while the response is fresh, `must-revalidate` binds once it has gone stale — and RFC 8246 says stale responses \"SHOULD be revalidated as they normally would be in the absence of the immutable extension\". `Cache-Control: max-age=3600, immutable, must-revalidate` is coherent. An earlier version of this rule (`server_must_revalidate_and_immutable_mismatch`) reported that pairing as an error. It was wrong: no sentence in RFC 9111 or RFC 8246 supported it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
