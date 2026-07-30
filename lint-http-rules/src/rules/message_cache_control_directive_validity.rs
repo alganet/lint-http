@@ -111,11 +111,16 @@ impl Rule for MessageCacheControlDirectiveValidity {
 fn check_cache_control_directives(s: &str) -> Option<String> {
     for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
         let member = member.trim();
+        // An empty element *within* the list is forbidden, unlike the empty whole
+        // value the callers skip as a zero-element list.
+        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if member.is_empty() {
             return Some("Empty directive in Cache-Control header".into());
         }
 
-        // directive = token [ "=" ( token / quoted-string ) ]
+        // The name/value split below transcribes the cache-directive grammar; the
+        // `token` and `quoted-string` rules themselves stay helper-owned.
+        // cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
         let mut kv = member.splitn(2, '=');
         let name = kv.next().unwrap().trim();
         if name.is_empty() {
@@ -143,7 +148,9 @@ fn check_cache_control_directives(s: &str) -> Option<String> {
             let lname = name.to_ascii_lowercase();
             match lname.as_str() {
                 "max-age" | "s-maxage" => {
-                    // must be a non-negative integer
+                    // Both take a delta-seconds argument, which is why a sign, a
+                    // decimal point or any non-digit is rejected here.
+                    // cite(RFC 9111 § 1.2.2): "The delta-seconds rule specifies a non-negative integer, representing time in seconds."
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(vpart) {
                         // If it contains non-token chars it's invalid (no quotes allowed here)
                         return Some(format!(
@@ -154,13 +161,22 @@ fn check_cache_control_directives(s: &str) -> Option<String> {
                     if vpart.chars().any(|ch| !ch.is_ascii_digit()) {
                         return Some(format!("{} must be a non-negative integer", name));
                     }
-                    // parse to ensure numeric range
+                    // Divergence, recorded rather than changed: an all-digit value too
+                    // large for u64 is still syntactically valid `1*DIGIT`. §1.2.2 tells
+                    // a *cache* to clamp such a value to 2147483648 rather than treat it
+                    // as an error, so reporting it here is stricter than the spec. It
+                    // needs a 20+ digit value to trigger, and relaxing it would be a
+                    // behavior change, so the check stands and the gap is noted.
                     if vpart.parse::<u64>().is_err() {
                         return Some(format!("{} value is not a valid integer", name));
                     }
                 }
                 "private" | "no-cache" => {
-                    // optional list of field-names (comma-separated tokens) or quoted-string
+                    // Both take the same optional argument: a `#field-name` list, which
+                    // is what this branch validates (as a quoted-string or, leniently,
+                    // as a bare comma-separated list). The sentence below is stated for
+                    // private; no-cache's qualified form (§5.2.2.4) has the same shape.
+                    // cite(RFC 9111 § 5.2.2.7): "If a qualified private response directive is present, with an argument that lists one or more field names"
                     if vpart.starts_with('"') {
                         match crate::helpers::headers::unescape_quoted_string(vpart) {
                             Ok(inner) => {
