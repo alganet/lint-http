@@ -27,12 +27,11 @@ impl Rule for MessageCacheControlDirectiveValidity {
         // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
         for header_val in tx.request.headers.get_all("cache-control").iter() {
             if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
+                // An entirely empty Cache-Control value is a zero-element list, which is legal
+                // (`#element => [ 1#element ]`); that is distinct from an empty *element*
+                // within a list, which check_cache_control_directives flags. Skip it.
                 if v.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Cache-Control header must not be empty".into(),
-                    });
+                    continue;
                 }
                 if let Some(msg) = check_cache_control_directives(v) {
                     return Some(Violation {
@@ -53,12 +52,11 @@ impl Rule for MessageCacheControlDirectiveValidity {
         if let Some(resp) = &tx.response {
             for header_val in resp.headers.get_all("cache-control").iter() {
                 if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
+                    // An entirely empty Cache-Control value is a zero-element list, which is legal
+                    // (`#element => [ 1#element ]`); that is distinct from an empty *element*
+                    // within a list, which check_cache_control_directives flags. Skip it.
                     if v.is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: "Cache-Control header must not be empty".into(),
-                        });
+                        continue;
                     }
                     if let Some(msg) = check_cache_control_directives(v) {
                         return Some(Violation {
@@ -347,7 +345,10 @@ mod tests {
     }
 
     #[test]
-    fn whitespace_only_request_is_violation() -> anyhow::Result<()> {
+    fn whitespace_only_request_is_allowed() -> anyhow::Result<()> {
+        // Leading/trailing OWS is excluded from the field line value (RFC 9112
+        // §5.1), so a whitespace-only value is an empty value: a legal
+        // zero-element list, exactly like `empty_whole_value_is_allowed_request`.
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_req("   ");
         let v = rule.check_transaction(
@@ -356,14 +357,14 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(
-            v.is_some(),
-            "whitespace-only request header should be a violation"
+            v.is_none(),
+            "whitespace-only value is an empty field line value, i.e. a zero-element list"
         );
         Ok(())
     }
 
     #[test]
-    fn whitespace_only_response_is_violation() -> anyhow::Result<()> {
+    fn whitespace_only_response_is_allowed() -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
         let tx = make_resp("   ");
         let v = rule.check_transaction(
@@ -372,8 +373,8 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(
-            v.is_some(),
-            "whitespace-only response header should be a violation"
+            v.is_none(),
+            "whitespace-only value is an empty field line value, i.e. a zero-element list"
         );
         Ok(())
     }
@@ -406,6 +407,34 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn empty_whole_value_is_allowed_request() -> anyhow::Result<()> {
+        // A wholly empty `Cache-Control:` is a legal zero-element list, unlike the
+        // empty *element* in `empty_member_is_violation`.
+        let rule = MessageCacheControlDirectiveValidity;
+        let tx = make_req("");
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "empty Cache-Control is a zero-element list");
+        Ok(())
+    }
+
+    #[test]
+    fn empty_whole_value_is_allowed_response() -> anyhow::Result<()> {
+        let rule = MessageCacheControlDirectiveValidity;
+        let tx = make_resp("");
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "empty Cache-Control is a zero-element list");
         Ok(())
     }
 
