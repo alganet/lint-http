@@ -13,6 +13,8 @@ impl Rule for ServerCacheControlPresent {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
+        // Server: the heuristic-freshness concern is about what an origin's response
+        // does or does not tell caches, so only responses are inspected.
         crate::rules::RuleScope::Server
     }
 
@@ -30,6 +32,12 @@ impl Rule for ServerCacheControlPresent {
             // is reused. This rule asks servers to decide. It is advice, and cites the
             // sentence that makes it advice worth taking.
             // cite(RFC 9111 § 4.2.2): "Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time."
+            //
+            // Scoped to 200 by choice, not by the spec. §4.2.2 permits heuristics on any
+            // status "defined as heuristically cacheable (e.g., see Section 15.1 of
+            // [HTTP])" — 203, 204, 206, 300, 301, 308, 404, 410, 451 among them — so the
+            // same advice applies to those too. 200 is the overwhelmingly common case and
+            // the least noisy to flag; widening the set is a behavior change, left out.
             if resp.status == 200 && !resp.headers.contains_key("cache-control") {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -50,12 +58,20 @@ impl Rule for ServerCacheControlPresent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9111",
-            section: Some("5.2"),
-            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2",
-            note: "Cache-Control header",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("4.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.2",
+                note: "Calculating Heuristic Freshness — without an explicit expiration time a cache MAY guess one, which is what this rule asks the origin to avoid",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("5.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2",
+                note: "Cache-Control — the header whose absence the rule reports",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

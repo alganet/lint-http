@@ -1958,7 +1958,7 @@ sources:
     snippet: Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time.
     cited_by:
     - file: lint-http-rules/src/rules/server_cache_control_present.rs
-      line: 32
+      line: 34
   - label: server_status_and_caching_semantics
     section: § 3
     snippet: A cache MUST NOT store a response to a request unless
