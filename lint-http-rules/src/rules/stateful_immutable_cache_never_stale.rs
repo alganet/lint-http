@@ -35,6 +35,8 @@ impl Rule for StatefulImmutableCacheNeverStale {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
+        // Both: the rule correlates a client's conditional request with a prior
+        // origin response that carried immutable, so it needs to see each side.
         crate::rules::RuleScope::Both
     }
 
@@ -59,13 +61,16 @@ impl Rule for StatefulImmutableCacheNeverStale {
 
         let prev_tx = candidate?;
 
-        // compute advertised freshness lifetime (helper handles max-age/Expires)
+        // Advertised freshness lifetime. The max-age/Expires calculation
+        // (RFC 9111 §4.2.1) is owned by the helper, which carries the cite.
         let freshness_lifetime = crate::helpers::headers::compute_freshness_lifetime(
             &prev_tx.response.as_ref().unwrap().headers,
             prev_tx.timestamp,
         );
 
-        // compute current age
+        // Seed the age from the response's Age field. A non-negative delta-seconds
+        // is the only meaningful value, so a negative or unparseable one is dropped.
+        // cite(RFC 9111 § 5.1): "The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server"
         let mut age_val: i64 = 0;
         if let Some(resp) = &prev_tx.response {
             if let Some(hv) = resp.headers.get("age") {
@@ -78,6 +83,11 @@ impl Rule for StatefulImmutableCacheNeverStale {
                 }
             }
         }
+        // current_age ≈ Age + time observed in our own history. This is a
+        // deliberate simplification of §4.2.3's full age computation (which adds
+        // response_delay and resident_time from request/response timing we do not
+        // record); the elapsed clamp to ≥ 0 absorbs clock skew the same way §4.2.3
+        // does by flooring. It is an estimate, adequate for a best-effort warning.
         let elapsed = tx
             .timestamp
             .signed_duration_since(prev_tx.timestamp)
@@ -85,6 +95,10 @@ impl Rule for StatefulImmutableCacheNeverStale {
         let elapsed = if elapsed < 0 { 0 } else { elapsed };
         let current_age = age_val.saturating_add(elapsed);
 
+        // Only the two revalidation preconditions count as "revalidation" here:
+        // If-None-Match and If-Modified-Since are what a cache sends to revalidate.
+        // If-Match / If-Unmodified-Since are update preconditions, not cache
+        // revalidation, so their presence is not the waste this rule targets.
         let has_conditional = tx.request.headers.contains_key("if-none-match")
             || tx.request.headers.contains_key("if-modified-since");
 
@@ -118,15 +132,15 @@ impl Rule for StatefulImmutableCacheNeverStale {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 8246",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc8246.html#section-3",
-                note: "\"immutable\" directive",
+                section: Some("2"),
+                url: "https://www.rfc-editor.org/rfc/rfc8246.html#section-2",
+                note: "The Immutable Cache-Control Extension — the directive definition and its SHOULD NOT-revalidate-while-fresh behavior",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9111",
                 section: Some("4.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
-                note: "Calculating age and expiration (§4.2/§4.3)",
+                note: "Freshness — Calculating Freshness Lifetime (§4.2.1) and Calculating Age (§4.2.3)",
             },
         ]
     }
@@ -156,7 +170,16 @@ impl Rule for StatefulImmutableCacheNeverStale {
 /// Detect the presence of `immutable` in Cache-Control headers.  We ignore
 /// values that also forbid caching (`no-store` or `no-cache`).
 fn header_has_immutable(headers: &hyper::HeaderMap) -> bool {
-    // if any field forbids caching, treat the whole response as non-cacheable
+    // Exclude responses that no-store or no-cache: under no-store nothing is
+    // stored, so there is no cached entry for a later request to reuse; under
+    // no-cache a conditional (validation) request is required before reuse, so
+    // sending one is expected, not the wasteful revalidation this rule flags.
+    // Either way there is no "fresh immutable entry reused without revalidation"
+    // to reason about. (Substring match is deliberately coarse — a false skip on
+    // a value that merely contains the text is safe, since it only suppresses a
+    // best-effort warning.)
+    // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request"
+    // cite(RFC 9111 § 5.2.2.4): "the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
     for hv in headers.get_all("cache-control").iter() {
         if let Ok(s) = hv.to_str() {
             let l = s.to_ascii_lowercase();
@@ -165,7 +188,11 @@ fn header_has_immutable(headers: &hyper::HeaderMap) -> bool {
             }
         }
     }
-    // now search for immutable directive across fields
+    // Search for the immutable directive (RFC 8246 §2) across fields. The name is
+    // a case-insensitive directive token; the `;` in the split is a tolerance —
+    // Cache-Control separates directives with `,`, not `;`, but accepting both
+    // only widens detection of a malformed header, never narrows it.
+    // cite(RFC 9111 § 5.2): "Cache directives are identified by a token, to be compared case-insensitively"
     for hv in headers.get_all("cache-control").iter() {
         if let Ok(s) = hv.to_str() {
             for directive in s.split(|c| [',', ';'].contains(&c)) {
