@@ -13,6 +13,10 @@ impl Rule for ServerPriorityAndCacheabilityConsistency {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
+        // §5's cacheability expectation is scoped to the response header an origin
+        // server generates ("When an origin server generates the Priority response
+        // header field ..."), so only responses are inspected. The §5 sentence is
+        // cited verbatim on the violation below; this stays prose to avoid requoting it.
         crate::rules::RuleScope::Server
     }
 
@@ -25,8 +29,11 @@ impl Rule for ServerPriorityAndCacheabilityConsistency {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
-        // Only consider responses that include a Priority header field.
-        // Prefer the first ASCII-valid field value when multiple header fields exist.
+        // Only consider responses that include a Priority header field (§5: the
+        // field "can appear in requests and responses"). This is a presence test
+        // only — the value feeds the message, never a Dictionary parse — so the
+        // first non-empty ASCII field line is taken; a Priority header that is
+        // empty or non-ASCII on every line is treated as absent and skipped.
         let mut priority_val: Option<&str> = None;
         for hv in resp.headers.get_all("priority").iter() {
             if let Ok(s) = hv.to_str() {
@@ -39,7 +46,13 @@ impl Rule for ServerPriorityAndCacheabilityConsistency {
         }
         let priority = priority_val?;
 
-        // Only check for cacheable-ish responses (2xx and 3xx); be conservative and skip 1xx, 4xx, 5xx
+        // Restrict to "cacheable-ish" 2xx/3xx responses. This is a heuristic range,
+        // not RFC 9110 §15.1's set of responses cacheable by default: it over-includes
+        // non-default-cacheable 3xx (302, 303, 307) and omits the heuristically
+        // cacheable 404, 410, and 451. The imprecision is tolerable because the check
+        // is a soft best-practice warning, not a MUST; tightening it to §15.1's exact
+        // list would be a behavior change. No sentence licenses this exact bound, so it
+        // carries no cite.
         if !(200..400).contains(&resp.status) {
             return None;
         }
@@ -47,7 +60,14 @@ impl Rule for ServerPriorityAndCacheabilityConsistency {
         let has_cache_control = resp.headers.contains_key("cache-control");
         let has_vary = resp.headers.contains_key("vary");
 
-        // cite(RFC 9111 § 4.2.2): "Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time."
+        // §5's soft expectation is this rule's basis: a server that emits a Priority
+        // response header should also send a field that controls caching, so a cache
+        // does not reuse the wrong variant. "expected to" is descriptive, not a
+        // MUST/SHOULD, so this is a best-practice warning; Cache-Control and Vary are
+        // interchangeable here per §5's own "(e.g., Cache-Control, Vary)". (Replaces a
+        // mis-anchored RFC 9111 §4.2.2 heuristic-freshness MAY, which spoke to neither
+        // the Priority expectation nor the Vary half of the check.)
+        // cite(RFC 9218 § 5): "the server is expected to control the cacheability or the applicability of the cached response by using header fields that control the caching behavior (e.g., Cache-Control, Vary)"
         if !has_cache_control && !has_vary {
             return Some(Violation {
                 rule: self.id().into(),

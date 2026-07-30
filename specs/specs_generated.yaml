@@ -1907,8 +1907,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_cache_control_present.rs
       line: 32
-    - file: lint-http-rules/src/rules/server_priority_and_cacheability_consistency.rs
-      line: 50
   - label: server_status_and_caching_semantics
     section: § 3
     snippet: A cache MUST NOT store a response to a request unless
@@ -2317,6 +2315,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_priority_header_syntax.rs
       line: 28
+  - label: server_priority_and_cacheability_consistency
+    section: § 5
+    snippet: the server is expected to control the cacheability or the applicability of the cached response by using header fields that control the caching behavior (e.g., Cache-Control, Vary)
+    cited_by:
+    - file: lint-http-rules/src/rules/server_priority_and_cacheability_consistency.rs
+      line: 70
 - label: RFC 9530
   url: https://www.rfc-editor.org/rfc/rfc9530.txt
   type: text/plain
