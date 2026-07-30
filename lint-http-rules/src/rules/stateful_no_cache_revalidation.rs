@@ -8,7 +8,7 @@ use crate::rules::Rule;
 /// Ensure that responses marked `no-cache` are not reused without performing
 /// a conditional revalidation when a validator is available.
 ///
-/// The `no-cache` directive (RFC 9111 §5.2.2.5) permits a cache to store a
+/// The `no-cache` directive (RFC 9111 §5.2.2.4) permits a cache to store a
 /// response but requires the cache to submit a request to the origin server and
 /// successfully validate the stored entry before using it to satisfy a
 /// subsequent request.  In practical terms this means that if a prior response
@@ -23,6 +23,10 @@ use crate::rules::Rule;
 /// scopes to the same client+URI) and locates the most recent response that
 /// carried a `no-cache` directive.  If that response also provided a validator
 /// and the current request is unconditional, the rule emits a violation.
+///
+/// Only the unqualified form is enforced: the qualified `no-cache="field"` form
+/// lets a cache reuse the response while revalidating or excluding just the
+/// listed fields, so it is not flagged.
 ///
 /// The check is intentionally conservative: it does **not** attempt to
 /// distinguish between a cache reuse and a normal fresh fetch, and it does not
@@ -72,6 +76,9 @@ impl Rule for StatefulNoCacheRevalidation {
             return None;
         }
 
+        // A conditional request (carrying a precondition header field) is the validation §5.2.2.4
+        // requires; an unconditional one is evidence the entry may have been reused as-is.
+        // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
         let has_conditional = tx.request.headers.contains_key("if-none-match")
             || tx.request.headers.contains_key("if-modified-since");
 
@@ -92,7 +99,7 @@ impl Rule for StatefulNoCacheRevalidation {
     }
 
     fn description(&self) -> &'static str {
-        "The `no-cache` cache-control directive (RFC 9111 §5.2.2.5) permits a cache to store a response, but it **must not** use that stored entry to satisfy a subsequent request without first validating it with the origin server.  In practice, caches are expected to issue a conditional request using a validator (usually an `ETag` or `Last-Modified` value) when they have one; if no validator is available the cache may perform an unconditional request, which still contacts the origin server.\n\nThis stateful rule reconstructs a small portion of cache state for the current client+resource by locating the most recent prior response that included `Cache-Control: no-cache`.  If that response also carried a validator and the current request is unconditional (no `If-None-Match` or `If-Modified-Since` headers), the rule emits a warning.  The presence of validators is required to avoid false alarms in cases where the entry could not possibly be revalidated.\n\nThe check deliberately ignores request-side `Cache-Control: no-cache` clauses and makes no attempt to calculate freshness; it simply tracks whether a conditional header was omitted.  This rule complements `stateful_max_age_directive_validity` and `stateful_must_revalidate_enforcement` by focussing on the specific behaviour mandated by the `no-cache` directive."
+        "The `no-cache` cache-control directive (RFC 9111 §5.2.2.4) permits a cache to store a response, but it **must not** use that stored entry to satisfy a subsequent request without first validating it with the origin server.  In practice, caches are expected to issue a conditional request using a validator (usually an `ETag` or `Last-Modified` value) when they have one; if no validator is available the cache may perform an unconditional request, which still contacts the origin server.\n\nThis stateful rule reconstructs a small portion of cache state for the current client+resource by locating the most recent prior response that included `Cache-Control: no-cache`.  If that response also carried a validator and the current request is unconditional (no `If-None-Match` or `If-Modified-Since` headers), the rule emits a warning.  The presence of validators is required to avoid false alarms in cases where the entry could not possibly be revalidated.\n\nThe check deliberately ignores request-side `Cache-Control: no-cache` clauses and makes no attempt to calculate freshness; it simply tracks whether a conditional header was omitted.  Only the unqualified directive is enforced: a qualified `no-cache=\"field\"` response may be reused (revalidating only the named fields) and is not flagged.  This rule complements `stateful_max_age_directive_validity` and `stateful_must_revalidate_enforcement` by focussing on the specific behaviour mandated by the `no-cache` directive."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -105,9 +112,9 @@ impl Rule for StatefulNoCacheRevalidation {
             },
             crate::rules::SpecRef {
                 spec: "RFC 9111",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
-                note: "Calculating the age of a response (background context)",
+                section: Some("4.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
+                note: "Validation (the conditional request that satisfies no-cache)",
             },
         ]
     }
@@ -144,9 +151,12 @@ fn header_has_no_cache(headers: &hyper::HeaderMap) -> bool {
                     continue;
                 }
                 // Only the *unqualified* no-cache (no argument) forbids reuse without
-                // revalidation; the qualified `no-cache="field"` form lets a cache reuse the
-                // response, revalidating or excluding only the listed fields (RFC 9111 §5.2.2.4).
+                // revalidation; the qualified form lets a cache reuse the response, revalidating
+                // or excluding only the listed fields.
+                // cite(RFC 9111 § 5.2.2.4): "The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request"
                 let mut parts = directive.splitn(2, '=');
+                // Directive names are case-insensitive.
+                // cite(RFC 9111 § 5.2): "Cache directives are identified by a token, to be compared case-insensitively"
                 let name = parts.next().map(str::trim).unwrap_or("");
                 let has_argument = parts.next().map(|a| !a.trim().is_empty()).unwrap_or(false);
                 if name.eq_ignore_ascii_case("no-cache") && !has_argument {

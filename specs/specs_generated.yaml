@@ -1941,12 +1941,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_must_revalidate_enforcement.rs
       line: 99
+    - file: lint-http-rules/src/rules/stateful_no_cache_revalidation.rs
+      line: 81
   - label: stateful_must_revalidate_enforcement (3)
     section: § 5.2
     snippet: Cache directives are identified by a token, to be compared case-insensitively
     cited_by:
     - file: lint-http-rules/src/rules/stateful_must_revalidate_enforcement.rs
       line: 204
+    - file: lint-http-rules/src/rules/stateful_no_cache_revalidation.rs
+      line: 159
   - label: stateful_must_revalidate_enforcement (4)
     section: § 5.2.2.2
     snippet: The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3.
@@ -1958,7 +1962,13 @@ sources:
     snippet: The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
     cited_by:
     - file: lint-http-rules/src/rules/stateful_no_cache_revalidation.rs
-      line: 78
+      line: 85
+  - label: stateful_no_cache_revalidation (2)
+    section: § 5.2.2.4
+    snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_no_cache_revalidation.rs
+      line: 156
   - label: stateful_range_request_and_caching
     section: § 3.4
     snippet: A cache MAY combine these ranges into a single stored response, and reuse that response to satisfy later requests, if they all share the same strong validator
