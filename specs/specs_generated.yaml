@@ -1818,7 +1818,7 @@ sources:
     snippet: The Age field value is a non-negative integer, representing time in seconds
     cited_by:
     - file: lint-http-rules/src/rules/message_age_header_numeric.rs
-      line: 42
+      line: 46
   - label: message_cache_control_and_pragma_consistency
     section: § 5.4
     snippet: However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma.

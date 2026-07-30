@@ -38,9 +38,13 @@ impl Rule for MessageAgeHeaderNumeric {
                 }
             };
 
-            // Age must be a non-negative integer (delta-seconds)
+            // Age must be a non-negative integer (delta-seconds). Match the grammar
+            // directly rather than via an integer parse: `u64::from_str` accepts a
+            // leading "+", which `1*DIGIT` does not, and it rejects values too large
+            // for u64, which the grammar does allow (a cache clamps those per §1.2.2
+            // instead of treating them as malformed).
             // cite(RFC 9111 § 5.1): "The Age field value is a non-negative integer, representing time in seconds"
-            if s.parse::<u64>().is_ok() {
+            if !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) {
                 continue;
             }
 
@@ -110,6 +114,9 @@ mod tests {
     #[case(200, &[("age", "0")], false)]
     #[case(200, &[("age", "-1")], true)]
     #[case(200, &[("age", "abc")], true)]
+    #[case(200, &[("age", "+120")], true)]
+    #[case(200, &[("age", "")], true)]
+    #[case(200, &[("age", "99999999999999999999999")], false)]
     fn check_cases(
         #[case] status: u16,
         #[case] hdrs: &[(&str, &str)],
