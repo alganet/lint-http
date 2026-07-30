@@ -834,7 +834,7 @@ sources:
     - file: lint-http-rules/src/rules/server_immutable_requires_freshness.rs
       line: 106
     - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
-      line: 93
+      line: 107
   - label: server_immutable_requires_freshness (2)
     section: § 2
     snippet: The immutable extension only applies during the freshness lifetime of the stored response.
@@ -842,7 +842,7 @@ sources:
     - file: lint-http-rules/src/rules/server_immutable_requires_freshness.rs
       line: 105
     - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
-      line: 94
+      line: 108
 - label: RFC 8288
   url: https://www.rfc-editor.org/rfc/rfc8288.txt
   type: text/plain
@@ -1947,6 +1947,38 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
       line: 125
+  - label: stateful_immutable_cache_never_stale
+    section: § 5.1
+    snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
+      line: 73
+  - label: stateful_immutable_cache_never_stale (2)
+    section: § 5.2
+    snippet: Cache directives are identified by a token, to be compared case-insensitively
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
+      line: 195
+    - file: lint-http-rules/src/rules/stateful_must_revalidate_enforcement.rs
+      line: 204
+    - file: lint-http-rules/src/rules/stateful_no_cache_revalidation.rs
+      line: 159
+    - file: lint-http-rules/src/rules/stateful_no_store_enforcement.rs
+      line: 259
+    - file: lint-http-rules/src/rules/stateful_private_cache_visibility.rs
+      line: 54
+  - label: stateful_immutable_cache_never_stale (3)
+    section: § 5.2.2.4
+    snippet: the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
+      line: 182
+  - label: stateful_immutable_cache_never_stale (4)
+    section: § 5.2.2.5
+    snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
+      line: 181
   - label: stateful_must_revalidate_enforcement
     section: § 4.2
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has.
@@ -1968,18 +2000,6 @@ sources:
     - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
       line: 57
   - label: stateful_must_revalidate_enforcement (3)
-    section: § 5.2
-    snippet: Cache directives are identified by a token, to be compared case-insensitively
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_must_revalidate_enforcement.rs
-      line: 204
-    - file: lint-http-rules/src/rules/stateful_no_cache_revalidation.rs
-      line: 159
-    - file: lint-http-rules/src/rules/stateful_no_store_enforcement.rs
-      line: 259
-    - file: lint-http-rules/src/rules/stateful_private_cache_visibility.rs
-      line: 54
-  - label: stateful_must_revalidate_enforcement (4)
     section: § 5.2.2.2
     snippet: The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3.
     cited_by:
