@@ -7,7 +7,7 @@ use crate::rules::Rule;
 
 /// Ensure responses marked `Cache-Control: private` are not reused by a
 /// different client, which would indicate a shared cache has stored the
-/// representation in violation of RFC 9111 §5.2.
+/// representation in violation of RFC 9111 §5.2.2.7.
 ///
 /// The rule watches conditional requests and looks back through the history
 /// for the same resource across all clients.  If the current request carries a
@@ -34,18 +34,24 @@ impl Rule for StatefulPrivateCacheVisibility {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // only interested in conditional requests; nothing to do otherwise
+        // Only conditional requests are evidence: a precondition header carries a validator a
+        // client could only have from a prior response.
+        // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
         let has_if_none_match = tx.request.headers.contains_key("if-none-match");
         let has_if_modified_since = tx.request.headers.contains_key("if-modified-since");
         if !has_if_none_match && !has_if_modified_since {
             return None;
         }
 
-        // helper to detect private directive in a response
+        // Detect an *unqualified* private directive: the exact-name match excludes the qualified
+        // `private="field"` form, which lets a shared cache store the rest — matching the cite's
+        // "unqualified" wording.
         fn header_has_private(headers: &hyper::HeaderMap) -> bool {
             for hv in headers.get_all("cache-control").iter() {
                 if let Ok(s) = hv.to_str() {
                     for directive in s.split(|c| [',', ';'].contains(&c)) {
+                        // Directive names are case-insensitive.
+                        // cite(RFC 9111 § 5.2): "Cache directives are identified by a token, to be compared case-insensitively"
                         if directive.trim().eq_ignore_ascii_case("private") {
                             return true;
                         }
@@ -71,9 +77,13 @@ impl Rule for StatefulPrivateCacheVisibility {
                                 if let Some(hv2) = resp.headers.get("etag") {
                                     if let Ok(val) = hv2.to_str() {
                                         let val_norm = crate::helpers::headers::normalize_etag(val);
-                                        // A validator from a `private` response turning up
-                                        // in a *different* client's request means a shared
-                                        // cache stored what only one user was to hold.
+                                        // Heuristic: a validator from a `private` response turning
+                                        // up in a *different* client's request suggests a shared
+                                        // cache stored what only one user was to hold. The cite
+                                        // grounds *why that is forbidden*; the inference is the
+                                        // linter's — an ETag identifies a representation, not a
+                                        // user, so two clients that fetched the same private
+                                        // representation directly from the origin share it legitimately.
                                         // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
                                         if val_norm == normalized {
                                             return Some(Violation {
@@ -110,6 +120,8 @@ impl Rule for StatefulPrivateCacheVisibility {
                                         if let Ok(val_dt) =
                                             crate::http_date::parse_http_date_to_datetime(val)
                                         {
+                                            // Same heuristic + cite as the ETag branch above.
+                                            // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
                                             if val_dt == candidate_dt {
                                                 return Some(Violation {
                                                     rule: self.id().into(),
@@ -138,16 +150,15 @@ impl Rule for StatefulPrivateCacheVisibility {
     }
 
     fn description(&self) -> &'static str {
-        "Responses with `Cache-Control: private` are intended for a single user agent's private cache and **must not be stored or served** by shared caches (RFC 9111 §5.2).  If a shared cache accidentally retains such a response, other clients may later receive the representation, violating privacy and correctness expectations.\n\nThis stateful rule examines a sequence of transactions for the same resource across **all clients**.  When a request includes a conditional validator (ETag or Last-Modified) that matches a value previously seen in a response carrying the `private` directive **and** that earlier response was sent to a **different** client, we infer that some intermediate cache reused the private entry.  A warning is emitted in that case.\n\nThe rule relies on a cross-client history; the engine handles this by scoping the query to all clients for the resource rather than the default per-client history.  Only conditional requests trigger the check, since they provide tangible evidence that a particular validator value was reused."
+        "Responses with `Cache-Control: private` are intended for a single user agent's private cache and **must not be stored or served** by shared caches (RFC 9111 §5.2.2.7).  If a shared cache accidentally retains such a response, other clients may later receive the representation, violating privacy and correctness expectations.\n\nThis stateful rule examines a sequence of transactions for the same resource across **all clients**.  When a request includes a conditional validator (ETag or Last-Modified) that matches a value previously seen in a response carrying the `private` directive **and** that earlier response was sent to a **different** client, we infer that some intermediate cache reused the private entry.  A warning is emitted in that case.\n\nThe rule relies on a cross-client history; the engine handles this by scoping the query to all clients for the resource rather than the default per-client history.  Only conditional requests trigger the check, since they provide tangible evidence that a particular validator value was reused."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
             spec: "RFC 9111",
-            section: Some("5.2"),
-            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2",
-            note:
-                "Cache-Control field semantics — `private` directive applies only to private caches",
+            section: Some("5.2.2.7"),
+            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.7",
+            note: "`private` — a shared cache MUST NOT store an unqualified-private response",
         }]
     }
 
