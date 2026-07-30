@@ -1769,6 +1769,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
       line: 50
+  - label: stateful_cache_validation_chain
+    section: § 13.1.2
+    snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*"
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
+      line: 62
   - label: stateful_conditional_request_handling
     section: § 13.1.2
     snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
@@ -1946,7 +1952,21 @@ sources:
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
-      line: 125
+      line: 133
+    - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
+      line: 171
+  - label: stateful_cache_validation_chain (2)
+    section: § 4.3.1
+    snippet: MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
+      line: 92
+  - label: stateful_cache_validation_chain (3)
+    section: § 4.3.1
+    snippet: SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
+      line: 98
   - label: stateful_immutable_cache_never_stale
     section: § 5.1
     snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server
