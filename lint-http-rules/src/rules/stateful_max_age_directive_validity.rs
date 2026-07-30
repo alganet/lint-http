@@ -52,7 +52,12 @@ impl Rule for StatefulMaxAgeDirectiveValidity {
 
         for past in history.iter() {
             if let Some(resp) = &past.response {
-                // collect max-age value (ignore bad syntax)
+                // The helper owns the directive parse. Two of its behaviours matter
+                // here: it returns None when no-cache or no-store is also present —
+                // which is what this rule wants, since under those directives
+                // revalidating is required rather than wasteful — and it reads the
+                // value with an integer parse, so a max-age too large for i64 yields
+                // None and the resource is skipped rather than treated as long-lived.
                 if let Some(max_age) =
                     crate::helpers::headers::get_cache_control_max_age(&resp.headers)
                 {
@@ -64,7 +69,12 @@ impl Rule for StatefulMaxAgeDirectiveValidity {
 
         let (prev_tx, max_age) = candidate?;
 
-        // calculate current age: Age header (if numeric) + elapsed seconds
+        // Seed the age from the stored response's Age field. The i64 parse is more
+        // permissive than `delta-seconds` (it accepts a leading "+", which `1*DIGIT`
+        // does not); §5.1 would have a cache ignore an invalid Age outright, so this
+        // consumes a shape the syntax rule flags. Harmless here — the value only
+        // shifts an estimate — but the two are deliberately not the same test.
+        // cite(RFC 9111 § 5.1): "The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server"
         let mut age_val: i64 = 0;
         if let Some(resp) = &prev_tx.response {
             if let Some(hv) = resp.headers.get("age") {
@@ -83,14 +93,27 @@ impl Rule for StatefulMaxAgeDirectiveValidity {
             .signed_duration_since(prev_tx.timestamp)
             .num_seconds();
         let elapsed = if elapsed < 0 { 0 } else { elapsed };
+        // current_age ≈ Age + time observed here. A deliberate simplification of
+        // §4.2.3's algorithm, which also folds in response_delay and resident_time
+        // from request/response timing this rule does not record; the clamp to ≥ 0
+        // absorbs clock skew. Adequate for a best-effort freshness estimate.
         let current_age = age_val.saturating_add(elapsed);
 
         let has_conditional = tx.request.headers.contains_key("if-none-match")
             || tx.request.headers.contains_key("if-modified-since");
 
+        // The comparison is the max-age definition applied: an age past the advertised
+        // seconds is exactly what makes the stored response stale.
         // cite(RFC 9111 § 5.2.2.1): "The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds."
+        // cite(RFC 9111 § 4.2): "A "fresh" response is one whose age has not yet exceeded its freshness lifetime"
         if current_age < max_age {
             if has_conditional {
+                // Efficiency heuristic, not a violation: no sentence forbids revalidating
+                // early. §4.2 frames reuse-while-fresh as an opportunity ("can"), so a
+                // conditional request inside the freshness window is a wasted round-trip
+                // — which is what this reports. (`immutable` is the one directive that
+                // turns this into a SHOULD NOT, and that is a separate rule.)
+                // cite(RFC 9111 § 4.2): "When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency"
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
@@ -106,11 +129,16 @@ impl Rule for StatefulMaxAgeDirectiveValidity {
             let has_validator =
                 resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
             if has_validator {
+                // Also an efficiency heuristic: §4.3 says a cache that cannot serve a
+                // stored response *can* revalidate, not that it must. Refetching
+                // unconditionally is legal — it just discards the validator already held
+                // and the 304 it could have earned.
+                // cite(RFC 9111 § 4.3): "it can use the conditional request mechanism"
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
                     message: format!(
-                        "Stale cached entry (age {} >= max-age {}) reused without conditional request; should revalidate",
+                        "Stale cached entry (age {} >= max-age {}) refetched without a conditional request, though a validator was available to revalidate with",
                         current_age, max_age
                     ),
                 });
@@ -125,7 +153,7 @@ impl Rule for StatefulMaxAgeDirectiveValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Responses tagged with a `Cache-Control` `max-age=<seconds>` directive promise that the representation may safely be reused without revalidation for `<seconds>` seconds after it was stored.  Caches and clients that ignore this lifespan risk serving stale content or incurring unnecessary round‑trips.\n\nThis rule reconstructs a very small piece of cache state for a given client+resource by examining the most recent prior response that included a parseable `max-age` directive.  It then computes an approximate \"age\" for that stored response using any `Age` header it carried plus the time elapsed since it was observed.\n\nTwo types of violations are reported:\n\n* Sending a **conditional request** (`If-None-Match` or `If-Modified-Since`) while the cached copy is still fresh (age < max‑age).  Revalidation at this point is redundant and indicates the freshness lifetime is not being respected.\n* Issuing an **unconditional request** after the cached entry has become stale (age > max‑age) *when the prior response provided a validator (ETag or Last-Modified)*.  In that case the cache should have revalidated first. (Clients that lack a validator are simply forced to fetch anew, which is not flagged.)\n\nThe stateful check augments the stateless [`client_cache_respect`](client_cache_respect.md) rule, which merely ensures conditional headers are included when validators exist regardless of age."
+        "Responses tagged with a `Cache-Control` `max-age=<seconds>` directive promise that the representation may safely be reused without revalidation for `<seconds>` seconds after it was stored.  Caches and clients that ignore this lifespan risk serving stale content or incurring unnecessary round‑trips.\n\nThis rule reconstructs a very small piece of cache state for a given client+resource by examining the most recent prior response that included a parseable `max-age` directive.  It then computes an approximate \"age\" for that stored response using any `Age` header it carried plus the time elapsed since it was observed.\n\nTwo types of violations are reported:\n\n* Sending a **conditional request** (`If-None-Match` or `If-Modified-Since`) while the cached copy is still fresh (age < max‑age).  Revalidation at this point is a redundant round‑trip: a fresh response can be reused without contacting the origin at all.\n* Issuing an **unconditional request** after the cached entry has become stale (age > max‑age) *when the prior response provided a validator (ETag or Last-Modified)*.  Refetching in full discards the validator already held, and with it the chance of a small `304`. (Clients that lack a validator are simply forced to fetch anew, which is not flagged.)\n\nBoth are efficiency findings rather than protocol violations: RFC 9111 frames fresh reuse and conditional revalidation as things a cache *can* do, not obligations.  The exception is `Cache-Control: immutable`, which does turn early revalidation into a SHOULD NOT; that is checked by a separate rule.\n\nThe stateful check augments the stateless [`client_cache_respect`](client_cache_respect.md) rule, which merely ensures conditional headers are included when validators exist regardless of age."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -134,13 +162,13 @@ impl Rule for StatefulMaxAgeDirectiveValidity {
                 spec: "RFC 9111",
                 section: Some("4.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
-                note: "Calculating the age of a response",
+                note: "Freshness — fresh/stale definitions, and reuse without contacting the origin as an efficiency opportunity (age itself is calculated per §4.2.3)",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9111",
                 section: Some("4.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
-                note: "Expiration model (freshness lifetime)",
+                note: "Validation — a cache that cannot serve a stored response can use a conditional request to revalidate it",
             },
         ]
     }

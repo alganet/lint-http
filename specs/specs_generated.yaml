@@ -1833,6 +1833,8 @@ sources:
       line: 17
     - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
       line: 73
+    - file: lint-http-rules/src/rules/stateful_max_age_directive_validity.rs
+      line: 77
   - label: message_age_header_numeric (4)
     section: § 5.1
     snippet: The Age field value is a non-negative integer, representing time in seconds
@@ -1970,7 +1972,7 @@ sources:
     - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
       line: 54
     - file: lint-http-rules/src/rules/stateful_max_age_directive_validity.rs
-      line: 91
+      line: 107
   - label: server_status_and_caching_semantics (3)
     section: § 5.2.2.10
     snippet: The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires
@@ -2037,6 +2039,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
       line: 181
+  - label: stateful_max_age_directive_validity
+    section: § 4.2
+    snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_max_age_directive_validity.rs
+      line: 108
+  - label: stateful_max_age_directive_validity (2)
+    section: § 4.2
+    snippet: When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_max_age_directive_validity.rs
+      line: 116
+  - label: stateful_max_age_directive_validity (3)
+    section: § 4.3
+    snippet: it can use the conditional request mechanism
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_max_age_directive_validity.rs
+      line: 136
   - label: stateful_must_revalidate_enforcement
     section: § 4.2
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has.

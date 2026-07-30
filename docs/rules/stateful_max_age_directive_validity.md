@@ -14,15 +14,17 @@ This rule reconstructs a very small piece of cache state for a given client+reso
 
 Two types of violations are reported:
 
-* Sending a **conditional request** (`If-None-Match` or `If-Modified-Since`) while the cached copy is still fresh (age < max‑age).  Revalidation at this point is redundant and indicates the freshness lifetime is not being respected.
-* Issuing an **unconditional request** after the cached entry has become stale (age > max‑age) *when the prior response provided a validator (ETag or Last-Modified)*.  In that case the cache should have revalidated first. (Clients that lack a validator are simply forced to fetch anew, which is not flagged.)
+* Sending a **conditional request** (`If-None-Match` or `If-Modified-Since`) while the cached copy is still fresh (age < max‑age).  Revalidation at this point is a redundant round‑trip: a fresh response can be reused without contacting the origin at all.
+* Issuing an **unconditional request** after the cached entry has become stale (age > max‑age) *when the prior response provided a validator (ETag or Last-Modified)*.  Refetching in full discards the validator already held, and with it the chance of a small `304`. (Clients that lack a validator are simply forced to fetch anew, which is not flagged.)
+
+Both are efficiency findings rather than protocol violations: RFC 9111 frames fresh reuse and conditional revalidation as things a cache *can* do, not obligations.  The exception is `Cache-Control: immutable`, which does turn early revalidation into a SHOULD NOT; that is checked by a separate rule.
 
 The stateful check augments the stateless [`client_cache_respect`](client_cache_respect.md) rule, which merely ensures conditional headers are included when validators exist regardless of age.
 
 ## Specifications
 
-- [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2): Calculating the age of a response
-- [RFC 9111 §4.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3): Expiration model (freshness lifetime)
+- [RFC 9111 §4.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2): Freshness — fresh/stale definitions, and reuse without contacting the origin as an efficiency opportunity (age itself is calculated per §4.2.3)
+- [RFC 9111 §4.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3): Validation — a cache that cannot serve a stored response can use a conditional request to revalidate it
 
 ## Configuration
 
