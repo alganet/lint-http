@@ -52,6 +52,9 @@ impl Rule for StatefulVaryHeaderCacheValidity {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req = &tx.request;
+        // Only a conditional request reuses a stored validator — the precondition header ties
+        // the request to a specific stored representation whose Vary key we can check.
+        // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
         let has_inm = req.headers.contains_key("if-none-match");
         let has_ims = req.headers.contains_key("if-modified-since");
         if !has_inm && !has_ims {
@@ -59,7 +62,8 @@ impl Rule for StatefulVaryHeaderCacheValidity {
             return None;
         }
 
-        // early exit for wildcard INM
+        // `If-None-Match: *` names no specific stored representation (it matches any existing
+        // one), so there is no single Vary key to trace — skip it.
         if has_inm {
             for hv in req.headers.get_all("if-none-match").iter() {
                 if let Ok(s) = hv.to_str() {
@@ -146,10 +150,12 @@ impl Rule for StatefulVaryHeaderCacheValidity {
                 for tok in crate::helpers::headers::parse_list_header(s) {
                     let t = tok.trim();
                     if t == "*" {
-                        // wildcard; nothing to compare
+                        // Vary: * never matches any request, so there is nothing to compare.
+                        // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
                         return None;
                     }
                     if !t.is_empty() {
+                        // Vary field names are case-insensitive; lower-case for comparison.
                         vary_fields.push(t.to_ascii_lowercase());
                     }
                 }
@@ -169,6 +175,10 @@ impl Rule for StatefulVaryHeaderCacheValidity {
                     .unwrap_or_default();
             let curr_val = crate::helpers::headers::get_all_header_values(&req.headers, &field)
                 .unwrap_or_default();
+            // Exact value comparison. §4.1's "match" definition additionally permits whitespace,
+            // line-combining, and semantic normalization (ordering/case where insignificant); this
+            // rule does not apply those, so it can over-report when the values differ only in a
+            // §4.1-permitted normalization — a deliberate simplification.
             // cite(RFC 9111 § 4.1): "the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request"
             if past_val != curr_val {
                 let reported_validator = matched_validator.as_deref().unwrap_or("<unknown>");
@@ -195,7 +205,7 @@ impl Rule for StatefulVaryHeaderCacheValidity {
             spec: "RFC 9111",
             section: Some("4.1"),
             url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
-            note: "\"How a Cache Calculates a Secondary Key\"",
+            note: "Calculating Cache Keys with the Vary Header Field (all Vary-nominated request fields must match for reuse)",
         }]
     }
 

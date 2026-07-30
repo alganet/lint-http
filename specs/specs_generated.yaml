@@ -1927,6 +1927,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_vary_and_cache_consistency.rs
       line: 43
+    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
+      line: 154
   - label: stateful_cache_validation_chain
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
@@ -1951,6 +1953,8 @@ sources:
       line: 39
     - file: lint-http-rules/src/rules/stateful_s_max_age_enforcement.rs
       line: 90
+    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
+      line: 57
   - label: stateful_must_revalidate_enforcement (3)
     section: § 5.2
     snippet: Cache directives are identified by a token, to be compared case-insensitively
@@ -1998,7 +2002,7 @@ sources:
     snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request
     cited_by:
     - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
-      line: 172
+      line: 182
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.txt
   type: text/plain
