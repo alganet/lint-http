@@ -143,10 +143,13 @@ fn header_has_no_cache(headers: &hyper::HeaderMap) -> bool {
                 if directive.is_empty() {
                     continue;
                 }
-                // Support both bare `no-cache` and parameterised forms like
-                // `no-cache="field-name"` by comparing only the directive name.
-                let name = directive.split('=').next().map(str::trim).unwrap_or("");
-                if name.eq_ignore_ascii_case("no-cache") {
+                // Only the *unqualified* no-cache (no argument) forbids reuse without
+                // revalidation; the qualified `no-cache="field"` form lets a cache reuse the
+                // response, revalidating or excluding only the listed fields (RFC 9111 §5.2.2.4).
+                let mut parts = directive.splitn(2, '=');
+                let name = parts.next().map(str::trim).unwrap_or("");
+                let has_argument = parts.next().map(|a| !a.trim().is_empty()).unwrap_or(false);
+                if name.eq_ignore_ascii_case("no-cache") && !has_argument {
                     return true;
                 }
             }
@@ -199,13 +202,20 @@ mod tests {
             hyper::header::HeaderValue::from_static("  NO-CACHE  "),
         );
         assert!(header_has_no_cache(&headers));
-        // semicolon as a separator and quoted arguments
+        // semicolon as a separator, unqualified no-cache
         let mut headers = hyper::HeaderMap::new();
         headers.insert(
             "cache-control",
-            hyper::header::HeaderValue::from_static("private; no-cache=\"field\""),
+            hyper::header::HeaderValue::from_static("private; no-cache"),
         );
         assert!(header_has_no_cache(&headers));
+        // qualified `no-cache="field"` is NOT the reuse-forbidding unqualified form
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(
+            "cache-control",
+            hyper::header::HeaderValue::from_static("private, no-cache=\"field\""),
+        );
+        assert!(!header_has_no_cache(&headers));
         // negative control: header present but no no-cache directive
         let mut headers = hyper::HeaderMap::new();
         headers.insert(
@@ -213,6 +223,32 @@ mod tests {
             hyper::header::HeaderValue::from_static("max-age=60, public"),
         );
         assert!(!header_has_no_cache(&headers));
+    }
+
+    #[test]
+    fn qualified_no_cache_with_validator_not_flagged() {
+        // A qualified `no-cache="field"` response MAY be reused (revalidating only the named
+        // fields), so an unconditional follow-up must not be flagged (RFC 9111 §5.2.2.4).
+        let rule = StatefulNoCacheRevalidation;
+        let mut prev = make_prev(&[
+            ("cache-control", "no-cache=\"Set-Cookie\""),
+            ("etag", "\"a\""),
+        ]);
+        prev.request.uri = "/resource".to_string();
+        prev.client = crate::test_helpers::make_test_client();
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = crate::test_helpers::make_test_client();
+        tx.request.uri = "/resource".to_string();
+
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = rule.check_transaction(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_no_cache_revalidation",
+            ]),
+        );
+        assert!(v.is_none(), "qualified no-cache must not be flagged");
     }
 
     #[test]
