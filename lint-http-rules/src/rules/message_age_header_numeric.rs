@@ -13,6 +13,8 @@ impl Rule for MessageAgeHeaderNumeric {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
+        // Age is defined as a response header field, so only responses are inspected.
+        // cite(RFC 9111 § 5.1): "The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server"
         crate::rules::RuleScope::Server
     }
 
@@ -26,6 +28,12 @@ impl Rule for MessageAgeHeaderNumeric {
         // Applies to responses only
         let resp = tx.response.as_ref()?;
 
+        // Age is a singleton, so a well-formed message carries exactly one line. Every
+        // line present is still validated rather than only the first: this rule reports
+        // what the sender emitted, whereas the SHOULD below governs what a *cache* does
+        // when it meets a list-valued Age. The multiplicity itself is not flagged here —
+        // no such check exists yet, and adding one would be a behavior change.
+        // cite(RFC 9111 § 5.1): "Although it is defined as a singleton header field, a cache encountering a message with a list-based Age field value SHOULD use the first member of the field value, discarding subsequent ones."
         for val in resp.headers.get_all("age").iter() {
             let s = match val.to_str() {
                 Ok(s) => s.trim(),
@@ -41,9 +49,12 @@ impl Rule for MessageAgeHeaderNumeric {
             // Age must be a non-negative integer (delta-seconds). Match the grammar
             // directly rather than via an integer parse: `u64::from_str` accepts a
             // leading "+", which `1*DIGIT` does not, and it rejects values too large
-            // for u64, which the grammar does allow (a cache clamps those per §1.2.2
-            // instead of treating them as malformed).
+            // for u64, which the grammar does allow. The `Age = delta-seconds` ABNF is
+            // too short to quote on its own, so the sentence below carries the shape;
+            // the clamp requirement is why an over-long run of digits is accepted here
+            // rather than reported as malformed.
             // cite(RFC 9111 § 5.1): "The Age field value is a non-negative integer, representing time in seconds"
+            // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648 (2^31) or the greatest positive integer it can conveniently represent."
             if !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) {
                 continue;
             }

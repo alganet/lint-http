@@ -1814,11 +1814,31 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 417
   - label: message_age_header_numeric
+    section: § 1.2.2
+    snippet: If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648 (2^31) or the greatest positive integer it can conveniently represent.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_age_header_numeric.rs
+      line: 57
+  - label: message_age_header_numeric (2)
+    section: § 5.1
+    snippet: Although it is defined as a singleton header field, a cache encountering a message with a list-based Age field value SHOULD use the first member of the field value, discarding subsequent ones.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_age_header_numeric.rs
+      line: 36
+  - label: message_age_header_numeric (3)
+    section: § 5.1
+    snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server
+    cited_by:
+    - file: lint-http-rules/src/rules/message_age_header_numeric.rs
+      line: 17
+    - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
+      line: 73
+  - label: message_age_header_numeric (4)
     section: § 5.1
     snippet: The Age field value is a non-negative integer, representing time in seconds
     cited_by:
     - file: lint-http-rules/src/rules/message_age_header_numeric.rs
-      line: 46
+      line: 56
   - label: message_cache_control_and_pragma_consistency
     section: § 5.4
     snippet: However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma.
@@ -1992,12 +2012,6 @@ sources:
     - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
       line: 98
   - label: stateful_immutable_cache_never_stale
-    section: § 5.1
-    snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
-      line: 73
-  - label: stateful_immutable_cache_never_stale (2)
     section: § 5.2
     snippet: Cache directives are identified by a token, to be compared case-insensitively
     cited_by:
@@ -2011,13 +2025,13 @@ sources:
       line: 259
     - file: lint-http-rules/src/rules/stateful_private_cache_visibility.rs
       line: 54
-  - label: stateful_immutable_cache_never_stale (3)
+  - label: stateful_immutable_cache_never_stale (2)
     section: § 5.2.2.4
     snippet: the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
     cited_by:
     - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
       line: 182
-  - label: stateful_immutable_cache_never_stale (4)
+  - label: stateful_immutable_cache_never_stale (3)
     section: § 5.2.2.5
     snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request
     cited_by:
