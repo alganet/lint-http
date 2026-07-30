@@ -1695,6 +1695,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_retry_after_status_validity.rs
       line: 46
+  - label: server_status_and_caching_semantics
+    section: § 15.1
+    snippet: Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls
+    cited_by:
+    - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
+      line: 36
   - label: server_status_code_valid_range
     section: § 15
     snippet: The status code of a response is a three-digit integer code that describes the result of the request
@@ -1886,11 +1892,31 @@ sources:
     - file: lint-http-rules/src/rules/server_priority_and_cacheability_consistency.rs
       line: 50
   - label: server_status_and_caching_semantics
-    section: § 4.2.2
-    snippet: A cache MUST NOT use heuristics to determine freshness when an explicit expiration time is present
+    section: § 3
+    snippet: A cache MUST NOT store a response to a request unless
     cited_by:
     - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
-      line: 36
+      line: 86
+  - label: server_status_and_caching_semantics (2)
+    section: § 5.2.2.1
+    snippet: The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
+      line: 54
+    - file: lint-http-rules/src/rules/stateful_max_age_directive_validity.rs
+      line: 91
+  - label: server_status_and_caching_semantics (3)
+    section: § 5.2.2.10
+    snippet: The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires
+    cited_by:
+    - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
+      line: 55
+  - label: server_status_and_caching_semantics (4)
+    section: § 5.3
+    snippet: The "Expires" response header field gives the date/time after which the response is considered stale.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
+      line: 75
   - label: server_vary_and_cache_consistency
     section: § 4.1
     snippet: A stored response with a Vary header field value containing a member "*" always fails to match.
@@ -1903,12 +1929,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
       line: 125
-  - label: stateful_max_age_directive_validity
-    section: § 5.2.2.1
-    snippet: The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_max_age_directive_validity.rs
-      line: 91
   - label: stateful_must_revalidate_enforcement
     section: § 5.2.2.2
     snippet: The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3.
