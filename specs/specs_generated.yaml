@@ -1945,6 +1945,8 @@ sources:
       line: 99
     - file: lint-http-rules/src/rules/stateful_no_cache_revalidation.rs
       line: 81
+    - file: lint-http-rules/src/rules/stateful_s_max_age_enforcement.rs
+      line: 90
   - label: stateful_must_revalidate_enforcement (3)
     section: § 5.2
     snippet: Cache directives are identified by a token, to be compared case-insensitively
@@ -1984,7 +1986,7 @@ sources:
     snippet: The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_s_max_age_enforcement.rs
-      line: 93
+      line: 99
   - label: stateful_vary_header_cache_validity
     section: § 4.1
     snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request

@@ -8,7 +8,7 @@ use crate::rules::Rule;
 /// Ensure that `Cache-Control: s-maxage` is not treated as the freshness
 /// lifetime by *private* clients or caches.
 ///
-/// The `s-maxage` directive (RFC 9111 §5.2) only applies to shared caches and
+/// The `s-maxage` directive (RFC 9111 §5.2.2.10) only applies to shared caches and
 /// overrides any `max-age`/`Expires` value in that context.  Private caches
 /// should ignore `s-maxage` and rely on the regular freshness lifetime
 /// (`max-age`/`Expires`) instead.  A private client that revalidates a resource
@@ -65,7 +65,8 @@ impl Rule for StatefulSMaxAgeEnforcement {
 
         let (prev_tx, s_max_age, max_age) = candidate?;
 
-        // compute current age similar to other stateful cache rules
+        // Estimate current age as the Age header plus elapsed seconds — a simplification of
+        // §4.2.3's full algorithm, adequate for the boundary comparison below.
         let mut age_val: i64 = 0;
         if let Some(resp) = &prev_tx.response {
             if let Some(hv) = resp.headers.get("age") {
@@ -85,11 +86,16 @@ impl Rule for StatefulSMaxAgeEnforcement {
         let elapsed = if elapsed < 0 { 0 } else { elapsed };
         let current_age = age_val.saturating_add(elapsed);
 
+        // A conditional request is the revalidation whose timing this rule judges.
+        // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
         let has_conditional = tx.request.headers.contains_key("if-none-match")
             || tx.request.headers.contains_key("if-modified-since");
 
-        // private cache has misapplied s-maxage if it revalidated once the age
-        // crossed the s-maxage boundary but before the max-age expired.
+        // Heuristic: revalidating in the [s-maxage, max-age) window is the behaviour of a *shared*
+        // cache, so on a presumed-private client it suggests s-maxage was misread as the freshness
+        // limit. The cite establishes only that s-maxage is shared-cache-only; no sentence forbids
+        // a cache from revalidating a still-fresh response, so the flag is an inference (it also
+        // assumes the observed client is private, which cannot be verified from traffic).
         // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field."
         if has_conditional && current_age >= s_max_age && current_age < max_age {
             return Some(Violation {
@@ -117,9 +123,9 @@ impl Rule for StatefulSMaxAgeEnforcement {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9111",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2",
-                note: "`s-maxage` directive — applies only to shared caches and overrides `max-age`/`Expires` for those caches",
+                section: Some("5.2.2.10"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.10",
+                note: "`s-maxage` — applies only to shared caches and overrides `max-age`/`Expires` for those caches",
             },
         ]
     }
