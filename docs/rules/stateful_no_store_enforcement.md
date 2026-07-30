@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-The `no-store` cache-control directive (RFC 9111 §5.2.2.3) tells caches that **they must not retain any part of the response or request**.  A cache that breaks this rule may later reuse stale or private data inappropriately.
+The `no-store` cache-control directive (RFC 9111 §5.2.2.5) tells caches that **they must not retain any part of the response or request**.  A cache that breaks this rule may later reuse stale or private data inappropriately.
 
 This stateful rule observes the history of a particular client+resource and remembers which validator values (ETag or Last-Modified) were seen on responses that carried `Cache-Control: no-store`.  Only the most recent occurrence of each validator is kept; if the same value later appears on a non‑`no-store` response it is no longer considered forbidden.  When the current request carries a conditional header whose value matches one of those "no-store" validators, we infer that the response must have been stored at some point, and a violation is reported.
 
@@ -17,7 +17,7 @@ The check is scoped to resource histories (the engine filters transactions by UR
 ## Specifications
 
 - [RFC 9111 §5.2.2.5](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5): `no-store`
-- [RFC 9111 §4.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3): Expiration model (validators are used for revalidation)
+- [RFC 9111 §4.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3): Validation (conditional requests carry the validators this rule tracks)
 
 ## Configuration
 

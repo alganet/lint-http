@@ -6,7 +6,7 @@ use crate::lint::Violation;
 use crate::rules::Rule;
 
 /// Ensure that responses marked `no-store` are never reused for later
-/// conditional requests.  The `no-store` directive (RFC 9111 §5.2.2.3) tells
+/// conditional requests.  The `no-store` directive (RFC 9111 §5.2.2.5) tells
 /// caches that they must not retain any part of the response; if a later
 /// request for the same resource carries a validator (ETag or Last-Modified)
 /// matching a previously observed `no-store` response, that is evidence the
@@ -171,6 +171,9 @@ impl Rule for StatefulNoStoreEnforcement {
                 let candidate = s.trim();
                 let candidate_dt = crate::http_date::parse_http_date_to_datetime(candidate).ok();
 
+                // A Last-Modified validator echoed back from a no-store response is the same
+                // evidence of forbidden storage as the ETag case above.
+                // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
                 if no_store_lastmod.contains_key(candidate)
                     || (candidate_dt.is_some()
                         && no_store_lastmod
@@ -197,7 +200,7 @@ impl Rule for StatefulNoStoreEnforcement {
     }
 
     fn description(&self) -> &'static str {
-        "The `no-store` cache-control directive (RFC 9111 §5.2.2.3) tells caches that **they must not retain any part of the response or request**.  A cache that breaks this rule may later reuse stale or private data inappropriately.\n\nThis stateful rule observes the history of a particular client+resource and remembers which validator values (ETag or Last-Modified) were seen on responses that carried `Cache-Control: no-store`.  Only the most recent occurrence of each validator is kept; if the same value later appears on a non‑`no-store` response it is no longer considered forbidden.  When the current request carries a conditional header whose value matches one of those \"no-store\" validators, we infer that the response must have been stored at some point, and a violation is reported.\n\nThe check is scoped to resource histories (the engine filters transactions by URI) and therefore does not attempt to reason about unrelated traffic.  The rule does not flag unconditional requests, nor does it attempt to detect improper storage of requests (which is rarely visible from traffic capture)."
+        "The `no-store` cache-control directive (RFC 9111 §5.2.2.5) tells caches that **they must not retain any part of the response or request**.  A cache that breaks this rule may later reuse stale or private data inappropriately.\n\nThis stateful rule observes the history of a particular client+resource and remembers which validator values (ETag or Last-Modified) were seen on responses that carried `Cache-Control: no-store`.  Only the most recent occurrence of each validator is kept; if the same value later appears on a non‑`no-store` response it is no longer considered forbidden.  When the current request carries a conditional header whose value matches one of those \"no-store\" validators, we infer that the response must have been stored at some point, and a violation is reported.\n\nThe check is scoped to resource histories (the engine filters transactions by URI) and therefore does not attempt to reason about unrelated traffic.  The rule does not flag unconditional requests, nor does it attempt to detect improper storage of requests (which is rarely visible from traffic capture)."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -212,7 +215,7 @@ impl Rule for StatefulNoStoreEnforcement {
                 spec: "RFC 9111",
                 section: Some("4.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
-                note: "Expiration model (validators are used for revalidation)",
+                note: "Validation (conditional requests carry the validators this rule tracks)",
             },
         ]
     }
@@ -248,7 +251,12 @@ impl Rule for StatefulNoStoreEnforcement {
 fn header_has_no_store(headers: &hyper::HeaderMap) -> bool {
     for hv in headers.get_all("cache-control").iter() {
         if let Ok(s) = hv.to_str() {
+            // Split on comma (the grammar separator) and, as a tolerance, semicolon, which some
+            // implementations wrongly use. no-store takes no argument, so an exact directive-name
+            // match is correct (no qualified form to distinguish, unlike no-cache).
             for directive in s.split(|c| [',', ';'].contains(&c)) {
+                // Directive names are case-insensitive.
+                // cite(RFC 9111 § 5.2): "Cache directives are identified by a token, to be compared case-insensitively"
                 if directive.trim().eq_ignore_ascii_case("no-store") {
                     return true;
                 }

@@ -1831,6 +1831,8 @@ sources:
       line: 117
     - file: lint-http-rules/src/rules/stateful_no_store_enforcement.rs
       line: 150
+    - file: lint-http-rules/src/rules/stateful_no_store_enforcement.rs
+      line: 176
   - label: message_caching_directive_interaction (3)
     section: § 5.2.2.7
     snippet: The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user).
@@ -1951,6 +1953,8 @@ sources:
       line: 204
     - file: lint-http-rules/src/rules/stateful_no_cache_revalidation.rs
       line: 159
+    - file: lint-http-rules/src/rules/stateful_no_store_enforcement.rs
+      line: 259
   - label: stateful_must_revalidate_enforcement (4)
     section: § 5.2.2.2
     snippet: The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3.
