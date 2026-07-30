@@ -27,12 +27,11 @@ impl Rule for MessageCacheControlTokenValid {
         // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
         for header_val in tx.request.headers.get_all("cache-control").iter() {
             if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
+                // An entirely empty Cache-Control value is a zero-element list, which is legal
+                // (`#element => [ 1#element ]`); that is distinct from an empty *element*
+                // within a list, which check_cache_control_value flags. Skip it.
                 if v.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Cache-Control header must not be empty".into(),
-                    });
+                    continue;
                 }
                 if let Some(msg) = check_cache_control_value(v) {
                     return Some(Violation {
@@ -53,12 +52,11 @@ impl Rule for MessageCacheControlTokenValid {
         if let Some(resp) = &tx.response {
             for header_val in resp.headers.get_all("cache-control").iter() {
                 if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
+                    // An entirely empty Cache-Control value is a zero-element list, which is legal
+                    // (`#element => [ 1#element ]`); that is distinct from an empty *element*
+                    // within a list, which check_cache_control_value flags. Skip it.
                     if v.is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: "Cache-Control header must not be empty".into(),
-                        });
+                        continue;
                     }
                     if let Some(msg) = check_cache_control_value(v) {
                         return Some(Violation {
@@ -81,7 +79,7 @@ impl Rule for MessageCacheControlTokenValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Cache-Control` directive names and unquoted values follow the `token` grammar. Values that are quoted-strings are validated as quoted strings. Empty header values and empty directive members are flagged as violations."
+        "Validate `Cache-Control` directive names and unquoted values follow the `token` grammar. Values that are quoted-strings are validated as quoted strings. An empty directive member within the list (for example a stray or trailing comma) is flagged; an entirely empty header value is not, because `Cache-Control` is a comma-separated list and an empty value is a legal zero-element list."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -192,7 +190,7 @@ mod tests {
     #[case("no-cache", false)]
     #[case("private=\"Set-Cookie, X-Foo\"", false)]
     #[case("public, max-age=60", false)]
-    #[case("", true)]
+    #[case("", false)] // empty value = legal zero-element list
     #[case("=abc", true)]
     #[case("ma x-age=1", true)]
     #[case("private=Set Cookie", true)]
@@ -218,7 +216,7 @@ mod tests {
     #[case("no-cache", false)]
     #[case("private=\"Set-Cookie, X-Foo\"", false)]
     #[case("public, max-age=60", false)]
-    #[case("", true)]
+    #[case("", false)] // empty value = legal zero-element list
     #[case("=abc", true)]
     fn response_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = MessageCacheControlTokenValid;
