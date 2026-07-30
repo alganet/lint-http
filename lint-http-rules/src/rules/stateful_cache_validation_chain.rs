@@ -36,6 +36,8 @@ impl Rule for StatefulCacheValidationChain {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
+        // Both: a client's conditional request is compared against validators
+        // carried by prior origin responses for the same resource.
         crate::rules::RuleScope::Both
     }
 
@@ -54,9 +56,10 @@ impl Rule for StatefulCacheValidationChain {
         }
 
         // If the request uses `If-None-Match: *`, it is not referring to any
-        // specific validator value and therefore cannot be matched against a
-        // previously observed ETag.  Skip the rule in that case to avoid
-        // spurious warnings.
+        // specific validator value — `*` is the "no current representation"
+        // form — and therefore cannot be matched against a previously observed
+        // ETag.  Skip the rule in that case to avoid spurious warnings.
+        // cite(RFC 9110 § 13.1.2): "The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*""
         if has_inm {
             for hv in req.headers.get_all("if-none-match").iter() {
                 if let Ok(s) = hv.to_str() {
@@ -73,6 +76,9 @@ impl Rule for StatefulCacheValidationChain {
         // newest-first order and stop when we have either a strong ETag or a
         // Last-Modified value.  A 304 response may include headers that update
         // the validator; treat it the same as a 200 when present.
+        // History here is already scoped to this (client, resource) pair by the
+        // rule's ByResource query, so the loop needs no URI/client filter: the
+        // newest response carrying any validator is the one a cache would hold.
         let mut known_etag: Option<String> = None;
         let mut known_lm: Option<String> = None;
         for past in history.iter() {
@@ -80,14 +86,16 @@ impl Rule for StatefulCacheValidationChain {
                 let (etag, lm) =
                     crate::helpers::headers::extract_validators_from_response(&resp.headers);
                 if etag.is_some() || lm.is_some() {
-                    // whichever validator is present first "wins"; ETag takes
-                    // precedence since caches prefer it.
+                    // Within that response ETag wins over Last-Modified, matching
+                    // the MUST-vs-SHOULD strength §4.3.1 assigns to the two
+                    // validators when a cache builds a conditional request.
+                    // cite(RFC 9111 § 4.3.1): "MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated."
                     if etag.is_some() {
                         known_etag = etag.clone();
                         known_lm = None;
                     } else if known_etag.is_none() {
-                        // only update last-modified if we haven't already seen
-                        // a stronger ETag.
+                        // Last-Modified is the fallback validator (a SHOULD-send).
+                        // cite(RFC 9111 § 4.3.1): "SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value."
                         known_lm = lm.clone();
                     }
                     break;
@@ -157,6 +165,10 @@ impl Rule for StatefulCacheValidationChain {
                         (Ok(i), Ok(l)) => i != l,
                         _ => ims_str != lm_str,
                     };
+                    // Same basis as the If-None-Match branch: the cache is expected
+                    // to carry the stored validator into its conditional request, so
+                    // a stale Last-Modified signals a broken chain.
+                    // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI."
                     if mismatch {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -183,9 +195,9 @@ impl Rule for StatefulCacheValidationChain {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9111",
-                section: Some("4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
-                note: "\"Caching Negotiated Responses\" (validator semantics)",
+                section: Some("4.3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1",
+                note: "Sending a Validation Request — a cache builds preconditions from stored validators (entity tags MUST, Last-Modified SHOULD)",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",

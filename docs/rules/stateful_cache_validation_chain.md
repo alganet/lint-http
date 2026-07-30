@@ -16,7 +16,7 @@ This rule examines the recorded history for the same client+resource and recompu
 
 ## Specifications
 
-- [RFC 9111 §4.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3): "Caching Negotiated Responses" (validator semantics)
+- [RFC 9111 §4.3.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1): Sending a Validation Request — a cache builds preconditions from stored validators (entity tags MUST, Last-Modified SHOULD)
 - [RFC 9110 §13.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2): If-None-Match
 - [RFC 9110 §13.1.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3): If-Modified-Since
 
