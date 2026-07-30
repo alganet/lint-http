@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+
+# Local mirror of the CI gates. `just check` runs everything CI rejects a PR for;
+# `just fmt` fixes the formatting that `cargo fmt` alone cannot reach. Run bare
+# `just` to list recipes. Enable the commit-time guard once with
+# `just install-hooks`.
+
+# rustfmt does not follow the build.rs `#[path]` include into the rule modules,
+# so `cargo fmt` never formats them. They are formatted directly here, exactly as
+# the CI fmt job does — this is the drift the guard exists to stop.
+rule-modules := "lint-http-rules/src/rules/*.rs"
+
+# List available recipes.
+default:
+    @just --list
+
+# Format the whole workspace, including the rule modules cargo fmt cannot reach.
+fmt:
+    cargo fmt --all
+    rustfmt --edition 2021 {{rule-modules}}
+
+# Check formatting exactly as the CI fmt job does (workspace + rule modules).
+fmt-check:
+    cargo fmt --all -- --check
+    rustfmt --edition 2021 --check {{rule-modules}}
+
+# Clippy across the workspace, warnings as errors (the `cargo lint` alias).
+lint:
+    cargo lint
+
+# Workspace tests with all features.
+test:
+    cargo test --workspace --all-features
+
+# Citations file is current and the ratchet holds — offline, from the .venv.
+citations:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    apy=.venv/bin/apycite; [ -x "$apy" ] || apy=apycite
+    "$apy" extract --frozen
+    "$apy" ratchet
+
+# Third-party licensing + advisories (needs `reuse` and `cargo-deny` installed).
+supply-chain:
+    reuse lint
+    cargo deny check advisories licenses
+
+# Everything CI rejects a PR for, cheapest checks first so failures surface early.
+check: fmt-check citations lint test
+
+# Enable the versioned pre-commit hook (points core.hooksPath at .githooks).
+install-hooks:
+    git config core.hooksPath .githooks
+    @echo "✓ pre-commit hook enabled — formatting + citations checked on every commit."
