@@ -30,10 +30,12 @@ impl Rule for ServerStatusAndCachingSemantics {
 
         let status = resp.status;
 
-        // Status codes that are cacheable by default per RFC 9111 §3
+        // The heuristically cacheable status codes (RFC 9111 §4.2.2 calls the older name
+        // "cacheable by default"), enumerated in RFC 9110 §15.1. Such a response can be reused
+        // with heuristic expiration, so it needs no explicit freshness.
+        // cite(RFC 9110 § 15.1): "Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls"
         const DEFAULT_CACHEABLE: [u16; 12] =
             [200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501];
-        // cite(RFC 9111 § 4.2.2): "A cache MUST NOT use heuristics to determine freshness when an explicit expiration time is present"
         if DEFAULT_CACHEABLE.contains(&status) {
             return None;
         }
@@ -46,7 +48,11 @@ impl Rule for ServerStatusAndCachingSemantics {
                     if p.is_empty() {
                         continue;
                     }
-                    // split on '=' to check for max-age / s-maxage
+                    // split on '=' to check for max-age / s-maxage. Directive names are
+                    // case-insensitive; a present max-age or s-maxage is explicit freshness that
+                    // makes the response storable (RFC 9111 §3), so no violation.
+                    // cite(RFC 9111 § 5.2.2.1): "The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds."
+                    // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires"
                     let mut it = p.splitn(2, '=');
                     let name = it.next().unwrap().trim().to_ascii_lowercase();
                     if name == "max-age" || name == "s-maxage" {
@@ -63,7 +69,10 @@ impl Rule for ServerStatusAndCachingSemantics {
             }
         }
 
-        // Check Expires header for valid HTTP-date
+        // A present, well-formed Expires is explicit freshness. Note this is stricter than
+        // §3, which counts the mere presence of an Expires field: a malformed date is treated
+        // here as no freshness (it establishes none), a deliberate hygiene choice.
+        // cite(RFC 9111 § 5.3): "The "Expires" response header field gives the date/time after which the response is considered stale."
         if let Some(hv) = resp.headers.get_all("expires").iter().next() {
             if let Ok(s) = hv.to_str() {
                 if crate::http_date::is_valid_http_date(s.trim()) {
@@ -72,6 +81,9 @@ impl Rule for ServerStatusAndCachingSemantics {
             }
         }
 
+        // None of the storability signals §3 requires are present, and the status is not
+        // heuristically cacheable — so a cache cannot store this response.
+        // cite(RFC 9111 § 3): "A cache MUST NOT store a response to a request unless"
         Some(Violation {
             rule: self.id().into(),
             severity: config.severity,
@@ -96,7 +108,13 @@ impl Rule for ServerStatusAndCachingSemantics {
                 spec: "RFC 9111",
                 section: Some("3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3",
-                note: "HTTP Caching (which response status codes are cacheable by default and how freshness is established)",
+                note: "Storing Responses in Caches (the freshness signals a cache requires: Expires, max-age, s-maxage, or a heuristically cacheable status)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.1",
+                note: "Overview of Status Codes (which status codes are defined as heuristically cacheable)",
             },
         ]
     }
