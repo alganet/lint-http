@@ -112,11 +112,17 @@ fn check_cache_control_value(s: &str) -> Option<String> {
     // Split by top-level commas but ignore commas inside quoted-strings
     for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
         let member = member.trim();
+        // An empty element *within* the list is forbidden, unlike the empty whole
+        // value the callers skip as a zero-element list.
+        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if member.is_empty() {
             return Some("Empty directive in Cache-Control header".into());
         }
 
-        // directive = token [ "=" ( token / quoted-string ) ]
+        // The name/value split transcribes the cache-directive grammar. The two
+        // value shapes it names, `token` (§5.6.2) and `quoted-string` (§5.6.4),
+        // stay owned by the helpers this function calls below.
+        // cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
         let mut kv = member.splitn(2, '=');
         let name = kv.next().unwrap().trim();
         if name.is_empty() {
@@ -135,8 +141,14 @@ fn check_cache_control_value(s: &str) -> Option<String> {
 
         if let Some(vpart) = kv.next() {
             let vpart = vpart.trim();
+            // Leniency, recorded rather than changed: `foo=` does not match the
+            // grammar above — once "=" is present the optional group requires a
+            // token (`1*tchar`) or a quoted-string, neither of which can be empty.
+            // The rule accepts it anyway, so it under-reports this one shape. That
+            // is the safe direction for a linter, and tightening it would be a
+            // behavior change. (`foo=""` is genuinely valid: quoted-string permits
+            // empty content.)
             if vpart.is_empty() {
-                // empty value allowed
                 continue;
             }
             if vpart.starts_with('"') {
