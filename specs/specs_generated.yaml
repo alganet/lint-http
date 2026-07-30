@@ -1291,6 +1291,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/token.rs
       line: 7
+    - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
+      line: 143
   - label: message_accept_and_content_type_negotiation
     section: § 15.5.7
     snippet: The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent
@@ -1339,6 +1341,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_caching_directive_interaction.rs
       line: 64
+    - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
+      line: 135
   - label: message_charset_iana_registered
     section: § 8.3.2
     snippet: Charset names ought to be registered in the IANA "Character Sets" registry
@@ -1798,7 +1802,7 @@ sources:
     - file: lint-http-rules/src/rules/message_cache_control_and_pragma_consistency.rs
       line: 30
     - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
-      line: 30
+      line: 36
   - label: message_cache_control_directive_validity
     section: § 5.2
     snippet: The "Cache-Control" header field is used to list directives for caches along the request/response chain.
@@ -1855,6 +1859,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_expires_and_cache_control_consistency.rs
       line: 38
+  - label: message_pragma_token_valid
+    section: § 5.4
+    snippet: As a result, this specification deprecates Pragma.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
+      line: 63
   - label: message_warning_header_syntax
     section: § 5.5
     snippet: The "Warning" header field was used to carry additional information about the status or transformation of a message

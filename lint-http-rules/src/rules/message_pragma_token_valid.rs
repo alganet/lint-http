@@ -5,9 +5,15 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-/// `Pragma` header directives must follow directive = token ["=" ( token / quoted-string )]
+/// `Pragma` header directives must follow `directive = token ["=" ( token / quoted-string )]`
 /// and be syntactically valid. This rule flags invalid tokens, malformed quoted-strings,
-/// non-UTF8 header values, and empty header/member values. (RFC 9110 §8.2)
+/// non-UTF8 header values, and empty list members.
+///
+/// RFC 9111 §5.4 defines `Pragma` (an HTTP/1.0 request field) but *deprecates* it and no
+/// longer specifies a grammar for it; the `token ["=" (token / quoted-string)]` directive
+/// shape is the historical one from the obsoleted RFC 7234 §5.4. The leaf syntax this rule
+/// actually enforces — the `#`-list construct, `token`, and `quoted-string` — is current
+/// RFC 9110 §5.6 machinery, applied here as a well-formedness check for a deprecated field.
 pub struct MessagePragmaTokenValid;
 
 impl Rule for MessagePragmaTokenValid {
@@ -51,7 +57,10 @@ impl Rule for MessagePragmaTokenValid {
             }
         }
 
-        // Validate response headers too (historical usage)
+        // Validate response headers too. Pragma is a deprecated request field whose meaning in
+        // responses was never specified (§5.4 Note), so this is a pure well-formedness check for
+        // a field that should not appear here at all.
+        // cite(RFC 9111 § 5.4): "As a result, this specification deprecates Pragma."
         if let Some(resp) = &tx.response {
             for header_val in resp.headers.get_all("pragma").iter() {
                 if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
@@ -81,7 +90,7 @@ impl Rule for MessagePragmaTokenValid {
     }
 
     fn description(&self) -> &'static str {
-        "The `Pragma` header directives must follow directive syntax: a `token` optionally followed by `=token` or `=\"quoted-string\"`.\nThis rule flags malformed directives, invalid token characters, empty members, and non-UTF8 header values."
+        "The `Pragma` header directives must follow directive syntax: a `token` optionally followed by `=token` or `=\"quoted-string\"`.\nThis rule flags malformed directives, invalid token characters, empty members, and non-UTF8 header values.\n`Pragma` is deprecated by RFC 9111 §5.4, which no longer specifies its grammar; this validates the historical HTTP/1.0 directive syntax (originally RFC 7234 §5.4)."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -116,13 +125,22 @@ impl Rule for MessagePragmaTokenValid {
 }
 
 fn check_pragma_value(s: &str) -> Option<String> {
+    // The `token ["=" (token / quoted-string)]` directive shape is RFC 7234 §5.4's historical
+    // `extension-pragma` (dropped by RFC 9111). The pieces enforced below — the `#`-list split,
+    // the empty-element rule, `token`, and `quoted-string` — are all current RFC 9110 §5.6.
     for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
         let member = member.trim();
+        // An empty element *within* the list (e.g. `no-cache,,foo` or a trailing comma) is
+        // forbidden, unlike the empty whole value skipped by the callers above.
+        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if member.is_empty() {
             return Some("Empty directive in Pragma header".into());
         }
 
         let mut kv = member.splitn(2, '=');
+        // A directive name is a `token`, which is `1*tchar` — at least one character, so an empty
+        // name (as in `=abc`) is invalid. `find_invalid_token_char` below owns the tchar set.
+        // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
         let name = kv.next().unwrap().trim();
         if name.is_empty() {
             return Some(format!(
@@ -131,6 +149,7 @@ fn check_pragma_value(s: &str) -> Option<String> {
             ));
         }
 
+        // Grammar owned by the helper (RFC 9110 §5.6.2 `token`).
         if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
             return Some(format!(
                 "Directive name contains invalid character: '{}'",
@@ -140,9 +159,13 @@ fn check_pragma_value(s: &str) -> Option<String> {
 
         if let Some(vpart) = kv.next() {
             let vpart = vpart.trim();
+            // A bare `directive=` (the `=` present with no value) is more permissive than the
+            // grammar, which requires a `token` or `quoted-string` after `=`; accepted as a
+            // deliberate tolerance for this deprecated field.
             if vpart.is_empty() {
                 continue;
             }
+            // Value grammars owned by the helpers (RFC 9110 §5.6.4 `quoted-string`, §5.6.2 `token`).
             if vpart.starts_with('"') {
                 if let Err(e) = crate::helpers::headers::validate_quoted_string(vpart) {
                     return Some(format!("Invalid quoted-string in directive value: {}", e));
