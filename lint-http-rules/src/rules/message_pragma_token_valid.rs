@@ -30,12 +30,10 @@ impl Rule for MessagePragmaTokenValid {
         // cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
         for header_val in tx.request.headers.get_all("pragma").iter() {
             if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
+                // An entirely empty Pragma value is a legal zero-element list, distinct from
+                // an empty element *within* a list (flagged in check_pragma_value). Skip it.
                 if v.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Pragma header must not be empty".into(),
-                    });
+                    continue;
                 }
                 if let Some(msg) = check_pragma_value(v) {
                     return Some(Violation {
@@ -57,12 +55,10 @@ impl Rule for MessagePragmaTokenValid {
         if let Some(resp) = &tx.response {
             for header_val in resp.headers.get_all("pragma").iter() {
                 if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
+                    // An entirely empty Pragma value is a legal zero-element list, distinct from
+                    // an empty element *within* a list (flagged in check_pragma_value). Skip it.
                     if v.is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: "Pragma header must not be empty".into(),
-                        });
+                        continue;
                     }
                     if let Some(msg) = check_pragma_value(v) {
                         return Some(Violation {
@@ -194,7 +190,8 @@ mod tests {
     #[case("no-cache", false)]
     #[case("no-cache, foo=bar", false)]
     #[case("no-cache, token=\"quoted,comma\"", false)]
-    #[case("", true)]
+    // An entirely empty Pragma value is a legal zero-element list, not a violation.
+    #[case("", false)]
     #[case("=abc", true)]
     #[case("bad token", true)]
     fn request_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
@@ -226,7 +223,8 @@ mod tests {
     #[rstest]
     #[case("no-cache", false)]
     #[case("no-cache, foo=bar", false)]
-    #[case("", true)]
+    // An entirely empty Pragma value is a legal zero-element list, not a violation.
+    #[case("", false)]
     fn response_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = MessagePragmaTokenValid;
         let tx = make_resp(value);
