@@ -1,0 +1,39 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+#
+# The fast CI gates, run on every commit: formatting (including the
+# build.rs-included rule modules that `cargo fmt` skips) and citation currency.
+# Blocks the commit on drift so it never reaches CI. Enable with
+# `just install-hooks` (sets core.hooksPath to .githooks). Bypass a single commit
+# with `git commit --no-verify`.
+
+set -e
+
+fail() {
+    printf '\n\033[31m✗ pre-commit: %s\033[0m\n' "$1"
+    printf '  fix: %s\n\n' "$2"
+    exit 1
+}
+
+# 1. Formatting — the two commands the CI fmt job runs. `cargo fmt` cannot reach
+#    the rule modules, so they are checked directly.
+cargo fmt --all -- --check >/dev/null 2>&1 \
+    || fail "workspace is not rustfmt-clean" "just fmt   (then git add -u)"
+rustfmt --edition 2021 --check lint-http-rules/src/rules/*.rs >/dev/null 2>&1 \
+    || fail "rule modules are not rustfmt-clean" "just fmt   (then git add -u)"
+
+# 2. Citations file is current (offline). apycite lives in the project venv;
+#    fall back to PATH, and skip with a note if it is unavailable.
+apy=.venv/bin/apycite
+[ -x "$apy" ] || apy="$(command -v apycite 2>/dev/null || true)"
+if [ -n "$apy" ]; then
+    "$apy" extract --frozen >/dev/null 2>&1 \
+        || fail "specs/specs_generated.yaml is out of date" \
+                "$apy extract   (then git add specs/specs_generated.yaml)"
+else
+    printf '\033[33mnote: apycite not found (.venv or PATH) — skipping citation check\033[0m\n'
+fi
+
+exit 0

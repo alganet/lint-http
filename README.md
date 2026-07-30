@@ -148,20 +148,23 @@ Example (abbreviated):
 
 ## Development
 
-Run tests and linters locally:
+The CI gates are mirrored locally with [`just`](https://just.systems). Run bare
+`just` to list recipes:
 
 ```bash
-# run tests
-cargo test
-
-# run lint (clippy alias in .cargo/config.toml)
-cargo lint
-
-# coverage (alias in .cargo/config.toml)
-cargo coverage
+just check          # everything CI rejects a PR for: fmt, citations, lint, test
+just fmt            # format the whole tree, including the rule modules cargo fmt can't reach
+just install-hooks  # enable the pre-commit guard (fmt + citations, once per clone)
 ```
 
-See `.cargo/config.toml` for configured aliases (coverage/lint).
+`cargo fmt` does not reach the rule modules — they enter the crate through a
+`build.rs`-generated `#[path]` include that rustfmt won't follow — so `just fmt`
+formats them directly, and the pre-commit hook (in `.githooks/`) blocks a commit
+that would fail the CI fmt or citation gate. Bypass it once with
+`git commit --no-verify`.
+
+Individual gates are also available directly: `cargo test`, `cargo lint`, and
+`cargo coverage` (the last two are aliases in `.cargo/config.toml`).
 
 ## Security notice
 
