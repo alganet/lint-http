@@ -5,8 +5,11 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-/// `Vary` header value must be either `*` or a comma-separated list of header field-names.
-/// Field-names must conform to the `token` grammar (tchar); `*` must not be combined with other values.
+/// Validate the `Vary` response header against RFC 9110 §12.5.5:
+/// `Vary = #( "*" / field-name )`. Each field-name must conform to the `token`
+/// grammar (tchar). Because it is a `#`-list, an empty value is a legal
+/// zero-element list; `*` is an ordinary list member and may appear alongside
+/// field-names (RFC 7231's `"*" / 1#field-name` exclusivity was dropped).
 pub struct ServerVaryHeaderValid;
 
 impl Rule for ServerVaryHeaderValid {
@@ -25,13 +28,13 @@ impl Rule for ServerVaryHeaderValid {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // Vary is a response header field; the rule inspects responses only.
+        // cite(RFC 9110 § 12.5.5): "The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response."
         let resp = tx.response.as_ref()?;
 
-        // Track whether '*' appears and count effective tokens across all header fields
-        let mut saw_star = false;
-        let mut total_tokens = 0usize;
-
-        // cite(RFC 9110 § 12.5.5): "The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response."
+        // The whole check transcribes the field grammar: a comma list whose members
+        // are each "*" or a field-name.
+        // cite(RFC 9110 § 12.5.5): "Vary = #( "*" / field-name )"
         for hv in resp.headers.get_all("vary").iter() {
             let s = match hv.to_str() {
                 Ok(s) => s,
@@ -44,7 +47,16 @@ impl Rule for ServerVaryHeaderValid {
                 }
             };
 
-            // Detect empty/empty-after-trim tokens such as trailing commas or consecutive commas
+            // Vary is a `#`-list, so an entirely empty value is a legal zero-element
+            // list (the degenerate "does not vary" case), not a malformed header.
+            // Distinct from an empty *element* within a non-empty list, flagged below.
+            if s.trim().is_empty() {
+                continue;
+            }
+
+            // An empty element within the list (trailing/leading/consecutive commas)
+            // is forbidden, unlike the empty whole value skipped above.
+            // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
             for raw in s.split(',') {
                 if raw.trim().is_empty() {
                     return Some(Violation {
@@ -56,14 +68,17 @@ impl Rule for ServerVaryHeaderValid {
             }
 
             for token in crate::helpers::headers::parse_list_header(s) {
-                total_tokens += 1;
-
+                // "*" is a valid list member. Under RFC 9110 it may appear alongside
+                // field-names (RFC 7231's "*"-or-a-list exclusivity was dropped), so
+                // no combination check is made — only field-name tokens are validated.
+                // (The one MUST on "*", that a proxy MUST NOT generate it, is not
+                // enforced: this rule sees a response without knowing whether the
+                // sender is the origin or an intermediary. Left uncited, recorded.)
                 if token == "*" {
-                    saw_star = true;
                     continue;
                 }
 
-                // Validate token characters for header field-name
+                // Every other member is a field-name, i.e. a token.
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -77,28 +92,11 @@ impl Rule for ServerVaryHeaderValid {
             }
         }
 
-        // Empty Vary header (present but no effective tokens) is invalid
-        if total_tokens == 0 && resp.headers.get_all("vary").iter().next().is_some() {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: "Vary header is present but empty".into(),
-            });
-        }
-
-        if saw_star && total_tokens > 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: "Vary header: '*' must not be combined with other field-names".into(),
-            });
-        }
-
         None
     }
 
     fn description(&self) -> &'static str {
-        "Validate the `Vary` response header. This rule enforces that:\n\n- When present, `Vary` MUST be either `*` or a comma-separated list of header field-names.\n- Each field-name must conform to the `token` grammar (RFC `tchar`).\n- `*` MUST NOT be combined with other field-names (across the header value or multiple header fields)."
+        "Validate the `Vary` response header against its grammar `Vary = #( \"*\" / field-name )` (RFC 9110 §12.5.5). This rule enforces that:\n\n- Each field-name conforms to the `token` grammar (RFC `tchar`).\n- The list contains no empty elements (a stray, leading, or trailing comma).\n\nBecause `Vary` is a comma-separated (`#`) list, an entirely empty value is a legal zero-element list and is not flagged. The wildcard `*` is an ordinary list member: under RFC 9110 it may appear alongside field-names, so the combination is not reported (RFC 7231's `\"*\" / 1#field-name` exclusivity no longer applies)."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -106,7 +104,7 @@ impl Rule for ServerVaryHeaderValid {
             spec: "RFC 9110",
             section: Some("12.5.5"),
             url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5",
-            note: "Vary header",
+            note: "Vary = #( \"*\" / field-name ) — a comma-separated list; \"*\" is an ordinary member (RFC 7231's \"*\"-or-a-list form is obsolete)",
         }]
     }
 
@@ -129,9 +127,14 @@ impl Rule for ServerVaryHeaderValid {
                 snippet: "Vary: *",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("— '*' may accompany field-names under RFC 9110"),
+                snippet: "Vary: *, Accept-Encoding",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "Vary: *, Accept-Encoding   # '*' must not be combined with other field-names\nVary: x@bad                # invalid token characters in field-name\nVary:                      # empty header value is invalid",
+                snippet: "Vary: x@bad                # invalid token characters in field-name\nVary: Accept-Encoding,     # empty element (trailing comma) is invalid",
             },
         ]
     }
@@ -151,14 +154,17 @@ mod tests {
     #[case(Some("*"), false)]
     #[case(Some("accept-encoding"), false)]
     #[case(Some("Accept-Encoding, User-Agent"), false)]
-    #[case(Some("accept-encoding, *"), true)]
-    #[case(Some("*, accept-encoding"), true)]
-    #[case(Some(""), true)]
+    // '*' alongside field-names is valid under RFC 9110's #-list grammar.
+    #[case(Some("accept-encoding, *"), false)]
+    #[case(Some("*, accept-encoding"), false)]
+    // Empty value / whitespace-only is a legal zero-element list.
+    #[case(Some(""), false)]
+    #[case(Some("   "), false)]
     #[case(Some("x@bad"), true)]
+    // Empty *elements* within a non-empty list remain violations.
     #[case(Some("Accept-Encoding,"), true)]
     #[case(Some(",Accept-Encoding"), true)]
     #[case(Some("Accept-Encoding,,User-Agent"), true)]
-    #[case(Some("   "), true)]
     #[case(Some(","), true)]
     #[case(Some("\"Accept-Encoding\""), true)]
     fn vary_cases(#[case] header: Option<&str>, #[case] expect_violation: bool) {
@@ -207,7 +213,9 @@ mod tests {
     }
 
     #[test]
-    fn star_combined_across_header_fields_is_violation() {
+    fn star_combined_across_header_fields_is_allowed() {
+        // RFC 9110's `#( "*" / field-name )` permits '*' alongside field-names,
+        // including when split across multiple Vary field lines.
         let rule = ServerVaryHeaderValid;
 
         let tx = crate::test_helpers::make_test_transaction_with_response(
@@ -220,7 +228,7 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
+        assert!(v.is_none());
     }
 
     #[test]

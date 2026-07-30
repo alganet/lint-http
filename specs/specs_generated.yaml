@@ -1347,6 +1347,8 @@ sources:
       line: 64
     - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
       line: 135
+    - file: lint-http-rules/src/rules/server_vary_header_valid.rs
+      line: 59
   - label: message_charset_iana_registered
     section: § 8.3.2
     snippet: Charset names ought to be registered in the IANA "Character Sets" registry
@@ -1730,7 +1732,13 @@ sources:
     snippet: The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response.
     cited_by:
     - file: lint-http-rules/src/rules/server_vary_header_valid.rs
-      line: 34
+      line: 32
+  - label: server_vary_header_valid (2)
+    section: § 12.5.5
+    snippet: 'Vary = #( "*" / field-name )'
+    cited_by:
+    - file: lint-http-rules/src/rules/server_vary_header_valid.rs
+      line: 37
   - label: stateful_101_switching_protocols
     section: § 15.2.2
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection.

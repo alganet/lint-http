@@ -8,15 +8,16 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate the `Vary` response header. This rule enforces that:
+Validate the `Vary` response header against its grammar `Vary = #( "*" / field-name )` (RFC 9110 §12.5.5). This rule enforces that:
 
-- When present, `Vary` MUST be either `*` or a comma-separated list of header field-names.
-- Each field-name must conform to the `token` grammar (RFC `tchar`).
-- `*` MUST NOT be combined with other field-names (across the header value or multiple header fields).
+- Each field-name conforms to the `token` grammar (RFC `tchar`).
+- The list contains no empty elements (a stray, leading, or trailing comma).
+
+Because `Vary` is a comma-separated (`#`) list, an entirely empty value is a legal zero-element list and is not flagged. The wildcard `*` is an ordinary list member: under RFC 9110 it may appear alongside field-names, so the combination is not reported (RFC 7231's `"*" / 1#field-name` exclusivity no longer applies).
 
 ## Specifications
 
-- [RFC 9110 §12.5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5): Vary header
+- [RFC 9110 §12.5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5): Vary = #( "*" / field-name ) — a comma-separated list; "*" is an ordinary member (RFC 7231's "*"-or-a-list form is obsolete)
 
 ## Configuration
 
@@ -43,10 +44,15 @@ Vary: Accept-Encoding, User-Agent
 Vary: *
 ```
 
+### ✅ Good — '*' may accompany field-names under RFC 9110
+
+```http
+Vary: *, Accept-Encoding
+```
+
 ### ❌ Bad
 
 ```http
-Vary: *, Accept-Encoding   # '*' must not be combined with other field-names
 Vary: x@bad                # invalid token characters in field-name
-Vary:                      # empty header value is invalid
+Vary: Accept-Encoding,     # empty element (trailing comma) is invalid
 ```
