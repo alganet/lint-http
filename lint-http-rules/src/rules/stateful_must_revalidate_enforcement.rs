@@ -63,15 +63,18 @@ impl Rule for StatefulMustRevalidateEnforcement {
 
         let prev_tx = candidate?;
 
-        // compute freshness lifetime advertised by the response.  this uses a
-        // shared helper which handles both `max-age` and `Expires` logic,
-        // returning zero when no explicit lifetime is available.
+        // Freshness lifetime advertised by the response. The helper owns the §4.2.1
+        // derivation (max-age wins, else Expires − Date), returning zero when no explicit
+        // lifetime is available.
         let freshness_lifetime = crate::helpers::headers::compute_freshness_lifetime(
             &prev_tx.response.as_ref().unwrap().headers,
             prev_tx.timestamp,
         );
 
-        // calculate current age: Age header (if numeric) + elapsed seconds
+        // Estimate current age as the Age header (if numeric) plus elapsed seconds. This is a
+        // simplification of §4.2.3's full algorithm (it omits response_delay and the Date-based
+        // apparent_age term); adequate for staleness detection. A non-numeric or absurd Age is
+        // treated as zero.
         let mut age_val: i64 = 0;
         if let Some(resp) = &prev_tx.response {
             if let Some(hv) = resp.headers.get("age") {
@@ -91,11 +94,17 @@ impl Rule for StatefulMustRevalidateEnforcement {
         let elapsed = if elapsed < 0 { 0 } else { elapsed };
         let current_age = age_val.saturating_add(elapsed);
 
+        // A conditional request (carrying a precondition header field) is how a client
+        // revalidates — the "successfully validated by the origin" that §5.2.2.2 requires.
+        // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
         let has_conditional = tx.request.headers.contains_key("if-none-match")
             || tx.request.headers.contains_key("if-modified-since");
 
-        // treat equal age as stale as well; a freshness lifetime of zero is
-        // therefore immediately expired.
+        // A response is stale once its age reaches its freshness lifetime. §4.2's normative
+        // calculation is `response_is_fresh = (freshness_lifetime > current_age)` (a sourcecode
+        // block, not machine-citeable), so stale is `>=` — which also makes a zero lifetime
+        // (max-age=0 or no explicit freshness) immediately stale.
+        // cite(RFC 9111 § 4.2): "A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has."
         if current_age >= freshness_lifetime && !has_conditional {
             // warn only if there was a validator on the original response
             let resp = prev_tx.response.as_ref().unwrap();
@@ -137,13 +146,19 @@ impl Rule for StatefulMustRevalidateEnforcement {
                 spec: "RFC 9111",
                 section: Some("4.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
-                note: "Calculating the age of a response",
+                note: "Freshness (a response is stale once its age reaches its freshness lifetime)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("4.2.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.3",
+                note: "Calculating Age (the response age this rule estimates)",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9111",
                 section: Some("4.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
-                note: "Expiration model (freshness lifetime)",
+                note: "Validation (revalidating a stale entry before reuse)",
             },
         ]
     }
@@ -176,15 +191,17 @@ impl Rule for StatefulMustRevalidateEnforcement {
 }
 
 /// Helper to detect presence of a must-revalidate directive in Cache-Control
-/// headers.  We perform a case-insensitive substring check on semicolon- and
-/// comma-separated directives so that the header grammar complexity does not
-/// need to be duplicated here.
+/// headers.  We match each directive name case-insensitively, splitting on comma
+/// (the grammar separator) and — as a tolerance — semicolon, which some
+/// implementations wrongly use.
 fn header_has_must_revalidate(headers: &hyper::HeaderMap) -> bool {
     for hv in headers.get_all("cache-control").iter() {
         if let Ok(s) = hv.to_str() {
-            // Cache-Control is a comma-separated list of directives; some
-            // implementations also use semicolons.  Accept either separator.
+            // Cache-Control is a comma-separated list of directives; the semicolon split is a
+            // tolerance for the malformed `a;b` form (the grammar only allows `,`).
             for directive in s.split(|c| [',', ';'].contains(&c)) {
+                // Directive names are case-insensitive.
+                // cite(RFC 9111 § 5.2): "Cache directives are identified by a token, to be compared case-insensitively"
                 if directive.trim().eq_ignore_ascii_case("must-revalidate") {
                     return true;
                 }
