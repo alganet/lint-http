@@ -1425,6 +1425,8 @@ sources:
       line: 45
     - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
       line: 64
+    - file: lint-http-rules/src/rules/semantic_cache_coherence.rs
+      line: 67
   - label: message_date_and_time_headers_consistency (2)
     section: § 8.8.2.1
     snippet: An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1).
@@ -1585,6 +1587,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_www_authenticate_challenge_syntax.rs
       line: 32
+  - label: semantic_cache_coherence
+    section: § 15.4.5
+    snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_cache_coherence.rs
+      line: 42
+  - label: semantic_cache_coherence (2)
+    section: § 8.8.2
+    snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_cache_coherence.rs
+      line: 54
   - label: semantic_head_response_headers_match_get
     section: § 9.3.2
     snippet: The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.
@@ -1886,7 +1900,7 @@ sources:
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
     cited_by:
     - file: lint-http-rules/src/rules/semantic_cache_coherence.rs
-      line: 87
+      line: 106
   - label: server_cache_control_present
     section: § 4.2.2
     snippet: Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time.

@@ -6,15 +6,16 @@ use crate::lint::Violation;
 use crate::rules::Rule;
 
 /// Ensure that responses for a given resource do not regress in their
-/// representation date.  Cache coherence (RFC 9111 §6) demands that once a
-/// newer representation has been made available, caches and origin servers
-/// should not subsequently serve an older copy without
-/// revalidation/invalidation.  This rule approximates that requirement by
-/// computing a simple timestamp for each response using the `Last-Modified`
-/// header if present, or else the `Date` header, and complaining if the
-/// current transaction's timestamp is strictly older than any previously
-/// observed value for the same URI.  It currently does not examine validators
-/// such as `ETag`.
+/// representation date.  This is a heuristic, not a direct spec check: RFC 9111
+/// §4.2.4 forbids a cache from generating a *stale* response, but it defines
+/// "stale" against the §4.2 freshness calculation, which this rule never
+/// performs.  Instead we approximate the observable symptom — a later response
+/// carrying an older representation timestamp than one already seen for the
+/// same URI — by computing a simple timestamp from the `Last-Modified` header
+/// (RFC 9110 §8.8.2, the representation's own modification time) or, failing
+/// that, the `Date` header (RFC 9110 §6.6.1, only the message's origination
+/// time, a coarser proxy).  It examines neither validators such as `ETag` nor the Vary
+/// secondary key, so URI identity is itself an approximation of the cache key.
 pub struct SemanticCacheCoherence;
 
 impl Rule for SemanticCacheCoherence {
@@ -38,6 +39,7 @@ impl Rule for SemanticCacheCoherence {
         let resp = tx.response.as_ref()?;
 
         // ignore 304 responses, they have no representation body of their own
+        // cite(RFC 9110 § 15.4.5): "there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation"
         if resp.status == 304 {
             return None;
         }
@@ -46,6 +48,10 @@ impl Rule for SemanticCacheCoherence {
         // Last-Modified but fall back to Date.  Return None if neither can be
         // parsed.
         fn rep_time(headers: &hyper::HeaderMap) -> Option<chrono::DateTime<chrono::Utc>> {
+            // Prefer Last-Modified: it timestamps the *representation* itself, so
+            // a decrease directly signals the representation went backwards. The
+            // HTTP-date grammar is owned by the parse helper (§5.6.7).
+            // cite(RFC 9110 § 8.8.2): "The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified"
             if let Some(hv) = headers.get("last-modified") {
                 if let Ok(s) = hv.to_str() {
                     if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
@@ -53,6 +59,12 @@ impl Rule for SemanticCacheCoherence {
                     }
                 }
             }
+            // Date is only the *message's* origination time, not the
+            // representation's — a coarser proxy, and the source of this rule's
+            // heuristic nature: a fresh response may legitimately carry a Date
+            // earlier than a prior message for the same URI, which this rule
+            // cannot distinguish from a genuine regression.
+            // cite(RFC 9110 § 6.6.1): "The "Date" header field represents the date and time at which the message was originated"
             if let Some(hv) = headers.get("date") {
                 if let Ok(s) = hv.to_str() {
                     if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
@@ -69,6 +81,11 @@ impl Rule for SemanticCacheCoherence {
         // timestamp we've seen so far.
         let mut max_prev: Option<chrono::DateTime<chrono::Utc>> = None;
         for prev in history.iter() {
+            // URI identity stands in for the cache key. This is an
+            // approximation: a real key also folds in the request method and
+            // the Vary secondary key (RFC 9111 §4.1), neither of which is consulted
+            // here, so two responses varying legitimately on, e.g., Accept can
+            // be compared as if they were the same representation.
             if prev.request.uri != tx.request.uri {
                 continue;
             }
@@ -83,7 +100,9 @@ impl Rule for SemanticCacheCoherence {
         }
 
         // A representation going backwards in time across two responses is the observable
-        // form of a cache serving something it should have revalidated.
+        // form of a cache serving something it should have revalidated. §4.2.4's MUST NOT
+        // is the requirement this heuristic stands in for: we cannot compute §4.2 freshness
+        // (no age or lifetime here), so a strictly-older timestamp is our proxy for "stale".
         // cite(RFC 9111 § 4.2.4): "A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server"
         if let Some(prev_max) = max_prev {
             if curr_time < prev_max {
@@ -106,12 +125,32 @@ impl Rule for SemanticCacheCoherence {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9111",
-            section: Some("6"),
-            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-6",
-            note: "Cache coherence",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("4.2.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.4",
+                note: "Serving Stale Responses — the MUST NOT this rule heuristically approximates",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.8.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2",
+                note: "Last-Modified — the representation's modification time (preferred signal)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("6.6.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1",
+                note: "Date — the message's origination time (coarser fallback signal)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.4.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5",
+                note: "304 Not Modified — conveys no representation, so it is skipped",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

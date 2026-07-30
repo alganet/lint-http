@@ -26,7 +26,10 @@ responses are skipped since they do not convey a new representation.
 
 ## Specifications
 
-- [RFC 9111 §6](https://www.rfc-editor.org/rfc/rfc9111.html#section-6): Cache coherence
+- [RFC 9111 §4.2.4](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.4): Serving Stale Responses — the MUST NOT this rule heuristically approximates
+- [RFC 9110 §8.8.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2): Last-Modified — the representation's modification time (preferred signal)
+- [RFC 9110 §6.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1): Date — the message's origination time (coarser fallback signal)
+- [RFC 9110 §15.4.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5): 304 Not Modified — conveys no representation, so it is skipped
 
 ## Configuration
 
