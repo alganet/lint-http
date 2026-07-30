@@ -7,7 +7,7 @@ use crate::rules::Rule;
 
 /// Ensures responses that are not cacheable by default include explicit
 /// freshness information (e.g., `Cache-Control: max-age=...` / `s-maxage=...` or `Expires`).
-/// Default-cacheable status codes are: 200, 203, 204, 206, 300, 301, 404, 405, 410, 414, 501.
+/// Default-cacheable status codes are: 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501.
 pub struct ServerStatusAndCachingSemantics;
 
 impl Rule for ServerStatusAndCachingSemantics {
@@ -31,8 +31,8 @@ impl Rule for ServerStatusAndCachingSemantics {
         let status = resp.status;
 
         // Status codes that are cacheable by default per RFC 9111 §3
-        const DEFAULT_CACHEABLE: [u16; 11] =
-            [200, 203, 204, 206, 300, 301, 404, 405, 410, 414, 501];
+        const DEFAULT_CACHEABLE: [u16; 12] =
+            [200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501];
         // cite(RFC 9111 § 4.2.2): "A cache MUST NOT use heuristics to determine freshness when an explicit expiration time is present"
         if DEFAULT_CACHEABLE.contains(&status) {
             return None;
@@ -87,7 +87,7 @@ impl Rule for ServerStatusAndCachingSemantics {
     }
 
     fn description(&self) -> &'static str {
-        "Responses with certain status codes are cacheable by default (for example: `200`, `203`, `204`, `206`, `300`, `301`, `404`, `405`, `410`, `414`, `501`). For other status codes to be cacheable, servers MUST include explicit freshness information such as `Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header.\n\nThis rule warns when a response status that is not cacheable by default does not include explicit freshness information."
+        "Responses with certain status codes are cacheable by default (for example: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414`, `501`). For other status codes to be cacheable, servers MUST include explicit freshness information such as `Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header.\n\nThis rule warns when a response status that is not cacheable by default does not include explicit freshness information."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -143,6 +143,7 @@ mod tests {
     #[case(503, vec![("expires", "Wed, 21 Oct 2015 07:28:00 GMT")], false)]
     #[case(503, vec![("expires", "not-a-date")], true)]
     #[case(200, vec![], false)] // 200 is cacheable by default
+    #[case(308, vec![], false)] // 308 is heuristically cacheable (RFC 9110 §15.1), no freshness needed
     fn caching_cases(
         #[case] status: u16,
         #[case] hdrs: Vec<(&str, &str)>,
