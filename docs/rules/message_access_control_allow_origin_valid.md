@@ -13,7 +13,8 @@ This rule checks that the `Access-Control-Allow-Origin` response header is synta
 ## Specifications
 
 - [MDN Access-Control-Allow-Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin): Access-Control-Allow-Origin
-- [Fetch](https://fetch.spec.whatwg.org/): CORS protocol — `Access-Control-Allow-Origin` carries one value: an echoed origin, `null`, or `*`
+- [Fetch §3.3.3](https://fetch.spec.whatwg.org/#http-access-control-allow-origin): `Access-Control-Allow-Origin` carries one value: an echoed origin, `null`, or `*`
+- [RFC 6454 §7.1](https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1): Origin syntax the non-`*` value is validated against — `serialized-origin = scheme "://" host [ ":" port ]`, and `null` via origin-list-or-null
 
 ## Configuration
 
