@@ -67,10 +67,10 @@ sources:
     - file: lint-http-rules/src/rules/message_cross_origin_embedder_policy_valid.rs
       line: 78
   - label: message_cross_origin_opener_policy_valid
-    snippet: 'The possible values are: "unsafe-none"This is the (current) default and means that the document will occupy the same top-level browsing context as its predecessor, unless that document specified a different opener policy.'
+    snippet: Let parsedItem be the result of getting a structured field value given `Cross-Origin-Opener-Policy` and "item" from response's header list.
     cited_by:
     - file: lint-http-rules/src/rules/message_cross_origin_opener_policy_valid.rs
-      line: 73
+      line: 75
   - label: message_origin_isolated_header_validity
     snippet: This header is a structured header whose value must be a boolean.
     cited_by:

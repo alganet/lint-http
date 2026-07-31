@@ -68,9 +68,11 @@ impl Rule for MessageCrossOriginOpenerPolicyValid {
         // Acceptable values: same-origin, same-origin-allow-popups, unsafe-none (case-insensitive)
         // `noopener-allow-popups` was added to the opener policy values and was missing
         // here — a valid, deployable header this rule used to reject. `same-origin-plus-COEP`
-        // is deliberately absent: it is a policy value, but the standard says it cannot be
-        // set through this header, so a response carrying it *is* wrong.
-        // cite(HTML): "The possible values are: "unsafe-none"This is the (current) default and means that the document will occupy the same top-level browsing context as its predecessor, unless that document specified a different opener policy."
+        // is deliberately absent: the parsing algorithm produces it only from the `same-origin`
+        // token combined with a compatible COEP, never from a token of its own, so a response
+        // literally carrying `same-origin-plus-COEP` *is* wrong. The header value is a single
+        // structured-field item (token), which is also why the list check above applies.
+        // cite(HTML): "Let parsedItem be the result of getting a structured field value given `Cross-Origin-Opener-Policy` and "item" from response's header list."
         if val.eq_ignore_ascii_case("same-origin")
             || val.eq_ignore_ascii_case("same-origin-allow-popups")
             || val.eq_ignore_ascii_case("noopener-allow-popups")
@@ -107,15 +109,15 @@ impl Rule for MessageCrossOriginOpenerPolicyValid {
             },
             crate::rules::SpecRef {
                 spec: "HTML",
-                section: None,
-                url: "https://html.spec.whatwg.org/multipage/browsers.html#the-cross-origin-opener-policy-header",
-                note: "Cross-Origin-Opener-Policy (W3C): “The Cross-Origin-Opener-Policy header”",
+                section: Some("7.1.3.1"),
+                url: "https://html.spec.whatwg.org/multipage/browsers.html#the-coop-headers",
+                note: "The `Cross-Origin-Opener-Policy` header is parsed as a single structured-field item (token); `same-origin-plus-COEP` is derived from `same-origin` + a compatible COEP, never set directly",
             },
             crate::rules::SpecRef {
                 spec: "HTML",
                 section: None,
                 url: "https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-opener-policies",
-                note: "HTML Standard: “Cross-origin opener policies” (defines header behavior and allowed values)",
+                note: "“Cross-origin opener policies” — the possible opener policy values and their meanings",
             },
         ]
     }

@@ -13,8 +13,8 @@ This rule checks the `Cross-Origin-Opener-Policy` response header value and ensu
 ## Specifications
 
 - [MDN Cross-Origin-Opener-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Opener-Policy): Cross-Origin-Opener-Policy
-- [HTML](https://html.spec.whatwg.org/multipage/browsers.html#the-cross-origin-opener-policy-header): Cross-Origin-Opener-Policy (W3C): “The Cross-Origin-Opener-Policy header”
-- [HTML](https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-opener-policies): HTML Standard: “Cross-origin opener policies” (defines header behavior and allowed values)
+- [HTML §7.1.3.1](https://html.spec.whatwg.org/multipage/browsers.html#the-coop-headers): The `Cross-Origin-Opener-Policy` header is parsed as a single structured-field item (token); `same-origin-plus-COEP` is derived from `same-origin` + a compatible COEP, never set directly
+- [HTML](https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-opener-policies): “Cross-origin opener policies” — the possible opener policy values and their meanings
 
 ## Configuration
 
