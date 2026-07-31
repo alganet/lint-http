@@ -285,10 +285,25 @@ sources:
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection
   fragments:
   - label: server_x_xss_protection_value_valid
+    snippet: Disables XSS filtering.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
+      line: 67
+  - label: server_x_xss_protection_value_valid (2)
+    snippet: Enables XSS filtering. Rather than sanitizing the page, the browser will prevent rendering of the page if an attack is detected.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
+      line: 73
+  - label: server_x_xss_protection_value_valid (3)
     snippet: Even though this feature can protect users of older web browsers that don't support CSP, in some cases, X-XSS-Protection can create XSS vulnerabilities in otherwise safe websites.
     cited_by:
     - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
-      line: 58
+      line: 66
+  - label: server_x_xss_protection_value_valid (4)
+    snippet: response header was a feature of Internet Explorer, Chrome and Safari that stopped pages from loading when they detected reflected cross-site scripting
+    cited_by:
+    - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
+      line: 29
 - label: RFC 1035
   url: https://www.rfc-editor.org/rfc/rfc1035.txt
   type: text/plain
@@ -1669,6 +1684,8 @@ sources:
       line: 40
     - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
       line: 41
+    - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
+      line: 40
   - label: message_etag_syntax (2)
     section: § 8.8.3
     snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
@@ -1805,6 +1822,8 @@ sources:
       line: 44
     - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
       line: 50
+    - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
+      line: 49
   - label: message_timing_allow_origin_validity (2)
     section: § 5.6.1.2
     snippet: 'A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism'
