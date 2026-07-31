@@ -58,29 +58,21 @@ impl Rule for ServerXFrameOptionsValueValid {
             return None;
         }
 
-        // ALLOW-FROM requires a serialized-origin per RFC 7034 and RFC 6454
+        // ALLOW-FROM was RFC 7034's third variant, but the HTML Standard's
+        // processing model superseded that document and dropped it: browsers treat
+        // it as an unrecognized value, leaving the resource unprotected while the
+        // sender believes otherwise. Flag it with a targeted message rather than
+        // the generic unsupported-value one.
         if val.len() >= 10 && val[..10].eq_ignore_ascii_case("ALLOW-FROM") {
-            let rest = val[10..].trim_start();
-            if rest.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: "X-Frame-Options: ALLOW-FROM missing serialized-origin".into(),
-                });
-            }
-            // Allow a single trailing slash as examples do
-            if crate::helpers::headers::is_valid_serialized_origin(rest) {
-                return None;
-            } else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "X-Frame-Options: ALLOW-FROM contains invalid origin: '{}'",
-                        rest
-                    ),
-                });
-            }
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: format!(
+                    "X-Frame-Options: ALLOW-FROM is obsolete and not implemented by browsers \
+                     (use the Content-Security-Policy frame-ancestors directive instead): '{}'",
+                    val
+                ),
+            });
         }
 
         Some(Violation {
@@ -91,7 +83,7 @@ impl Rule for ServerXFrameOptionsValueValid {
     }
 
     fn description(&self) -> &'static str {
-        "The `X-Frame-Options` response header protects content from being embedded in frames by other origins. This rule validates that the header, when present, uses one of the allowed values: `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <serialized-origin>`. It also rejects multiple header occurrences and malformed `ALLOW-FROM` origins."
+        "The `X-Frame-Options` response header protects content from being embedded in frames by other origins. This rule validates that the header, when present, uses one of the two values in the HTML Standard's conformance ABNF: `DENY` or `SAMEORIGIN` (matched case-insensitively). The `ALLOW-FROM` variant from RFC 7034 is flagged: the HTML Standard supersedes that document, browsers do not implement it, and a resource relying on it is unprotected — use the CSP `frame-ancestors` directive instead. Multiple header occurrences are also rejected."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -122,12 +114,12 @@ impl Rule for ServerXFrameOptionsValueValid {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: ALLOW-FROM https://example.com/\n\n...response body...",
+                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: SAMEORIGIN\n\n...response body...",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: ALLOW-FROM example.com\n\n...response body...",
+                label: Some("`ALLOW-FROM` is obsolete and not implemented"),
+                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: ALLOW-FROM https://example.com/\n\n...response body...",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -158,26 +150,20 @@ mod tests {
     #[case(Some("DENY"), false)]
     #[case(Some("deny"), false)]
     #[case(Some("SAMEORIGIN"), false)]
-    #[case(Some("ALLOW-FROM https://example.com"), false)]
-    #[case(Some("ALLOW-FROM https://example.com/"), false)]
-    #[case(Some("ALLOW-FROM https://example.com:8080"), false)]
-    #[case(Some("ALLOW-FROM https://[::1]"), false)]
-    #[case(Some("ALLOW-FROM https://[::1]:8080"), false)]
-    #[case(Some("ALLOW-FROM https://[::1]/path"), false)]
-    #[case(Some("allow-from https://example.com"), false)]
-    #[case(Some("ALLOW-FROM    https://example.com"), false)]
-    #[case(Some("ALLOW-FROM\thttps://example.com"), false)]
-    #[case(Some("ALLOW-FROM https://example.com/some/path"), false)]
-    // invalid origins
+    #[case(Some("sameorigin"), false)]
+    // ALLOW-FROM is obsolete: the HTML Standard's conformance ABNF admits only
+    // DENY / SAMEORIGIN, and browsers do not implement ALLOW-FROM.
+    #[case(Some("ALLOW-FROM https://example.com"), true)]
+    #[case(Some("ALLOW-FROM https://example.com/"), true)]
+    #[case(Some("allow-from https://example.com"), true)]
+    #[case(Some("ALLOW-FROM\thttps://example.com"), true)]
     #[case(Some("ALLOW-FROM example.com"), true)]
-    #[case(Some("ALLOW-FROM https://example.com:abc"), true)]
-    #[case(Some("ALLOW-FROM https://user@example.com"), true)]
-    #[case(Some("ALLOW-FROM https://[::1"), true)]
+    #[case(Some("ALLOW-FROM"), true)]
     // combined / comma-separated values in a single header
     #[case(Some("ALLOW-FROM https://a, ALLOW-FROM https://b"), true)]
-    #[case(Some("ALLOW-FROM"), true)]
     #[case(Some("DENY, SAMEORIGIN"), true)]
     #[case(Some("SOMETHINGELSE"), true)]
+    #[case(Some("ALLOWALL"), true)]
     fn x_frame_cases(#[case] header_val: Option<&str>, #[case] expect_violation: bool) {
         let rule = ServerXFrameOptionsValueValid;
         let mut tx = make_test_transaction();
@@ -206,6 +192,23 @@ mod tests {
                 v
             );
         }
+    }
+
+    #[test]
+    fn allow_from_violation_names_the_replacement() {
+        let rule = ServerXFrameOptionsValueValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("x-frame-options", "ALLOW-FROM https://example.com")],
+        );
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let v = v.expect("ALLOW-FROM must be flagged");
+        assert!(v.message.contains("obsolete"));
+        assert!(v.message.contains("frame-ancestors"));
     }
 
     #[test]
