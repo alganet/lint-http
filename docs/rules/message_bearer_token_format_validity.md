@@ -12,8 +12,8 @@ Validate `Authorization: Bearer <token>` header values. The Bearer token MUST be
 
 ## Specifications
 
-- [RFC 6750](https://www.rfc-editor.org/rfc/rfc6750.html): The OAuth 2.0 Authorization Framework: Bearer Token Usage
-- [RFC 7235 §2.1](https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1): token68 syntax used for credentials
+- [RFC 6750 §2.1](https://www.rfc-editor.org/rfc/rfc6750.html#section-2.1): Bearer credentials — `credentials = "Bearer" 1*SP b64token`; the Authorization header form and grammar for the Bearer scheme
+- [RFC 9110 §11.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.2): token68 — the current auth framework's credential-token grammar, defined identically to RFC 6750's b64token; anchors the shape in a live spec (RFC 6750 references the obsolete RFC 2617). Replaces a stale RFC 7235 pointer.
 
 ## Configuration
 

@@ -625,8 +625,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 298
+  - label: message_bearer_token_format_validity
+    section: § 2.1
+    snippet: credentials = "Bearer" 1*SP b64token
+    cited_by:
     - file: lint-http-rules/src/rules/message_bearer_token_format_validity.rs
-      line: 51
+      line: 46
 - label: RFC 6797
   url: https://www.rfc-editor.org/rfc/rfc6797.txt
   type: text/plain
@@ -1113,6 +1117,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 201
+    - file: lint-http-rules/src/rules/message_bearer_token_format_validity.rs
+      line: 39
     - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
       line: 35
   - label: lint-http-rules/src/helpers/auth.rs (2)

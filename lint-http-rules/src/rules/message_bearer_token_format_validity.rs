@@ -35,10 +35,15 @@ impl Rule for MessageBearerTokenFormatValidity {
                 }
             };
 
-            // split scheme and credentials
+            // Split scheme and credentials. Auth-scheme names match case-insensitively.
+            // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
             let mut parts = s.trim().splitn(2, char::is_whitespace);
             let scheme = parts.next().unwrap_or("").trim();
             if scheme.eq_ignore_ascii_case("bearer") {
+                // `credentials = "Bearer" 1*SP b64token` requires a non-empty b64token
+                // after the scheme, which is what the empty check and the helper call
+                // enforce; the b64token grammar itself is owned by helpers::auth (§2.1).
+                // cite(RFC 6750 § 2.1): "credentials = "Bearer" 1*SP b64token"
                 let creds = parts.next().map(|r| r.trim()).unwrap_or("");
                 if creds.is_empty() {
                     return Some(Violation {
@@ -48,7 +53,6 @@ impl Rule for MessageBearerTokenFormatValidity {
                     });
                 }
 
-                // cite(RFC 6750 § 2.1): "b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"=""
                 if let Err(msg) = crate::helpers::auth::validate_bearer_token(creds) {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -69,15 +73,15 @@ impl Rule for MessageBearerTokenFormatValidity {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 6750",
-                section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc6750.html",
-                note: "The OAuth 2.0 Authorization Framework: Bearer Token Usage",
+                section: Some("2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc6750.html#section-2.1",
+                note: "Bearer credentials — `credentials = \"Bearer\" 1*SP b64token`; the Authorization header form and grammar for the Bearer scheme",
             },
             crate::rules::SpecRef {
-                spec: "RFC 7235",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1",
-                note: "token68 syntax used for credentials",
+                spec: "RFC 9110",
+                section: Some("11.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.2",
+                note: "token68 — the current auth framework's credential-token grammar, defined identically to RFC 6750's b64token; anchors the shape in a live spec (RFC 6750 references the obsolete RFC 2617). Replaces a stale RFC 7235 pointer.",
             },
         ]
     }
