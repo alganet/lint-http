@@ -192,6 +192,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
       line: 97
+    - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
+      line: 91
   - label: message_sec_fetch_dest_value_valid (4)
     snippet: It is a Structured Field whose value MUST be a token.
     cited_by:
@@ -199,16 +201,25 @@ sources:
       line: 66
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
       line: 79
+    - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
+      line: 63
+    - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
+      line: 76
   - label: message_sec_fetch_dest_value_valid (5)
     snippet: Valid Sec-Fetch-Dest values include the set of valid request destinations defined by [Fetch].
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
       line: 98
   - label: message_sec_fetch_mode_value_valid
+    snippet: HTTP request header exposes a request’s mode to a server
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
+      line: 31
+  - label: message_sec_fetch_mode_value_valid (2)
     snippet: Valid Sec-Fetch-Mode values include "cors", "navigate", "no-cors", "same-origin", and "websocket".
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
-      line: 78
+      line: 92
   - label: message_sec_fetch_site_value_valid
     snippet: Valid Sec-Fetch-Site values include "cross-site", "same-origin", "same-site", and "none".
     cited_by:
@@ -1704,6 +1715,8 @@ sources:
       line: 77
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
       line: 43
+    - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
+      line: 40
     - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
       line: 40
     - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
@@ -1832,6 +1845,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
       line: 52
+    - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
+      line: 49
     - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
       line: 44
     - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs

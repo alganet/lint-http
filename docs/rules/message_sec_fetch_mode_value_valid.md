@@ -12,7 +12,7 @@ Requests that include the `Sec-Fetch-Mode` request header must use one of the ca
 
 ## Specifications
 
-- [Fetch Metadata](https://www.w3.org/TR/fetch-metadata/#sec-fetch-mode): Fetch Metadata (W3C) — `Sec-Fetch-Mode` header values
+- [Fetch Metadata §2.2](https://www.w3.org/TR/fetch-metadata/#sec-fetch-mode-header): Fetch Metadata (W3C) — `Sec-Fetch-Mode`: an sf-token whose valid values are the five request modes
 
 ## Configuration
 
