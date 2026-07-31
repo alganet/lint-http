@@ -206,7 +206,13 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), String> {
         ));
     }
 
-    // Authorization MUST include credentials after scheme (unlike WWW-Authenticate)
+    // §11.4's grammar makes the part after the scheme optional ([ 1*SP … ]), so a
+    // bare scheme is framework-valid. This helper still requires something there
+    // because every concrete scheme it serves — Basic (RFC 7617), Bearer (RFC 6750),
+    // Digest (RFC 7616) — mandates credentials, so a scheme with nothing after it is
+    // treated as malformed. The cite anchors the structure (scheme, then optional
+    // credentials), not the requirement, which is scheme-derived and stricter than
+    // the framework grammar.
     // cite(RFC 9110 § 11.4): "credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
     if let Some(rest) = parts.next() {
         let rest = rest.trim();

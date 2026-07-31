@@ -26,7 +26,12 @@ impl Rule for MessageAuthorizationCredentialsPresent {
         for hv in tx.request.headers.get_all("authorization").iter() {
             match hv.to_str() {
                 Ok(s) => {
-                    // cite(RFC 9110 § 11.6.2): "The "Authorization" header field allows a user agent to authenticate itself with an origin server"
+                    // The Authorization value is credentials — an auth-scheme with its
+                    // authentication information — which is the structure validated here.
+                    // The "credentials must actually be present" half is scheme-derived
+                    // (the framework grammar permits a bare scheme); the helper owns that
+                    // reasoning and the §11.4 structure cite.
+                    // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
                     if let Err(msg) = crate::helpers::auth::validate_authorization_syntax(s) {
                         return Some(Violation {
                             rule: self.id().into(),
