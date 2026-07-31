@@ -26,12 +26,18 @@ impl Rule for MessageSecFetchUserValueValid {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // A request header; absence is the normal case (it rides only user-activated
+        // navigations).
+        // cite(Fetch Metadata): "HTTP request header exposes whether or not a navigation request was triggered by user activation."
         let headers = &tx.request.headers;
         let count = headers.get_all("sec-fetch-user").iter().count();
         if count == 0 {
             return None;
         }
 
+        // A single structured-field item, never a list, so a sender may not repeat
+        // the field.
+        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
@@ -40,6 +46,7 @@ impl Rule for MessageSecFetchUserValueValid {
             });
         }
 
+        // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
         let val = match crate::helpers::headers::get_header_str(headers, "sec-fetch-user") {
             Some(v) => v.trim(),
             None => {
@@ -52,6 +59,8 @@ impl Rule for MessageSecFetchUserValueValid {
             }
         };
 
+        // An empty value cannot be an sf-boolean.
+        // cite(Fetch Metadata): "It is a Structured Field whose value is a boolean."
         if val.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
@@ -85,7 +94,7 @@ impl Rule for MessageSecFetchUserValueValid {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
             spec: "Fetch Metadata",
-            section: None,
+            section: Some("2.4"),
             url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-user-header",
             note: "Fetch Metadata (W3C) — `Sec-Fetch-User` header (boolean, serialized as `?1`)",
         }]
