@@ -406,7 +406,7 @@ sources:
     snippet: A string domain-matches a given domain string if at least one of the following conditions hold
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 93
+      line: 98
     - file: lint-http-rules/src/rules/stateful_cookie_domain_matching.rs
       line: 96
   - label: cookie path-match
@@ -414,7 +414,7 @@ sources:
     snippet: A request-path path-matches a given cookie-path if at least one of the following conditions holds
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 106
+      line: 118
     - file: lint-http-rules/src/rules/stateful_cookie_domain_matching.rs
       line: 108
   - label: lint-http-rules/src/helpers/cookie.rs
@@ -422,33 +422,45 @@ sources:
     snippet: If the uri-path contains no more than one %x2F ("/") character, output %x2F ("/") and skip the remaining step.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 240
+      line: 255
   - label: lint-http-rules/src/helpers/cookie.rs (2)
     section: § 5.1.4
     snippet: Output the characters of the uri-path from the first character up to, but not including, the right-most %x2F ("/").
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 245
+      line: 260
   - label: lint-http-rules/src/helpers/cookie.rs (3)
     section: § 5.1.4
     snippet: 'The user agent MUST use an algorithm equivalent to the following algorithm to compute the default-path of a cookie:'
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 230
+      line: 245
   - label: lint-http-rules/src/helpers/cookie.rs (4)
     section: § 5.1.4
     snippet: output %x2F ("/") and skip the remaining steps.
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 236
+      line: 251
   - label: cookie Path attribute
     section: § 5.2.4
     snippet: 'If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):'
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
-      line: 174
+      line: 186
     - file: lint-http-rules/src/rules/message_cookie_path_validity.rs
       line: 56
+  - label: lint-http-rules/src/helpers/cookie.rs (5)
+    section: § 5.3
+    snippet: Set the cookie's host-only-flag to true.
+    cited_by:
+    - file: lint-http-rules/src/helpers/cookie.rs
+      line: 240
+  - label: lint-http-rules/src/helpers/cookie.rs (6)
+    section: § 5.4
+    snippet: The cookie's host-only-flag is true and the canonicalized request-host is identical to the cookie's domain.
+    cited_by:
+    - file: lint-http-rules/src/helpers/cookie.rs
+      line: 109
   - label: message_cookie_attribute_consistency
     section: § 4.1.1
     snippet: cookie-pair       = cookie-name "=" cookie-value cookie-name       = token

@@ -66,8 +66,12 @@ pub enum SameSite {
 pub struct Cookie {
     pub name: String,
     pub value: String,
-    /// Effective cookie domain (host-only, lowercased, no leading dot)
+    /// Effective cookie domain (lowercased, no leading dot)
     pub domain: String,
+    /// True when the cookie was set with no `Domain` attribute.  Per RFC 6265
+    /// §5.3 such a cookie is "host-only" and its domain is the request-host;
+    /// §5.4 then permits sending it only to that exact host, never a subdomain.
+    pub host_only: bool,
     /// Effective path attribute
     pub path: String,
     pub secure: bool,
@@ -88,17 +92,25 @@ impl Cookie {
         }
     }
 
-    /// Simple domain-match check following RFC 6265 §5.1.3.  Only the host
-    /// portion of the request URI should be supplied (no port).
+    /// Domain-match check following RFC 6265 §5.1.3, refined by the host-only
+    /// inclusion rule of §5.4: a host-only cookie matches only its exact host.
+    /// Only the host portion of the request URI should be supplied (no port).
     // cite(RFC 6265 § 5.1.3, label: cookie domain-match): "A string domain-matches a given domain string if at least one of the following conditions hold"
     pub fn domain_matches(&self, request_host: &str) -> bool {
         let req = request_host.to_ascii_lowercase();
         let dom = self.domain.as_str();
         if req == dom {
-            true
-        } else {
-            req.ends_with(&format!(".{}", dom))
+            return true;
         }
+        // A host-only cookie (set without a Domain attribute) is bound to its
+        // exact host; §5.4 lists request-host-*identical* as the only inclusion
+        // condition for it, so it never matches a subdomain even though the
+        // suffix test below would otherwise accept one.
+        // cite(RFC 6265 § 5.4): "The cookie's host-only-flag is true and the canonicalized request-host is identical to the cookie's domain."
+        if self.host_only {
+            return false;
+        }
+        req.ends_with(&format!(".{}", dom))
     }
 
     /// Path-match per RFC 6265 §5.1.4.  `request_path` should be the path
@@ -224,6 +236,9 @@ pub fn parse_set_cookie(
         "".to_string()
     };
 
+    // No Domain attribute → host-only cookie bound to the request-host.
+    // cite(RFC 6265 § 5.3): "Set the cookie's host-only-flag to true."
+    let host_only = domain_attr.is_none();
     let domain = domain_attr.unwrap_or(default_domain);
 
     // The branches below are § 5.1.4's numbered steps, in its order.
@@ -276,6 +291,7 @@ pub fn parse_set_cookie(
         name,
         value,
         domain,
+        host_only,
         path,
         secure,
         expiration,
