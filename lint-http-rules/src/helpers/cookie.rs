@@ -14,6 +14,11 @@
 /// - Percent-encodings ("%" followed by two hex digits) are accepted
 pub fn validate_cookie_path(s: &str) -> Result<(), String> {
     let v = s.trim();
+    // Empty and non-`/` values are not a *syntax* error: §5.2.4 has the user
+    // agent replace them with the default-path. That semantics is cited at the
+    // sole call site (`message_cookie_path_validity`); here we flag them as the
+    // latent misconfiguration they are and go on to enforce the character
+    // grammar below.
     if v.is_empty() {
         return Err("Path attribute is empty".into());
     }
@@ -26,6 +31,12 @@ pub fn validate_cookie_path(s: &str) -> Result<(), String> {
         return Err(msg);
     }
 
+    // The loop holds the server to §4.1.1's `path-value = <any CHAR except CTLs
+    // or ";">`: CHAR is %x01-7F (so non-ASCII is rejected) and CTLs are excluded
+    // (the `";"` is excluded structurally — the caller splits on it). Whitespace
+    // is a stricter-than-grammar profile (space is a legal CHAR; see the RFC
+    // 9110 §5.6.3 SpecRef), except tab, which is itself a CTL.
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
     let bytes = v.as_bytes();
     let mut i = 0usize;
     while i < bytes.len() {
