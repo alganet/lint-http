@@ -124,10 +124,15 @@ sources:
   type: text/html
   fragments:
   - label: server_clear_site_data
+    snippet: A user signs out of Super Secret Social Network via a CSRF-protected POST to https://supersecretsocialnetwork.example.com/logout, and the site author wishes to ensure that locally stored data is removed as a result
+    cited_by:
+    - file: lint-http-rules/src/rules/server_clear_site_data.rs
+      line: 126
+  - label: server_clear_site_data (2)
     snippet: The Clear-Site-Data HTTP response header field sends a signal to the user agent that it ought to remove all data of a certain set of types.
     cited_by:
     - file: lint-http-rules/src/rules/server_clear_site_data.rs
-      line: 124
+      line: 129
 - label: Fetch Metadata
   url: https://www.w3.org/TR/fetch-metadata/
   type: text/html
