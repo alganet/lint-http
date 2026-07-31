@@ -17,8 +17,8 @@ The rule validates that `Origin` is present where required and that its value is
 
 ## Specifications
 
-- [RFC 6454](https://www.rfc-editor.org/rfc/rfc6454.html): The Web Origin Concept
-- [Fetch](https://fetch.spec.whatwg.org/#origin-header): CORS / Fetch: Origin header semantics
+- [RFC 6454 §7.1](https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1): Origin header field syntax the value is validated against (`serialized-origin` / `null`)
+- [Fetch §3.2](https://fetch.spec.whatwg.org/#origin-header): Origin header — used for CORS fetches and any request whose method is neither GET nor HEAD (where both inline cites resolve)
 - [MDN Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Origin): Origin
 
 ## Configuration
