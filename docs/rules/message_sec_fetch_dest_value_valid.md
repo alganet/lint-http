@@ -12,7 +12,7 @@ Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specific
 
 ## Specifications
 
-- [Fetch Metadata](https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest): Fetch Metadata (W3C) — `Sec-Fetch-Dest` header values
+- [Fetch Metadata §2.1](https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest-header): Fetch Metadata (W3C) — `Sec-Fetch-Dest`: an sf-token whose valid values are Fetch's request destinations
 
 ## Configuration
 

@@ -46,7 +46,7 @@ sources:
     snippet: 'A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt".'
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
-      line: 85
+      line: 99
   - label: message_timing_allow_origin_validity
     snippet: origin-or-null = serialized-origin / %s"null" ; case-sensitive
     cited_by:
@@ -178,10 +178,32 @@ sources:
   type: text/html
   fragments:
   - label: message_sec_fetch_dest_value_valid
+    snippet: HTTP request header exposes a request’s destination to a server
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
+      line: 34
+  - label: message_sec_fetch_dest_value_valid (2)
+    snippet: If r’s destination is the empty string, set header’s value to the string "empty"
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
+      line: 102
+  - label: message_sec_fetch_dest_value_valid (3)
+    snippet: In order to support forward-compatibility with as-yet-unknown request types, servers SHOULD ignore this header if it contains an invalid value.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
+      line: 97
+  - label: message_sec_fetch_dest_value_valid (4)
+    snippet: It is a Structured Field whose value MUST be a token.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
+      line: 66
+    - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
+      line: 79
+  - label: message_sec_fetch_dest_value_valid (5)
     snippet: Valid Sec-Fetch-Dest values include the set of valid request destinations defined by [Fetch].
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
-      line: 84
+      line: 98
   - label: message_sec_fetch_mode_value_valid
     snippet: Valid Sec-Fetch-Mode values include "cors", "navigate", "no-cors", "same-origin", and "websocket".
     cited_by:
@@ -1680,6 +1702,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 77
+    - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
+      line: 43
     - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
       line: 40
     - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
@@ -1802,6 +1826,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
       line: 27
+  - label: message_sec_fetch_dest_value_valid
+    section: § 5.5
+    snippet: newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
+      line: 52
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 44
+    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
+      line: 50
+    - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
+      line: 49
   - label: message_server_header_product_valid
     section: § 10.2.4
     snippet: The "Server" header field contains information about the software used by the origin server to handle the request
@@ -1815,16 +1851,6 @@ sources:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 29
   - label: message_timing_allow_origin_validity
-    section: § 5.5
-    snippet: newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB
-    cited_by:
-    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
-      line: 44
-    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
-      line: 50
-    - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
-      line: 49
-  - label: message_timing_allow_origin_validity (2)
     section: § 5.6.1.2
     snippet: 'A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism'
     cited_by:

@@ -31,12 +31,16 @@ impl Rule for MessageSecFetchDestValueValid {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Sec-Fetch-* are request-sent headers; check only requests
+        // cite(Fetch Metadata): "HTTP request header exposes a request’s destination to a server"
         let headers = &tx.request.headers;
         let count = headers.get_all("sec-fetch-dest").iter().count();
         if count == 0 {
             return None;
         }
 
+        // A single structured-field item, never a list, so a sender may not repeat
+        // the field.
+        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
@@ -45,6 +49,7 @@ impl Rule for MessageSecFetchDestValueValid {
             });
         }
 
+        // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
         let val = match crate::helpers::headers::get_header_str(headers, "sec-fetch-dest") {
             Some(v) => v.trim(),
             None => {
@@ -57,7 +62,8 @@ impl Rule for MessageSecFetchDestValueValid {
             }
         };
 
-        // Validate header value is not empty after trimming
+        // An empty value cannot be a token.
+        // cite(Fetch Metadata): "It is a Structured Field whose value MUST be a token."
         if val.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
@@ -66,7 +72,11 @@ impl Rule for MessageSecFetchDestValueValid {
             });
         }
 
-        // Token must not contain invalid token chars
+        // Token must not contain invalid token chars. This checks the HTTP `token`
+        // grammar, slightly looser than sf-token; the closed value match below is
+        // what actually gates acceptance, so the difference only picks which
+        // message a bad value gets.
+        // cite(Fetch Metadata): "It is a Structured Field whose value MUST be a token."
         if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
             return Some(Violation {
                 rule: self.id().into(),
@@ -80,9 +90,16 @@ impl Rule for MessageSecFetchDestValueValid {
 
         // The value set is not Fetch Metadata's own — it defers to Fetch, which grows as
         // new destinations are defined. `"text"` was added to Fetch and missing here until
-        // the citation below was written against the live document.
+        // the citation below was written against the live document. That growth is also
+        // why the spec tells servers to ignore unknown values; this rule lints the
+        // *sender*, where an unknown value means a non-conforming (or non-browser)
+        // origin of the header, so it flags instead.
+        // cite(Fetch Metadata): "In order to support forward-compatibility with as-yet-unknown request types, servers SHOULD ignore this header if it contains an invalid value."
         // cite(Fetch Metadata): "Valid Sec-Fetch-Dest values include the set of valid request destinations defined by [Fetch]."
         // cite(Fetch): "A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt"."
+        // Fetch's "the empty string" destination is carried as the literal token
+        // `empty`, which is why the arm below accepts it.
+        // cite(Fetch Metadata): "If r’s destination is the empty string, set header’s value to the string "empty""
         match val {
             "empty" | "audio" | "audioworklet" | "document" | "embed" | "font" | "frame"
             | "iframe" | "image" | "json" | "manifest" | "object" | "paintworklet" | "report"
@@ -103,9 +120,9 @@ impl Rule for MessageSecFetchDestValueValid {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
             spec: "Fetch Metadata",
-            section: None,
-            url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest",
-            note: "Fetch Metadata (W3C) — `Sec-Fetch-Dest` header values",
+            section: Some("2.1"),
+            url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest-header",
+            note: "Fetch Metadata (W3C) — `Sec-Fetch-Dest`: an sf-token whose valid values are Fetch's request destinations",
         }]
     }
 
