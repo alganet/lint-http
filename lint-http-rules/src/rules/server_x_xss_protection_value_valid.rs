@@ -23,6 +23,10 @@ impl Rule for ServerXXssProtectionValueValid {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // A response header (a legacy browser feature; no standard ever defined it),
+        // so only the response side is inspected. Its absence is fine — CSP is the
+        // replacement — which is why count == 0 simply passes.
+        // cite(MDN X-XSS-Protection): "response header was a feature of Internet Explorer, Chrome and Safari that stopped pages from loading when they detected reflected cross-site scripting"
         let resp = tx.response.as_ref()?;
 
         let headers = &resp.headers;
@@ -31,6 +35,9 @@ impl Rule for ServerXXssProtectionValueValid {
             return None;
         }
 
+        // The value was never defined as a comma-separated list, so a sender may
+        // not repeat the field.
+        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
@@ -39,6 +46,7 @@ impl Rule for ServerXXssProtectionValueValid {
             });
         }
 
+        // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
         let val = match crate::helpers::headers::get_header_str(headers, "x-xss-protection") {
             Some(v) => v.trim(),
             None => {
@@ -56,11 +64,13 @@ impl Rule for ServerXXssProtectionValueValid {
         // That is a policy, not a reading of a grammar: the filter these values enable is
         // the thing the quote below warns about, and `0` is the one safe setting.
         // cite(MDN X-XSS-Protection): "Even though this feature can protect users of older web browsers that don't support CSP, in some cases, X-XSS-Protection can create XSS vulnerabilities in otherwise safe websites."
+        // cite(MDN X-XSS-Protection): "Disables XSS filtering."
         if val.eq_ignore_ascii_case("0") {
             return None;
         }
 
         // Split on ';' and validate structure: exactly two parts, first is '1', second is 'mode=block'
+        // cite(MDN X-XSS-Protection): "Enables XSS filtering. Rather than sanitizing the page, the browser will prevent rendering of the page if an attack is detected."
         let parts: Vec<&str> = val.split(';').map(|s| s.trim()).collect();
         if parts.len() == 2
             && parts[0].eq_ignore_ascii_case("1")
