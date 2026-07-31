@@ -24,7 +24,7 @@ This check applies to server responses (RuleScope::Server).
 ## Specifications
 
 - [RFC 6454](https://www.rfc-editor.org/rfc/rfc6454.html): The Web Origin Concept
-- [Fetch](https://fetch.spec.whatwg.org/#access-control-allow-origin-response-header): Fetch CORS / Origin matching rules
+- [Fetch §4.10](https://fetch.spec.whatwg.org/#concept-cors-check): Fetch CORS check — the response origin must byte-match the request `Origin` (or be `*` for a non-credentialed request); this rule's matching logic lives here (two of its three cites)
 - [MDN Access-Control-Allow-Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin): Access-Control-Allow-Origin
 
 ## Configuration
