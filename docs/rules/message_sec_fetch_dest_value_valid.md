@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specification: the header value must be a token matching one of the recognized request destinations (e.g., `image`, `document`, `script`, `worker`, `empty`, etc.). Values are compared case-insensitively and token syntax is enforced. Multiple header fields are treated as a violation.
+Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specification: the header value must be a token matching one of the recognized request destinations (e.g., `image`, `document`, `script`, `worker`, `empty`, etc.). The match is exact — destinations are lowercase tokens and structured-field tokens carry no case folding, so `Image` is not a valid value. Token syntax is enforced. Multiple header fields are treated as a violation.
 
 ## Specifications
 
@@ -31,6 +31,14 @@ GET /image.png HTTP/1.1
 Host: example.com
 Sec-Fetch-Dest: image
 ```
+
+```http
+GET /script.js HTTP/1.1
+Host: example.com
+Sec-Fetch-Dest: script
+```
+
+### ❌ Bad destination tokens are lowercase; the match is exact
 
 ```http
 GET /script.js HTTP/1.1

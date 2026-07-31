@@ -7,7 +7,8 @@ use crate::rules::Rule;
 
 /// `Sec-Fetch-Site` header must be one of the canonical values listed in
 /// the Fetch Metadata spec: `cross-site`, `same-origin`, `same-site`, or `none`.
-/// Values are compared case-insensitively; token syntax is validated.
+/// The match is exact: the values are lowercase tokens and the
+/// structured-field token carries no case folding; token syntax is validated.
 pub struct MessageSecFetchSiteValueValid;
 
 impl Rule for MessageSecFetchSiteValueValid {
@@ -75,8 +76,7 @@ impl Rule for MessageSecFetchSiteValueValid {
         }
 
         // cite(Fetch Metadata): "Valid Sec-Fetch-Site values include "cross-site", "same-origin", "same-site", and "none"."
-        let lower = val.to_ascii_lowercase();
-        match lower.as_str() {
+        match val {
             "cross-site" | "same-origin" | "same-site" | "none" => None,
             _ => Some(Violation {
                 rule: self.id().into(),
@@ -87,7 +87,7 @@ impl Rule for MessageSecFetchSiteValueValid {
     }
 
     fn description(&self) -> &'static str {
-        "Requests that include the `Sec-Fetch-Site` request header must use one of the canonical values defined by the Fetch Metadata specification: `cross-site`, `same-origin`, `same-site`, or `none`. This rule validates the header token syntax and that the value is one of the accepted identifiers (comparison is case-insensitive). Multiple header fields (repeated `Sec-Fetch-Site`) are treated as a violation (possible header injection) and will be flagged."
+        "Requests that include the `Sec-Fetch-Site` request header must use one of the canonical values defined by the Fetch Metadata specification: `cross-site`, `same-origin`, `same-site`, or `none`. This rule validates the header token syntax and that the value is exactly one of the accepted identifiers — the values are lowercase tokens and structured-field tokens carry no case folding, so `Same-Origin` is not a valid value. Multiple header fields (repeated `Sec-Fetch-Site`) are treated as a violation (possible header injection) and will be flagged."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -140,7 +140,7 @@ mod tests {
     #[case(Some("same-site"), false)]
     #[case(Some("cross-site"), false)]
     #[case(Some("none"), false)]
-    #[case(Some("Same-Origin"), false)] // case-insensitive allowed
+    #[case(Some("Same-Origin"), true)] // the values are lowercase; the match is exact
     #[case(Some(""), true)]
     #[case(Some("invalid"), true)]
     #[case(None, false)]
