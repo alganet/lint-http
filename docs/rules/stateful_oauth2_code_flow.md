@@ -20,7 +20,9 @@ The check does not assume the authorization request and callback share a common 
 
 ## Specifications
 
-- [RFC 6749 §4.1.1](https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.1): Authorization Request (state parameter is **RECOMMENDED**; server must echo if present)
+- [RFC 6749 §4.1.1](https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.1): Authorization Request — response_type MUST be "code"; the state parameter is RECOMMENDED
+- [RFC 6749 §4.1.2](https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.2): Authorization Response — the callback carries the code, and echoes the exact state if the request had one
+- [RFC 6749 §10.12](https://www.rfc-editor.org/rfc/rfc6749.html#section-10.12): Cross-Site Request Forgery — the client MUST implement CSRF protection for its redirection URI and SHOULD use the state parameter for it (the rule's real basis)
 
 ## Configuration
 
