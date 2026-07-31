@@ -89,7 +89,7 @@ sources:
     snippet: The `X-Frame-Options` HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_security_policy_and_frame_options_consistency.rs
-      line: 97
+      line: 100
   - label: message_refresh_header_syntax_valid
     snippet: The `Refresh` HTTP response header is the HTTP-equivalent to a meta element with an http-equiv attribute in the Refresh state.
     cited_by:
@@ -103,7 +103,12 @@ sources:
     snippet: The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_security_policy_and_frame_options_consistency.rs
-      line: 96
+      line: 99
+  - label: message_content_security_policy_and_frame_options_consistency (2)
+    snippet: the frame-ancestors directive overrides the ``X-Frame-Options`` header.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_security_policy_and_frame_options_consistency.rs
+      line: 98
   - label: server_content_security_policy_validity
     snippet: serialized-directive = directive-name [ required-ascii-whitespace directive-value ] directive-name = 1*( ALPHA / DIGIT / "-" )
     cited_by:
