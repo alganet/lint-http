@@ -85,6 +85,8 @@ impl Rule for MessageAuthSchemeIanaRegistered {
         // Helper to check a single scheme token against allowed list
         let check_scheme =
             |hdr_name: &str, scheme: &str, allowed: &Vec<String>| -> Option<Violation> {
+                // An auth-scheme is a token; the tchar set is helper-owned.
+                // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(scheme) {
                     return Some(Violation {
                         rule: "message_auth_scheme_iana_registered".into(),
@@ -92,6 +94,13 @@ impl Rule for MessageAuthSchemeIanaRegistered {
                         message: format!("Invalid character '{}' in {} auth-scheme", c, hdr_name),
                     });
                 }
+                // The guidance the allowlist stands for: schemes ought to be registered.
+                // The comparison is lowercase because the scheme token is case-insensitive
+                // (§11.1). Note this is checked against an operator-configured `allowed`
+                // list, not the live IANA registry — the allowlist is the operator's chosen
+                // subset of acceptable (typically registered) schemes, and §16.4.1 is where
+                // registered ones live.
+                // cite(RFC 9110 § 11.1): "New and existing authentication schemes are specified independently and ought to be registered"
                 // cite(RFC 9110 § 16.4.1): "The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials."
                 if !allowed.contains(&scheme.to_ascii_lowercase()) {
                     return Some(Violation {
