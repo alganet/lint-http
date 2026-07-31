@@ -1404,6 +1404,7 @@ pub fn media_type_subtype_suffix(subtype: &str) -> Option<&str> {
 /// Accepts an optional trailing slash (examples in RFC 7034 include it).
 /// This is a conservative validator: it ensures scheme chars, presence of host,
 /// and numeric port (if present). It does not attempt full IDNA or host label validation.
+// cite(RFC 6454 § 7.1): "serialized-origin = scheme "://" host [ ":" port ]"
 pub fn is_valid_serialized_origin(val: &str) -> bool {
     let s = val.trim();
     if s.is_empty() {

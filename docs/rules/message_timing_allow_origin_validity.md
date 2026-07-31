@@ -18,8 +18,9 @@ serializations.
 
 ## Specifications
 
-- [Resource Timing §4.5.1](https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin): `Timing-Allow-Origin` response header
-- [RFC 6454](https://www.rfc-editor.org/rfc/rfc6454.html): Origin (serialized-origin form)
+- [Resource Timing §3.5.2](https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin): `Timing-Allow-Origin` response header and its ABNF
+- [Fetch §3.2](https://fetch.spec.whatwg.org/#origin-header): `origin-or-null` and `serialized-origin`, the productions the grammar's members resolve to (`null` is case-sensitive)
+- [RFC 6454 §7.1](https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1): Historical serialized-origin shape (`scheme "://" host [ ":" port ]`) the conservative validator implements; Fetch supplants the serialization
 
 ## Configuration
 

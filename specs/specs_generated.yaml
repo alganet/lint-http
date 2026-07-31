@@ -47,6 +47,11 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
       line: 84
+  - label: message_timing_allow_origin_validity
+    snippet: origin-or-null = serialized-origin / %s"null" ; case-sensitive
+    cited_by:
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 96
   - label: semantic_origin_matching_for_cors
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
     cited_by:
@@ -152,15 +157,30 @@ sources:
   type: text/html
   fragments:
   - label: message_timing_allow_origin_validity
+    snippet: Server-side applications may return the Timing-Allow-Origin HTTP response header to allow the User Agent to fully expose, to the document origin(s) specified, the values of attributes that would have been zero due to those cross-origin restrictions.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 28
+  - label: message_timing_allow_origin_validity (2)
+    snippet: 'The header’s value is represented by the following ABNF [RFC5234] (using List Extension, [RFC9110]):'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 71
+  - label: message_timing_allow_origin_validity (3)
+    snippet: The recipient MAY combine multiple Timing-Allow-Origin header fields by appending each subsequent field value to the combined field value in order, separated by a comma.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 42
+  - label: message_timing_allow_origin_validity (4)
     snippet: The sender MAY generate multiple Timing-Allow-Origin header fields.
     cited_by:
     - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
-      line: 38
-  - label: message_timing_allow_origin_validity (2)
+      line: 41
+  - label: message_timing_allow_origin_validity (5)
     snippet: Timing-Allow-Origin = 1#( origin-or-null / wildcard )
     cited_by:
     - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
-      line: 63
+      line: 59
 - label: Server Timing
   url: https://www.w3.org/TR/server-timing/
   type: text/html
@@ -572,18 +592,20 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc6454.txt
   type: text/plain
   fragments:
+  - label: lint-http-rules/src/helpers/headers.rs
+    section: § 7.1
+    snippet: serialized-origin = scheme "://" host [ ":" port ]
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1407
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 103
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 96
-  - label: lint-http-rules/src/helpers/uri.rs (2)
-    section: § 7.1
-    snippet: serialized-origin = scheme "://" host [ ":" port ]
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 103
 - label: RFC 6455
   url: https://www.rfc-editor.org/rfc/rfc6455.txt
   type: text/plain
@@ -1508,6 +1530,8 @@ sources:
       line: 64
     - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
       line: 135
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 77
     - file: lint-http-rules/src/rules/server_vary_header_valid.rs
       line: 59
   - label: message_charset_iana_registered
@@ -1736,6 +1760,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 29
+  - label: message_timing_allow_origin_validity
+    section: § 5.5
+    snippet: newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB
+    cited_by:
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 44
+  - label: message_timing_allow_origin_validity (2)
+    section: § 5.6.1.2
+    snippet: 'A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 87
   - label: message_trailer_fields_validity
     section: § 6.6.2
     snippet: A sender that intends to generate one or more trailer fields in a message SHOULD generate a Trailer header field in the header section of that message to indicate which fields might be present in the trailers.
