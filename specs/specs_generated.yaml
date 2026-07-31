@@ -182,12 +182,17 @@ sources:
     snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cookie_same_site_enforcement.rs
-      line: 128
+      line: 133
   - label: stateful_cookie_same_site_enforcement (2)
+    snippet: If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax".
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_cookie_same_site_enforcement.rs
+      line: 125
+  - label: stateful_cookie_same_site_enforcement (3)
     snippet: If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cookie_same_site_enforcement.rs
-      line: 142
+      line: 147
 - label: MDN Content-Type
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type
   fragments:
