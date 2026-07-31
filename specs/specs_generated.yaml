@@ -490,13 +490,19 @@ sources:
     snippet: The Secure attribute limits the scope of the cookie to "secure" channels
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cookie_lifecycle.rs
-      line: 124
+      line: 130
   - label: stateful_cookie_lifecycle (2)
     section: § 5.3
     snippet: The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cookie_lifecycle.rs
-      line: 180
+      line: 186
+  - label: stateful_cookie_lifecycle (3)
+    section: § 5.4
+    snippet: Cookies with longer paths are listed before cookies with shorter paths.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_cookie_lifecycle.rs
+      line: 89
 - label: RFC 6266
   url: https://www.rfc-editor.org/rfc/rfc6266.txt
   type: text/plain

@@ -81,6 +81,12 @@ impl Rule for StatefulCookieLifecycle {
             // specificity is approximated by longer domain string (more
             // labels); history order is already taken into account when the
             // store was built.  Choose the candidate with the highest "score".
+            // §5.4's cookie-string ordering lists the most specific cookie
+            // first; we borrow that ordering here to decide which stored cookie
+            // a bare `name=value` pair (the Cookie header carries no path or
+            // domain) is meant to be — the longest-path, then longest-domain,
+            // candidate is the authoritative value.
+            // cite(RFC 6265 § 5.4): "Cookies with longer paths are listed before cookies with shorter paths."
             let mut matching_live: Option<&crate::helpers::cookie::Cookie> = None;
             for c in &live_cookies {
                 if c.name == name
@@ -214,8 +220,8 @@ impl Rule for StatefulCookieLifecycle {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 6265",
-                section: Some("5"),
-                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5",
+                section: Some("5.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.3",
                 note: "Storage model",
             },
             crate::rules::SpecRef {
