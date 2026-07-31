@@ -13,6 +13,8 @@ impl Rule for MessageWwwAuthenticateChallengeSyntax {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
+        // WWW-Authenticate is a response header field, so only responses are checked.
+        // The challenge grammar and its validation are owned by helpers::auth (§11.3).
         crate::rules::RuleScope::Server
     }
 
@@ -71,10 +73,10 @@ impl Rule for MessageWwwAuthenticateChallengeSyntax {
                 note: "WWW-Authenticate",
             },
             crate::rules::SpecRef {
-                spec: "RFC 7235",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1",
-                note: "Challenge and `token68`",
+                spec: "RFC 9110",
+                section: Some("11.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.3",
+                note: "Challenge and Response — `challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]` (RFC 7235, which defined this, is obsoleted by RFC 9110; `token68` itself is defined in §11.2)",
             },
         ]
     }

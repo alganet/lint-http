@@ -19,7 +19,7 @@ This rule validates that each challenge:
 ## Specifications
 
 - [RFC 9110 §11.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1): WWW-Authenticate
-- [RFC 7235 §2.1](https://www.rfc-editor.org/rfc/rfc7235.html#section-2.1): Challenge and `token68`
+- [RFC 9110 §11.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.3): Challenge and Response — `challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]` (RFC 7235, which defined this, is obsoleted by RFC 9110; `token68` itself is defined in §11.2)
 
 ## Configuration
 
