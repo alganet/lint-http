@@ -46,7 +46,7 @@ sources:
     snippet: 'A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt".'
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
-      line: 84
+      line: 85
   - label: message_timing_allow_origin_validity
     snippet: origin-or-null = serialized-origin / %s"null" ; case-sensitive
     cited_by:
@@ -181,17 +181,17 @@ sources:
     snippet: Valid Sec-Fetch-Dest values include the set of valid request destinations defined by [Fetch].
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
-      line: 83
+      line: 84
   - label: message_sec_fetch_mode_value_valid
     snippet: Valid Sec-Fetch-Mode values include "cors", "navigate", "no-cors", "same-origin", and "websocket".
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
-      line: 77
+      line: 78
   - label: message_sec_fetch_site_value_valid
     snippet: Valid Sec-Fetch-Site values include "cross-site", "same-origin", "same-site", and "none".
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_site_value_valid.rs
-      line: 77
+      line: 78
   - label: message_sec_fetch_user_value_valid
     snippet: 'Sec-Fetch-User = sf-boolean Note: The header is delivered only for navigation requests, and only when its value is true.'
     cited_by:

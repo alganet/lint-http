@@ -7,7 +7,8 @@ use crate::rules::Rule;
 
 /// `Sec-Fetch-Mode` header must be one of the canonical values listed in
 /// the Fetch Metadata spec: `cors`, `no-cors`, `same-origin`, `navigate`, or `websocket`.
-/// Values are compared case-insensitively; token syntax is validated.
+/// The match is exact: modes are lowercase tokens and the structured-field
+/// token carries no case folding; token syntax is validated.
 pub struct MessageSecFetchModeValueValid;
 
 impl Rule for MessageSecFetchModeValueValid {
@@ -75,8 +76,7 @@ impl Rule for MessageSecFetchModeValueValid {
         }
 
         // cite(Fetch Metadata): "Valid Sec-Fetch-Mode values include "cors", "navigate", "no-cors", "same-origin", and "websocket"."
-        let lower = val.to_ascii_lowercase();
-        match lower.as_str() {
+        match val {
             "cors" | "no-cors" | "same-origin" | "navigate" | "websocket" => None,
             _ => Some(Violation {
                 rule: self.id().into(),
@@ -87,7 +87,7 @@ impl Rule for MessageSecFetchModeValueValid {
     }
 
     fn description(&self) -> &'static str {
-        "Requests that include the `Sec-Fetch-Mode` request header must use one of the canonical values defined by the Fetch Metadata specification: `cors`, `no-cors`, `same-origin`, `navigate`, or `websocket`. This rule validates the header token syntax and that the value is one of the accepted identifiers (comparison is case-insensitive). Multiple header fields (repeated `Sec-Fetch-Mode`) are treated as a violation (possible header injection) and will be flagged."
+        "Requests that include the `Sec-Fetch-Mode` request header must use one of the canonical values defined by the Fetch Metadata specification: `cors`, `no-cors`, `same-origin`, `navigate`, or `websocket`. This rule validates the header token syntax and that the value is exactly one of the accepted identifiers — modes are lowercase tokens and structured-field tokens carry no case folding, so `CORS` is not a valid value. Multiple header fields (repeated `Sec-Fetch-Mode`) are treated as a violation (possible header injection) and will be flagged."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -141,7 +141,7 @@ mod tests {
     #[case(Some("same-origin"), false)]
     #[case(Some("navigate"), false)]
     #[case(Some("websocket"), false)]
-    #[case(Some("CORS"), false)]
+    #[case(Some("CORS"), true)] // modes are lowercase; the match is exact
     #[case(Some(""), true)]
     #[case(Some("invalid"), true)]
     #[case(None, false)]

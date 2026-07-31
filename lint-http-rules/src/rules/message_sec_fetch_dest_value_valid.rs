@@ -9,8 +9,9 @@ use crate::rules::Rule;
 /// defined by Fetch (`empty`, `audio`, `audioworklet`, `document`, `embed`,
 /// `font`, `frame`, `iframe`, `image`, `json`, `manifest`, `object`,
 /// `paintworklet`, `report`, `script`, `serviceworker`, `sharedworker`,
-/// `style`, `track`, `video`, `webidentity`, `worker`, `xslt`). Values are
-/// compared case-insensitively; token syntax is validated.
+/// `style`, `track`, `video`, `webidentity`, `worker`, `xslt`). The match is
+/// exact: destinations are lowercase tokens and the structured-field token
+/// carries no case folding; token syntax is validated.
 pub struct MessageSecFetchDestValueValid;
 
 impl Rule for MessageSecFetchDestValueValid {
@@ -82,8 +83,7 @@ impl Rule for MessageSecFetchDestValueValid {
         // the citation below was written against the live document.
         // cite(Fetch Metadata): "Valid Sec-Fetch-Dest values include the set of valid request destinations defined by [Fetch]."
         // cite(Fetch): "A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt"."
-        let lower = val.to_ascii_lowercase();
-        match lower.as_str() {
+        match val {
             "empty" | "audio" | "audioworklet" | "document" | "embed" | "font" | "frame"
             | "iframe" | "image" | "json" | "manifest" | "object" | "paintworklet" | "report"
             | "script" | "serviceworker" | "sharedworker" | "style" | "text" | "track"
@@ -97,7 +97,7 @@ impl Rule for MessageSecFetchDestValueValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specification: the header value must be a token matching one of the recognized request destinations (e.g., `image`, `document`, `script`, `worker`, `empty`, etc.). Values are compared case-insensitively and token syntax is enforced. Multiple header fields are treated as a violation."
+        "Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specification: the header value must be a token matching one of the recognized request destinations (e.g., `image`, `document`, `script`, `worker`, `empty`, etc.). The match is exact — destinations are lowercase tokens and structured-field tokens carry no case folding, so `Image` is not a valid value. Token syntax is enforced. Multiple header fields are treated as a violation."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -120,6 +120,11 @@ impl Rule for MessageSecFetchDestValueValid {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
+                snippet: "GET /script.js HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: script",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("destination tokens are lowercase; the match is exact"),
                 snippet: "GET /script.js HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: Script",
             },
             Example {
@@ -172,7 +177,7 @@ mod tests {
     #[case(Some("worker"), false)]
     #[case(Some("xslt"), false)]
     #[case(Some("empty"), false)]
-    #[case(Some("Image"), false)] // case-insensitive
+    #[case(Some("Image"), true)] // destinations are lowercase; the match is exact
     #[case(Some(""), true)]
     #[case(Some("invalid"), true)]
     #[case(None, false)]

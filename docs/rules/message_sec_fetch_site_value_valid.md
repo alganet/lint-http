@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Requests that include the `Sec-Fetch-Site` request header must use one of the canonical values defined by the Fetch Metadata specification: `cross-site`, `same-origin`, `same-site`, or `none`. This rule validates the header token syntax and that the value is one of the accepted identifiers (comparison is case-insensitive). Multiple header fields (repeated `Sec-Fetch-Site`) are treated as a violation (possible header injection) and will be flagged.
+Requests that include the `Sec-Fetch-Site` request header must use one of the canonical values defined by the Fetch Metadata specification: `cross-site`, `same-origin`, `same-site`, or `none`. This rule validates the header token syntax and that the value is exactly one of the accepted identifiers — the values are lowercase tokens and structured-field tokens carry no case folding, so `Same-Origin` is not a valid value. Multiple header fields (repeated `Sec-Fetch-Site`) are treated as a violation (possible header injection) and will be flagged.
 
 ## Specifications
 
