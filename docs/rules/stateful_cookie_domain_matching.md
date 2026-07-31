@@ -8,12 +8,13 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-A client should only send a cookie back to a server when the request URI satisfies the cookie's domain and path constraints.  Browsers follow the matching algorithm in [RFC 6265 §5.1.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3) and §5.1.4 when deciding which cookies to include with a request; this rule flags instances where the observed `Cookie` header contains a name/value pair that corresponds to a previously set cookie whose attributes would *not* allow it to be sent for the current host/path.
+A client should only send a cookie back to a server when the request URI satisfies the cookie's domain and path constraints.  Browsers build the `Cookie` header with the cookie-list algorithm of [RFC 6265 §5.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4), which sends only cookies meeting the domain-match ([§5.1.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3)) and path-match ([§5.1.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4)) requirements; this rule flags instances where the observed `Cookie` header contains a name/value pair that corresponds to a previously set cookie whose attributes would *not* allow it to be sent for the current host/path.
 
 To avoid spurious warnings the check only considers cookies that have been seen in the capture history and matches on the exact value.  Unknown cookies are assumed to pre‑date the capture and are ignored.  The related `stateful_cookie_lifecycle` rule already handles path‑mismatch diagnostics and secure‑cookie checks; this rule is primarily intended to catch domain mismatches that the other rule overlooks.
 
 ## Specifications
 
+- [RFC 6265 §5.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4): The Cookie header (which cookies are sent)
 - [RFC 6265 §5.1.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3): Domain matching
 - [RFC 6265 §5.1.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4): Path matching
 
