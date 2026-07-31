@@ -91,8 +91,10 @@ pub fn extract_origin_if_absolute(s: &str) -> Option<String> {
 /// `Some(msg)` describing the problem.
 pub fn validate_origin_value(s: &str) -> Option<String> {
     let s_trim = s.trim();
+    // The `%x6E %x75 %x6C %x6C` hex literals spell lowercase `null` byte-for-byte,
+    // so the comparison is case-sensitive.
     // cite(RFC 6454 § 7.1): "origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list"
-    if s_trim.eq_ignore_ascii_case("null") {
+    if s_trim == "null" {
         return None;
     }
     // Must be an origin (absolute with no path). The grammar has no path component,
@@ -438,6 +440,7 @@ mod tests {
     #[test]
     fn validate_origin_value_cases() {
         assert!(validate_origin_value("null").is_none());
+        assert!(validate_origin_value("NULL").is_some());
         assert!(validate_origin_value("https://example.com").is_none());
         assert!(validate_origin_value("http:///bad").is_some());
         assert!(validate_origin_value("https://exa mple").is_some());

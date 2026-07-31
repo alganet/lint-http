@@ -79,7 +79,7 @@ impl Rule for MessageTimingAllowOriginValidity {
             for member in crate::helpers::headers::parse_list_header(s) {
                 let m = member.trim();
 
-                if m == "*" || m.eq_ignore_ascii_case("null") {
+                if m == "*" || m == "null" {
                     continue;
                 }
 
@@ -101,7 +101,7 @@ impl Rule for MessageTimingAllowOriginValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Validate the `Timing-Allow-Origin` response header values. The header's value\nmust be `*` (wildcard), `null` (case-insensitive), or one or more serialized\norigins (`scheme://host[:port]`). Multiple header fields are allowed and their\nvalues are combined using HTTP list semantics. This rule detects header values\nthat cannot be decoded as visible US-ASCII, an entirely empty header value, and\ninvalid origin serializations."
+        "Validate the `Timing-Allow-Origin` response header values. The header's value\nmust be `*` (wildcard), the lowercase literal `null` (the grammar's `%s\"null\"`\nis case-sensitive), or one or more serialized origins (`scheme://host[:port]`).\nMultiple header fields are allowed and their values are combined using HTTP\nlist semantics. This rule detects header values that cannot be decoded as\nvisible US-ASCII, an entirely empty header value, and invalid origin\nserializations."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -143,6 +143,11 @@ impl Rule for MessageTimingAllowOriginValidity {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https:///foo",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("`null` is case-sensitive"),
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: NULL",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -319,7 +324,7 @@ mod tests {
     }
 
     #[test]
-    fn null_case_insensitive_is_accepted() {
+    fn uppercase_null_is_violation() {
         let rule = MessageTimingAllowOriginValidity;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
@@ -330,7 +335,8 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_none());
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("invalid origin"));
     }
 
     #[test]

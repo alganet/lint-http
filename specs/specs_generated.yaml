@@ -51,7 +51,7 @@ sources:
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
-      line: 123
+      line: 111
   - label: server_x_content_type_options
     snippet: The `X-Content-Type-Options` response header can be used to require checking of a response’s `Content-Type` header against the destination of a request.
     cited_by:
@@ -577,13 +577,13 @@ sources:
     snippet: origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 94
+      line: 96
   - label: lint-http-rules/src/helpers/uri.rs (2)
     section: § 7.1
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 101
+      line: 103
 - label: RFC 6455
   url: https://www.rfc-editor.org/rfc/rfc6455.txt
   type: text/plain
@@ -2327,9 +2327,9 @@ sources:
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 143
+      line: 145
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 206
+      line: 208
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 30
   - label: message_content_length_vs_transfer_encoding
