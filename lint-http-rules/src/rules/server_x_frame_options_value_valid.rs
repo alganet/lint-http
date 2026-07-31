@@ -23,17 +23,22 @@ impl Rule for ServerXFrameOptionsValueValid {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Check response headers
+        // It is a response header, so only the response side is inspected. RFC 7034
+        // originally defined it; the HTML Standard's §7.7 definition governs now.
+        // cite(HTML Speculative Loading): "It was originally defined in HTTP Header Field X-Frame-Options, but the definition and processing model here supersedes that document."
+        // cite(HTML Speculative Loading): "HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable"
         let resp = tx.response.as_ref()?;
 
         let headers = &resp.headers;
 
         let count = headers.get_all("x-frame-options").iter().count();
-        // cite(RFC 7034 § 2): "The X-Frame-Options HTTP header field indicates a policy that specifies whether the browser should render the transmitted resource"
         if count == 0 {
             return None;
         }
 
+        // The value ABNF is a single token, not a list, so a sender may not repeat
+        // the field.
+        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
@@ -42,6 +47,7 @@ impl Rule for ServerXFrameOptionsValueValid {
             });
         }
 
+        // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
         let val = match crate::helpers::headers::get_header_str(headers, "x-frame-options") {
             Some(v) => v.trim(),
             None => {
@@ -54,6 +60,10 @@ impl Rule for ServerXFrameOptionsValueValid {
             }
         };
 
+        // The two conforming values; the match is case-insensitive because the
+        // processing model lowercases each value before comparing.
+        // cite(HTML Speculative Loading): "X-Frame-Options = "DENY" / "SAMEORIGIN""
+        // cite(HTML Speculative Loading): "For each value of rawXFrameOptions, append value, converted to ASCII lowercase, to xFrameOptions."
         if val.eq_ignore_ascii_case("DENY") || val.eq_ignore_ascii_case("SAMEORIGIN") {
             return None;
         }
@@ -63,6 +73,7 @@ impl Rule for ServerXFrameOptionsValueValid {
         // it as an unrecognized value, leaving the resource unprotected while the
         // sender believes otherwise. Flag it with a targeted message rather than
         // the generic unsupported-value one.
+        // cite(HTML Speculative Loading): "In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented."
         if val.len() >= 10 && val[..10].eq_ignore_ascii_case("ALLOW-FROM") {
             return Some(Violation {
                 rule: self.id().into(),
@@ -89,16 +100,16 @@ impl Rule for ServerXFrameOptionsValueValid {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
+                spec: "HTML",
+                section: Some("7.7"),
+                url: "https://html.spec.whatwg.org/multipage/speculative-loading.html#the-x-frame-options-header",
+                note: "Governing definition: conformance ABNF `\"DENY\" / \"SAMEORIGIN\"`, case-insensitive processing, `ALLOW-FROM` not to be implemented",
+            },
+            crate::rules::SpecRef {
                 spec: "RFC 7034",
                 section: Some("2.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc7034.html#section-2.1",
-                note: "`X-Frame-Options` header values: `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <serialized-origin>`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6454",
-                section: Some("6"),
-                url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-6",
-                note: "`serialized-origin` syntax (`scheme://host[:port]`)",
+                note: "Historical definition (including the dropped `ALLOW-FROM` variant); superseded by the HTML Standard",
             },
         ]
     }
