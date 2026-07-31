@@ -100,6 +100,31 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 44
+  - label: server_x_frame_options_value_valid
+    snippet: For each value of rawXFrameOptions, append value, converted to ASCII lowercase, to xFrameOptions.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
+      line: 66
+  - label: server_x_frame_options_value_valid (2)
+    snippet: HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable
+    cited_by:
+    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
+      line: 29
+  - label: server_x_frame_options_value_valid (3)
+    snippet: In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
+      line: 76
+  - label: server_x_frame_options_value_valid (4)
+    snippet: It was originally defined in HTTP Header Field X-Frame-Options, but the definition and processing model here supersedes that document.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
+      line: 28
+  - label: server_x_frame_options_value_valid (5)
+    snippet: X-Frame-Options = "DENY" / "SAMEORIGIN"
+    cited_by:
+    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
+      line: 65
 - label: CSP3
   url: https://www.w3.org/TR/CSP3/
   type: text/html
@@ -793,16 +818,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
       line: 88
-- label: RFC 7034
-  url: https://www.rfc-editor.org/rfc/rfc7034.txt
-  type: text/plain
-  fragments:
-  - label: server_x_frame_options_value_valid
-    section: § 2
-    snippet: The X-Frame-Options HTTP header field indicates a policy that specifies whether the browser should render the transmitted resource
-    cited_by:
-    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
-      line: 32
 - label: RFC 7239
   url: https://www.rfc-editor.org/rfc/rfc7239.txt
   type: text/plain
@@ -1637,6 +1652,8 @@ sources:
       line: 77
     - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
       line: 40
+    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
+      line: 41
   - label: message_etag_syntax (2)
     section: § 8.8.3
     snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
@@ -1771,6 +1788,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
       line: 44
+    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
+      line: 50
   - label: message_timing_allow_origin_validity (2)
     section: § 5.6.1.2
     snippet: 'A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism'
