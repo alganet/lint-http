@@ -14,7 +14,7 @@ Servers and clients relying on Digest authentication may behave incorrectly when
 
 ## Specifications
 
-- [RFC 7616 §3.2.2](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.2): HTTP Digest Access Authentication
+- [RFC 7616 §3.4](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4): The Authorization Header Field — the Digest credentials, their parameters, and the 4xx consequence for missing or improper ones
 
 ## Configuration
 

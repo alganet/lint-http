@@ -30,7 +30,9 @@ impl Rule for MessageDigestAuthValidity {
                     if s.is_empty() {
                         continue;
                     }
-                    // Only care about Digest scheme
+                    // Only care about the Digest scheme; auth-scheme names are
+                    // matched case-insensitively.
+                    // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
                     let mut parts = s.splitn(2, char::is_whitespace);
                     let scheme = parts.next().unwrap();
                     if !scheme.eq_ignore_ascii_case("digest") {
@@ -50,10 +52,14 @@ impl Rule for MessageDigestAuthValidity {
                     // parse auth-param list into map
                     match crate::helpers::auth::parse_auth_params(rest) {
                         Ok(map) => {
-                            // required fields per RFC 7616: username, realm, nonce, uri, response.
-                            // The RFC never enumerates them — it names the consequence, and
-                            // leaves "required" to the fields the response computation cannot
-                            // be checked without.
+                            // Required fields: username, realm, nonce, uri, response. §3.4 lists the
+                            // parameters and names the consequence for missing required ones, but
+                            // labels no "required" set; these five are the ones the response
+                            // computation (§3.4.1) cannot be verified without. Deliberate gap: §3.4
+                            // also marks cnonce and nc "MUST be used by all implementations", so RFC
+                            // 7616 requires those too — but demanding them would reject
+                            // otherwise-checkable RFC 2617-style credentials, so they are recorded
+                            // here rather than enforced.
                             // cite(RFC 7616 § 3.4): "If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code."
                             let required = ["username", "realm", "nonce", "uri", "response"];
                             for &k in &required {
@@ -107,7 +113,13 @@ impl Rule for MessageDigestAuthValidity {
                                         ),
                                     });
                                 }
-                                // values may be quoted-string; if quoted, validate quoted-string
+                                // A value that opens with a quote is validated as a quoted-string
+                                // (grammar helper-owned, RFC 9110 §5.6.4). §3.4 also dictates *which*
+                                // parameters must or must not use quoted syntax; that MUST is only
+                                // loosely enforced here — the rule checks whatever quoting is present
+                                // rather than requiring the per-parameter form, and the `uri` branch
+                                // below deliberately accepts an unquoted value §3.4 says must be
+                                // quoted. The per-parameter quoting MUST is recorded, not enforced.
                                 // cite(RFC 7616 § 3.4): "For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque."
                                 if v.starts_with('"') {
                                     if let Err(msg) =
@@ -182,9 +194,9 @@ impl Rule for MessageDigestAuthValidity {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
             spec: "RFC 7616",
-            section: Some("3.2.2"),
-            url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.2",
-            note: "HTTP Digest Access Authentication",
+            section: Some("3.4"),
+            url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4",
+            note: "The Authorization Header Field — the Digest credentials, their parameters, and the 4xx consequence for missing or improper ones",
         }]
     }
 
