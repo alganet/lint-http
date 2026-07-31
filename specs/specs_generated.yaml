@@ -1868,7 +1868,13 @@ sources:
     snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
-      line: 50
+      line: 57
+  - label: stateful_authentication_failure_loop (2)
+    section: § 15.5.2
+    snippet: The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
+      line: 30
   - label: stateful_cache_validation_chain
     section: § 13.1.2
     snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*"
