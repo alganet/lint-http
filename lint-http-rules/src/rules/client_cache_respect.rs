@@ -23,7 +23,19 @@ impl Rule for ClientCacheRespect {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Use the previous transaction passed by the linter (if any)
+
+        // Only GET/HEAD re-requests are in scope. If-None-Match / If-Modified-Since
+        // are the cache-revalidation preconditions, and RFC 9110 §13.1.2's client
+        // SHOULD is written "when making a GET request". On other methods a validator
+        // is carried by If-Match / If-Unmodified-Since instead, so a POST/PUT that
+        // omits If-None-Match is not the omission this rule is about.
+        let method = tx.request.method.to_ascii_uppercase();
+        if method != "GET" && method != "HEAD" {
+            return None;
+        }
+
+        // Use the previous transaction passed by the linter (if any). History is
+        // scoped to this (client, resource) pair by the rule's ByResource query.
         let previous_tx = history.previous()?;
         let resp = previous_tx.response.as_ref()?;
 
@@ -220,6 +232,39 @@ mod tests {
         );
 
         assert!(violation.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn non_get_rerequest_is_not_flagged() -> anyhow::Result<()> {
+        // A POST re-request of a resource whose prior response carried an ETag is
+        // not expected to carry If-None-Match — that is not the validation this
+        // rule is about, so it must not fire.
+        let rule = ClientCacheRespect;
+        let store = StateStore::new(300, 10);
+        let client = make_client();
+        let resource = "http://example.com/api/data";
+
+        let mut prev = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("etag", "\"abc123\"")],
+        );
+        prev.client = client.clone();
+        prev.request.uri = resource.to_string();
+        store.record_transaction(&prev);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.client = client.clone();
+        tx.request.uri = resource.to_string();
+        tx.request.method = "POST".to_string();
+
+        let history = crate::queries::by_resource::by_resource(&store, &client, resource);
+        let violation = rule.check_transaction(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(violation.is_none(), "POST re-request must not be flagged");
         Ok(())
     }
 
