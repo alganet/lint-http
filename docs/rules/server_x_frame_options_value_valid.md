@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-The `X-Frame-Options` response header protects content from being embedded in frames by other origins. This rule validates that the header, when present, uses one of the allowed values: `DENY`, `SAMEORIGIN`, or `ALLOW-FROM <serialized-origin>`. It also rejects multiple header occurrences and malformed `ALLOW-FROM` origins.
+The `X-Frame-Options` response header protects content from being embedded in frames by other origins. This rule validates that the header, when present, uses one of the two values in the HTML Standard's conformance ABNF: `DENY` or `SAMEORIGIN` (matched case-insensitively). The `ALLOW-FROM` variant from RFC 7034 is flagged: the HTML Standard supersedes that document, browsers do not implement it, and a resource relying on it is unprotected — use the CSP `frame-ancestors` directive instead. Multiple header occurrences are also rejected.
 
 ## Specifications
 
@@ -36,19 +36,21 @@ X-Frame-Options: DENY
 
 ```http
 HTTP/1.1 200 OK
+X-Frame-Options: SAMEORIGIN
+
+...response body...
+```
+
+### ❌ Bad `ALLOW-FROM` is obsolete and not implemented
+
+```http
+HTTP/1.1 200 OK
 X-Frame-Options: ALLOW-FROM https://example.com/
 
 ...response body...
 ```
 
 ### ❌ Bad
-
-```http
-HTTP/1.1 200 OK
-X-Frame-Options: ALLOW-FROM example.com
-
-...response body...
-```
 
 ```http
 HTTP/1.1 200 OK
