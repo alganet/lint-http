@@ -745,14 +745,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 245
-    - file: lint-http-rules/src/rules/message_basic_auth_base64_validity.rs
-      line: 40
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 2
     snippet: constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 256
+  - label: message_basic_auth_base64_validity
+    section: § 2
+    snippet: The value is computed based on user-id and password as defined below.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_basic_auth_base64_validity.rs
+      line: 46
 - label: RFC 7807
   url: https://www.rfc-editor.org/rfc/rfc7807.txt
   type: text/plain
@@ -1117,6 +1121,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 201
+    - file: lint-http-rules/src/rules/message_basic_auth_base64_validity.rs
+      line: 30
     - file: lint-http-rules/src/rules/message_bearer_token_format_validity.rs
       line: 39
     - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
