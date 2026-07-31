@@ -1600,7 +1600,7 @@ sources:
     snippet: The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/message_www_authenticate_challenge_syntax.rs
-      line: 32
+      line: 34
   - label: semantic_cache_coherence
     section: § 15.4.5
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
