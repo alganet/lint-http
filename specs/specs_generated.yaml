@@ -71,6 +71,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_cross_origin_opener_policy_valid.rs
       line: 73
+  - label: message_origin_isolated_header_validity
+    snippet: This header is a structured header whose value must be a boolean.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_origin_isolated_header_validity.rs
+      line: 60
+  - label: message_origin_isolated_header_validity (2)
+    snippet: values that are not the structured header boolean true value (i.e., `?1`) will be ignored.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_origin_isolated_header_validity.rs
+      line: 73
 - label: HTML Speculative Loading
   url: https://html.spec.whatwg.org/multipage/speculative-loading.html
   type: text/html
@@ -209,15 +219,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
       line: 58
-- label: Origin Isolation Explainer
-  url: https://github.com/davidben/origin-isolation/blob/master/README.md
-  type: text/html
-  fragments:
-  - label: message_origin_isolated_header_validity
-    snippet: boolean "true" value ?1, indicates that any documents derived from that origin should be separated from other cross-origin documents
-    cited_by:
-    - file: lint-http-rules/src/rules/message_origin_isolated_header_validity.rs
-      line: 67
 - label: RFC 1035
   url: https://www.rfc-editor.org/rfc/rfc1035.txt
   type: text/plain
