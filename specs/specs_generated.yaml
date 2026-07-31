@@ -962,7 +962,7 @@ sources:
     snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource
     cited_by:
     - file: lint-http-rules/src/rules/client_cache_respect.rs
-      line: 35
+      line: 47
   - label: client_expect_header_valid
     section: § 10.1.1
     snippet: The "Expect" header field in a request indicates a certain set of behaviors (expectations) that need to be supported by the server
