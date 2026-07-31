@@ -13,8 +13,7 @@ This rule checks the `Cross-Origin-Embedder-Policy` response header value and en
 ## Specifications
 
 - [MDN Cross-Origin-Embedder-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy): Cross-Origin-Embedder-Policy
-- [HTML](https://html.spec.whatwg.org/multipage/browsers.html): Cross-Origin Embedder Policy (W3C): The Cross-Origin-Embedder-Policy header
-- [HTML](https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-embedder-policy): HTML Standard / Fetch (describes behavior and interaction with other cross-origin policies)
+- [HTML §7.1.4](https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-embedder-policy): The `Cross-Origin-Embedder-Policy` header — its value is one of the three embedder policy strings `unsafe-none`, `require-corp`, `credentialless`
 
 ## Configuration
 
