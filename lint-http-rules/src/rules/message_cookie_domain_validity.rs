@@ -57,7 +57,12 @@ impl Rule for MessageCookieDomainValidity {
                     }
                     match crate::helpers::domain::validate_cookie_domain(val) {
                         Ok(()) => {
-                            // allow leading dot but warn (this rule is correctness focused; we'll accept leading dot);
+                            // A leading dot is not a *syntax* error — the user agent
+                            // strips it, so `.example.com` and `example.com` are the same
+                            // cookie-domain. That is exactly why it is flagged: the dot is a
+                            // redundant legacy form (RFC 2965 gave it meaning; RFC 6265 does
+                            // not), so the server should send the registry form without it.
+                            // cite(RFC 6265 § 5.2.3): "Let cookie-domain be the attribute-value without the leading %x2E (".") character."
                             if val.starts_with('.') {
                                 return Some(Violation {
                                     rule: self.id().into(),
@@ -94,7 +99,7 @@ impl Rule for MessageCookieDomainValidity {
                 spec: "RFC 6265",
                 section: Some("5.2.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.3",
-                note: "`Domain` attribute semantics and format",
+                note: "`Domain` attribute processing — an empty value is undefined (UA ignores it) and a leading dot is stripped; the domain-value *format* is §4.1.1 / RFC 1035",
             },
             crate::rules::SpecRef {
                 spec: "RFC 1035",

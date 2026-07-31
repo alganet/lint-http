@@ -505,6 +505,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_cookie_domain_validity.rs
       line: 50
+  - label: message_cookie_domain_validity (2)
+    section: § 5.2.3
+    snippet: Let cookie-domain be the attribute-value without the leading %x2E (".") character.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_cookie_domain_validity.rs
+      line: 65
   - label: stateful_cookie_domain_matching
     section: § 5.4
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
