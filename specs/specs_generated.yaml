@@ -1151,6 +1151,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 201
+    - file: lint-http-rules/src/rules/message_auth_scheme_iana_registered.rs
+      line: 89
     - file: lint-http-rules/src/rules/message_basic_auth_base64_validity.rs
       line: 30
     - file: lint-http-rules/src/rules/message_bearer_token_format_validity.rs
@@ -1374,11 +1376,17 @@ sources:
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
       line: 28
   - label: message_auth_scheme_iana_registered
+    section: § 11.1
+    snippet: New and existing authentication schemes are specified independently and ought to be registered
+    cited_by:
+    - file: lint-http-rules/src/rules/message_auth_scheme_iana_registered.rs
+      line: 103
+  - label: message_auth_scheme_iana_registered (2)
     section: § 16.4.1
     snippet: The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials.
     cited_by:
     - file: lint-http-rules/src/rules/message_auth_scheme_iana_registered.rs
-      line: 95
+      line: 104
   - label: message_authorization_credentials_present
     section: § 11.6.2
     snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested
