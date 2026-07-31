@@ -99,7 +99,9 @@ impl Rule for ServerClearSiteData {
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
-        // Only check successful responses
+        // Only check successful responses. This 2xx gate is the rule's own tolerance,
+        // not a specified scope: the spec processes the header on any response, but a
+        // failed sign-out (4xx/5xx) did not end the session, so no clearing is expected.
         let Some(resp) = &tx.response else {
             return None;
         };
@@ -119,8 +121,11 @@ impl Rule for ServerClearSiteData {
         let is_logout_path = config.paths.contains(&resource_path);
 
         // Which paths are logout endpoints is configuration, not specification — no
-        // document knows that. What the specification supplies is what the header is for,
-        // and the reason a sign-out that omits it leaves the session's data behind.
+        // document knows that. The pattern itself, though, is the spec's own opening
+        // example: a sign-out endpoint is where the header is expected.
+        // cite(Clear-Site-Data): "A user signs out of Super Secret Social Network via a CSRF-protected POST to https://supersecretsocialnetwork.example.com/logout, and the site author wishes to ensure that locally stored data is removed as a result"
+        // What the specification supplies is what the header is for, and the reason a
+        // sign-out that omits it leaves the session's data behind.
         // cite(Clear-Site-Data): "The Clear-Site-Data HTTP response header field sends a signal to the user agent that it ought to remove all data of a certain set of types."
         if is_logout_path && !resp.headers.contains_key("clear-site-data") {
             Some(Violation {
@@ -144,9 +149,9 @@ impl Rule for ServerClearSiteData {
         &[
             crate::rules::SpecRef {
                 spec: "Clear-Site-Data",
-                section: None,
-                url: "https://www.w3.org/TR/clear-site-data/",
-                note: "W3C Clear Site Data Specification",
+                section: Some("3.1"),
+                url: "https://www.w3.org/TR/clear-site-data/#header",
+                note: "The `Clear-Site-Data` HTTP response header field (its purpose; §1.1.1 is the sign-out example this rule encodes)",
             },
             crate::rules::SpecRef {
                 spec: "MDN Clear-Site-Data",
