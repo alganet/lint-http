@@ -25,11 +25,16 @@ impl Rule for StatefulAuthenticationFailureLoop {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // Only 401 responses matter — the status that means credentials were missing
+        // or rejected, i.e. an authentication attempt that did not succeed.
+        // cite(RFC 9110 § 15.5.2): "The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource."
         let resp = tx.response.as_ref()?;
         if resp.status != 401 {
             return None;
         }
 
+        // History is scoped to this origin by the rule's ByOrigin query, so a "run" of
+        // 401s here is one protection space's failures, not a mix across hosts.
         let mut consecutive_401s = 0;
 
         for prev_tx in history.iter() {
@@ -43,10 +48,12 @@ impl Rule for StatefulAuthenticationFailureLoop {
             }
         }
 
-        // We consider it a loop if there are more than 3 consecutive 401s *before* this one.
-        // The spec sanctions *one* retry after a 401 and says what to do when the same
-        // challenge comes back again; a client still replaying it on the fourth is no longer
-        // retrying, it is looping.
+        // Loop = more than 3 consecutive 401s *before* this one (4th and up). §15.5.2
+        // sanctions one retry after a 401 and says what to do when the same challenge
+        // returns; a client still replaying it on the fourth is no longer retrying, it
+        // is looping. The exact count of 4 is this rule's heuristic threshold — no
+        // sentence fixes a number — chosen to sit comfortably past the one sanctioned
+        // retry-and-re-present; the cite is the nearest governing sentence, not a bound.
         // cite(RFC 9110 § 15.5.2): "If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information."
         if consecutive_401s >= 3 {
             Some(Violation {
@@ -69,9 +76,9 @@ impl Rule for StatefulAuthenticationFailureLoop {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[crate::rules::SpecRef {
             spec: "RFC 9110",
-            section: Some("11.6.2"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2",
-            note: "401 Unauthorized",
+            section: Some("15.5.2"),
+            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2",
+            note: "401 Unauthorized — the status code this rule counts, and the SHOULD for a repeated challenge",
         }]
     }
 
