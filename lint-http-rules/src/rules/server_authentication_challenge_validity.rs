@@ -53,7 +53,12 @@ impl Rule for ServerAuthenticationChallengeValidity {
                             if rest.contains('=') {
                                 if let Ok(params) = crate::helpers::auth::parse_auth_params(rest) {
                                     if let Some(r) = params.get("realm") {
-                                        // normalize realm for consistent comparison
+                                        // Normalize quoted and unquoted realm to the same
+                                        // string before comparing: a sender must quote it, but
+                                        // recipients accept both forms, so `realm="a"` and
+                                        // `realm=a` denote the same protection space. (quoted-
+                                        // string unescaping is helper-owned.)
+                                        // cite(RFC 9110 § 11.5): "Recipients might have to support both token and quoted-string syntax for maximum interoperability with existing clients that have been accepting both notations for a long time."
                                         if r.starts_with('"') {
                                             if let Ok(unq) =
                                                 crate::helpers::headers::unescape_quoted_string(r)
@@ -76,10 +81,14 @@ impl Rule for ServerAuthenticationChallengeValidity {
                 }
             }
 
-            // Now find any realm that is advertised by more than one distinct auth-scheme:
-            // one protection space, one scheme. (The converse is explicitly fine — the same
-            // section allows several challenges sharing an auth-scheme with different realms.)
+            // Flag any realm advertised by more than one distinct auth-scheme. The
+            // heuristic reading: a realm names a protection space, and §11.5 casts each
+            // space as having "its own authentication scheme", so one realm spanning
+            // several schemes is an ambiguous configuration (not spec-forbidden — hence a
+            // heuristic). The converse is explicitly permitted, which is why the check
+            // counts schemes-per-realm and not realms-per-scheme.
             // cite(RFC 9110 § 11.5): "These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database."
+            // cite(RFC 9110 § 11.5): "Note that a response can have multiple challenges with the same auth-scheme but with different realms."
             for (realm, schemes) in realms.iter() {
                 if schemes.len() > 1 {
                     let mut schemes_vec: Vec<String> = schemes.iter().cloned().collect();
