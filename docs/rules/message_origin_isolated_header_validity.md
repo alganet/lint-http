@@ -8,11 +8,13 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Checks the `Origin-Isolation` response header and ensures it uses the structured-header boolean value `?1` to request document origin isolation. The header must be a single value and must not contain comma-separated lists or multiple header fields. `?1` signals that the origin requests origin isolation for documents served from it; other values are rejected by this rule.
+Checks the `Origin-Agent-Cluster` response header and ensures it uses the structured-header boolean value `?1` to request an origin-keyed agent cluster. The header must be a single value and must not contain comma-separated lists or multiple header fields. `?1` requests that documents from the origin be placed in an origin-keyed agent cluster; the specification ignores any other value, but this rule reports it because a non-`?1` value is almost always a server misconfiguration.
+
+(The `Origin-Isolation` name used by the original proposal never shipped; the header that browsers actually honour is `Origin-Agent-Cluster`.)
 
 ## Specifications
 
-- [Origin Isolation Explainer](https://github.com/davidben/origin-isolation/blob/master/README.md): See "Example" and "How it works"
+- [HTML §7.1.2](https://html.spec.whatwg.org/multipage/browsers.html#origin-keyed-agent-clusters): `Origin-Agent-Cluster` — a structured-header boolean; only the `?1` true value requests an origin-keyed agent cluster
 - [RFC 9651 §3](https://www.rfc-editor.org/rfc/rfc9651.html#section-3): Structured Headers boolean values (§3–§4)
 
 ## Configuration
@@ -29,22 +31,22 @@ severity = "warn"
 
 ```http
 HTTP/1.1 200 OK
-Origin-Isolation: ?1
+Origin-Agent-Cluster: ?1
 ```
 
 ### ❌ Bad
 
 ```http
 HTTP/1.1 200 OK
-Origin-Isolation: ?0
+Origin-Agent-Cluster: ?0
 ```
 
 ```http
 HTTP/1.1 200 OK
-Origin-Isolation: ?1, ?1
+Origin-Agent-Cluster: ?1, ?1
 ```
 
 ```http
 HTTP/1.1 200 OK
-Origin-Isolation: unsafe-none
+Origin-Agent-Cluster: unsafe-none
 ```

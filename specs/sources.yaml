@@ -184,7 +184,3 @@ sources:
     type: text/html
     # owasp.org/www-community/controls/Response_Headers, which the rules cite, is
     # a 404. This is the live project that replaced it.
-
-  - label: Origin Isolation Explainer
-    url: https://github.com/davidben/origin-isolation/blob/master/README.md
-    type: text/html

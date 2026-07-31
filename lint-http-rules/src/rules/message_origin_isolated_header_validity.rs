@@ -29,7 +29,7 @@ impl Rule for MessageOriginIsolatedHeaderValidity {
             return None;
         };
 
-        let count = resp.headers.get_all("origin-isolation").iter().count();
+        let count = resp.headers.get_all("origin-agent-cluster").iter().count();
         if count == 0 {
             return None;
         }
@@ -38,33 +38,39 @@ impl Rule for MessageOriginIsolatedHeaderValidity {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
-                message: "Multiple Origin-Isolation header fields present".into(),
+                message: "Multiple Origin-Agent-Cluster header fields present".into(),
             });
         }
 
-        let val = match crate::helpers::headers::get_header_str(&resp.headers, "origin-isolation") {
-            Some(v) => v.trim(),
-            None => {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: "Origin-Isolation header contains non-ASCII or control characters"
-                        .into(),
-                })
-            }
-        };
+        let val =
+            match crate::helpers::headers::get_header_str(&resp.headers, "origin-agent-cluster") {
+                Some(v) => v.trim(),
+                None => {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message:
+                            "Origin-Agent-Cluster header contains non-ASCII or control characters"
+                                .into(),
+                    })
+                }
+            };
 
         // Must not be a comma-separated list
+        // cite(HTML): "This header is a structured header whose value must be a boolean."
         if crate::helpers::headers::parse_list_header(val).count() != 1 {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
-                message: "Origin-Isolation must be a single value".into(),
+                message: "Origin-Agent-Cluster must be a single value".into(),
             });
         }
 
-        // Accept only structured-headers boolean true value '?1' to signal origin isolation
-        // cite(Origin Isolation Explainer): "boolean "true" value ?1, indicates that any documents derived from that origin should be separated from other cross-origin documents"
+        // `?1` is the structured-header boolean true value that requests an
+        // origin-keyed agent cluster. The spec *ignores* any other value; this
+        // rule is deliberately stricter and reports it, since a non-`?1` value
+        // (`?0`, `unsafe-none`, …) is almost always a server misconfiguration.
+        // cite(HTML): "values that are not the structured header boolean true value (i.e., `?1`) will be ignored."
         if val.eq("?1") {
             return None;
         }
@@ -72,21 +78,21 @@ impl Rule for MessageOriginIsolatedHeaderValidity {
         Some(Violation {
             rule: self.id().into(),
             severity: config.severity,
-            message: format!("Origin-Isolation header value '{}' is invalid: expected '?1' to enable origin isolation", val),
+            message: format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", val),
         })
     }
 
     fn description(&self) -> &'static str {
-        "Checks the `Origin-Isolation` response header and ensures it uses the structured-header boolean value `?1` to request document origin isolation. The header must be a single value and must not contain comma-separated lists or multiple header fields. `?1` signals that the origin requests origin isolation for documents served from it; other values are rejected by this rule."
+        "Checks the `Origin-Agent-Cluster` response header and ensures it uses the structured-header boolean value `?1` to request an origin-keyed agent cluster. The header must be a single value and must not contain comma-separated lists or multiple header fields. `?1` requests that documents from the origin be placed in an origin-keyed agent cluster; the specification ignores any other value, but this rule reports it because a non-`?1` value is almost always a server misconfiguration.\n\n(The `Origin-Isolation` name used by the original proposal never shipped; the header that browsers actually honour is `Origin-Agent-Cluster`.)"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
-                spec: "Origin Isolation Explainer",
-                section: None,
-                url: "https://github.com/davidben/origin-isolation/blob/master/README.md",
-                note: "See \"Example\" and \"How it works\"",
+                spec: "HTML",
+                section: Some("7.1.2"),
+                url: "https://html.spec.whatwg.org/multipage/browsers.html#origin-keyed-agent-clusters",
+                note: "`Origin-Agent-Cluster` — a structured-header boolean; only the `?1` true value requests an origin-keyed agent cluster",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9651",
@@ -103,22 +109,22 @@ impl Rule for MessageOriginIsolatedHeaderValidity {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "HTTP/1.1 200 OK\nOrigin-Isolation: ?1",
+                snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: ?1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "HTTP/1.1 200 OK\nOrigin-Isolation: ?0",
+                snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: ?0",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "HTTP/1.1 200 OK\nOrigin-Isolation: ?1, ?1",
+                snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: ?1, ?1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "HTTP/1.1 200 OK\nOrigin-Isolation: unsafe-none",
+                snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: unsafe-none",
             },
         ]
     }
@@ -146,7 +152,7 @@ mod tests {
         if let Some(v) = val {
             tx = crate::test_helpers::make_test_transaction_with_response(
                 200,
-                &[("origin-isolation", v)],
+                &[("origin-agent-cluster", v)],
             );
         }
 
@@ -175,8 +181,9 @@ mod tests {
         use hyper::header::HeaderValue;
         let rule = MessageOriginIsolatedHeaderValidity;
         let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hdrs = crate::test_helpers::make_headers_from_pairs(&[("origin-isolation", "?1")]);
-        hdrs.append("origin-isolation", HeaderValue::from_static("?1"));
+        let mut hdrs =
+            crate::test_helpers::make_headers_from_pairs(&[("origin-agent-cluster", "?1")]);
+        hdrs.append("origin-agent-cluster", HeaderValue::from_static("?1"));
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
             version: "HTTP/1.1".into(),
@@ -191,7 +198,7 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Multiple Origin-Isolation"));
+        assert!(v.unwrap().message.contains("Multiple Origin-Agent-Cluster"));
     }
 
     #[test]
@@ -199,8 +206,9 @@ mod tests {
         use hyper::header::HeaderValue;
         let rule = MessageOriginIsolatedHeaderValidity;
         let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hdrs = crate::test_helpers::make_headers_from_pairs(&[("origin-isolation", "?1")]);
-        hdrs.insert("origin-isolation", HeaderValue::from_bytes(&[0xff])?);
+        let mut hdrs =
+            crate::test_helpers::make_headers_from_pairs(&[("origin-agent-cluster", "?1")]);
+        hdrs.insert("origin-agent-cluster", HeaderValue::from_bytes(&[0xff])?);
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
             version: "HTTP/1.1".into(),
@@ -223,8 +231,9 @@ mod tests {
         use hyper::header::HeaderValue;
         let rule = MessageOriginIsolatedHeaderValidity;
         let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hdrs = crate::test_helpers::make_headers_from_pairs(&[("origin-isolation", "?1")]);
-        hdrs.insert("origin-isolation", HeaderValue::from_bytes(&[0xff])?);
+        let mut hdrs =
+            crate::test_helpers::make_headers_from_pairs(&[("origin-agent-cluster", "?1")]);
+        hdrs.insert("origin-agent-cluster", HeaderValue::from_bytes(&[0xff])?);
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
             version: "HTTP/1.1".into(),
@@ -248,7 +257,7 @@ mod tests {
         let rule = MessageOriginIsolatedHeaderValidity;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
-            &[("origin-isolation", "?0")],
+            &[("origin-agent-cluster", "?0")],
         );
         let v = rule.check_transaction(
             &tx,
@@ -264,7 +273,7 @@ mod tests {
         let rule = MessageOriginIsolatedHeaderValidity;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
-            &[("origin-isolation", "?1, ?1")],
+            &[("origin-agent-cluster", "?1, ?1")],
         );
         let v = rule.check_transaction(
             &tx,
@@ -273,6 +282,24 @@ mod tests {
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("single value"));
+    }
+
+    #[test]
+    fn origin_agent_cluster_invalid_is_flagged() {
+        // The shipped header is `Origin-Agent-Cluster` (the `Origin-Isolation`
+        // proposal name never shipped). A malformed value on it must be flagged;
+        // before the retarget the rule watched the dead name and returned None.
+        let rule = MessageOriginIsolatedHeaderValidity;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("origin-agent-cluster", "?0")],
+        );
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some(), "Origin-Agent-Cluster: ?0 should be flagged");
     }
 
     #[test]
