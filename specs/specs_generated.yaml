@@ -61,7 +61,7 @@ sources:
     snippet: The `X-Content-Type-Options` response header can be used to require checking of a response’s `Content-Type` header against the destination of a request.
     cited_by:
     - file: lint-http-rules/src/rules/server_x_content_type_options.rs
-      line: 96
+      line: 116
 - label: HTML
   url: https://html.spec.whatwg.org/multipage/browsers.html
   type: text/html

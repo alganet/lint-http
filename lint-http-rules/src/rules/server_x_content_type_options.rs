@@ -84,6 +84,26 @@ impl Rule for ServerXContentTypeOptions {
             return None;
         };
 
+        // A present header must actually enable the protection: browsers read the
+        // first list element case-insensitively, so anything else means sniffing
+        // stays on while the sender believes otherwise. A conforming extra element
+        // after a valid first one is tolerated (the processing model ignores it).
+        if let Some(xcto) =
+            crate::helpers::headers::get_header_str(&resp.headers, "x-content-type-options")
+        {
+            let first = xcto.split(',').next().unwrap_or("").trim();
+            if !first.eq_ignore_ascii_case("nosniff") {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "X-Content-Type-Options value '{}' does not enable nosniff (the value must be `nosniff`, case-insensitive)",
+                        xcto.trim()
+                    ),
+                });
+            }
+        }
+
         // Get the response's content-type (without parameters)
         let content_type_header =
             crate::helpers::headers::get_header_str(&resp.headers, "content-type").and_then(|s| {
@@ -113,7 +133,7 @@ impl Rule for ServerXContentTypeOptions {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if responses include the `X-Content-Type-Options: nosniff` header.\n\nThis security header prevents browsers from \"MIME-sniffing\" a response away from the declared `Content-Type`. This reduces exposure to drive-by download attacks and cross-site scripting (XSS) vulnerabilities where a browser might execute a file as HTML/JavaScript even if the server served it as an image or text."
+        "This rule checks if responses include the `X-Content-Type-Options: nosniff` header.\n\nThis security header prevents browsers from \"MIME-sniffing\" a response away from the declared `Content-Type`. This reduces exposure to drive-by download attacks and cross-site scripting (XSS) vulnerabilities where a browser might execute a file as HTML/JavaScript even if the server served it as an image or text.\n\nA header that is present but whose first value is not `nosniff` (matched case-insensitively, per the Fetch standard's determine-nosniff algorithm) is also flagged: it does not enable the protection."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -167,6 +187,14 @@ mod tests {
     #[case(101, vec![("content-type", "text/html")], vec!["text/html"], false, None)]
     #[case(200, vec![("content-type", "image/png")], vec!["text/html"], false, None)]
     #[case(200, vec![("content-type", "text/html; charset=utf-8")], vec!["text/html"], true, Some("Missing X-Content-Type-Options: nosniff header"))]
+    // A present header must enable the protection: the first value is matched
+    // ASCII case-insensitively against `nosniff`.
+    #[case(200, vec![("content-type", "text/html"), ("x-content-type-options", "foobar")], vec!["text/html"], true, Some("X-Content-Type-Options value 'foobar' does not enable nosniff (the value must be `nosniff`, case-insensitive)"))]
+    #[case(200, vec![("content-type", "text/html"), ("x-content-type-options", "NOSNIFF")], vec!["text/html"], false, None)]
+    #[case(200, vec![("content-type", "text/html"), ("x-content-type-options", "nosniff, extra")], vec!["text/html"], false, None)]
+    // The value check is independent of status and configured types: a malformed
+    // security header is wrong wherever it is sent.
+    #[case(404, vec![("content-type", "text/html"), ("x-content-type-options", "sniff")], vec!["text/html"], true, Some("X-Content-Type-Options value 'sniff' does not enable nosniff (the value must be `nosniff`, case-insensitive)"))]
     fn check_response_cases(
         #[case] status: u16,
         #[case] header_pairs: Vec<(&str, &str)>,

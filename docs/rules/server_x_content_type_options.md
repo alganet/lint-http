@@ -12,6 +12,8 @@ This rule checks if responses include the `X-Content-Type-Options: nosniff` head
 
 This security header prevents browsers from "MIME-sniffing" a response away from the declared `Content-Type`. This reduces exposure to drive-by download attacks and cross-site scripting (XSS) vulnerabilities where a browser might execute a file as HTML/JavaScript even if the server served it as an image or text.
 
+A header that is present but whose first value is not `nosniff` (matched case-insensitively, per the Fetch standard's determine-nosniff algorithm) is also flagged: it does not enable the protection.
+
 ## Specifications
 
 - [Fetch](https://fetch.spec.whatwg.org/): `X-Content-Type-Options` and the `nosniff` check — where the header is actually specified. This rule cited only documentation of it
