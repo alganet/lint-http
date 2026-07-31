@@ -755,10 +755,28 @@ sources:
       line: 63
   - label: stateful_digest_auth_nonce_handling
     section: § 3.3
+    snippet: A case-insensitive flag indicating that the previous request from the client was rejected because the nonce value was stale.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_digest_auth_nonce_handling.rs
+      line: 253
+  - label: stateful_digest_auth_nonce_handling (2)
+    section: § 3.3
+    snippet: A string of data, specified by the server, that SHOULD be returned by the client unchanged in the Authorization header field of subsequent requests
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_digest_auth_nonce_handling.rs
+      line: 182
+  - label: stateful_digest_auth_nonce_handling (3)
+    section: § 3.3
     snippet: The nonce is opaque to the client.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_digest_auth_nonce_handling.rs
       line: 136
+  - label: stateful_digest_auth_nonce_handling (4)
+    section: § 3.4
+    snippet: if the same nc value is seen twice, then the request is a replay.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_digest_auth_nonce_handling.rs
+      line: 241
 - label: RFC 7617
   url: https://www.rfc-editor.org/rfc/rfc7617.txt
   type: text/plain
