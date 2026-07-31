@@ -721,11 +721,41 @@ sources:
   type: text/plain
   fragments:
   - label: message_strict_transport_security_validity
-    section: § 6.1.1
-    snippet: The REQUIRED "max-age" directive specifies the number of seconds, after the reception of the STS header field,
+    section: § 6.1
+    snippet: All directives MUST appear only once in an STS header field.
     cited_by:
     - file: lint-http-rules/src/rules/message_strict_transport_security_validity.rs
-      line: 29
+      line: 188
+  - label: message_strict_transport_security_validity (2)
+    section: § 6.1
+    snippet: UAs MUST ignore any STS header field containing directives, or other header field value data, that does not conform to the syntax defined in this specification.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_strict_transport_security_validity.rs
+      line: 31
+  - label: message_strict_transport_security_validity (3)
+    section: § 6.1
+    snippet: directive-name            = token
+    cited_by:
+    - file: lint-http-rules/src/rules/message_strict_transport_security_validity.rs
+      line: 77
+  - label: message_strict_transport_security_validity (4)
+    section: § 6.1
+    snippet: directive-value           = token | quoted-string
+    cited_by:
+    - file: lint-http-rules/src/rules/message_strict_transport_security_validity.rs
+      line: 161
+  - label: message_strict_transport_security_validity (5)
+    section: § 6.1.1
+    snippet: The REQUIRED "max-age" directive specifies the number of seconds, after the reception of the STS header field, during which the UA regards the host (from whom the message was received) as a Known HSTS Host.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_strict_transport_security_validity.rs
+      line: 90
+  - label: message_strict_transport_security_validity (6)
+    section: § 6.1.2
+    snippet: The OPTIONAL "includeSubDomains" directive is a valueless directive which, if present (i.e., it is "asserted"), signals the UA that the HSTS Policy applies to this HSTS Host as well as any subdomains of the host's domain name.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_strict_transport_security_validity.rs
+      line: 134
 - label: RFC 6838
   url: https://www.rfc-editor.org/rfc/rfc6838.txt
   type: text/plain
