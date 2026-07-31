@@ -105,23 +105,11 @@ impl Rule for SemanticOriginMatchingForCors {
             return None;
         }
 
-        // For any other value, it must match the request's Origin header.
-        // The only special case is the `null` origin, which should compare
-        // case-insensitively per test expectations.  We normalise both sides to
-        // lower-case "null" when either looks like it.
-        let acao_norm = if acao_val.eq_ignore_ascii_case("null") {
-            "null".to_string()
-        } else {
-            acao_val.clone()
-        };
-        let origin_norm = if origin.eq_ignore_ascii_case("null") {
-            "null".to_string()
-        } else {
-            origin.to_string()
-        };
-
+        // For any other value, it must match the request's Origin header byte-for-byte.
+        // Byte-serializing an opaque origin yields the lowercase literal `null`, so no
+        // case normalisation is applied on either side.
         // cite(Fetch): "If the result of byte-serializing a request origin with request is not origin, then return failure."
-        if acao_norm != origin_norm {
+        if acao_val != origin {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
@@ -392,7 +380,7 @@ mod tests {
     }
 
     #[rstest]
-    fn origin_null_case_insensitive_request_matches_null_response() {
+    fn uppercase_null_origin_is_invalid() {
         let rule = SemanticOriginMatchingForCors;
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "null")]);
@@ -402,13 +390,27 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_none());
+        assert!(v.is_some());
     }
     #[rstest]
-    fn origin_null_case_insensitive_response_matches_null_request() {
+    fn uppercase_null_acao_does_not_match_null_origin() {
         let rule = SemanticOriginMatchingForCors;
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "NULL")]);
+        tx.request.headers = make_headers_from_pairs(&[("origin", "null")]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("does not match"));
+    }
+    #[rstest]
+    fn lowercase_null_matches_null_origin() {
+        let rule = SemanticOriginMatchingForCors;
+        let mut tx =
+            make_test_transaction_with_response(200, &[("access-control-allow-origin", "null")]);
         tx.request.headers = make_headers_from_pairs(&[("origin", "null")]);
         let v = rule.check_transaction(
             &tx,

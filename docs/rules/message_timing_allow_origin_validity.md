@@ -9,11 +9,12 @@ SPDX-License-Identifier: ISC
 ## Description
 
 Validate the `Timing-Allow-Origin` response header values. The header's value
-must be `*` (wildcard), `null` (case-insensitive), or one or more serialized
-origins (`scheme://host[:port]`). Multiple header fields are allowed and their
-values are combined using HTTP list semantics. This rule detects header values
-that cannot be decoded as visible US-ASCII, an entirely empty header value, and
-invalid origin serializations.
+must be `*` (wildcard), the lowercase literal `null` (the grammar's `%s"null"`
+is case-sensitive), or one or more serialized origins (`scheme://host[:port]`).
+Multiple header fields are allowed and their values are combined using HTTP
+list semantics. This rule detects header values that cannot be decoded as
+visible US-ASCII, an entirely empty header value, and invalid origin
+serializations.
 
 ## Specifications
 
@@ -53,6 +54,15 @@ Timing-Allow-Origin: https://a, https://b
 HTTP/1.1 200 OK
 Timing-Allow-Origin: https:///foo
 ```
+
+### ❌ Bad `null` is case-sensitive
+
+```http
+HTTP/1.1 200 OK
+Timing-Allow-Origin: NULL
+```
+
+### ❌ Bad
 
 ```http
 HTTP/1.1 200 OK

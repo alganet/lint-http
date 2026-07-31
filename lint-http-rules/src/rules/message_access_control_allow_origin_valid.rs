@@ -76,7 +76,7 @@ impl Rule for MessageAccessControlAllowOriginValid {
         }
 
         let member = members.into_iter().next().unwrap();
-        if member == "*" || member.eq_ignore_ascii_case("null") {
+        if member == "*" || member == "null" {
             return None;
         }
 
@@ -222,6 +222,22 @@ mod tests {
             val,
             v
         );
+    }
+
+    #[test]
+    fn uppercase_null_is_violation() {
+        let rule = MessageAccessControlAllowOriginValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("access-control-allow-origin", "NULL")],
+        );
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("invalid origin"));
     }
 
     #[test]
