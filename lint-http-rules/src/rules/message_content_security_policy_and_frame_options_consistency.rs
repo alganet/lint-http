@@ -92,7 +92,10 @@ impl Rule for MessageContentSecurityPolicyAndFrameOptionsConsistency {
 
         // Get X-Frame-Options header. The two headers answer the same question, and a
         // browser that honours `frame-ancestors` ignores `X-Frame-Options` — so when they
-        // disagree, one of them is a statement of intent that nothing enforces.
+        // disagree, one of them is a statement of intent that nothing enforces. That
+        // precedence (and why only enforced CSP counts, so report-only is skipped above)
+        // is §6.4.2.2's; the two purpose cites give each header's own scope.
+        // cite(CSP3): "the frame-ancestors directive overrides the ``X-Frame-Options`` header."
         // cite(CSP3): "The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed."
         // cite(HTML Speculative Loading): "The `X-Frame-Options` HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable."
         let xfo_count = resp.headers.get_all("x-frame-options").iter().count();
