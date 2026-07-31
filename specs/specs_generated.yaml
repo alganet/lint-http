@@ -318,7 +318,7 @@ sources:
     snippet: Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 242
+      line: 248
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 39
     - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
@@ -624,7 +624,7 @@ sources:
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 298
+      line: 304
   - label: message_bearer_token_format_validity
     section: § 2.1
     snippet: credentials = "Bearer" 1*SP b64token
@@ -710,7 +710,7 @@ sources:
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 359
+      line: 365
   - label: message_digest_auth_validity
     section: § 3.4
     snippet: 'For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque.'
@@ -738,13 +738,13 @@ sources:
     snippet: The user-id and password MUST NOT contain any control characters
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 260
+      line: 266
   - label: basic-credentials base64
     section: § 2
     snippet: and obtains the basic-credentials by encoding this octet sequence using Base64
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 239
+      line: 245
     - file: lint-http-rules/src/rules/message_basic_auth_base64_validity.rs
       line: 40
   - label: lint-http-rules/src/helpers/auth.rs (2)
@@ -752,7 +752,7 @@ sources:
     snippet: constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 250
+      line: 256
 - label: RFC 7807
   url: https://www.rfc-editor.org/rfc/rfc7807.txt
   type: text/plain
@@ -1132,7 +1132,7 @@ sources:
     snippet: 'credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 210
+      line: 216
   - label: lint-http-rules/src/helpers/content_range.rs
     section: § 14.1
     snippet: All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1.
@@ -1345,10 +1345,10 @@ sources:
       line: 95
   - label: message_authorization_credentials_present
     section: § 11.6.2
-    snippet: The "Authorization" header field allows a user agent to authenticate itself with an origin server
+    snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested
     cited_by:
     - file: lint-http-rules/src/rules/message_authorization_credentials_present.rs
-      line: 29
+      line: 34
   - label: message_cache_control_directive_validity
     section: § 5.6.1.1
     snippet: In any production that uses the list construct, a sender MUST NOT generate empty list elements.
