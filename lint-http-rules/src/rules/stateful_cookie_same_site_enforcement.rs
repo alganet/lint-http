@@ -118,6 +118,11 @@ impl Rule for StatefulCookieSameSiteEnforcement {
                     crate::helpers::cookie::SameSite::None => {
                         crate::helpers::cookie::SameSite::None
                     }
+                    // A missing or unrecognised attribute is not "no policy": the
+                    // same paragraph as the Strict/Lax cites gives it a default
+                    // enforcement equivalent to Lax, which is why this rule holds
+                    // such cookies to the Lax cross-site rule below.
+                    // cite(draft-ietf-httpbis-rfc6265bis): "If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax"."
                     crate::helpers::cookie::SameSite::Unspecified => {
                         crate::helpers::cookie::SameSite::Lax
                     }
@@ -179,7 +184,7 @@ impl Rule for StatefulCookieSameSiteEnforcement {
                 spec: "Fetch",
                 section: None,
                 url: "https://fetch.spec.whatwg.org/#sec-fetch-site",
-                note: "Fetch spec Sec-Fetch-Site",
+                note: "Fetch `Sec-Fetch-Site` (cross-site detection) and `Sec-Fetch-Mode` (the `navigate` mode gating the Lax carve-out)",
             },
         ]
     }
