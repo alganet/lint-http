@@ -16,7 +16,7 @@ reported as deprecated.
 
 ## Specifications
 
-- [RFC 6265 §5.2.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.3): `Domain` attribute semantics and format
+- [RFC 6265 §5.2.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.3): `Domain` attribute processing — an empty value is undefined (UA ignores it) and a leading dot is stripped; the domain-value *format* is §4.1.1 / RFC 1035
 - [RFC 1035](https://www.rfc-editor.org/rfc/rfc1035.html): Domain name label rules (length, allowed characters)
 
 ## Configuration
