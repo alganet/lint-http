@@ -177,7 +177,9 @@ impl Rule for StatefulDigestAuthNonceHandling {
                 });
             }
 
-            // 2. opaque must match challenge if present
+            // 2. opaque must be echoed unchanged from the challenge (omitting it when
+            //    the challenge supplied one is a mismatch too).
+            // cite(RFC 7616 § 3.3): "A string of data, specified by the server, that SHOULD be returned by the client unchanged in the Authorization header field of subsequent requests"
             if let (Some(ref o), Some(ref expected)) =
                 (opaque.as_ref(), last_challenge_opaque.as_ref())
             {
@@ -234,6 +236,9 @@ impl Rule for StatefulDigestAuthNonceHandling {
                     .map(|n| highest_nc_for_nonce(history, n))
                     .unwrap_or(0);
 
+                // nc must strictly increase for a given nonce: a repeated count is the
+                // signature of a replay, which nc exists to let the server detect.
+                // cite(RFC 7616 § 3.4): "if the same nc value is seen twice, then the request is a replay."
                 if current_nc <= highest {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -242,9 +247,10 @@ impl Rule for StatefulDigestAuthNonceHandling {
                     });
                 }
 
-                // when the most recent challenge has stale=true, ensure the nonce-count
-                // resets if this is the first request for that nonce.  (Nonce equality is
-                // already enforced above.)
+                // When the most recent challenge is stale, the client keeps the (new)
+                // nonce but restarts the count, so the first request must carry nc=1.
+                // stale is a case-insensitive flag, hence the eq_ignore_ascii_case.
+                // cite(RFC 7616 § 3.3): "A case-insensitive flag indicating that the previous request from the client was rejected because the nonce value was stale."
                 if last_challenge_stale
                     .as_deref()
                     .is_some_and(|s| s.eq_ignore_ascii_case("true"))
@@ -271,15 +277,15 @@ impl Rule for StatefulDigestAuthNonceHandling {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 7616",
-                section: Some("3.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.1",
-                note: "Server challenge syntax",
+                section: Some("3.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.3",
+                note: "The WWW-Authenticate Response Header Field — the server challenge (nonce, opaque, stale)",
             },
             crate::rules::SpecRef {
                 spec: "RFC 7616",
-                section: Some("3.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.2",
-                note: "Client response parameters (`nonce`, `nc`, `opaque`)",
+                section: Some("3.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4",
+                note: "The Authorization Header Field — the client response parameters (nonce, nc, opaque)",
             },
         ]
     }

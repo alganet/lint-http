@@ -14,8 +14,8 @@ This rule ensures that an observed stream of transactions follows these lifecycl
 
 ## Specifications
 
-- [RFC 7616 §3.2.1](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.1): Server challenge syntax
-- [RFC 7616 §3.2.2](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.2.2): Client response parameters (`nonce`, `nc`, `opaque`)
+- [RFC 7616 §3.3](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.3): The WWW-Authenticate Response Header Field — the server challenge (nonce, opaque, stale)
+- [RFC 7616 §3.4](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4): The Authorization Header Field — the client response parameters (nonce, nc, opaque)
 
 ## Configuration
 
