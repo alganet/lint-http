@@ -172,7 +172,7 @@ sources:
     snippet: If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true.
     cited_by:
     - file: lint-http-rules/src/rules/message_cookie_attribute_consistency.rs
-      line: 259
+      line: 262
   - label: message_cookie_attribute_consistency (2)
     snippet: samesite-value = "Strict" / "Lax" / "None"
     cited_by:
@@ -474,7 +474,7 @@ sources:
     snippet: expires-av        = "Expires=" sane-cookie-date
     cited_by:
     - file: lint-http-rules/src/rules/message_cookie_attribute_consistency.rs
-      line: 183
+      line: 186
   - label: message_cookie_attribute_consistency (3)
     section: § 4.1.1
     snippet: httponly-av       = "HttpOnly"
@@ -492,7 +492,13 @@ sources:
     snippet: If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av.
     cited_by:
     - file: lint-http-rules/src/rules/message_cookie_attribute_consistency.rs
-      line: 156
+      line: 158
+  - label: message_cookie_attribute_consistency (6)
+    section: § 5.2.2
+    snippet: If the remainder of attribute-value contains a non-DIGIT character, ignore the cookie-av.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_cookie_attribute_consistency.rs
+      line: 159
   - label: message_cookie_domain_validity
     section: § 5.2.3
     snippet: If the attribute-value is empty, the behavior is undefined.

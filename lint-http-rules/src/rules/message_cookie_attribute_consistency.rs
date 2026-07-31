@@ -153,7 +153,10 @@ impl Rule for MessageCookieAttributeConsistency {
                     // A leading "-" is accepted on purpose: the ABNF says non-zero-digit
                     // *DIGIT, but the parsing algorithm the ABNF is a summary of admits a
                     // sign, and a negative Max-Age is how a cookie is deleted.
+                    // `parse::<i64>` enforces both of §5.2.2's processing gates: a
+                    // valid first character *and* an all-DIGIT remainder.
                     // cite(RFC 6265 § 5.2.2): "If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av."
+                    // cite(RFC 6265 § 5.2.2): "If the remainder of attribute-value contains a non-DIGIT character, ignore the cookie-av."
                     if v.parse::<i64>().is_err() {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -279,9 +282,21 @@ impl Rule for MessageCookieAttributeConsistency {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 6265",
+                section: Some("4.1.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1",
+                note: "Set-Cookie syntax — the cookie-name/`Secure`/`HttpOnly`/`Expires` grammar this rule checks",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6265",
                 section: Some("5.2.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.2",
-                note: "Set-Cookie header attributes and semantics",
+                note: "The Max-Age attribute — ignored unless it is a `-`-or-DIGIT first character with an all-DIGIT remainder",
+            },
+            crate::rules::SpecRef {
+                spec: "draft-ietf-httpbis-rfc6265bis",
+                section: None,
+                url: "https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis",
+                note: "`SameSite` value grammar and the `SameSite=None` requires `Secure` rule. No section: a draft renumbers between revisions",
             },
             crate::rules::SpecRef {
                 spec: "MDN Set-Cookie",
