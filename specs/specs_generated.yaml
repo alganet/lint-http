@@ -712,13 +712,13 @@ sources:
     snippet: 'For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque.'
     cited_by:
     - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
-      line: 111
+      line: 123
   - label: message_digest_auth_validity (2)
     section: § 3.4
     snippet: If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code.
     cited_by:
     - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
-      line: 57
+      line: 63
   - label: stateful_digest_auth_nonce_handling
     section: § 3.3
     snippet: The nonce is opaque to the client.
@@ -1113,6 +1113,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 201
+    - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
+      line: 35
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 11.3
     snippet: 'challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
