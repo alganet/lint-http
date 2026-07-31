@@ -12,7 +12,7 @@ Requests that include the `Sec-Fetch-Site` request header must use one of the ca
 
 ## Specifications
 
-- [Fetch Metadata](https://www.w3.org/TR/fetch-metadata/#sec-fetch-site): Fetch Metadata (W3C) — `Sec-Fetch-Site` header values
+- [Fetch Metadata §2.3](https://www.w3.org/TR/fetch-metadata/#sec-fetch-site-header): Fetch Metadata (W3C) — `Sec-Fetch-Site`: an sf-token whose valid values are the four initiator/target relationships
 
 ## Configuration
 
