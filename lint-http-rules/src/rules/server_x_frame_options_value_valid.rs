@@ -100,7 +100,7 @@ impl Rule for ServerXFrameOptionsValueValid {
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
-                spec: "HTML",
+                spec: "HTML Speculative Loading",
                 section: Some("7.7"),
                 url: "https://html.spec.whatwg.org/multipage/speculative-loading.html#the-x-frame-options-header",
                 note: "Governing definition: conformance ABNF `\"DENY\" / \"SAMEORIGIN\"`, case-insensitive processing, `ALLOW-FROM` not to be implemented",
