@@ -26,6 +26,8 @@ impl Rule for MessageBasicAuthBase64Validity {
         for hv in tx.request.headers.get_all("authorization").iter() {
             match hv.to_str() {
                 Ok(s) => {
+                    // Scheme names match case-insensitively.
+                    // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
                     let mut parts = s.splitn(2, char::is_whitespace);
                     let scheme = parts.next().unwrap_or("").trim();
                     if scheme.eq_ignore_ascii_case("Basic") {
@@ -37,7 +39,11 @@ impl Rule for MessageBasicAuthBase64Validity {
                                 message: "Basic Authorization missing credentials".into(),
                             });
                         }
-                        // cite(RFC 7617 § 2): "and obtains the basic-credentials by encoding this octet sequence using Base64"
+                        // The rule's own claim: the credential the client sends encodes a
+                        // user-id and password. How that value is built and checked — the
+                        // Base64 alphabet, the ":" separator, control characters — is owned
+                        // by validate_basic_credentials (RFC 7617 §2 / RFC 4648).
+                        // cite(RFC 7617 § 2): "The value is computed based on user-id and password as defined below."
                         if let Err(msg) = crate::helpers::auth::validate_basic_credentials(creds) {
                             return Some(Violation {
                                 rule: self.id().into(),
