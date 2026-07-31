@@ -121,9 +121,9 @@ impl Rule for MessageAccessControlAllowCredentialsWhenOrigin {
             },
             crate::rules::SpecRef {
                 spec: "Fetch",
-                section: None,
-                url: "https://fetch.spec.whatwg.org/#http-access-control-allow-credentials",
-                note: "Fetch Standard: Access-Control-Allow-Credentials",
+                section: Some("4.10"),
+                url: "https://fetch.spec.whatwg.org/#concept-cors-check",
+                note: "Fetch CORS check — `*` succeeds only for non-credentialed requests, so `*` paired with `Access-Control-Allow-Credentials: true` can never authorize a credentialed request (the two cited steps)",
             },
         ]
     }

@@ -14,7 +14,7 @@ This rule checks Cross-Origin Resource Sharing (CORS) response headers to ensure
 
 - [MDN Access-Control-Allow-Credentials](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials): Access-Control-Allow-Credentials
 - [MDN Access-Control-Allow-Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin): Access-Control-Allow-Origin
-- [Fetch](https://fetch.spec.whatwg.org/#http-access-control-allow-credentials): Fetch Standard: Access-Control-Allow-Credentials
+- [Fetch §4.10](https://fetch.spec.whatwg.org/#concept-cors-check): Fetch CORS check — `*` succeeds only for non-credentialed requests, so `*` paired with `Access-Control-Allow-Credentials: true` can never authorize a credentialed request (the two cited steps)
 
 ## Configuration
 
