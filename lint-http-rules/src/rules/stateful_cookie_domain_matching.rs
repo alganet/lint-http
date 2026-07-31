@@ -301,6 +301,57 @@ mod tests {
     }
 
     #[test]
+    fn host_only_cookie_to_subdomain_flagged() {
+        // A cookie set with no Domain attribute is "host-only" (RFC 6265 §5.3);
+        // §5.4 permits sending it only when the request-host is *identical* to
+        // the cookie's domain, so a client presenting it to a subdomain is
+        // misbehaving and must be flagged.
+        let rule = StatefulCookieDomainMatching;
+        let ts = Utc::now();
+        let prev = make_resp_tx("https://example.com/", Some("a=1; Path=/"), Some(ts));
+        let mut tx = make_tx_with_req("https://sub.example.com/", Some("a=1"));
+        tx.timestamp = ts + chrono::Duration::seconds(10);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        let v = rule.check_transaction(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_cookie_domain_matching",
+            ]),
+        );
+        assert!(
+            v.is_some(),
+            "host-only cookie sent to a subdomain should be flagged"
+        );
+        assert!(v.unwrap().message.contains("different domain"));
+    }
+
+    #[test]
+    fn domain_scoped_cookie_allowed_to_subdomain() {
+        // With an explicit Domain attribute the cookie is NOT host-only and
+        // does domain-match subdomains (RFC 6265 §5.1.3); it must stay allowed.
+        let rule = StatefulCookieDomainMatching;
+        let ts = Utc::now();
+        let prev = make_resp_tx(
+            "https://example.com/",
+            Some("a=1; Domain=example.com; Path=/"),
+            Some(ts),
+        );
+        let mut tx = make_tx_with_req("https://sub.example.com/", Some("a=1"));
+        tx.timestamp = ts + chrono::Duration::seconds(10);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_domain_matching"
+                ]),
+            )
+            .is_none());
+    }
+
+    #[test]
     fn path_mismatch_flagged() {
         let rule = StatefulCookieDomainMatching;
         let ts = Utc::now();

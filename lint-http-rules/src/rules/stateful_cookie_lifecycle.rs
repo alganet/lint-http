@@ -532,6 +532,31 @@ mod tests {
     }
 
     #[test]
+    fn host_only_cookie_to_subdomain_not_stale_fp() {
+        // Regression: a host-only cookie (no Domain attribute) set on
+        // example.com must not be treated as applicable to sub.example.com.
+        // A different value carried to the subdomain is another host's cookie,
+        // not a stale one, so the rule must stay silent (RFC 6265 §5.4).
+        let rule = StatefulCookieLifecycle;
+        let ts = Utc::now();
+        let prev = make_resp_tx("https://example.com/", Some("a=1; Path=/"), Some(ts));
+        let mut tx = make_tx_with_req("https://sub.example.com/", Some("a=2"));
+        tx.timestamp = ts + chrono::Duration::seconds(10);
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
+        assert!(
+            rule.check_transaction(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_cookie_lifecycle"
+                ]),
+            )
+            .is_none(),
+            "host-only cookie must not be seen as applicable to a subdomain"
+        );
+    }
+
+    #[test]
     fn domain_mismatch_ignored() {
         let rule = StatefulCookieLifecycle;
         let ts = Utc::now();
