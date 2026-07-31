@@ -103,9 +103,9 @@ impl Rule for MessageCrossOriginResourcePolicyValid {
         &[
             crate::rules::SpecRef {
                 spec: "Fetch",
-                section: None,
-                url: "https://fetch.spec.whatwg.org/",
-                note: "W3C: Cross-Origin Resource Policy",
+                section: Some("3.7"),
+                url: "https://fetch.spec.whatwg.org/#cross-origin-resource-policy-header",
+                note: "`Cross-Origin-Resource-Policy` — the case-sensitive `same-origin`/`same-site`/`cross-origin` grammar, and unrecognized values set to null",
             },
             crate::rules::SpecRef {
                 spec: "MDN Cross-Origin-Resource-Policy",
@@ -126,8 +126,8 @@ impl Rule for MessageCrossOriginResourcePolicyValid {
             },
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("(case-insensitive, trailing whitespace allowed)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: SAME-ORIGIN ",
+                label: Some("(trailing whitespace tolerated)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: same-origin ",
             },
             Example {
                 compliance: Compliance::NonCompliant,
