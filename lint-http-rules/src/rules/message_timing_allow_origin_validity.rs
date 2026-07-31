@@ -23,6 +23,9 @@ impl Rule for MessageTimingAllowOriginValidity {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // The header is server-sent: it rides responses, so only the response side is
+        // inspected.
+        // cite(Resource Timing): "Server-side applications may return the Timing-Allow-Origin HTTP response header to allow the User Agent to fully expose, to the document origin(s) specified, the values of attributes that would have been zero due to those cross-origin restrictions."
         let resp = tx.response.as_ref()?;
 
         let headers = &resp.headers;
@@ -36,7 +39,9 @@ impl Rule for MessageTimingAllowOriginValidity {
         // Several header fields are explicitly allowed, so this rule checks the members,
         // not the field count — unlike Access-Control-Allow-Origin, which carries one value.
         // cite(Resource Timing): "The sender MAY generate multiple Timing-Allow-Origin header fields."
+        // cite(Resource Timing): "The recipient MAY combine multiple Timing-Allow-Origin header fields by appending each subsequent field value to the combined field value in order, separated by a comma."
         for hv in headers.get_all("timing-allow-origin").iter() {
+            // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
             let s =
                 match hv.to_str() {
                     Ok(v) => v,
@@ -49,7 +54,9 @@ impl Rule for MessageTimingAllowOriginValidity {
                     }),
                 };
 
-            // Empty header value (only whitespace) is invalid
+            // Empty header value (only whitespace) is invalid: `1#` requires at least
+            // one member.
+            // cite(Resource Timing): "Timing-Allow-Origin = 1#( origin-or-null / wildcard )"
             if s.trim().is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -58,14 +65,16 @@ impl Rule for MessageTimingAllowOriginValidity {
                 });
             }
 
-            // Detect empty list members caused by consecutive commas or leading empty members.
-            // `1#` is a non-empty list of non-empty members.
-            // cite(Resource Timing): "Timing-Allow-Origin = 1#( origin-or-null / wildcard )"
-            // Trailing empty members (e.g., "https://a, ") are tolerated.
+            // Detect empty list members caused by consecutive commas or leading empty
+            // members. The header's ABNF uses RFC 9110's list construct, so its
+            // empty-element rules apply.
+            // cite(Resource Timing): "The header’s value is represented by the following ABNF [RFC5234] (using List Extension, [RFC9110]):"
             let parts: Vec<&str> = s.split(',').collect();
             for (i, raw_member) in parts.iter().enumerate() {
                 if raw_member.trim().is_empty() {
-                    // If any non-empty member appears after this empty one, it's an internal/leading empty member -> violation.
+                    // An internal/leading empty member means the sender generated an
+                    // empty list element.
+                    // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                     if parts.iter().skip(i + 1).any(|p| !p.trim().is_empty()) {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -73,16 +82,24 @@ impl Rule for MessageTimingAllowOriginValidity {
                             message: "Timing-Allow-Origin header contains empty member".into(),
                         });
                     }
-                    // Otherwise it's trailing empty member(s); tolerated.
+                    // Otherwise it's trailing empty member(s) (e.g., "https://a, ");
+                    // tolerated as recipient-side leniency.
+                    // cite(RFC 9110 § 5.6.1.2): "A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism"
                 }
             }
             for member in crate::helpers::headers::parse_list_header(s) {
                 let m = member.trim();
 
+                // `wildcard` and the case-sensitive lowercase `null` are the two
+                // non-origin members the grammar admits (both productions resolve
+                // into Fetch).
+                // cite(Fetch): "origin-or-null = serialized-origin / %s"null" ; case-sensitive"
                 if m == "*" || m == "null" {
                     continue;
                 }
 
+                // Anything else must be a serialized origin; the helper owns the
+                // grammar it is validated against.
                 if !crate::helpers::headers::is_valid_serialized_origin(m) {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -108,15 +125,21 @@ impl Rule for MessageTimingAllowOriginValidity {
         &[
             crate::rules::SpecRef {
                 spec: "Resource Timing",
-                section: Some("4.5.1"),
+                section: Some("3.5.2"),
                 url: "https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin",
-                note: "`Timing-Allow-Origin` response header",
+                note: "`Timing-Allow-Origin` response header and its ABNF",
+            },
+            crate::rules::SpecRef {
+                spec: "Fetch",
+                section: Some("3.2"),
+                url: "https://fetch.spec.whatwg.org/#origin-header",
+                note: "`origin-or-null` and `serialized-origin`, the productions the grammar's members resolve to (`null` is case-sensitive)",
             },
             crate::rules::SpecRef {
                 spec: "RFC 6454",
-                section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc6454.html",
-                note: "Origin (serialized-origin form)",
+                section: Some("7.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1",
+                note: "Historical serialized-origin shape (`scheme \"://\" host [ \":\" port ]`) the conservative validator implements; Fetch supplants the serialization",
             },
         ]
     }
