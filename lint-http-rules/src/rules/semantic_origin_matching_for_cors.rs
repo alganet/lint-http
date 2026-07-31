@@ -153,9 +153,9 @@ impl Rule for SemanticOriginMatchingForCors {
             },
             crate::rules::SpecRef {
                 spec: "Fetch",
-                section: None,
-                url: "https://fetch.spec.whatwg.org/#access-control-allow-origin-response-header",
-                note: "Fetch CORS / Origin matching rules",
+                section: Some("4.10"),
+                url: "https://fetch.spec.whatwg.org/#concept-cors-check",
+                note: "Fetch CORS check — the response origin must byte-match the request `Origin` (or be `*` for a non-credentialed request); this rule's matching logic lives here (two of its three cites)",
             },
             crate::rules::SpecRef {
                 spec: "MDN Access-Control-Allow-Origin",
