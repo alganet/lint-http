@@ -407,16 +407,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 98
-    - file: lint-http-rules/src/rules/stateful_cookie_domain_matching.rs
-      line: 96
   - label: cookie path-match
     section: § 5.1.4
     snippet: A request-path path-matches a given cookie-path if at least one of the following conditions holds
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 118
-    - file: lint-http-rules/src/rules/stateful_cookie_domain_matching.rs
-      line: 108
   - label: lint-http-rules/src/helpers/cookie.rs
     section: § 5.1.4
     snippet: If the uri-path contains no more than one %x2F ("/") character, output %x2F ("/") and skip the remaining step.
@@ -497,6 +493,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_cookie_domain_validity.rs
       line: 50
+  - label: stateful_cookie_domain_matching
+    section: § 5.4
+    snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_cookie_domain_matching.rs
+      line: 102
+  - label: stateful_cookie_domain_matching (2)
+    section: § 5.4
+    snippet: The request-uri's path path-matches the cookie's path.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_cookie_domain_matching.rs
+      line: 116
   - label: stateful_cookie_lifecycle
     section: § 4.1.2.5
     snippet: The Secure attribute limits the scope of the cookie to "secure" channels

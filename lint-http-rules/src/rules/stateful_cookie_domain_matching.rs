@@ -93,7 +93,13 @@ impl Rule for StatefulCookieDomainMatching {
                 continue;
             }
 
-            // cite(RFC 6265 § 5.1.3): "A string domain-matches a given domain string if at least one of the following conditions hold"
+            // The domain-match and path-match *definitions* (§5.1.3, §5.1.4)
+            // are owned by the helper's `domain_matches`/`path_matches`, which
+            // this rule only calls. What this rule enforces is §5.4's decision
+            // to *send*: a cookie the user agent puts in the Cookie header must
+            // have met every requirement of the cookie-list, so a stored cookie
+            // failing the domain requirement was never eligible to be sent.
+            // cite(RFC 6265 § 5.4): "Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:"
             if domain_mismatch {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -105,7 +111,9 @@ impl Rule for StatefulCookieDomainMatching {
                 });
             }
 
-            // cite(RFC 6265 § 5.1.4): "A request-path path-matches a given cookie-path if at least one of the following conditions holds"
+            // The path half of the same §5.4 cookie-list requirement; the
+            // path-match predicate itself is the helper's (§5.1.4).
+            // cite(RFC 6265 § 5.4): "The request-uri's path path-matches the cookie's path."
             if path_mismatch {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -124,11 +132,17 @@ impl Rule for StatefulCookieDomainMatching {
     }
 
     fn description(&self) -> &'static str {
-        "A client should only send a cookie back to a server when the request URI satisfies the cookie's domain and path constraints.  Browsers follow the matching algorithm in [RFC 6265 §5.1.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3) and §5.1.4 when deciding which cookies to include with a request; this rule flags instances where the observed `Cookie` header contains a name/value pair that corresponds to a previously set cookie whose attributes would *not* allow it to be sent for the current host/path.\n\nTo avoid spurious warnings the check only considers cookies that have been seen in the capture history and matches on the exact value.  Unknown cookies are assumed to pre‑date the capture and are ignored.  The related `stateful_cookie_lifecycle` rule already handles path‑mismatch diagnostics and secure‑cookie checks; this rule is primarily intended to catch domain mismatches that the other rule overlooks."
+        "A client should only send a cookie back to a server when the request URI satisfies the cookie's domain and path constraints.  Browsers build the `Cookie` header with the cookie-list algorithm of [RFC 6265 §5.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4), which sends only cookies meeting the domain-match ([§5.1.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3)) and path-match ([§5.1.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4)) requirements; this rule flags instances where the observed `Cookie` header contains a name/value pair that corresponds to a previously set cookie whose attributes would *not* allow it to be sent for the current host/path.\n\nTo avoid spurious warnings the check only considers cookies that have been seen in the capture history and matches on the exact value.  Unknown cookies are assumed to pre‑date the capture and are ignored.  The related `stateful_cookie_lifecycle` rule already handles path‑mismatch diagnostics and secure‑cookie checks; this rule is primarily intended to catch domain mismatches that the other rule overlooks."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
+            crate::rules::SpecRef {
+                spec: "RFC 6265",
+                section: Some("5.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4",
+                note: "The Cookie header (which cookies are sent)",
+            },
             crate::rules::SpecRef {
                 spec: "RFC 6265",
                 section: Some("5.1.3"),
