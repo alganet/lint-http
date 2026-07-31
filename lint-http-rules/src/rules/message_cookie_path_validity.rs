@@ -87,9 +87,15 @@ impl Rule for MessageCookiePathValidity {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 6265",
+                section: Some("4.1.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1",
+                note: "Set-Cookie syntax — servers SHOULD NOT send a non-conforming Set-Cookie; `path-value` excludes control characters and `;`",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6265",
                 section: Some("5.2.4"),
                 url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.4",
-                note: "Path attribute — defines the `Path` attribute syntax and semantics (including `path-value`)",
+                note: "Path attribute — the user agent replaces an empty or non-`/` Path with the default-path (why those forms are flagged)",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
