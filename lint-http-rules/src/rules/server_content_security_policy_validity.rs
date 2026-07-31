@@ -32,8 +32,6 @@ impl Rule for ServerContentSecurityPolicyValidity {
         // Only check responses
         let resp = tx.response.as_ref()?;
 
-        use crate::helpers::token::find_invalid_token_char;
-
         for hv in resp.headers.get_all("content-security-policy").iter() {
             // UTF-8
             let s = match hv.to_str() {
@@ -77,8 +75,14 @@ impl Rule for ServerContentSecurityPolicyValidity {
                     .next()
                     .expect("split_whitespace yields at least one item since dir is not empty");
 
-                // cite(CSP3): "serialized-directive = directive-name [ required-ascii-whitespace directive-value ] directive-name = 1*( ALPHA / DIGIT / "-" )"
-                if let Some(c) = find_invalid_token_char(name) {
+                // A CSP directive-name is narrower than the HTTP `token`: only
+                // letters, digits and `-`. Enforcing `token` here let typos like
+                // `default_src` (underscore is a legal tchar) pass unflagged.
+                // cite(CSP3): "directive-name = 1*( ALPHA / DIGIT / "-" )"
+                if let Some(c) = name
+                    .chars()
+                    .find(|c| !(c.is_ascii_alphanumeric() || *c == '-'))
+                {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
@@ -229,7 +233,7 @@ impl Rule for ServerContentSecurityPolicyValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Validate basic `Content-Security-Policy` syntax in responses. This rule checks that the header value is UTF-8, not empty, directives are present and well-formed (directive names follow `token` grammar), and common structural issues are flagged (unterminated single-quoted keywords, empty directives due to trailing semicolons, empty nonces/hashes).\n\nThis rule is intentionally conservative: it is not a full CSP grammar validator, but catches common, obvious mistakes and misconfigurations."
+        "Validate basic `Content-Security-Policy` syntax in responses. This rule checks that the header value is UTF-8, not empty, directives are present and well-formed (directive names follow CSP's `directive-name = 1*( ALPHA / DIGIT / \"-\" )` grammar — narrower than the HTTP `token`), and common structural issues are flagged (unterminated single-quoted keywords, empty directives due to trailing semicolons, empty nonces/hashes).\n\nThis rule is intentionally conservative: it is not a full CSP grammar validator, but catches common, obvious mistakes and misconfigurations."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -352,6 +356,29 @@ mod tests {
             )
             .unwrap();
         assert!(v.message.contains("Invalid character"));
+    }
+
+    #[test]
+    fn underscore_in_directive_name_is_violation() {
+        // CSP3 `directive-name = 1*( ALPHA / DIGIT / "-" )` forbids `_`; the HTTP
+        // token grammar the rule used to apply accepted it, so `default_src` (a
+        // plausible typo of `default-src`) slipped through unflagged.
+        let rule = ServerContentSecurityPolicyValidity;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "content-security-policy",
+            "default_src 'self'",
+        )]);
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap();
+        assert!(v.message.contains("Invalid character") && v.message.contains('_'));
     }
 
     #[test]

@@ -110,10 +110,10 @@ sources:
     - file: lint-http-rules/src/rules/message_content_security_policy_and_frame_options_consistency.rs
       line: 98
   - label: server_content_security_policy_validity
-    snippet: serialized-directive = directive-name [ required-ascii-whitespace directive-value ] directive-name = 1*( ALPHA / DIGIT / "-" )
+    snippet: directive-name = 1*( ALPHA / DIGIT / "-" )
     cited_by:
     - file: lint-http-rules/src/rules/server_content_security_policy_validity.rs
-      line: 80
+      line: 81
 - label: Clear-Site-Data
   url: https://www.w3.org/TR/clear-site-data/
   type: text/html
