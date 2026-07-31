@@ -112,9 +112,15 @@ impl Rule for MessageAccessControlAllowOriginValid {
             },
             crate::rules::SpecRef {
                 spec: "Fetch",
-                section: None,
-                url: "https://fetch.spec.whatwg.org/",
-                note: "CORS protocol — `Access-Control-Allow-Origin` carries one value: an echoed origin, `null`, or `*`",
+                section: Some("3.3.3"),
+                url: "https://fetch.spec.whatwg.org/#http-access-control-allow-origin",
+                note: "`Access-Control-Allow-Origin` carries one value: an echoed origin, `null`, or `*`",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6454",
+                section: Some("7.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1",
+                note: "Origin syntax the non-`*` value is validated against — `serialized-origin = scheme \"://\" host [ \":\" port ]`, and `null` via origin-list-or-null",
             },
         ]
     }
