@@ -88,6 +88,8 @@ impl Rule for ServerXContentTypeOptions {
         // first list element case-insensitively, so anything else means sniffing
         // stays on while the sender believes otherwise. A conforming extra element
         // after a valid first one is tolerated (the processing model ignores it).
+        // cite(Fetch): "X-Content-Type-Options = "nosniff" ; case-insensitive"
+        // cite(Fetch): "If values[0] is an ASCII case-insensitive match for "nosniff", then return true."
         if let Some(xcto) =
             crate::helpers::headers::get_header_str(&resp.headers, "x-content-type-options")
         {
@@ -114,6 +116,12 @@ impl Rule for ServerXContentTypeOptions {
 
         if let Some(content_type) = content_type_header {
             // cite(Fetch): "The `X-Content-Type-Options` response header can be used to require checking of a response’s `Content-Type` header against the destination of a request."
+            // The 2xx gate is the rule's own tolerance (no sentence scopes the header
+            // to successful responses). The configured content-type list stands in for
+            // the request destination, which a proxy cannot know: the spec only blocks
+            // for script-like and style destinations, so the config names the types a
+            // deployment serves to those destinations.
+            // cite(Fetch): "Only request destinations that are script-like or "style" are considered as any exploits pertain to them."
             if (200..300).contains(&resp.status)
                 && config.content_types.contains(&content_type)
                 && !resp.headers.contains_key("x-content-type-options")
@@ -140,9 +148,9 @@ impl Rule for ServerXContentTypeOptions {
         &[
             crate::rules::SpecRef {
                 spec: "Fetch",
-                section: None,
-                url: "https://fetch.spec.whatwg.org/",
-                note: "`X-Content-Type-Options` and the `nosniff` check — where the header is actually specified. This rule cited only documentation of it",
+                section: Some("3.6"),
+                url: "https://fetch.spec.whatwg.org/#x-content-type-options-header",
+                note: "`X-Content-Type-Options`: the conformance value ABNF (`\"nosniff\" ; case-insensitive`) and the determine-nosniff algorithm",
             },
             crate::rules::SpecRef {
                 spec: "MDN X-Content-Type-Options",

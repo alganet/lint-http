@@ -16,7 +16,7 @@ A header that is present but whose first value is not `nosniff` (matched case-in
 
 ## Specifications
 
-- [Fetch](https://fetch.spec.whatwg.org/): `X-Content-Type-Options` and the `nosniff` check — where the header is actually specified. This rule cited only documentation of it
+- [Fetch §3.6](https://fetch.spec.whatwg.org/#x-content-type-options-header): `X-Content-Type-Options`: the conformance value ABNF (`"nosniff" ; case-insensitive`) and the determine-nosniff algorithm
 - [MDN X-Content-Type-Options](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options): Web Docs: X-Content-Type-Options
 
 ## Configuration
