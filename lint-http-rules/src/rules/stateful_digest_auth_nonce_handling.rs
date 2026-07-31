@@ -245,7 +245,9 @@ impl Rule for StatefulDigestAuthNonceHandling {
                 // when the most recent challenge has stale=true, ensure the nonce-count
                 // resets if this is the first request for that nonce.  (Nonce equality is
                 // already enforced above.)
-                if last_challenge_stale.as_deref() == Some("true")
+                if last_challenge_stale
+                    .as_deref()
+                    .is_some_and(|s| s.eq_ignore_ascii_case("true"))
                     && highest == 0
                     && current_nc != 1
                 {
@@ -659,6 +661,27 @@ mod tests {
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("nonce differs"), "got message: {}", msg);
+    }
+
+    #[test]
+    fn stale_uppercase_true_missing_reset_reports() {
+        // §3.3: stale is a case-insensitive flag, so stale=TRUE must be honored
+        // exactly like stale=true — a new-nonce request that fails to reset nc is
+        // still a violation.
+        let nonce = random_nonce();
+        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
+            tx_resp_with_challenge(&make_challenge(&nonce, None, Some("TRUE"))),
+        ]);
+        let tx = tx_req_with_auth(&make_auth(&nonce, Some("00000005"), None));
+        let v = StatefulDigestAuthNonceHandling.check_transaction(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_digest_auth_nonce_handling",
+            ]),
+        );
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("must reset nc"));
     }
 
     #[test]
