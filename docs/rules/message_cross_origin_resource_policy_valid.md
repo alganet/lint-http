@@ -12,7 +12,7 @@ This rule checks the `Cross-Origin-Resource-Policy` response header value and en
 
 ## Specifications
 
-- [Fetch](https://fetch.spec.whatwg.org/): W3C: Cross-Origin Resource Policy
+- [Fetch §3.7](https://fetch.spec.whatwg.org/#cross-origin-resource-policy-header): `Cross-Origin-Resource-Policy` — the case-sensitive `same-origin`/`same-site`/`cross-origin` grammar, and unrecognized values set to null
 - [MDN Cross-Origin-Resource-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Resource-Policy): Cross-Origin-Resource-Policy
 
 ## Configuration
@@ -32,11 +32,11 @@ HTTP/1.1 200 OK
 Cross-Origin-Resource-Policy: same-site
 ```
 
-### ✅ Good (case-insensitive, trailing whitespace allowed)
+### ✅ Good (trailing whitespace tolerated)
 
 ```http
 HTTP/1.1 200 OK
-Cross-Origin-Resource-Policy: SAME-ORIGIN 
+Cross-Origin-Resource-Policy: same-origin 
 ```
 
 ### ❌ Bad (unsupported value)
