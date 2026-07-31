@@ -95,15 +95,15 @@ impl Rule for ClientRequestOriginHeaderPresentForCors {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 6454",
-                section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc6454.html",
-                note: "The Web Origin Concept",
+                section: Some("7.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1",
+                note: "Origin header field syntax the value is validated against (`serialized-origin` / `null`)",
             },
             crate::rules::SpecRef {
                 spec: "Fetch",
-                section: None,
+                section: Some("3.2"),
                 url: "https://fetch.spec.whatwg.org/#origin-header",
-                note: "CORS / Fetch: Origin header semantics",
+                note: "Origin header — used for CORS fetches and any request whose method is neither GET nor HEAD (where both inline cites resolve)",
             },
             crate::rules::SpecRef {
                 spec: "MDN Origin",
