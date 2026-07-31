@@ -959,10 +959,16 @@ sources:
       line: 51
   - label: client_cache_respect
     section: § 13.1.2
-    snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource
+    snippet: When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request
     cited_by:
     - file: lint-http-rules/src/rules/client_cache_respect.rs
-      line: 47
+      line: 66
+  - label: client_cache_respect (2)
+    section: § 13.1.3
+    snippet: 'If-Modified-Since is typically used for two distinct purposes: 1) to allow efficient updates of a cached representation that does not have an entity tag'
+    cited_by:
+    - file: lint-http-rules/src/rules/client_cache_respect.rs
+      line: 67
   - label: client_expect_header_valid
     section: § 10.1.1
     snippet: The "Expect" header field in a request indicates a certain set of behaviors (expectations) that need to be supported by the server

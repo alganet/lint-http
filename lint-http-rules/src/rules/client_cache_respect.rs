@@ -13,6 +13,8 @@ impl Rule for ClientCacheRespect {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
+        // Client: the SHOULD is on the client's request; the prior response is read
+        // only to learn whether a validator was offered.
         crate::rules::RuleScope::Client
     }
 
@@ -39,12 +41,14 @@ impl Rule for ClientCacheRespect {
         let previous_tx = history.previous()?;
         let resp = previous_tx.response.as_ref()?;
 
-        // If the previous response had validators (ETag or Last-Modified),
-        // the client should send conditional headers
+        // The rule only has a case to make if the prior response gave the client a
+        // validator to revalidate with: an ETag (If-None-Match) or a Last-Modified
+        // date (If-Modified-Since). Without one there is nothing to omit. This also
+        // assumes the client stored that response — the linter cannot see its cache,
+        // so a validator on the most recent response for this resource is the proxy.
         let has_validators =
             resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
 
-        // cite(RFC 9110 § 13.1.2): "The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource"
         if !has_validators {
             return None;
         }
@@ -53,6 +57,14 @@ impl Rule for ClientCacheRespect {
         let has_if_none_match = tx.request.headers.contains_key("if-none-match");
         let has_if_modified_since = tx.request.headers.contains_key("if-modified-since");
 
+        // The governing SHOULD, on the ETag/GET path. The Last-Modified-only case is
+        // an efficiency heuristic rather than a SHOULD: §13.1.3 describes
+        // If-Modified-Since as "typically used" to allow efficient cache updates but
+        // states no client obligation to send it (its SHOULDs are all on the origin
+        // server). HEAD rides the same efficiency argument, one method past §13.1.2's
+        // literal "GET request".
+        // cite(RFC 9110 § 13.1.2): "When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request"
+        // cite(RFC 9110 § 13.1.3): "If-Modified-Since is typically used for two distinct purposes: 1) to allow efficient updates of a cached representation that does not have an entity tag"
         if !has_if_none_match && !has_if_modified_since {
             Some(Violation {
                 rule: self.id().into(),
@@ -86,13 +98,13 @@ impl Rule for ClientCacheRespect {
                 spec: "RFC 9110",
                 section: Some("13.1.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2",
-                note: "If-None-Match",
+                note: "If-None-Match — a client SHOULD send it for stored responses that have entity tags when making a GET request",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("13.1.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
-                note: "If-Modified-Since",
+                note: "If-Modified-Since — typically used for efficient cache updates (no client obligation to send; the Last-Modified path here is a heuristic)",
             },
         ]
     }
