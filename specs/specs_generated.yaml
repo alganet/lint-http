@@ -940,9 +940,11 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc7231.txt
   type: text/plain
   fragments:
-  - label: message_digest_header_syntax
+  - label: message_content_md5_vs_digest_preference
     snippet: The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses.
     cited_by:
+    - file: lint-http-rules/src/rules/message_content_md5_vs_digest_preference.rs
+      line: 47
     - file: lint-http-rules/src/rules/message_digest_header_syntax.rs
       line: 508
 - label: RFC 7239
@@ -2842,7 +2844,7 @@ sources:
     snippet: The Content-Digest HTTP field can be used in requests and responses
     cited_by:
     - file: lint-http-rules/src/rules/message_content_md5_vs_digest_preference.rs
-      line: 31
+      line: 30
   - label: message_digest_header_syntax
     snippet: This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields.
     cited_by:
