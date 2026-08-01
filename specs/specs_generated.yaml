@@ -436,6 +436,22 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
       line: 28
+- label: RFC 3230
+  url: https://www.rfc-editor.org/rfc/rfc3230.txt
+  type: text/plain
+  fragments:
+  - label: message_digest_header_syntax
+    section: § 4.1.1
+    snippet: All digest-algorithm values are case-insensitive.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_digest_header_syntax.rs
+      line: 102
+  - label: message_digest_header_syntax (2)
+    section: § 4.1.1
+    snippet: digest-algorithm = token
+    cited_by:
+    - file: lint-http-rules/src/rules/message_digest_header_syntax.rs
+      line: 101
 - label: RFC 3986
   url: https://www.rfc-editor.org/rfc/rfc3986.txt
   type: text/plain
@@ -920,6 +936,15 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
       line: 88
+- label: RFC 7231
+  url: https://www.rfc-editor.org/rfc/rfc7231.txt
+  type: text/plain
+  fragments:
+  - label: message_digest_header_syntax
+    snippet: The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_digest_header_syntax.rs
+      line: 508
 - label: RFC 7239
   url: https://www.rfc-editor.org/rfc/rfc7239.txt
   type: text/plain
@@ -2818,8 +2843,43 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_content_md5_vs_digest_preference.rs
       line: 31
+  - label: message_digest_header_syntax
+    snippet: This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields.
+    cited_by:
     - file: lint-http-rules/src/rules/message_digest_header_syntax.rs
-      line: 34
+      line: 254
+    - file: lint-http-rules/src/rules/message_digest_header_syntax.rs
+      line: 286
+  - label: message_digest_header_syntax (2)
+    section: § 2
+    snippet: 'It is a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]), where each:'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_digest_header_syntax.rs
+      line: 127
+  - label: message_digest_header_syntax (3)
+    section: § 2
+    snippet: key conveys the hashing algorithm (see Section 5) used to compute the digest;
+    cited_by:
+    - file: lint-http-rules/src/rules/message_digest_header_syntax.rs
+      line: 147
+  - label: message_digest_header_syntax (4)
+    section: § 2
+    snippet: value is a Byte Sequence (Section 3.3.5 of [STRUCTURED-FIELDS]) that conveys an encoded version of the byte output produced by the digest calculation.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_digest_header_syntax.rs
+      line: 159
+  - label: message_digest_header_syntax (5)
+    section: § 4
+    snippet: 'Want-Content-Digest and Want-Repr-Digest are of type Dictionary where each:'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_digest_header_syntax.rs
+      line: 190
+  - label: message_digest_header_syntax (6)
+    section: § 4
+    snippet: value is an Integer (Section 3.3.1 of [STRUCTURED-FIELDS]) that conveys an ascending, relative, weighted preference. It must be in the range 0 to 10 inclusive.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_digest_header_syntax.rs
+      line: 214
 - label: RFC 9651
   url: https://www.rfc-editor.org/rfc/rfc9651.txt
   type: text/plain
