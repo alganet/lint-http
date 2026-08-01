@@ -38,21 +38,32 @@ pub fn contains_whitespace(s: &str) -> bool {
     s.chars().any(|c| c.is_ascii_whitespace())
 }
 
-/// Validate a potential scheme (characters before the first ':').
+/// Validate a potential scheme (the characters before a scheme-delimiting ':').
 /// Returns `Some(msg)` on invalid scheme, `None` if OK or no scheme present.
 pub fn validate_scheme_if_present(s: &str) -> Option<String> {
-    if let Some(colon) = s.find(':') {
-        let scheme = &s[..colon];
-        let mut chars = scheme.chars();
-        if let Some(first) = chars.next() {
-            if !first.is_ascii_alphabetic() {
-                return Some(format!("Invalid scheme in value: '{}'", scheme));
-            }
-        }
-        for c in chars {
-            if !(c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.') {
-                return Some(format!("Invalid character '{}' in scheme '{}'", c, scheme));
-            }
+    // Only a colon in the *first* component can delimit a scheme. A colon is an
+    // ordinary path or query character, so the scan stops at the first "/", "?"
+    // or "#": past those delimiters a colon is data, not a scheme separator.
+    // cite(RFC 3986 § 3.3): "pchar         = unreserved / pct-encoded / sub-delims / ":" / "@""
+    // cite(RFC 3986 § 4.2): "A path segment that contains a colon character (e.g., "this:that") cannot be used as the first segment of a relative-path reference, as it would be mistaken for a scheme name."
+    let first_component = &s[..s.find(['/', '?', '#']).unwrap_or(s.len())];
+    let colon = first_component.find(':')?;
+
+    let scheme = &s[..colon];
+    // cite(RFC 3986 § 3.1): "scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )"
+    let mut chars = scheme.chars();
+    // `1*` — the production requires a leading ALPHA, so an empty scheme (a
+    // value opening with ':') satisfies neither it nor `segment-nz-nc`, which
+    // excludes ':' and so cannot start a relative-path reference either.
+    let Some(first) = chars.next() else {
+        return Some("Invalid scheme in value: scheme must not be empty".into());
+    };
+    if !first.is_ascii_alphabetic() {
+        return Some(format!("Invalid scheme in value: '{}'", scheme));
+    }
+    for c in chars {
+        if !(c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.') {
+            return Some(format!("Invalid character '{}' in scheme '{}'", c, scheme));
         }
     }
     None
@@ -335,6 +346,27 @@ mod tests {
         assert!(validate_scheme_if_present("ht!tp://ex").is_some());
         assert!(validate_scheme_if_present("/relative").is_none());
         assert!(validate_scheme_if_present("https://ex").is_none());
+    }
+
+    #[test]
+    fn colon_inside_a_path_or_query_is_not_a_scheme_delimiter() {
+        // `pchar` admits ':' inside a segment, so these are all well-formed
+        // absolute-path references with no scheme at all.
+        assert_eq!(validate_scheme_if_present("/foo:bar"), None);
+        assert_eq!(validate_scheme_if_present("/v1/entities/x:batchGet"), None);
+        assert_eq!(validate_scheme_if_present("/users/urn:uuid:1"), None);
+        assert_eq!(validate_scheme_if_present("/a?x=b:c"), None);
+        assert_eq!(validate_scheme_if_present("/a#f:g"), None);
+        // A colon in the first segment of a relative-path reference *is* read
+        // as a scheme, which is why RFC 3986 forbids it there.
+        assert!(validate_scheme_if_present("this:that").is_none());
+        assert!(validate_scheme_if_present("1this:that").is_some());
+    }
+
+    #[test]
+    fn empty_scheme_is_rejected() {
+        let m = validate_scheme_if_present(":foo").expect("empty scheme must be flagged");
+        assert!(m.contains("must not be empty"));
     }
 
     #[test]

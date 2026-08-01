@@ -494,6 +494,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/ipv6.rs
       line: 78
+  - label: lint-http-rules/src/helpers/uri.rs
+    section: § 3.1
+    snippet: scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 53
+  - label: lint-http-rules/src/helpers/uri.rs (2)
+    section: § 3.3
+    snippet: pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 47
+  - label: lint-http-rules/src/helpers/uri.rs (3)
+    section: § 4.2
+    snippet: A path segment that contains a colon character (e.g., "this:that") cannot be used as the first segment of a relative-path reference, as it would be mistaken for a scheme name.
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 48
   - label: message_http3_host_authority_consistency
     section: § 3.2.2
     snippet: Although host is case-insensitive, producers and normalizers should use lowercase for registered names and hexadecimal addresses for the sake of uniformity
@@ -759,13 +777,13 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1420
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 103
+      line: 114
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 96
+      line: 107
 - label: RFC 6455
   url: https://www.rfc-editor.org/rfc/rfc6455.txt
   type: text/plain
@@ -2630,9 +2648,9 @@ sources:
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 146
+      line: 157
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 209
+      line: 220
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 30
   - label: message_content_length_vs_transfer_encoding
