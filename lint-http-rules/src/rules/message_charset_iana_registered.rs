@@ -95,7 +95,14 @@ impl Rule for MessageCharsetIanaRegistered {
             };
 
             if let Some(params) = parsed.params {
-                for raw in params.split(';') {
+                // Quote-aware, because a `;` inside a quoted parameter value does
+                // not separate parameters. A raw `split(';')` cut such a value in
+                // half and then read the halves as parameters of their own, so a
+                // boundary like `boundary="x; charset=bogus"` produced a charset
+                // finding for a message that has no charset parameter at all.
+                // Every other rule that walks media-type parameters already uses
+                // this helper; this one was the exception.
+                for raw in crate::helpers::headers::split_semicolons_respecting_quotes(params) {
                     let p = raw.trim();
                     if p.is_empty() {
                         continue;
@@ -287,6 +294,16 @@ mod tests {
     #[case(Some("text/plain; charset=us!ascii"), true)]
     #[case(Some("text/plain; charset=\"UTF-8\""), false)]
     #[case(Some("text/plain; charset=\"\""), true)]
+    // A ";" inside a quoted parameter value does not start a new parameter.
+    // These have no charset parameter at all, so there is nothing to report.
+    #[case(Some("multipart/form-data; boundary=\"x; charset=bogus\""), false)]
+    #[case(Some("multipart/form-data; boundary=\"x; charset=utf-8\""), false)]
+    // A real charset whose quoted value contains ";" is read whole, so the
+    // verdict is "unrecognized", not "malformed quoted-string".
+    #[case(Some("text/plain; charset=\"a;b\""), true)]
+    // Still found when it follows a quoted value carrying a ";".
+    #[case(Some("multipart/form-data; boundary=\"a;b\"; charset=utf-8"), false)]
+    #[case(Some("multipart/form-data; boundary=\"a;b\"; charset=bogus"), true)]
     #[case(None, false)]
     fn check_response_cases(
         #[case] ct: Option<&str>,
