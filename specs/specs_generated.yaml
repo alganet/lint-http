@@ -947,7 +947,7 @@ sources:
     snippet: it specified a suffix (in that case, "+xml") to be appended to the base subtype name.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
-      line: 121
+      line: 136
   - label: message_media_type_suffix_validity
     section: § 4.2.8
     snippet: Media types that make use of a named structured syntax SHOULD use the appropriate registered "+suffix" for that structured syntax
@@ -1812,7 +1812,15 @@ sources:
     snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
-      line: 90
+      line: 112
+  - label: message_content_type_iana_registered (2)
+    section: § 8.3.1
+    snippet: The type and subtype tokens are case-insensitive.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
+      line: 98
+    - file: lint-http-rules/src/rules/server_charset_specification.rs
+      line: 40
   - label: message_date_and_time_headers_consistency
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated
@@ -2072,12 +2080,6 @@ sources:
     - file: lint-http-rules/src/rules/server_authentication_challenge_validity.rs
       line: 90
   - label: server_charset_specification
-    section: § 8.3.1
-    snippet: The type and subtype tokens are case-insensitive.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_charset_specification.rs
-      line: 40
-  - label: server_charset_specification (2)
     section: § 8.3.2
     snippet: HTTP uses "charset" names to indicate or negotiate the character encoding scheme
     cited_by:

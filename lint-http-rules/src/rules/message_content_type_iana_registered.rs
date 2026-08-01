@@ -87,14 +87,29 @@ impl Rule for MessageContentTypeIanaRegistered {
         let check_media_type =
             |hdr_name: &str, val: &str, allowed: &Vec<String>| -> Option<Violation> {
                 // Parse media-type; if it fails, let other rules (well-formed) report it.
-                // cite(RFC 9110 § 8.3.1): "Media types ought to be registered with IANA according to the procedures defined in [BCP13]."
                 let parsed = match crate::helpers::headers::parse_media_type(val) {
                     Ok(p) => p,
                     Err(_) => return None,
                 };
+                // Folded to lowercase before every comparison below because the
+                // grammar's tokens are case-insensitive, so `TEXT/PLAIN` and
+                // `text/plain` must reach the same verdict. (The config values are
+                // lowercased at parse time for the same reason.)
+                // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
                 let t = parsed.type_.to_ascii_lowercase();
                 let s = parsed.subtype.to_ascii_lowercase();
                 let full = format!("{}/{}", t, s);
+
+                // What follows is an *allowlist* match, not a registry lookup, and the
+                // rule's name oversells it. The sentence below is why such a rule is
+                // wanted — registration is the thing worth encouraging — but it is an
+                // "ought to", it is addressed to people defining media types, and
+                // nothing here consults the IANA registry. An operator's list stands in
+                // for it: entries can be exact (`text/plain`), a type wildcard
+                // (`image/*`), `*/*`, or a structured-syntax suffix (`+json`). The
+                // wildcard and suffix forms are configuration conveniences with no
+                // basis in any specification.
+                // cite(RFC 9110 § 8.3.1): "Media types ought to be registered with IANA according to the procedures defined in [BCP13]."
 
                 for pat in allowed {
                     if pat == "*/*" || pat == &full {
@@ -160,28 +175,28 @@ impl Rule for MessageContentTypeIanaRegistered {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks that `Content-Type` media types (both requests and responses) are either a known, allowed media type or match an explicitly configured allowlist. This helps flag unregistered or accidental vendor types that may cause interoperability problems."
+        "This rule checks that `Content-Type` media types (in both requests and responses) appear in an allowlist you configure. It helps flag unregistered or accidental vendor types that may cause interoperability problems.\n\n**It does not consult the IANA registry**, despite the rule's name: there is no lookup, and a media type is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. RFC 9110 says media types *ought to* be registered, which is the motivation for the rule, but the check itself is your policy.\n\nEntries may be exact (`text/plain`), a type wildcard (`image/*`), `*/*`, or a structured syntax suffix (`+json`, matching `application/vnd.example+json` but not `application/json` or `text/notjson`). The wildcard and suffix forms are conveniences of this configuration, not media-type syntax. Comparisons are case-insensitive."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-                note: "Content-Type header and media type syntax",
+                section: Some("8.3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
+                note: "`media-type` syntax, the case-insensitivity of its tokens, and the \"ought to be registered with IANA\" guidance that motivates this rule — guidance, not a requirement, and not something this rule verifies",
             },
             crate::rules::SpecRef {
                 spec: "RFC 6838",
-                section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc6838.html",
-                note: "Media Type specifications and registration procedures (IANA)",
+                section: Some("4.2.8"),
+                url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8",
+                note: "Structured syntax suffixes — a suffix is appended to a base subtype after a `+`, which is what a `+json` allowlist entry matches",
             },
             crate::rules::SpecRef {
                 spec: "IANA Media Types",
                 section: None,
                 url: "https://www.iana.org/assignments/media-types/media-types.xhtml",
-                note: "IANA Media Types Registry",
+                note: "The registry this rule is named after but does not read; the configured `allowed` array stands in for it",
             },
         ]
     }
