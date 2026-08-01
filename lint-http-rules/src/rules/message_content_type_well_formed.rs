@@ -57,12 +57,18 @@ impl Rule for MessageContentTypeWellFormed {
             // cite(RFC 9110 § 8.3): "Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list."
             // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            // This returns before any value is validated, and that is the
+            // choice: a rule yields one violation, and when two field lines are
+            // present the question of *which value applies* comes before the
+            // question of whether a value is well formed. Naming the malformed
+            // one would imply the recipient reads it, which is the thing §8.3
+            // says cannot be assumed.
             if vals.len() > 1 {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
                     message: format!(
-                        "Multiple Content-Type header fields in the {}; Content-Type is a singleton field (RFC 9110 §8.3) and recipients differ over which member wins, so the media type the peer acts on is not the one this message states",
+                        "Multiple Content-Type field lines in the {}; Content-Type is a singleton field (RFC 9110 §8.3) and recipients differ over which member wins, so the media type the peer acts on is not the one this message states. Individual values are not validated while more than one is present",
                         which
                     ),
                 });
@@ -104,7 +110,7 @@ impl Rule for MessageContentTypeWellFormed {
     }
 
     fn description(&self) -> &'static str {
-        "Check that a `Content-Type` header — in a request or a response — reads as a valid `media-type`: a non-empty `type` and `subtype`, each a `token`, separated by `/`, followed by well-formed parameters if any are present. A parameter is a `name=value` pair whose name is a `token` and whose value is a `token` or a `quoted-string`; a trailing `;` with nothing after it is fine, since the grammar brackets each parameter as optional.\n\n**More than one `Content-Type` field line is reported.** RFC 9110 §8.3 calls Content-Type a singleton and says duplicated ones are handled by recipients \"using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors\" — so the media type a peer acts on is not the one the message states. Header and trailer sections are counted together.\n\n**A wildcard is reported**, though `*` is a legal `token` and `*/plain` parses. The asterisk belongs to `media-range`, the Accept-side production for naming a *set* of media types; a Content-Type saying `*/*` identifies no representation. This is the rule's judgement rather than a grammar violation.\n\n**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `charset =utf-8` is accepted. It never causes a false report, only a missed one."
+        "Check that a `Content-Type` header — in a request or a response — reads as a valid `media-type`: a non-empty `type` and `subtype`, each a `token`, separated by `/`, followed by well-formed parameters if any are present. A parameter is a `name=value` pair whose name is a `token` and whose value is a `token` or a `quoted-string`; a trailing `;` with nothing after it is fine, since the grammar brackets each parameter as optional.\n\n**More than one `Content-Type` field line is reported.** RFC 9110 §8.3 calls Content-Type a singleton and says duplicated ones are handled by recipients \"using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors\" — so the media type a peer acts on is not the one the message states. Header and trailer sections are counted together.\n\n**A wildcard is reported**, though `*` is a legal `token` and `text/*` parses as a `media-type`. The asterisk is defined in §12.5.1 as what groups media types into *ranges* — `media-range`, which Accept takes and Content-Type does not — so a Content-Type carrying one names a set where a single media type is expected. This is the rule's judgement, not a grammar violation. (`*/plain` is rejected too, though it is not a valid `media-range` either: `media-range` allows `*/*` and `type/*`, never a wildcard type with a concrete subtype.)\n\n**Precedence:** when more than one field line is present, the duplication is reported and the individual values are not validated. A rule yields one finding, and which value applies comes before whether a value is well formed.\n\n**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `charset =utf-8` is accepted. It never causes a false report, only a missed one."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -149,10 +155,13 @@ impl Rule for MessageContentTypeWellFormed {
         // contradicts, since stacked Content-Type lines in one message are
         // themselves the defect the last example illustrates.
         &[
+            // Not a bare `text/*`: `server_charset_specification` reports a
+            // text media type with no charset, so publishing one here as
+            // compliant would contradict a sibling in the same catalogue.
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "Content-Type: text/plain",
+                snippet: "Content-Type: application/octet-stream",
             },
             Example {
                 compliance: Compliance::Compliant,
@@ -176,8 +185,8 @@ impl Rule for MessageContentTypeWellFormed {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("(wildcard belongs to Accept, not Content-Type)"),
-                snippet: "Content-Type: */plain",
+                label: Some("(a media-range names a set of types; Accept takes those, Content-Type does not)"),
+                snippet: "Content-Type: text/*",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -238,7 +247,7 @@ fn check_content_type(
             rule: MessageContentTypeWellFormed.id().into(),
             severity: config.severity,
             message: format!(
-                "Invalid Content-Type '{}': wildcard '*' not allowed in type/subtype",
+                "Content-Type '{}' uses a wildcard, which names a set of media types rather than one; a representation's Content-Type is expected to identify a single media type (wildcards belong to Accept's media-range)",
                 val
             ),
         });
@@ -430,8 +439,8 @@ mod tests {
     #[rstest]
     // Both individually valid: only the count can see this.
     #[case(&["text/plain", "application/json"], true)]
-    // The second line is the malformed one, and §8.3 says recipients often take
-    // the last valid member — checking only the first missed it entirely.
+    // A malformed second line is reported as a duplicate, not as a bad value:
+    // the count check returns first, deliberately.
     #[case(&["text/plain", "text/"], true)]
     #[case(&["text/plain"], false)]
     fn multiple_content_type_field_lines_report_violation(
@@ -475,7 +484,9 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.expect("must be reported").message.contains("Multiple"));
+        let msg = v.expect("must be reported").message;
+        // "field lines", not "header fields": one of the two is a trailer.
+        assert!(msg.contains("Multiple Content-Type field lines"), "{msg}");
     }
 
     #[rstest]
@@ -515,8 +526,12 @@ mod tests {
     }
 
     #[test]
-    fn a_malformed_second_request_line_is_reached() {
-        // Before the loop read every line, `HeaderMap::get` stopped at the first.
+    fn duplicate_report_supersedes_value_validation() {
+        // Two lines means the count check answers, and the malformed value is
+        // not named. Pinned because it is a deliberate precedence, not an
+        // accident: the earlier version of this test asserted only that the
+        // word "request" appeared, which the count message satisfies, so it
+        // would have passed with the value checks deleted entirely.
         let rule = MessageContentTypeWellFormed;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_content_type_well_formed",
@@ -534,7 +549,34 @@ mod tests {
             )
             .expect("must be reported")
             .message;
-        assert!(msg.contains("request"), "{msg}");
+        assert!(
+            msg.contains("Multiple Content-Type field lines in the request"),
+            "{msg}"
+        );
+        assert!(!msg.contains("wildcard"), "{msg}");
+    }
+
+    #[test]
+    fn a_trailer_only_content_type_is_validated() {
+        // The real gain from reading past `HeaderMap::get`: a single malformed
+        // value living in the trailer section, which was invisible before.
+        let rule = MessageContentTypeWellFormed;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_type_well_formed",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().trailers = Some(
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/")]),
+        );
+        let msg = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .expect("must be reported")
+            .message;
+        assert!(msg.contains("empty type or subtype"), "{msg}");
     }
 
     /// Every published snippet is run through the rule. Nothing else does this,
@@ -547,6 +589,7 @@ mod tests {
         let rule = MessageContentTypeWellFormed;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_content_type_well_formed",
+            "server_charset_specification",
         ]);
 
         for ex in rule.examples() {
@@ -570,18 +613,29 @@ mod tests {
             let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
             tx.response.as_mut().unwrap().headers =
                 crate::test_helpers::make_headers_from_pairs(&pairs);
-            let v = rule.check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            );
+            let history = crate::transaction_history::TransactionHistory::empty();
+            let v = rule.check_transaction(&tx, &history, &cfg);
             match ex.compliance {
                 Compliance::Compliant => {
                     assert!(
                         v.is_none(),
                         "rule rejects its Compliant example {:?}: {v:?}",
                         ex.snippet
-                    )
+                    );
+                    // A Compliant snippet must also survive the siblings that
+                    // read this header. `server_charset_specification` reports
+                    // any `text/*` carrying no charset, so a bare `text/plain`
+                    // published here as good would contradict it. (The
+                    // IANA-registry siblings are allowlist-driven and so depend
+                    // on the operator's config, not on the example.)
+                    let other =
+                        crate::rules::server_charset_specification::ServerCharsetSpecification
+                            .check_transaction(&tx, &history, &cfg);
+                    assert!(
+                        other.is_none(),
+                        "the charset rule rejects a Compliant example {:?}: {other:?}",
+                        ex.snippet
+                    );
                 }
                 Compliance::NonCompliant => {
                     assert!(
