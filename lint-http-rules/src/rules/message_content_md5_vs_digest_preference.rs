@@ -81,12 +81,12 @@ impl Rule for MessageContentMd5VsDigestPreference {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "Content-Digest: sha-256=\":dGVzdA==:\"",
+                snippet: "Content-Digest: sha-256=:dGVzdA==:",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "Content-Digest: sha-256=\":dGVzdA==:\"\nContent-MD5: dGVzdA==",
+                snippet: "Content-Digest: sha-256=:dGVzdA==:\nContent-MD5: dGVzdA==",
             },
         ]
     }
@@ -100,6 +100,43 @@ static REGISTRATION: &dyn crate::rules::Rule = &MessageContentMd5VsDigestPrefere
 mod tests {
     use super::*;
     use hyper::header::HeaderValue;
+
+    /// `gendocs` publishes `examples()` to users, but nothing runs a rule's own
+    /// snippets through the rules, so a malformed one can survive there
+    /// indefinitely — and this rule's did. Both examples carried
+    /// `Content-Digest: sha-256=":dGVzdA==:"`, whose quotes make the value a
+    /// structured-field String rather than the Byte Sequence the field requires;
+    /// the rule that owns that syntax rejects it. This rule checks only header
+    /// presence, so it could never have caught its own bad example.
+    #[test]
+    fn published_content_digest_examples_are_valid_syntax() {
+        use crate::rules::message_digest_header_syntax::MessageDigestHeaderSyntax;
+
+        let syntax_rule = MessageDigestHeaderSyntax;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[syntax_rule.id()]);
+
+        for example in MessageContentMd5VsDigestPreference.examples() {
+            for line in example.snippet.lines() {
+                let Some(value) = line.strip_prefix("Content-Digest: ") else {
+                    continue;
+                };
+                let tx = crate::test_helpers::make_test_transaction_with_response(
+                    200,
+                    &[("content-digest", value)],
+                );
+                let v = syntax_rule.check_transaction(
+                    &tx,
+                    &crate::transaction_history::TransactionHistory::empty(),
+                    &cfg,
+                );
+                assert!(
+                    v.is_none(),
+                    "published example carries a Content-Digest the syntax rule rejects: \
+                     {value:?} -> {v:?}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn both_headers_in_request_reports_violation() {
