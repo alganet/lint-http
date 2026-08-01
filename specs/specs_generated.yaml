@@ -2040,7 +2040,7 @@ sources:
     - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
       line: 98
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 252
+      line: 261
     - file: lint-http-rules/src/rules/server_charset_specification.rs
       line: 40
   - label: message_content_type_well_formed
@@ -2048,37 +2048,37 @@ sources:
     snippet: The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 235
+      line: 244
   - label: message_content_type_well_formed (2)
     section: § 5.5
     snippet: A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 78
+      line: 84
   - label: message_content_type_well_formed (3)
     section: § 5.6.6
     snippet: parameter       = parameter-name "=" parameter-value
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 343
+      line: 352
   - label: message_content_type_well_formed (4)
     section: § 5.6.6
     snippet: parameter-name  = token
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 302
+      line: 311
   - label: message_content_type_well_formed (5)
     section: § 5.6.6
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 331
+      line: 340
   - label: message_content_type_well_formed (6)
     section: § 5.6.6
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 287
+      line: 296
   - label: message_content_type_well_formed (7)
     section: § 8.3
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
@@ -2110,13 +2110,13 @@ sources:
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 278
+      line: 287
   - label: message_content_type_well_formed (12)
     section: § 8.3.1
     snippet: type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 251
+      line: 260
   - label: message_date_and_time_headers_consistency
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated
