@@ -2608,7 +2608,19 @@ sources:
     snippet: A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_length_vs_transfer_encoding.rs
-      line: 27
+      line: 28
+  - label: message_content_length_vs_transfer_encoding (2)
+    section: § 6.3
+    snippet: An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_length_vs_transfer_encoding.rs
+      line: 37
+  - label: message_content_length_vs_transfer_encoding (3)
+    section: § 6.3
+    snippet: If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_length_vs_transfer_encoding.rs
+      line: 36
   - label: message_content_transfer_encoding_valid
     section: § B.5
     snippet: HTTP does not use the Content-Transfer-Encoding field of MIME.
