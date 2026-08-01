@@ -1783,6 +1783,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
       line: 101
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 39
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 77
     - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
@@ -1856,11 +1858,19 @@ sources:
     - file: lint-http-rules/src/rules/message_content_length.rs
       line: 32
   - label: message_content_location_and_uri_consistency
+    section: § 5.5
+    snippet: Fields that only anticipate a single member as the field value are referred to as "singleton fields".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 38
+  - label: message_content_location_and_uri_consistency (2)
     section: § 8.7
     snippet: Content-Location = absolute-URI / partial-URI
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 48
+      line: 37
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 66
   - label: message_content_type_iana_registered
     section: § 8.3.1
     snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].

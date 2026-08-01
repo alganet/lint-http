@@ -27,7 +27,25 @@ impl Rule for MessageContentLocationAndUriConsistency {
             return None;
         };
 
-        for hv in resp.headers.get_all("content-location") {
+        let vals: Vec<_> = resp.headers.get_all("content-location").iter().collect();
+
+        // Neither alternative of the grammar is a `#(...)` list, so the §5.3 exception
+        // does not apply and a message carries at most one Content-Location field line.
+        // The damage is quiet rather than loud: "," is a legal sub-delim inside a path
+        // and query, so a recipient combining two field lines gets "/a,/b" — a
+        // well-formed URI that identifies neither representation.
+        // cite(RFC 9110 § 8.7): "Content-Location = absolute-URI / partial-URI"
+        // cite(RFC 9110 § 5.5): "Fields that only anticipate a single member as the field value are referred to as "singleton fields"."
+        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+        if vals.len() > 1 {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: "Multiple Content-Location header fields present; Content-Location is a singleton field with no list alternative (RFC 9110 §8.7), so a message carries at most one Content-Location field line (RFC 9110 §5.3)".into(),
+            });
+        }
+
+        for hv in vals {
             // UTF-8 check
             let Ok(s) = hv.to_str() else {
                 return Some(Violation {
@@ -317,6 +335,28 @@ mod tests {
             &cfg,
         );
         assert!(v.is_none());
+    }
+
+    #[test]
+    fn multiple_content_location_field_lines_report_violation() {
+        let rule = MessageContentLocationAndUriConsistency;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_location_and_uri_consistency",
+        ]);
+        // Both lines are individually well-formed and the first even matches the
+        // target, so nothing else in the rule can catch this.
+        let tx = make_tx_with_req_uri(
+            "/foo",
+            200,
+            &[("content-location", "/foo"), ("content-location", "/bar")],
+        );
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("Multiple Content-Location"));
     }
 
     #[test]
