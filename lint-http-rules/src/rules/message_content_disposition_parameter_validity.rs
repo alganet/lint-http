@@ -147,7 +147,9 @@ impl Rule for MessageContentDispositionParameterValidity {
                         });
                     }
                 } else if is_ext && name.eq_ignore_ascii_case("filename*") {
-                    // ext-value (RFC 5987)
+                    // ext-value, whose grammar `validate_ext_value` owns. The pointer
+                    // here said RFC 5987; RFC 8187 obsoletes it and moved it to
+                    // Historic, though the production itself is byte-for-byte the same.
                     if let Err(e) = crate::helpers::headers::validate_ext_value(val) {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -269,7 +271,7 @@ impl Rule for MessageContentDispositionParameterValidity {
     }
 
     fn description(&self) -> &'static str {
-        "`Content-Disposition` parameters provide metadata about how to handle a payload (for example, the suggested filename). Malformed parameters can break user agents or enable confusing behavior. This rule validates parameter name syntax and performs focused checks on common parameters:\n\n- `filename` — must be a `token` or a valid `quoted-string`.\n- `filename*` — must be a valid RFC 5987 `ext-value` (e.g., `UTF-8''%e2%82%ac%20rates`).\n- `size` — must be a numeric value (digits only), optionally quoted.\n\nWhen a parameter value is syntactically invalid, the rule raises a `warn`-level violation by default."
+        "`Content-Disposition` parameters provide metadata about how to handle a payload (for example, the suggested filename). Malformed parameters can break user agents or enable confusing behavior. This rule validates parameter name syntax and performs focused checks on common parameters:\n\n- `filename` — must be a `token` or a valid `quoted-string`.\n- `filename*` — must be a valid RFC 8187 `ext-value` (e.g., `UTF-8''%e2%82%ac%20rates`).\n- `size` — must be a numeric value (digits only), optionally quoted.\n\nWhen a parameter value is syntactically invalid, the rule raises a `warn`-level violation by default."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -281,16 +283,22 @@ impl Rule for MessageContentDispositionParameterValidity {
                 note: "Use of `Content-Disposition` in HTTP (parameters, `filename`, `filename*`, `size` notes)",
             },
             crate::rules::SpecRef {
-                spec: "RFC 5987",
-                section: Some("3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc5987.html#section-3.2",
-                note: "`ext-value` syntax used for `filename*`",
+                spec: "RFC 8187",
+                section: Some("3.2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc8187.html#section-3.2.1",
+                note: "`ext-value` syntax used for `filename*` (obsoletes RFC 5987, which this reference named; the production is unchanged)",
             },
             crate::rules::SpecRef {
-                spec: "RFC 2616",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc2616.html#section-2.2",
-                note: "`token` and `quoted-string` definitions (§2.2/§3.6)",
+                spec: "RFC 9110",
+                section: Some("5.6.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+                note: "`token`, which an unquoted parameter value must match (this reference named RFC 2616, long obsolete — the production is alive and well here)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.6.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4",
+                note: "`quoted-string`, the other permitted parameter-value form",
             },
         ]
     }
