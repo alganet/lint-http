@@ -16,7 +16,11 @@ For 2xx responses the rule additionally compares the value against the request t
 
 ## Specifications
 
-- [RFC 9110 §8.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7): Content-Location
+- [RFC 9110 §8.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7): Content-Location: the grammar, and what a value equal to or different from the target URI means. Attaches no requirement to a difference, which is why the mismatch report is an advisory
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order: a sender MUST NOT emit multiple field lines for a field with no comma-separated-list alternative
+- [RFC 9110 §5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5): Field Values: singleton fields, and the US-ASCII range field values are constrained to
+- [RFC 3986 §5.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-5.2): Relative Resolution: the transform, merge and remove_dot_segments routines used to convert a partial-URI to absolute form before comparing it
+- [RFC 3986 §6.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2): Syntax-Based Normalization: scheme and host fold case, the remaining components do not, and dot-segments are removed before comparison
 
 ## Configuration
 

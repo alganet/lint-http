@@ -495,55 +495,85 @@ sources:
     - file: lint-http-rules/src/helpers/ipv6.rs
       line: 78
   - label: lint-http-rules/src/helpers/uri.rs
+    section: § 2.1
+    snippet: A percent-encoded octet is encoded as a character triplet, consisting of the percent character "%" followed by the two hexadecimal digits representing that octet's numeric value.
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 14
+  - label: lint-http-rules/src/helpers/uri.rs (2)
+    section: § 2.1
+    snippet: pct-encoded = "%" HEXDIG HEXDIG
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 13
+  - label: lint-http-rules/src/helpers/uri.rs (3)
     section: § 3.1
     snippet: scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 58
+      line: 64
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 85
-  - label: lint-http-rules/src/helpers/uri.rs (2)
+      line: 91
+  - label: lint-http-rules/src/helpers/uri.rs (4)
     section: § 3.3
     snippet: pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 52
-  - label: lint-http-rules/src/helpers/uri.rs (3)
+      line: 58
+  - label: lint-http-rules/src/helpers/uri.rs (5)
     section: § 4.2
     snippet: A path segment that contains a colon character (e.g., "this:that") cannot be used as the first segment of a relative-path reference, as it would be mistaken for a scheme name.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 53
-  - label: lint-http-rules/src/helpers/uri.rs (4)
+      line: 59
+  - label: lint-http-rules/src/helpers/uri.rs (6)
     section: § 4.2
     snippet: A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 423
-  - label: lint-http-rules/src/helpers/uri.rs (5)
+      line: 429
+  - label: lint-http-rules/src/helpers/uri.rs (7)
     section: § 5.2.3
     snippet: If the base URI has a defined authority component and an empty path, then return a string consisting of "/" concatenated with the reference's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 400
-  - label: lint-http-rules/src/helpers/uri.rs (6)
+      line: 406
+  - label: lint-http-rules/src/helpers/uri.rs (8)
     section: § 5.2.3
     snippet: return a string consisting of the reference's path component appended to all but the last segment of the base URI's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 404
-  - label: lint-http-rules/src/helpers/uri.rs (7)
+      line: 410
+  - label: lint-http-rules/src/helpers/uri.rs (9)
     section: § 5.2.4
     snippet: This is done after the path is extracted from a reference, whether or not the path was relative, in order to remove any invalid or extraneous dot-segments prior to forming the target URI.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 342
-  - label: lint-http-rules/src/helpers/uri.rs (8)
+      line: 348
+  - label: lint-http-rules/src/helpers/uri.rs (10)
     section: § 6.2.2.3
     snippet: URI normalizers should remove dot-segments by applying the remove_dot_segments algorithm to the path, as described in Section 5.2.4.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 391
+      line: 397
+  - label: message_content_location_and_uri_consistency
+    section: § 2
+    snippet: A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 90
+  - label: message_content_location_and_uri_consistency (2)
+    section: § 6.2.2.1
+    snippet: The other generic syntax components are assumed to be case-sensitive unless specifically defined otherwise by the scheme (see Section 6.2.3).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 158
+  - label: message_content_location_and_uri_consistency (3)
+    section: § 6.2.2.1
+    snippet: the scheme and host are case-insensitive and therefore should be normalized to lowercase
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 157
   - label: message_http3_host_authority_consistency
     section: § 3.2.2
     snippet: Although host is case-insensitive, producers and normalizers should use lowercase for registered names and hexadecimal addresses for the sake of uniformity
@@ -809,13 +839,13 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1420
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 132
+      line: 138
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 125
+      line: 131
 - label: RFC 6455
   url: https://www.rfc-editor.org/rfc/rfc6455.txt
   type: text/plain
@@ -1816,7 +1846,7 @@ sources:
     - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
       line: 101
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 39
+      line: 51
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 77
     - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
@@ -1891,18 +1921,64 @@ sources:
       line: 32
   - label: message_content_location_and_uri_consistency
     section: § 5.5
+    snippet: Field values are usually constrained to the range of US-ASCII characters [USASCII].
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 63
+  - label: message_content_location_and_uri_consistency (2)
+    section: § 5.5
     snippet: Fields that only anticipate a single member as the field value are referred to as "singleton fields".
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 38
-  - label: message_content_location_and_uri_consistency (2)
+      line: 50
+  - label: message_content_location_and_uri_consistency (3)
     section: § 8.7
     snippet: Content-Location = absolute-URI / partial-URI
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 37
+      line: 49
+  - label: message_content_location_and_uri_consistency (4)
+    section: § 8.7
+    snippet: For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation.
+    cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 66
+      line: 180
+  - label: message_content_location_and_uri_consistency (5)
+    section: § 8.7
+    snippet: If Content-Location is included in a 2xx (Successful) response message and its field value refers to a URI that differs from the target URI, then the origin server claims that the URI is an identifier for a different resource corresponding to the enclosed representation.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 179
+  - label: message_content_location_and_uri_consistency (6)
+    section: § 8.7
+    snippet: If Content-Location is included in a 2xx (Successful) response message and its value refers (after conversion to absolute form) to a URI that is the same as the target URI, then the recipient MAY consider the content to be a current representation of that resource at the time indicated by the message origination date.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 122
+  - label: message_content_location_and_uri_consistency (7)
+    section: § 8.7
+    snippet: In the latter case (Section 4), the referenced URI is relative to the target URI ([URI], Section 5).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 144
+  - label: message_content_location_and_uri_consistency (8)
+    section: § 8.7
+    snippet: Such a claim can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 181
+  - label: message_content_location_and_uri_consistency (9)
+    section: § 8.7
+    snippet: The "Content-Location" header field references a URI that can be used as an identifier for a specific resource corresponding to the representation in this message's content.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 41
+  - label: message_content_location_and_uri_consistency (10)
+    section: § 8.7
+    snippet: The field value is either an absolute-URI or a partial-URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 89
   - label: message_content_type_iana_registered
     section: § 8.3.1
     snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].
@@ -2690,9 +2766,9 @@ sources:
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 175
+      line: 181
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 238
+      line: 244
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 30
   - label: message_content_length_vs_transfer_encoding

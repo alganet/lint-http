@@ -12,6 +12,14 @@ impl Rule for MessageContentLocationAndUriConsistency {
         "message_content_location_and_uri_consistency"
     }
 
+    // §8.7 defines Content-Location in both directions — a user agent may send it
+    // in a request as "a back link to the source of the original representation" —
+    // so Server scope is narrower than the field. It is a deliberate choice, not
+    // something the section licenses: the request-side requirements it states are
+    // about what an origin server does with the value internally ("MUST treat the
+    // information as transitory request context", "MUST NOT use such context
+    // information to alter the request semantics"), which no observer of the wire
+    // can check, and the syntax half is the same in both directions.
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -27,6 +35,10 @@ impl Rule for MessageContentLocationAndUriConsistency {
             return None;
         };
 
+        // The field this rule recognizes, and the reason a mismatch is worth
+        // saying anything about at all: the value is a claim about *which*
+        // resource the enclosed representation belongs to.
+        // cite(RFC 9110 § 8.7): "The "Content-Location" header field references a URI that can be used as an identifier for a specific resource corresponding to the representation in this message's content."
         let vals: Vec<_> = resp.headers.get_all("content-location").iter().collect();
 
         // Neither alternative of the grammar is a `#(...)` list, so the §5.3 exception
@@ -46,7 +58,9 @@ impl Rule for MessageContentLocationAndUriConsistency {
         }
 
         for hv in vals {
-            // UTF-8 check
+            // `to_str` admits only visible US-ASCII, which is the range a URI is
+            // written in anyway — every octet outside it must be percent-encoded.
+            // cite(RFC 9110 § 5.5): "Field values are usually constrained to the range of US-ASCII characters [USASCII]."
             let Ok(s) = hv.to_str() else {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -55,6 +69,12 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 });
             };
 
+            // No honest quote for this one, and it is worth saying so. An empty
+            // value is a *legal* `partial-URI` — `relative-part` admits
+            // `path-empty` — and reference resolution gives it the target URI, so
+            // the grammar has no complaint. The rule is deliberately stricter:
+            // a sender that emits `Content-Location:` with nothing after it is
+            // stating nothing, and means to state something.
             if s.trim().is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -63,7 +83,11 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 });
             }
 
-            // cite(RFC 9110 § 8.7): "Content-Location = absolute-URI / partial-URI"
+            // What follows validates the value as a URI reference, which is what
+            // the field definition says it is; a URI has no room for whitespace,
+            // and SP is the canonical example of an octet that must be encoded.
+            // cite(RFC 9110 § 8.7): "The field value is either an absolute-URI or a partial-URI."
+            // cite(RFC 3986 § 2): "A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols."
             if crate::helpers::uri::contains_whitespace(s) {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -72,6 +96,8 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 });
             }
 
+            // The `pct-encoded` production and the `scheme` production are the
+            // helpers' to state; both carry the grammar at their definitions.
             if let Some(msg) = crate::helpers::uri::check_percent_encoding(s) {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -80,6 +106,8 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 });
             }
 
+            // Only the `absolute-URI` alternative has a scheme; the helper is a
+            // no-op on a `partial-URI`, which is why nothing here gates on form.
             if let Some(msg) = crate::helpers::uri::validate_scheme_if_present(s) {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -88,26 +116,32 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 });
             }
 
-            // The comparison the spec asks for is between the target URI and the
-            // Content-Location *after conversion to absolute form*, and it is
-            // scoped to 2xx.
+            // Both halves of the gate come from one sentence: the comparison is
+            // scoped to 2xx, and it is a comparison of the value *after
+            // conversion to absolute form*, not of the two strings.
+            // cite(RFC 9110 § 8.7): "If Content-Location is included in a 2xx (Successful) response message and its value refers (after conversion to absolute form) to a URI that is the same as the target URI, then the recipient MAY consider the content to be a current representation of that resource at the time indicated by the message origination date."
             if (200..300).contains(&resp.status) {
                 // Request path (if any) — preserve query when present and ignore fragment
                 let req_path_opt = crate::helpers::uri::extract_path_and_query_from_request_target(
                     &tx.request.uri,
                 );
 
-                // If the request-target carries no path (authority-form or '*'), skip the consistency check
+                // Two of the four request-target forms carry no path, so there is
+                // no target URI to resolve against and nothing to compare. The
+                // form grammar is the helper's to state; skipping is this rule's
+                // choice, and no sentence demands it.
                 let Some(req_path) = req_path_opt else {
                     continue;
                 };
+                // Both sides are normalized before they meet, so a target URI
+                // that itself carries dot-segments does not read as a different
+                // resource than an equivalent Content-Location.
                 let req_path = crate::helpers::uri::normalize_path_and_query(&req_path);
 
-                // The value may be a partial-URI, which means nothing on its own:
-                // it names a resource only once resolved against the target URI.
-                // Comparing the two as raw strings reports every relative form as
-                // a different resource, including one that resolves right back to
-                // the target.
+                // "Conversion to absolute form", concretely: a `partial-URI`
+                // means nothing on its own — it names a resource only once
+                // resolved against the target URI.
+                // cite(RFC 9110 § 8.7): "In the latter case (Section 4), the referenced URI is relative to the target URI ([URI], Section 5)."
                 let cl_path_opt =
                     crate::helpers::uri::resolve_reference_path_and_query(&req_path, s);
 
@@ -118,8 +152,10 @@ impl Rule for MessageContentLocationAndUriConsistency {
 
                 let mut matches = false;
                 if let Some(cl_path) = cl_path_opt.as_deref() {
-                    // Scheme and host fold case; everything else in a URI does not,
-                    // so the path and query compare byte for byte.
+                    // Scheme and host fold case; the path and query do not, so
+                    // they compare byte for byte. Both halves are one sentence.
+                    // cite(RFC 3986 § 6.2.2.1): "the scheme and host are case-insensitive and therefore should be normalized to lowercase"
+                    // cite(RFC 3986 § 6.2.2.1): "The other generic syntax components are assumed to be case-sensitive unless specifically defined otherwise by the scheme (see Section 6.2.3)."
                     let origins_agree = match (req_origin_opt.as_deref(), cl_origin_opt.as_deref())
                     {
                         (Some(req_origin), Some(cl_origin)) => {
@@ -128,12 +164,21 @@ impl Rule for MessageContentLocationAndUriConsistency {
                         // Only one side is in absolute form. An origin-form
                         // request-target keeps the target URI's authority in
                         // Host, which this rule does not reach, so the paths
-                        // decide alone.
+                        // decide alone. A tolerance, not a licensed skip.
                         _ => true,
                     };
                     matches = origins_agree && req_path == cl_path;
                 }
 
+                // This is the one branch in the rule that reports something the
+                // spec permits, which is why it ships as an advisory. §8.7 gives
+                // the difference a meaning rather than forbidding it, and the
+                // first of the three meanings it lists — a negotiated variant —
+                // is the header's primary use. What makes it worth a human's
+                // glance is the sentence after: the claim is unverifiable.
+                // cite(RFC 9110 § 8.7): "If Content-Location is included in a 2xx (Successful) response message and its field value refers to a URI that differs from the target URI, then the origin server claims that the URI is an identifier for a different resource corresponding to the enclosed representation."
+                // cite(RFC 9110 § 8.7): "For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation."
+                // cite(RFC 9110 § 8.7): "Such a claim can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP."
                 if !matches {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -152,12 +197,38 @@ impl Rule for MessageContentLocationAndUriConsistency {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("8.7"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7",
-            note: "Content-Location",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7",
+                note: "Content-Location: the grammar, and what a value equal to or different from the target URI means. Attaches no requirement to a difference, which is why the mismatch report is an advisory",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+                note: "Field Order: a sender MUST NOT emit multiple field lines for a field with no comma-separated-list alternative",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
+                note: "Field Values: singleton fields, and the US-ASCII range field values are constrained to",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 3986",
+                section: Some("5.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-5.2",
+                note: "Relative Resolution: the transform, merge and remove_dot_segments routines used to convert a partial-URI to absolute form before comparing it",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 3986",
+                section: Some("6.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2",
+                note: "Syntax-Based Normalization: scheme and host fold case, the remaining components do not, and dot-segments are removed before comparison",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
