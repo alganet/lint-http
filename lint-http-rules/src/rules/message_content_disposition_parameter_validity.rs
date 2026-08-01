@@ -25,28 +25,20 @@ impl Rule for MessageContentDispositionParameterValidity {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // This rule owns `disposition-parm` and nothing above it. An empty field
+        // value and a missing disposition-type are defects in the part of the
+        // grammar `message_content_disposition_token_valid` owns, and it reports
+        // both — in these exact words. Reporting them here too produced two
+        // byte-identical findings for one defect, including for that rule's own
+        // published NonCompliant example. Both shapes simply leave nothing to
+        // check here, so this rule now returns quietly and lets the owner speak.
+        // cite(RFC 6266 § 4.1): "content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )"
         let check_value = |hdr_name: &str, val: &str| -> Option<Violation> {
             let s = val.trim();
-            if s.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!("{} header value must not be empty", hdr_name),
-                });
-            }
 
             let mut parts = s.splitn(2, ';');
-            let dispo = parts.next().unwrap().trim();
+            let _dispo = parts.next().unwrap_or("");
             let params_part = parts.next().map(|p| p.trim()).unwrap_or("");
-
-            // cite(RFC 6266 § 4): "The Content-Disposition response header field is used to convey additional information about how to process the response payload"
-            if dispo.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!("{} header disposition-type must not be empty", hdr_name),
-                });
-            }
 
             if params_part.is_empty() {
                 return None;
@@ -231,36 +223,28 @@ impl Rule for MessageContentDispositionParameterValidity {
             None
         };
 
-        // Check in responses
-        if let Some(resp) = &tx.response {
-            for hv in resp.headers.get_all("content-disposition").iter() {
-                if let Ok(s) = hv.to_str() {
-                    if let Some(v) = check_value("Content-Disposition", s) {
-                        return Some(v);
-                    }
-                } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Content-Disposition header value is not valid UTF-8".into(),
-                    });
-                }
-            }
-        }
-
-        // Check in requests (multipart/form-data parts etc.)
-        for hv in tx.request.headers.get_all("content-disposition").iter() {
-            if let Ok(s) = hv.to_str() {
+        // A value outside visible US-ASCII cannot be decoded, so there are no
+        // parameters to inspect. That is a message-level constraint (RFC 9110
+        // §5.5) belonging to the rule that owns the field's value, which reports
+        // it; a second identical finding from here helps nobody.
+        let check_section = |headers: &hyper::HeaderMap| -> Option<Violation> {
+            for hv in headers.get_all("content-disposition").iter() {
+                let Ok(s) = hv.to_str() else { continue };
                 if let Some(v) = check_value("Content-Disposition", s) {
                     return Some(v);
                 }
-            } else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: "Content-Disposition header value is not valid UTF-8".into(),
-                });
             }
+            None
+        };
+
+        if let Some(resp) = &tx.response {
+            if let Some(v) = check_section(&resp.headers) {
+                return Some(v);
+            }
+        }
+
+        if let Some(v) = check_section(&tx.request.headers) {
+            return Some(v);
         }
 
         None
@@ -271,7 +255,7 @@ impl Rule for MessageContentDispositionParameterValidity {
     }
 
     fn description(&self) -> &'static str {
-        "`Content-Disposition` parameters provide metadata about how to handle a payload (for example, the suggested filename). Malformed parameters can break user agents or enable confusing behavior. This rule validates parameter name syntax and performs focused checks on common parameters:\n\n- `filename` — must be a `token` or a valid `quoted-string`.\n- `filename*` — must be a valid RFC 8187 `ext-value` (e.g., `UTF-8''%e2%82%ac%20rates`).\n- `size` — must be a numeric value (digits only), optionally quoted.\n\nWhen a parameter value is syntactically invalid, the rule raises a `warn`-level violation by default."
+        "`Content-Disposition` parameters provide metadata about how to handle a payload (for example, the suggested filename). Malformed parameters can break user agents or enable confusing behavior. This rule validates parameter name syntax and performs focused checks on common parameters:\n\n- `filename` — must be a `token` or a valid `quoted-string`.\n- `filename*` — must be a valid RFC 8187 `ext-value` (e.g., `UTF-8''%e2%82%ac%20rates`).\n- `size` — must be a numeric value (digits only), optionally quoted.\n\nWhen a parameter value is syntactically invalid, the rule raises a `warn`-level violation by default.\n\n**Scope:** this rule covers `disposition-parm` and nothing above it. An empty field value, a missing `disposition-type`, more than one `Content-Disposition` field line, and a value carrying octets outside visible US-ASCII are all reported by `message_content_disposition_token_valid`, which owns that part of the grammar. Those inputs leave no parameters to inspect, so this rule stays silent on them rather than emitting a second, identical finding."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -355,8 +339,12 @@ mod tests {
         Some("attachment; filename*=UTF-8''%e2%82%ac%20rates; filename*=UTF-8''%e2%82%ac%20rates"),
         true
     )]
-    #[case(Some("   "), true)]
-    #[case(Some("; filename=\"a\""), true)]
+    // Owned by `message_content_disposition_token_valid`: an empty value and a
+    // missing disposition-type are defects above `disposition-parm`, and this
+    // rule no longer duplicates its findings. `; filename="a"` still has a
+    // well-formed parameter, so there is nothing here to report.
+    #[case(Some("   "), false)]
+    #[case(Some("; filename=\"a\""), false)]
     #[case(Some("attachment; =value"), true)]
     #[case(Some("attachment; filename=a; FILENAME=other"), true)]
     #[case(Some("attachment; title*=UTF-8''hello@world"), true)]
@@ -414,7 +402,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_header_is_violation() -> anyhow::Result<()> {
+    fn undecodable_value_is_left_to_its_owner() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = MessageContentDispositionParameterValidity;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
@@ -431,7 +419,11 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
         );
-        assert!(v.is_some());
+        // A value outside visible US-ASCII cannot be decoded, so this rule
+        // has no parameters to inspect. The message-level constraint is
+        // `message_content_disposition_token_valid`'s to report; two
+        // identical findings for one defect helped nobody.
+        assert!(v.is_none(), "{v:?}");
         Ok(())
     }
 
@@ -482,7 +474,7 @@ mod tests {
     }
 
     #[test]
-    fn request_non_utf8_header_is_violation() -> anyhow::Result<()> {
+    fn undecodable_request_value_is_left_to_its_owner() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = MessageContentDispositionParameterValidity;
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -499,7 +491,11 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
         );
-        assert!(v.is_some());
+        // A value outside visible US-ASCII cannot be decoded, so this rule
+        // has no parameters to inspect. The message-level constraint is
+        // `message_content_disposition_token_valid`'s to report; two
+        // identical findings for one defect helped nobody.
+        assert!(v.is_none(), "{v:?}");
         Ok(())
     }
 
