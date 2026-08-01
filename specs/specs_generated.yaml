@@ -1716,6 +1716,8 @@ sources:
       line: 101
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 77
+    - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
+      line: 34
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
       line: 43
     - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
@@ -1879,13 +1881,13 @@ sources:
     snippet: A delay-seconds value is a non-negative decimal integer, representing time in seconds.
     cited_by:
     - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
-      line: 48
+      line: 61
   - label: message_retry_after_date_or_delay (2)
     section: § 10.2.3
     snippet: Retry-After = HTTP-date / delay-seconds
     cited_by:
     - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
-      line: 31
+      line: 44
   - label: message_retry_after_date_or_delay (3)
     section: § 10.2.3
     snippet: Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request.
