@@ -298,6 +298,153 @@ pub fn extract_path_and_query_from_request_target(s: &str) -> Option<String> {
     None
 }
 
+/// Split a path-and-query string into its path and its query, where the query
+/// keeps its leading `?`. An absent query is `""`, distinguishing it from a
+/// present-but-empty one (`"?"`), which reference resolution treats differently.
+fn split_at_query(path_and_query: &str) -> (&str, &str) {
+    match path_and_query.find('?') {
+        Some(i) => (&path_and_query[..i], &path_and_query[i..]),
+        None => (path_and_query, ""),
+    }
+}
+
+/// Drop the last segment of an already-emitted output buffer, per step 2C of
+/// the `remove_dot_segments` routine.
+fn pop_last_segment(output: &mut String) {
+    match output.rfind('/') {
+        Some(pos) => output.truncate(pos),
+        None => output.clear(),
+    }
+}
+
+/// Remove the complete `.` and `..` path segments from `path`.
+///
+/// This is RFC 3986 §5.2.4's `remove_dot_segments` routine, transcribed
+/// step for step; the input buffer is `input` and the output buffer is `output`.
+// cite(RFC 3986 § 5.2.4): "This is done after the path is extracted from a reference, whether or not the path was relative, in order to remove any invalid or extraneous dot-segments prior to forming the target URI."
+pub fn remove_dot_segments(path: &str) -> String {
+    let mut input = path.to_string();
+    let mut output = String::new();
+
+    while !input.is_empty() {
+        // 2A — a leading "../" or "./" on a relative path resolves above the
+        // root and is simply dropped.
+        if let Some(rest) = input.strip_prefix("../") {
+            input = rest.to_string();
+        } else if let Some(rest) = input.strip_prefix("./") {
+            input = rest.to_string();
+        // 2B — "/./" and a trailing "/." collapse to "/".
+        } else if let Some(rest) = input.strip_prefix("/./") {
+            input = format!("/{rest}");
+        } else if input == "/." {
+            input = "/".to_string();
+        // 2C — "/../" and a trailing "/.." collapse to "/" and additionally
+        // remove the last segment already written out.
+        } else if let Some(rest) = input.strip_prefix("/../") {
+            input = format!("/{rest}");
+            pop_last_segment(&mut output);
+        } else if input == "/.." {
+            input = "/".to_string();
+            pop_last_segment(&mut output);
+        // 2D — a bare "." or ".." is the whole remaining path; drop it.
+        } else if input == "." || input == ".." {
+            input.clear();
+        // 2E — move the first path segment, including its leading "/" if any,
+        // to the output buffer.
+        } else {
+            let after_leading_slash = usize::from(input.starts_with('/'));
+            let seg_end = input[after_leading_slash..]
+                .find('/')
+                .map(|p| p + after_leading_slash)
+                .unwrap_or(input.len());
+            output.push_str(&input[..seg_end]);
+            input = input[seg_end..].to_string();
+        }
+    }
+
+    output
+}
+
+/// Apply syntax-based normalization to a path-and-query string: dot-segments
+/// go, the query is carried through untouched.
+///
+/// Comparing two URIs that differ only in dot-segments as if they were
+/// different resources is the mistake §6.2.2.3 calls out by name.
+// cite(RFC 3986 § 6.2.2.3): "URI normalizers should remove dot-segments by applying the remove_dot_segments algorithm to the path, as described in Section 5.2.4."
+pub fn normalize_path_and_query(path_and_query: &str) -> String {
+    let (path, query) = split_at_query(path_and_query);
+    format!("{}{}", remove_dot_segments(path), query)
+}
+
+/// Merge a relative-path reference with the path of the base URI, per RFC 3986
+/// §5.2.3.
+fn merge_paths(base_path: &str, ref_path: &str) -> String {
+    // cite(RFC 3986 § 5.2.3): "If the base URI has a defined authority component and an empty path, then return a string consisting of "/" concatenated with the reference's path"
+    if base_path.is_empty() {
+        return format!("/{ref_path}");
+    }
+    // cite(RFC 3986 § 5.2.3): "return a string consisting of the reference's path component appended to all but the last segment of the base URI's path"
+    match base_path.rfind('/') {
+        Some(i) => format!("{}{}", &base_path[..=i], ref_path),
+        None => ref_path.to_string(),
+    }
+}
+
+/// Resolve a URI reference against a base path-and-query and return the
+/// reference's effective path and query — the "conversion to absolute form"
+/// that comparing a reference against a target URI requires.
+///
+/// This is RFC 3986 §5.2.2's transform, restricted to the two components this
+/// helper compares. Returns `None` when the reference carries no comparable
+/// path of its own:
+///
+/// - a **network-path reference** (`//authority/path`), which supplies its own
+///   authority — the authority, not the path, is what decides the answer there;
+/// - a **non-hierarchical absolute URI** (`mailto:`, `urn:`), which has no path
+///   component in the generic-syntax sense.
+// cite(RFC 3986 § 4.2): "A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used."
+pub fn resolve_reference_path_and_query(
+    base_path_and_query: &str,
+    reference: &str,
+) -> Option<String> {
+    let r = reference.trim();
+    // §5.2.2 carries the reference's fragment into the target untouched; it
+    // identifies a secondary resource and is not part of the URI being compared.
+    let r = &r[..r.find('#').unwrap_or(r.len())];
+
+    if r.starts_with("//") {
+        return None;
+    }
+
+    // A reference whose first component holds a ':' defines a scheme, so it is
+    // already absolute: §5.2.2 takes its path verbatim and inherits nothing.
+    let first_component = &r[..r.find(['/', '?']).unwrap_or(r.len())];
+    if first_component.contains(':') {
+        return extract_path_and_query_from_request_target(r).map(|p| normalize_path_and_query(&p));
+    }
+
+    let (base_path, base_query) = split_at_query(base_path_and_query);
+    let (ref_path, ref_query) = split_at_query(r);
+
+    // R.path is empty: the base's path stands, and the query comes from the
+    // reference only when the reference defines one.
+    if ref_path.is_empty() {
+        let query = if ref_query.is_empty() {
+            base_query
+        } else {
+            ref_query
+        };
+        return Some(format!("{}{}", remove_dot_segments(base_path), query));
+    }
+
+    let merged = if ref_path.starts_with('/') {
+        ref_path.to_string()
+    } else {
+        merge_paths(base_path, ref_path)
+    };
+    Some(format!("{}{}", remove_dot_segments(&merged), ref_query))
+}
+
 /// Parse a query string (the portion after `?`) into a vector of
 /// `(name,value)` pairs.  Percent-encoding is **not** decoded; callers can
 /// compare values verbatim.  Empty names are permitted (they may appear in
@@ -361,6 +508,72 @@ mod tests {
         // as a scheme, which is why RFC 3986 forbids it there.
         assert!(validate_scheme_if_present("this:that").is_none());
         assert!(validate_scheme_if_present("1this:that").is_some());
+    }
+
+    #[test]
+    fn remove_dot_segments_matches_the_rfc_worked_examples() {
+        // The two examples RFC 3986 §5.2.4 works through itself.
+        assert_eq!(remove_dot_segments("/a/b/c/./../../g"), "/a/g");
+        assert_eq!(remove_dot_segments("mid/content=5/../6"), "mid/6");
+        // Degenerate inputs: ".." above the root is dropped, not carried.
+        assert_eq!(remove_dot_segments("/../foo"), "/foo");
+        assert_eq!(remove_dot_segments("/a/.."), "/");
+        assert_eq!(remove_dot_segments("/a/."), "/a/");
+        assert_eq!(remove_dot_segments("."), "");
+        assert_eq!(remove_dot_segments(""), "");
+        assert_eq!(remove_dot_segments("/foo"), "/foo");
+    }
+
+    #[test]
+    fn resolve_reference_relative_forms() {
+        // A relative-path reference naming the target itself.
+        assert_eq!(
+            resolve_reference_path_and_query("/dir/foo.html", "foo.html"),
+            Some("/dir/foo.html".into())
+        );
+        assert_eq!(
+            resolve_reference_path_and_query("/dir/foo.html", "./foo.html"),
+            Some("/dir/foo.html".into())
+        );
+        assert_eq!(
+            resolve_reference_path_and_query("/dir/sub/foo", "../foo"),
+            Some("/dir/foo".into())
+        );
+        // An absolute-path reference ignores the base path but still normalizes.
+        assert_eq!(
+            resolve_reference_path_and_query("/foo", "/a/../foo"),
+            Some("/foo".into())
+        );
+        // An empty reference is the base URI; a bare query replaces only the query.
+        assert_eq!(
+            resolve_reference_path_and_query("/foo?x=1", ""),
+            Some("/foo?x=1".into())
+        );
+        assert_eq!(
+            resolve_reference_path_and_query("/foo?x=1", "?y=2"),
+            Some("/foo?y=2".into())
+        );
+        // A fragment-only reference resolves to the base, fragment discarded.
+        assert_eq!(
+            resolve_reference_path_and_query("/foo", "#frag"),
+            Some("/foo".into())
+        );
+    }
+
+    #[test]
+    fn resolve_reference_absolute_and_uncomparable_forms() {
+        assert_eq!(
+            resolve_reference_path_and_query("/foo", "http://example.com/a/../foo?x=1"),
+            Some("/foo?x=1".into())
+        );
+        // No path component to compare.
+        assert_eq!(resolve_reference_path_and_query("/foo", "mailto:a@b"), None);
+        assert_eq!(resolve_reference_path_and_query("/foo", "urn:x:y"), None);
+        // Network-path reference: the authority decides, not the path.
+        assert_eq!(
+            resolve_reference_path_and_query("/foo", "//other.example/foo"),
+            None
+        );
     }
 
     #[test]
