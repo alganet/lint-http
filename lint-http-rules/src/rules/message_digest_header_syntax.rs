@@ -31,7 +31,12 @@ impl Rule for MessageDigestHeaderSyntax {
                                        empty_alg_fmt: &str|
          -> Result<Vec<(String, String)>, String> {
             let mut members = Vec::new();
-            // cite(RFC 9530 § 2): "The Content-Digest HTTP field can be used in requests and responses"
+            // Splitting on a bare comma is safe for every field routed through here:
+            // the Dictionary values are Byte Sequences and Integers, neither of which
+            // can contain a comma, and the legacy `Digest` value is base64, which has
+            // no comma in its alphabet either. A quote-aware split would find nothing
+            // extra. (Dictionary *parameters*, which could complicate this, are not
+            // defined for any of these fields.)
             for member in value.split(',') {
                 let m = member.trim();
                 if m.is_empty() {
@@ -71,7 +76,9 @@ impl Rule for MessageDigestHeaderSyntax {
             Ok(members)
         };
 
-        // Helper to validate legacy `Digest` header member value (alg=base64)
+        // Helper to validate legacy `Digest` header member value (alg=base64).
+        // This is the RFC 3230 shape, not a structured field: the algorithm is an
+        // ordinary token and the value is bare base64 with no `:` delimiters.
         let validate_legacy_digest = |value: &str| -> Option<String> {
             let members = match parse_key_value_members(
                 value,
@@ -88,7 +95,11 @@ impl Rule for MessageDigestHeaderSyntax {
                     return Some(format!("Digest member '{}' has empty value", alg));
                 }
 
-                // Algorithm must be a token
+                // Algorithm must be a token. RFC 3230 also makes it case-insensitive,
+                // which is why no lowercase rule is applied on this legacy path — the
+                // opposite of the structured fields below.
+                // cite(RFC 3230 § 4.1.1): "digest-algorithm = token"
+                // cite(RFC 3230 § 4.1.1): "All digest-algorithm values are case-insensitive."
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(&alg) {
                     return Some(format!(
                         "Digest algorithm contains invalid character: '{}'",
@@ -108,8 +119,12 @@ impl Rule for MessageDigestHeaderSyntax {
             None
         };
 
-        // Helper to validate new RFC 9530 fields (Content-Digest / Repr-Digest)
-        // Structured-field dictionary syntax: alg=:base64:[, alg2=:base64:]
+        // Helper to validate new RFC 9530 fields (Content-Digest / Repr-Digest).
+        // Both are Dictionaries of algorithm-key to digest-value, which is what the
+        // member loop below checks; the two fields differ only in *what* is hashed
+        // (message content vs representation data), not in syntax, so one validator
+        // serves both.
+        // cite(RFC 9530 § 2): "It is a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]), where each:"
         let validate_structured_digest = |value: &str| -> Option<String> {
             let members = match parse_key_value_members(
                 value,
@@ -127,7 +142,9 @@ impl Rule for MessageDigestHeaderSyntax {
                 // deployment is likely to take — RFC 3230's `digest-algorithm = token`
                 // is case-insensitive and its registry spells the algorithms `SHA-256`,
                 // `MD5`, so carrying that spelling across to Content-Digest produces a
-                // field no structured-field parser will accept.
+                // field no structured-field parser will accept. The `key` grammar
+                // itself is owned by the structured-fields helper.
+                // cite(RFC 9530 § 2): "key conveys the hashing algorithm (see Section 5) used to compute the digest;"
                 if !crate::helpers::structured_fields::is_valid_sf_key(&alg) {
                     return Some(format!(
                         "Digest algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
@@ -136,14 +153,24 @@ impl Rule for MessageDigestHeaderSyntax {
                     ));
                 }
 
-                // Value must be a byte sequence in the form :BASE64:
-                if !(val.starts_with(':') && val.ends_with(':') && val.len() >= 3) {
+                // Value must be a Byte Sequence — the `:`-delimited base64 form, whose
+                // grammar the structured-fields helper owns (hand-rolling it here was a
+                // second transcription of the same rule).
+                // cite(RFC 9530 § 2): "value is a Byte Sequence (Section 3.3.5 of [STRUCTURED-FIELDS]) that conveys an encoded version of the byte output produced by the digest calculation."
+                if !crate::helpers::structured_fields::is_byte_sequence(&val) {
                     return Some(format!(
                         "Digest member '{}={}' value must be a byte sequence like ':b64:'",
                         alg, val
                     ));
                 }
                 let inner = &val[1..val.len() - 1];
+                // Two deliberate strictnesses beyond the grammar, neither of which the
+                // spec states, so neither is cited. (1) `::` is a well-formed Byte
+                // Sequence carrying zero bytes, but a digest of nothing identifies no
+                // content, so it is reported. (2) the decode below demands canonical
+                // padding, while a structured-field parser synthesizes padding when it
+                // is missing — so an unpadded-but-decodable value is reported here and
+                // accepted there.
                 if inner.is_empty() {
                     return Some(format!("Digest member '{}' has empty byte sequence", alg));
                 }
@@ -158,8 +185,9 @@ impl Rule for MessageDigestHeaderSyntax {
             None
         };
 
-        // Helper to validate Want-Content-Digest / Want-Repr-Digest dictionaries
+        // Helper to validate Want-Content-Digest / Want-Repr-Digest dictionaries.
         // Syntax: alg=weight[, alg2=weight]
+        // cite(RFC 9530 § 4): "Want-Content-Digest and Want-Repr-Digest are of type Dictionary where each:"
         let validate_want_field = |value: &str| -> Option<String> {
             let members = match parse_key_value_members(
                 value,
@@ -181,7 +209,9 @@ impl Rule for MessageDigestHeaderSyntax {
                     ));
                 }
 
-                // Weight must be integer 0..=10
+                // Weight must be integer 0..=10 — the bound is the spec's own, not a
+                // chosen tolerance, and the type is Integer (so no decimal point).
+                // cite(RFC 9530 § 4): "value is an Integer (Section 3.3.1 of [STRUCTURED-FIELDS]) that conveys an ascending, relative, weighted preference. It must be in the range 0 to 10 inclusive."
                 match val.parse::<i64>() {
                     Ok(n) => {
                         if !(0..=10).contains(&n) {
@@ -219,7 +249,9 @@ impl Rule for MessageDigestHeaderSyntax {
                     });
                 }
 
-                // If syntax ok, report deprecation
+                // If syntax ok, report obsolescence — the field itself is gone, not
+                // merely discouraged.
+                // cite(RFC 9530): "This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields."
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
@@ -249,7 +281,9 @@ impl Rule for MessageDigestHeaderSyntax {
                     });
                 }
 
-                // If syntax ok, report deprecation
+                // If syntax ok, report obsolescence — the field itself is gone, not
+                // merely discouraged.
+                // cite(RFC 9530): "This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields."
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
@@ -467,14 +501,18 @@ impl Rule for MessageDigestHeaderSyntax {
             }
         }
 
-        // Deprecation: Content-MD5 header is deprecated; prefer Content-Digest
+        // Content-MD5 is obsolete, but RFC 9530 is not what obsoleted it — that
+        // document never mentions the field. It was removed from HTTP by RFC 7231,
+        // years earlier, and the sentence below is the whole provenance. RFC 9530 is
+        // named only as what to use instead.
+        // cite(RFC 7231): "The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses."
         if let Some(hv) = tx.request.headers.get_all("content-md5").iter().next() {
             if hv.to_str().is_ok() {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
                     message:
-                        "Content-MD5 header is deprecated; use Content-Digest instead (RFC 9530)"
+                        "Content-MD5 was removed from HTTP by RFC 7231; use Content-Digest (RFC 9530) instead"
                             .into(),
                 });
             } else {
@@ -492,7 +530,7 @@ impl Rule for MessageDigestHeaderSyntax {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
-                        message: "Content-MD5 header is deprecated; use Content-Digest instead (RFC 9530)".into(),
+                        message: "Content-MD5 was removed from HTTP by RFC 7231; use Content-Digest (RFC 9530) instead".into(),
                     });
                 } else {
                     return Some(Violation {
@@ -508,16 +546,42 @@ impl Rule for MessageDigestHeaderSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest` (for message content), `Repr-Digest` (for representation data) and their preference counterparts `Want-Content-Digest` / `Want-Repr-Digest`. This rule validates:\n\n- **Legacy** `Digest` / `Want-Digest` header syntax (alg=base64) and flags their use as obsoleted by RFC 9530.\n- **New** RFC 9530 Integrity fields (`Content-Digest`, `Repr-Digest`) must follow the structured dictionary syntax (e.g., `sha-256=:BASE64:`) with byte sequences that decode as valid Base64.\n- **Integrity preference** fields (`Want-Content-Digest`, `Want-Repr-Digest`) use algorithm=weight pairs where weight is an integer in 0..=10.\n- **Deprecation**: presence of `Content-MD5` is flagged as deprecated; prefer `Content-Digest`."
+        "RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest` (for message content), `Repr-Digest` (for representation data) and their preference counterparts `Want-Content-Digest` / `Want-Repr-Digest`. This rule validates:\n\n- **Legacy** `Digest` / `Want-Digest` header syntax (alg=base64) and flags their use as obsoleted by RFC 9530.\n- **New** RFC 9530 Integrity fields (`Content-Digest`, `Repr-Digest`) must follow the structured dictionary syntax (e.g., `sha-256=:BASE64:`) with byte sequences that decode as valid Base64.\n- **Integrity preference** fields (`Want-Content-Digest`, `Want-Repr-Digest`) use algorithm=weight pairs where weight is an integer in 0..=10.\n- **Obsolete field**: presence of `Content-MD5` is flagged. It was removed from HTTP by RFC 7231 (not by RFC 9530, which does not mention it); prefer `Content-Digest`.\n\nAlgorithm names in the RFC 9530 fields are structured-field Dictionary keys and so must be lowercase (`sha-256`, not the `SHA-256` spelling used by the obsolete `Digest` field, whose algorithm token is case-insensitive)."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9530",
-            section: Some("2"),
-            url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-2",
-            note: "Content-Digest / Repr-Digest / Want-* fields",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9530",
+                section: Some("2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-2",
+                note: "`Content-Digest`: a Dictionary keyed by hashing algorithm whose values are Byte Sequences",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9530",
+                section: Some("3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-3",
+                note: "`Repr-Digest`: the same syntax over representation data rather than message content",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9530",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-4",
+                note: "`Want-Content-Digest` / `Want-Repr-Digest`: a Dictionary whose values are Integers in the range 0 to 10 inclusive",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 3230",
+                section: Some("4.1.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc3230.html#section-4.1.1",
+                note: "Historical `Digest` / `Want-Digest`, obsoleted by RFC 9530: `digest-algorithm = token`, case-insensitive — which is why uppercase is valid there and not in the structured fields",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7231",
+                section: Some("Appendix B"),
+                url: "https://www.rfc-editor.org/rfc/rfc7231.html#appendix-B",
+                note: "Where `Content-MD5` was removed from HTTP — RFC 9530 does not mention the field at all",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
