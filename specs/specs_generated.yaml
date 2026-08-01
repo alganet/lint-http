@@ -520,6 +520,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 110
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 438
   - label: lint-http-rules/src/helpers/uri.rs (5)
     section: § 3.3
     snippet: pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
@@ -537,7 +539,7 @@ sources:
     snippet: A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 436
+      line: 431
   - label: lint-http-rules/src/helpers/uri.rs (8)
     section: § 5.2.3
     snippet: If the base URI has a defined authority component and an empty path, then return a string consisting of "/" concatenated with the reference's path
@@ -573,13 +575,13 @@ sources:
     snippet: The other generic syntax components are assumed to be case-sensitive unless specifically defined otherwise by the scheme (see Section 6.2.3).
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 158
+      line: 172
   - label: message_content_location_and_uri_consistency (3)
     section: § 6.2.2.1
     snippet: the scheme and host are case-insensitive and therefore should be normalized to lowercase
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 157
+      line: 171
   - label: message_http3_host_authority_consistency
     section: § 3.2.2
     snippet: Although host is case-insensitive, producers and normalizers should use lowercase for registered names and hexadecimal addresses for the sake of uniformity
@@ -1948,13 +1950,13 @@ sources:
     snippet: For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 180
+      line: 204
   - label: message_content_location_and_uri_consistency (5)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its field value refers to a URI that differs from the target URI, then the origin server claims that the URI is an identifier for a different resource corresponding to the enclosed representation.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 179
+      line: 203
   - label: message_content_location_and_uri_consistency (6)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its value refers (after conversion to absolute form) to a URI that is the same as the target URI, then the recipient MAY consider the content to be a current representation of that resource at the time indicated by the message origination date.
@@ -1972,7 +1974,7 @@ sources:
     snippet: Such a claim can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 181
+      line: 205
   - label: message_content_location_and_uri_consistency (9)
     section: § 8.7
     snippet: The "Content-Location" header field references a URI that can be used as an identifier for a specific resource corresponding to the representation in this message's content.
