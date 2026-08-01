@@ -14,7 +14,8 @@ This rule checks that the `Access-Control-Allow-Origin` response header is synta
 
 - [MDN Access-Control-Allow-Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin): Access-Control-Allow-Origin
 - [Fetch §3.3.3](https://fetch.spec.whatwg.org/#http-access-control-allow-origin): `Access-Control-Allow-Origin` carries one value: an echoed origin, `null`, or `*`
-- [RFC 6454 §7.1](https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1): Origin syntax the non-`*` value is validated against — `serialized-origin = scheme "://" host [ ":" port ]`, and `null` via origin-list-or-null
+- [Fetch §3.2](https://fetch.spec.whatwg.org/#origin-header): Governing origin syntax: `serialized-origin` has no path component (not even a trailing slash), and `origin-or-null`'s `null` is case-sensitive
+- [RFC 6454 §7.1](https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1): Historical origin syntax the non-`*` value is validated against — `serialized-origin = scheme "://" host [ ":" port ]`, and `null` via origin-list-or-null; Fetch §3.2 supplants it
 
 ## Configuration
 

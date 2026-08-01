@@ -13,6 +13,21 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_origin_header_present_for_cors.rs
       line: 69
+  - label: lint-http-rules/src/helpers/headers.rs
+    snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1417
+  - label: lint-http-rules/src/helpers/headers.rs (2)
+    snippet: This supplants the definition in The Web Origin Concept
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1412
+  - label: lint-http-rules/src/helpers/headers.rs (3)
+    snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1411
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -714,7 +729,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1408
+      line: 1413
     - file: lint-http-rules/src/helpers/uri.rs
       line: 103
   - label: lint-http-rules/src/helpers/uri.rs
