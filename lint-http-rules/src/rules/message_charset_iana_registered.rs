@@ -184,21 +184,31 @@ impl Rule for MessageCharsetIanaRegistered {
             None
         };
 
-        // Check request Content-Type
-        if let Some(s) =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "content-type")
-        {
-            if let Some(v) = check_header("request", s) {
-                return Some(v);
-            }
-        }
-        // Check response Content-Type
-        if let Some(resp) = &tx.response {
-            if let Some(s) = crate::helpers::headers::get_header_str(&resp.headers, "content-type")
-            {
-                if let Some(v) = check_header("response", s) {
+        // Every Content-Type field line, not just the first. `get_header_str`
+        // returns one value, and RFC 9110 §8.3 says recipients faced with a
+        // duplicated Content-Type often act on the *last* syntactically valid
+        // member — so an unregistered charset on a second line was invisible
+        // here while being the one a recipient might use.
+        //
+        // That there is more than one line is `message_content_type_well_formed`'s
+        // finding to report; this rule adds nothing by repeating it, and says
+        // only what it owns: whether a charset it can see is recognized.
+        let check_all = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+            for hv in headers.get_all("content-type").iter() {
+                let Ok(s) = hv.to_str() else { continue };
+                if let Some(v) = check_header(which, s) {
                     return Some(v);
                 }
+            }
+            None
+        };
+
+        if let Some(v) = check_all("request", &tx.request.headers) {
+            return Some(v);
+        }
+        if let Some(resp) = &tx.response {
+            if let Some(v) = check_all("response", &resp.headers) {
+                return Some(v);
             }
         }
 
@@ -329,6 +339,32 @@ mod tests {
             assert!(violation.is_none());
         }
         Ok(())
+    }
+
+    #[rstest]
+    #[case(&["text/plain; charset=utf-8", "text/plain; charset=bogus"], true)]
+    #[case(&["text/plain; charset=bogus", "text/plain; charset=utf-8"], true)]
+    #[case(&["text/plain; charset=utf-8", "text/plain; charset=us-ascii"], false)]
+    fn every_field_line_is_checked(#[case] values: &[&str], #[case] expect_violation: bool) {
+        // An unregistered charset on a second Content-Type line used to be
+        // invisible, though RFC 9110 §8.3 says a recipient may well be the one
+        // acting on it. That two lines are present is a different rule's
+        // finding, so this rule stays quiet about the count.
+        let rule = MessageCharsetIanaRegistered;
+        let cfg = make_cfg();
+        let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("content-type", *v)).collect();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&pairs);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(v.is_some(), expect_violation, "{values:?} -> {v:?}");
+        if let Some(v) = v {
+            assert!(!v.message.contains("Multiple"), "{}", v.message);
+        }
     }
 
     #[rstest]
