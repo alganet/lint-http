@@ -320,6 +320,25 @@ mod tests {
     }
 
     #[test]
+    fn colon_in_path_segment_is_not_read_as_a_scheme() {
+        let rule = MessageContentLocationAndUriConsistency;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_location_and_uri_consistency",
+        ]);
+        // ':' is a legal `pchar`; these are absolute-path references, not
+        // schemed URIs, and must not be reported as a malformed scheme.
+        for target in ["/users/urn:uuid:1", "/v1/entities/x:batchGet", "/a?x=b:c"] {
+            let tx = make_tx_with_req_uri(target, 200, &[("content-location", target)]);
+            let v = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            assert!(v.is_none(), "unexpected violation for {target}: {v:?}");
+        }
+    }
+
+    #[test]
     fn trailing_slash_mismatch_reports_violation() {
         let rule = MessageContentLocationAndUriConsistency;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
