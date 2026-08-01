@@ -75,7 +75,7 @@ impl Rule for MessageContentTransferEncodingValid {
         // worth reporting even when the value is a perfectly good MIME mechanism.
         // cite(RFC 9112 § B.5): "HTTP does not use the Content-Transfer-Encoding field of MIME."
         // cite(RFC 9112 § B.5): "Proxies and gateways from MIME-compliant protocols to HTTP need to remove any Content-Transfer-Encoding prior to delivering the response message to an HTTP client."
-        let mut report = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+        let report = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
             let hv = headers.get_all("content-transfer-encoding").iter().next()?;
             let shown = hv.to_str().unwrap_or("<non-UTF-8>");
             let detail = describe_value(shown).map(|d| format!("; {}", d));
