@@ -46,7 +46,17 @@ impl Rule for ServerCharsetSpecification {
                     // position on whether it is registered (that is the IANA-charset
                     // rule's job).
                     // cite(RFC 9110 § 8.3.2): "HTTP uses "charset" names to indicate or negotiate the character encoding scheme"
-                    let has_charset = parsed.params.unwrap_or("").split(';').any(|p| {
+                    // Quote-aware: a `;` inside a quoted parameter value does not
+                    // start a new parameter. A raw `split(';')` cut such a value
+                    // apart and then read the pieces as parameters, so text that
+                    // merely *looks* like `charset=` inside another value — say
+                    // `boundary="x; charset=utf-8"` — satisfied this check and
+                    // suppressed the finding for a response that has no charset.
+                    let has_charset = crate::helpers::headers::split_semicolons_respecting_quotes(
+                        parsed.params.unwrap_or(""),
+                    )
+                    .into_iter()
+                    .any(|p| {
                         let p = p.trim();
                         p.split_once('=')
                             .map(|(k, _)| k.trim().eq_ignore_ascii_case("charset"))
@@ -136,6 +146,16 @@ mod tests {
         true,
         Some("Text-based Content-Type header missing charset parameter.")
     )]
+    // A `;` inside a quoted parameter value is not a separator, so the text
+    // `charset=` inside another value is not a charset parameter and must not
+    // suppress the finding.
+    #[case(
+        "text/html; boundary=\"x; charset=utf-8\"",
+        true,
+        Some("Text-based Content-Type header missing charset parameter.")
+    )]
+    // A real charset following a quoted value that carries a ";" is still found.
+    #[case("text/html; boundary=\"a;b\"; charset=utf-8", false, None)]
     #[case("application/json", false, None)]
     #[case("", false, None)]
     fn check_response_cases(
