@@ -103,8 +103,15 @@ fn scheme_authority_marker(s: &str) -> Option<usize> {
 pub fn extract_origin_if_absolute(s: &str) -> Option<String> {
     let idx = scheme_authority_marker(s)?;
     let after = &s[idx + 3..];
-    // find end of authority (first '/')
-    let end = after.find('/').map(|p| idx + 3 + p).unwrap_or(s.len());
+    // The authority ends at the first '/', '?' or '#'. `path-abempty` may be
+    // empty, so `http://example.com?x=1` is a legal absolute-form target whose
+    // authority stops before the query — terminating on '/' alone swallows the
+    // query into the origin.
+    // cite(RFC 3986 § 3.2): "The authority component is preceded by a double slash ("//") and is terminated by the next slash ("/"), question mark ("?"), or number sign ("#") character, or by the end of the URI."
+    let end = after
+        .find(['/', '?', '#'])
+        .map(|p| idx + 3 + p)
+        .unwrap_or(s.len());
     let origin = &s[..end];
 
     // Basic validation: scheme valid, no whitespace, authority part present
@@ -576,6 +583,27 @@ mod tests {
             extract_origin_if_absolute("http://a.example/p?u=http://b.example"),
             Some("http://a.example".into())
         );
+        // `path-abempty` may be empty, so the query can follow the authority
+        // directly. The origin stops before it.
+        assert_eq!(
+            extract_origin_if_absolute("http://example.com?x=1"),
+            Some("http://example.com".into())
+        );
+        assert_eq!(
+            extract_origin_if_absolute("http://example.com#f"),
+            Some("http://example.com".into())
+        );
+        // The two authority readers must agree on where an authority ends.
+        for target in [
+            "http://example.com?x=1",
+            "http://example.com#f",
+            "http://example.com/p?x=1",
+            "http://example.com:8080?x=1",
+        ] {
+            let origin = extract_origin_if_absolute(target).expect(target);
+            let authority = extract_authority_from_request_target(target).expect(target);
+            assert_eq!(origin, format!("http://{authority}"), "{target}");
+        }
         // "://" with nothing before it is not a scheme.
         assert_eq!(extract_origin_if_absolute("://example.com"), None);
     }

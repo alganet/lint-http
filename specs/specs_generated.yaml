@@ -515,47 +515,53 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 91
   - label: lint-http-rules/src/helpers/uri.rs (4)
+    section: § 3.2
+    snippet: The authority component is preceded by a double slash ("//") and is terminated by the next slash ("/"), question mark ("?"), or number sign ("#") character, or by the end of the URI.
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 110
+  - label: lint-http-rules/src/helpers/uri.rs (5)
     section: § 3.3
     snippet: pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 58
-  - label: lint-http-rules/src/helpers/uri.rs (5)
+  - label: lint-http-rules/src/helpers/uri.rs (6)
     section: § 4.2
     snippet: A path segment that contains a colon character (e.g., "this:that") cannot be used as the first segment of a relative-path reference, as it would be mistaken for a scheme name.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 59
-  - label: lint-http-rules/src/helpers/uri.rs (6)
+  - label: lint-http-rules/src/helpers/uri.rs (7)
     section: § 4.2
     snippet: A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 429
-  - label: lint-http-rules/src/helpers/uri.rs (7)
+      line: 436
+  - label: lint-http-rules/src/helpers/uri.rs (8)
     section: § 5.2.3
     snippet: If the base URI has a defined authority component and an empty path, then return a string consisting of "/" concatenated with the reference's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 406
-  - label: lint-http-rules/src/helpers/uri.rs (8)
+      line: 413
+  - label: lint-http-rules/src/helpers/uri.rs (9)
     section: § 5.2.3
     snippet: return a string consisting of the reference's path component appended to all but the last segment of the base URI's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 410
-  - label: lint-http-rules/src/helpers/uri.rs (9)
+      line: 417
+  - label: lint-http-rules/src/helpers/uri.rs (10)
     section: § 5.2.4
     snippet: This is done after the path is extracted from a reference, whether or not the path was relative, in order to remove any invalid or extraneous dot-segments prior to forming the target URI.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 348
-  - label: lint-http-rules/src/helpers/uri.rs (10)
+      line: 355
+  - label: lint-http-rules/src/helpers/uri.rs (11)
     section: § 6.2.2.3
     snippet: URI normalizers should remove dot-segments by applying the remove_dot_segments algorithm to the path, as described in Section 5.2.4.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 397
+      line: 404
   - label: message_content_location_and_uri_consistency
     section: § 2
     snippet: A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols.
@@ -839,13 +845,13 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1420
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 138
+      line: 145
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 131
+      line: 138
 - label: RFC 6455
   url: https://www.rfc-editor.org/rfc/rfc6455.txt
   type: text/plain
@@ -2766,9 +2772,9 @@ sources:
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 181
+      line: 188
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 244
+      line: 251
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 30
   - label: message_content_length_vs_transfer_encoding

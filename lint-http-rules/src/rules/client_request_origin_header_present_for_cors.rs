@@ -257,6 +257,24 @@ mod tests {
         assert!(v.is_none(), "unexpected violation: {v:?}");
     }
 
+    #[rstest]
+    fn absolute_form_target_with_an_empty_path_is_not_cross_origin() {
+        // `path-abempty` may be empty, so the query follows the authority
+        // directly. Reading it as part of the authority makes a same-origin
+        // request look cross-origin.
+        let rule = ClientRequestOriginHeaderPresentForCors;
+        let mut tx = make_test_transaction();
+        tx.request.uri = "http://example.com?x=1".into();
+        tx.request.headers = make_headers_from_pairs(&[("host", "example.com")]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "unexpected violation: {v:?}");
+    }
+
     #[test]
     fn scope_is_client() {
         let rule = ClientRequestOriginHeaderPresentForCors;
