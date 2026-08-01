@@ -55,7 +55,7 @@ Content-Disposition: ; filename="example.txt"
 ### ✅ Good (an unrecognized type is conforming)
 
 ```http
-Content-Disposition: x-custom-type; filename="a.txt"
+Content-Disposition: preview; filename="a.txt"
 ```
 
 ### ❌ Bad
@@ -64,9 +64,10 @@ Content-Disposition: x-custom-type; filename="a.txt"
 Content-Disposition: bad@type; filename="a"
 ```
 
-### ❌ Bad (two field lines — Content-Disposition is a singleton)
+### ❌ Bad (two field lines in one message — Content-Disposition is a singleton)
 
 ```http
+HTTP/1.1 200 OK
 Content-Disposition: attachment; filename="a.txt"
 Content-Disposition: inline
 ```
