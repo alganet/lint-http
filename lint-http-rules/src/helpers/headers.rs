@@ -55,6 +55,13 @@ pub fn validate_content_length(headers: &HeaderMap) -> Result<Option<u128>, Cont
                 return Err(ContentLengthError::InvalidCharacter(s.to_string()));
             }
 
+            // A digit run too long for `u128` is still valid `1*DIGIT` — the grammar
+            // sets no ceiling and, unlike `delta-seconds`, nothing here tells a
+            // recipient to clamp an unrepresentable value. So this rejection is a
+            // tolerance rather than a quoted requirement, and it is left in place on
+            // the reasoning that a length no recipient can represent cannot frame a
+            // message either: §6.3 makes an unusable Content-Length a framing error.
+            // It takes a 39-digit value to reach.
             let n = t
                 .parse::<u128>()
                 .map_err(|_| ContentLengthError::TooLarge(s.to_string()))?;
