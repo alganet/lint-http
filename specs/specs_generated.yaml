@@ -1719,6 +1719,8 @@ sources:
       line: 31
     - file: lint-http-rules/src/rules/message_content_encoding_and_type_consistency.rs
       line: 33
+    - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
+      line: 92
   - label: message_conditional_headers_consistency
     section: § 13.1.3
     snippet: A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field
@@ -1794,11 +1796,35 @@ sources:
     - file: lint-http-rules/src/rules/server_keep_alive_timeout_reasonable.rs
       line: 89
   - label: message_content_encoding_iana_registered
+    section: § 12.5.3
+    snippet: The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
+      line: 107
+  - label: message_content_encoding_iana_registered (2)
+    section: § 12.5.3
+    snippet: codings = content-coding / "identity" / "*"
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
+      line: 93
+  - label: message_content_encoding_iana_registered (3)
+    section: § 8.4
+    snippet: Note that the coding named "identity" is reserved for its special role in Accept-Encoding and thus SHOULD NOT be included.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
+      line: 123
+  - label: message_content_encoding_iana_registered (4)
     section: § 8.4.1
     snippet: All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry",
     cited_by:
     - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
-      line: 103
+      line: 146
+  - label: message_content_encoding_iana_registered (5)
+    section: § 8.4.1
+    snippet: content-coding = token
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
+      line: 134
   - label: message_content_length
     section: § 8.6
     snippet: The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets.

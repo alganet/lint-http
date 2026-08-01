@@ -85,14 +85,53 @@ impl Rule for MessageContentEncodingIanaRegistered {
     ) -> Option<Violation> {
         let config = parse_allowed_config(cfg, self.id()).ok()?;
         // Helper to check a single header value against allowed list
-        let check_value = |hdr_name: &str, val: &str, allowed: &Vec<String>| -> Option<Violation> {
+        // `is_accept` distinguishes the two grammars. They are not the same vocabulary:
+        // Content-Encoding is a list of plain content-codings, while Accept-Encoding
+        // adds two alternatives of its own, and letting those leak into
+        // Content-Encoding is what this parameter exists to prevent.
+        // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
+        // cite(RFC 9110 § 12.5.3): "codings = content-coding / "identity" / "*""
+        let check_value = |hdr_name: &str,
+                           val: &str,
+                           allowed: &Vec<String>,
+                           is_accept: bool|
+         -> Option<Violation> {
             for part in crate::helpers::headers::parse_list_header(val) {
                 // Split off any parameters (e.g., gzip;q=0.8)
                 let token = part.split(';').next().unwrap().trim();
                 if token == "*" {
-                    // wildcard is acceptable in Accept-Encoding
-                    continue;
+                    // A wildcard is a preference, so it means something only where
+                    // preferences are expressed. In Content-Encoding there is
+                    // nothing for it to match: that field states what was actually
+                    // applied.
+                    // cite(RFC 9110 § 12.5.3): "The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field."
+                    if is_accept {
+                        continue;
+                    }
+                    return Some(Violation {
+                            rule: "message_content_encoding_iana_registered".into(),
+                            severity: config.severity,
+                            message: format!(
+                                "'*' is not a content-coding and is only meaningful in Accept-Encoding, not in {}",
+                                hdr_name
+                            ),
+                        });
                 }
+                // `identity` is likewise Accept-Encoding vocabulary — the way to say
+                // "no encoding". Naming it in Content-Encoding claims a transformation
+                // that by definition does nothing, so the spec reserves it away.
+                // cite(RFC 9110 § 8.4): "Note that the coding named "identity" is reserved for its special role in Accept-Encoding and thus SHOULD NOT be included."
+                if !is_accept && token.eq_ignore_ascii_case("identity") {
+                    return Some(Violation {
+                            rule: "message_content_encoding_iana_registered".into(),
+                            severity: config.severity,
+                            message: format!(
+                                "'identity' is reserved for Accept-Encoding and SHOULD NOT be sent in {}",
+                                hdr_name
+                            ),
+                        });
+                }
+                // cite(RFC 9110 § 8.4.1): "content-coding = token"
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
                     return Some(Violation {
                         rule: "message_content_encoding_iana_registered".into(),
@@ -100,6 +139,10 @@ impl Rule for MessageContentEncodingIanaRegistered {
                         message: format!("Invalid token '{}' in {} header", c, hdr_name),
                     });
                 }
+                // Folded to lowercase because the codings are case-insensitive. As
+                // in the media-type sibling, "registered" here means "in the
+                // operator's list": nothing consults the registry the rule is named
+                // after, and the sentence below is an "ought to" in any case.
                 // cite(RFC 9110 § 8.4.1): "All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry","
                 if !allowed.contains(&token.to_ascii_lowercase()) {
                     return Some(Violation {
@@ -120,7 +163,7 @@ impl Rule for MessageContentEncodingIanaRegistered {
             if let Some(val) =
                 crate::helpers::headers::get_header_str(&resp.headers, "content-encoding")
             {
-                if let Some(v) = check_value("Content-Encoding", val, &config.allowed) {
+                if let Some(v) = check_value("Content-Encoding", val, &config.allowed, false) {
                     return Some(v);
                 }
             }
@@ -130,7 +173,7 @@ impl Rule for MessageContentEncodingIanaRegistered {
         if let Some(val) =
             crate::helpers::headers::get_header_str(&tx.request.headers, "accept-encoding")
         {
-            if let Some(v) = check_value("Accept-Encoding", val, &config.allowed) {
+            if let Some(v) = check_value("Accept-Encoding", val, &config.allowed, true) {
                 return Some(v);
             }
         }
@@ -139,7 +182,7 @@ impl Rule for MessageContentEncodingIanaRegistered {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Content-Encoding` and `Accept-Encoding` header values to ensure content-coding tokens are syntactically valid and are recognised (SHOULD be IANA-registered or explicitly allowed via configuration). The rule flags unrecognised content-coding tokens and invalid token characters."
+        "Validate `Content-Encoding` and `Accept-Encoding` header values: each content-coding must be a valid `token` and must appear in the `allowed` array you configure.\n\n**It does not consult the IANA registry**, despite the rule's name. RFC 9110 says content codings *ought to* be registered, which is the motivation, but a coding is recognised here exactly when your `allowed` array covers it. Comparisons are case-insensitive.\n\nThe two headers do not share a vocabulary. `Accept-Encoding` additionally admits `*` (matching any coding not listed) and `identity` (meaning no encoding); both are preference vocabulary and neither is a content-coding, so in `Content-Encoding` they are flagged — `identity` explicitly so, since RFC 9110 §8.4 reserves it for its Accept-Encoding role and says it SHOULD NOT be included."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -148,13 +191,25 @@ impl Rule for MessageContentEncodingIanaRegistered {
                 spec: "RFC 9110",
                 section: Some("8.4"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
-                note: "Content Coding",
+                note: "`Content-Encoding = #content-coding`, and the reservation of `identity` for Accept-Encoding — the reason it is flagged here",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4.1",
+                note: "`content-coding = token`, case-insensitive, and the \"ought to be registered\" guidance that motivates the rule without being what it checks",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("12.5.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3",
+                note: "The wider Accept-Encoding grammar (`codings = content-coding / \"identity\" / \"*\"`), which is why the two headers are checked against different vocabularies",
             },
             crate::rules::SpecRef {
                 spec: "IANA HTTP Parameters",
                 section: None,
                 url: "https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding",
-                note: "IANA Content Coding registry",
+                note: "The registry this rule is named after but does not read; the configured `allowed` array stands in for it",
             },
         ]
     }
@@ -216,7 +271,10 @@ mod tests {
     #[case(Some("x-custom"), true)]
     #[case(Some("gzip, x-custom"), true)]
     #[case(Some("gzip;q=0.8"), false)]
-    #[case(Some("*"), false)]
+    // `*` and `identity` belong to Accept-Encoding, not Content-Encoding.
+    #[case(Some("*"), true)]
+    #[case(Some("identity"), true)]
+    #[case(Some("gzip, identity"), true)]
     #[case(None, false)]
     fn check_response_cases(
         #[case] ce: Option<&str>,
@@ -656,6 +714,11 @@ mod tests {
         );
 
         for coding in &codings {
+            // `identity` is in the registry but reserved for Accept-Encoding, so it
+            // is exercised only on the request side below.
+            if coding == "identity" {
+                continue;
+            }
             // response
             let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
             tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(
