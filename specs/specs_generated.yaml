@@ -414,16 +414,22 @@ sources:
   fragments:
   - label: message_content_transfer_encoding_valid
     section: § 6.1
+    snippet: These values are not case sensitive
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_transfer_encoding_valid.rs
+      line: 61
+  - label: message_content_transfer_encoding_valid (2)
+    section: § 6.1
     snippet: mechanism := "7bit" / "8bit" / "binary" / "quoted-printable" / "base64" / ietf-token / x-token
     cited_by:
     - file: lint-http-rules/src/rules/message_content_transfer_encoding_valid.rs
-      line: 44
-  - label: message_content_transfer_encoding_valid (2)
+      line: 42
+  - label: message_content_transfer_encoding_valid (3)
     section: § 6.3
     snippet: Implementors may, if necessary, define private Content-Transfer-Encoding values, but must use an x-token, which is a name prefixed by "X-", to indicate its non-standard status
     cited_by:
     - file: lint-http-rules/src/rules/message_content_transfer_encoding_valid.rs
-      line: 71
+      line: 60
 - label: RFC 2046
   url: https://www.rfc-editor.org/rfc/rfc2046.txt
   type: text/plain
@@ -2573,6 +2579,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_content_length_vs_transfer_encoding.rs
       line: 27
+  - label: message_content_transfer_encoding_valid
+    section: § B.5
+    snippet: HTTP does not use the Content-Transfer-Encoding field of MIME.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_transfer_encoding_valid.rs
+      line: 76
+  - label: message_content_transfer_encoding_valid (2)
+    section: § B.5
+    snippet: Proxies and gateways from MIME-compliant protocols to HTTP need to remove any Content-Transfer-Encoding prior to delivering the response message to an HTTP client.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_transfer_encoding_valid.rs
+      line: 77
   - label: message_http_version_syntax_valid
     section: § 2.3
     snippet: HTTP-version  = HTTP-name "/" DIGIT "." DIGIT
