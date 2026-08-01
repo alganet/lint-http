@@ -185,6 +185,9 @@ mod tests {
     #[case("http://example.com/a", "/a")]
     #[case("http://example.com/a?x=1", "/a?x=1")]
     #[case("http://example.com/a", "http://example.com/a")]
+    // Empty `path-abempty`: the query follows the authority directly. Reading it
+    // into the origin made the two origins differ and hid the circular redirect.
+    #[case("http://example.com?x=1", "http://example.com/?x=1")]
     fn detects_circular_redirect_for_equal_path(#[case] req: &str, #[case] loc: &str) {
         let rule = StatefulRedirectChainValidity;
         let tx = make_resp_tx(req, 301, Some(loc));
