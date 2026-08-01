@@ -59,36 +59,52 @@ impl Rule for MessageContentDispositionTokenValid {
             None
         };
 
-        // Check in responses
-        if let Some(resp) = &tx.response {
-            for hv in resp.headers.get_all("content-disposition").iter() {
-                if let Ok(s) = hv.to_str() {
-                    if let Some(v) = check_value("Content-Disposition", s) {
-                        return Some(v);
-                    }
-                } else {
+        // One message section's worth of Content-Disposition field lines.
+        let check_section = |section: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+            let vals: Vec<_> = headers.get_all("content-disposition").iter().collect();
+
+            // The grammar is a disposition-type followed by parameters, with no
+            // `#(...)` alternative anywhere in it, so §5.3's exception does not
+            // apply and a message section carries at most one field line.
+            // Combining two is worse here than the arithmetic suggests: the
+            // recombined value is "attachment; filename="a", inline", which
+            // different recipients truncate at different points, so the filename
+            // a download is saved under depends on whose parser read it.
+            if vals.len() > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "Multiple Content-Disposition header fields in the {}; the grammar has no comma-separated-list alternative (RFC 6266 §4.1), so at most one field line may be sent (RFC 9110 §5.3)",
+                        section
+                    ),
+                });
+            }
+
+            for hv in vals {
+                let Ok(s) = hv.to_str() else {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
                         message: "Content-Disposition header value is not valid UTF-8".into(),
                     });
-                }
-            }
-        }
-
-        // Check in requests (rare but possible in multipart/form-data parts or other contexts)
-        for hv in tx.request.headers.get_all("content-disposition").iter() {
-            if let Ok(s) = hv.to_str() {
+                };
                 if let Some(v) = check_value("Content-Disposition", s) {
                     return Some(v);
                 }
-            } else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: "Content-Disposition header value is not valid UTF-8".into(),
-                });
             }
+
+            None
+        };
+
+        if let Some(resp) = &tx.response {
+            if let Some(v) = check_section("response", &resp.headers) {
+                return Some(v);
+            }
+        }
+
+        if let Some(v) = check_section("request", &tx.request.headers) {
+            return Some(v);
         }
 
         None
@@ -247,20 +263,20 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn multiple_header_fields_checked() {
+    #[rstest]
+    // Two individually valid lines: nothing in the per-value checks can see this.
+    #[case("inline", "attachment")]
+    #[case("inline", "bad@type")]
+    fn multiple_header_fields_report_violation(#[case] first: &str, #[case] second: &str) {
         let rule = MessageContentDispositionTokenValid;
         let mut tx = crate::test_helpers::make_test_transaction();
-        use hyper::header::HeaderValue;
-        use hyper::HeaderMap;
-        let mut hm = HeaderMap::new();
-        hm.append("content-disposition", HeaderValue::from_static("inline"));
-        hm.append("content-disposition", HeaderValue::from_static("bad@type"));
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
             version: "HTTP/1.1".into(),
-            headers: hm,
-
+            headers: crate::test_helpers::make_headers_from_pairs(&[
+                ("content-disposition", first),
+                ("content-disposition", second),
+            ]),
             body_length: None,
             trailers: None,
         });
@@ -274,7 +290,48 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
         );
-        assert!(v.is_some());
+        let msg = v.expect("two field lines must be reported").message;
+        assert!(msg.contains("Multiple Content-Disposition"), "{msg}");
+        assert!(msg.contains("response"), "{msg}");
+    }
+
+    #[test]
+    fn multiple_request_field_lines_report_violation() {
+        let rule = MessageContentDispositionTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("content-disposition", "form-data; name=\"a\""),
+            ("content-disposition", "form-data; name=\"b\""),
+        ]);
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_token_valid",
+            "warn",
+        );
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
+        let msg = v.expect("two field lines must be reported").message;
+        assert!(msg.contains("request"), "{msg}");
+    }
+
+    #[test]
+    fn request_value_is_validated() {
+        let rule = MessageContentDispositionTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-disposition", "bad@type")]);
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_token_valid",
+            "warn",
+        );
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
+        assert!(v.unwrap().message.contains("invalid token character"));
     }
 
     #[test]
