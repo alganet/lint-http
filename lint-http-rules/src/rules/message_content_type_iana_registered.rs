@@ -110,8 +110,16 @@ impl Rule for MessageContentTypeIanaRegistered {
                         }
                     }
                     if let Some(suff) = pat.strip_prefix('+') {
-                        // +suffix form: match subtype suffix
-                        if s.ends_with(suff) {
+                        // `+suffix` form. This means the *structured syntax suffix* —
+                        // the part after a literal `+` appended to a base subtype —
+                        // so it is matched with the helper that owns that concept
+                        // rather than by a bare `ends_with`, which would also admit
+                        // any subtype whose name happens to end in those letters
+                        // (`text/notjson` against `+json`) and any base subtype of
+                        // the same name (`application/json`), neither of which uses
+                        // the suffix convention at all.
+                        // cite(RFC 6838 § 4.2.8): "it specified a suffix (in that case, "+xml") to be appended to the base subtype name."
+                        if crate::helpers::headers::media_type_subtype_suffix(&s) == Some(suff) {
                             return None;
                         }
                     }
@@ -234,6 +242,11 @@ mod tests {
     #[case(Some("image/png"), false)]
     #[case(Some("application/vnd.example"), true)]
     #[case(Some("text/x-custom"), true)]
+    // A `+json` allowlist entry means the *structured syntax suffix*, so it must
+    // not admit a subtype that merely happens to end in those letters.
+    #[case(Some("text/notjson"), true)]
+    #[case(Some("application/xjson"), true)]
+    #[case(Some("application/vnd.example+json"), false)]
     #[case(None, false)]
     fn check_response_cases(
         #[case] ct: Option<&str>,
