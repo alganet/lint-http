@@ -18,7 +18,8 @@ Improper `Content-Length` values can lead to message framing errors or truncated
 
 ## Specifications
 
-- [RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): Content-Length
+- [RFC 9110 §8.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6): Where `Content-Length = 1*DIGIT` is defined — the grammar every value here is checked against
+- [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3): Why differing values are an error and why a single field line may carry a comma-separated list, provided every member is valid and identical
 
 ## Configuration
 

@@ -23,8 +23,14 @@ impl Rule for MessageContentLength {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // The field is defined by what it describes, not by direction, so it is checked
+        // on both sides below. The `1*DIGIT` grammar and the §6.3 comma-list rule are
+        // deliberately *not* re-quoted here: `validate_content_length` owns both, and a
+        // second copy of a helper's production is the duplicate-transcription trap.
+        // What this rule keeps is its own claim — that a malformed or self-contradictory
+        // Content-Length is worth reporting wherever it appears.
+        // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
         let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
-            // cite(RFC 9110 § 8.6): "Content-Length = 1*DIGIT"
             match crate::helpers::headers::validate_content_length(headers) {
                 Ok(_) => None,
                 Err(e) => {
@@ -79,12 +85,20 @@ impl Rule for MessageContentLength {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9112",
-            section: Some("6.2"),
-            url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
-            note: "Content-Length",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
+                note: "Where `Content-Length = 1*DIGIT` is defined — the grammar every value here is checked against",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("6.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
+                note: "Why differing values are an error and why a single field line may carry a comma-separated list, provided every member is valid and identical",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
