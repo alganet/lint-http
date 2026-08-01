@@ -161,15 +161,11 @@ fn check_cache_control_directives(s: &str) -> Option<String> {
                     if vpart.chars().any(|ch| !ch.is_ascii_digit()) {
                         return Some(format!("{} must be a non-negative integer", name));
                     }
-                    // Divergence, recorded rather than changed: an all-digit value too
-                    // large for u64 is still syntactically valid `1*DIGIT`. §1.2.2 tells
-                    // a *cache* to clamp such a value to 2147483648 rather than treat it
-                    // as an error, so reporting it here is stricter than the spec. It
-                    // needs a 20+ digit value to trigger, and relaxing it would be a
-                    // behavior change, so the check stands and the gap is noted.
-                    if vpart.parse::<u64>().is_err() {
-                        return Some(format!("{} value is not a valid integer", name));
-                    }
+                    // A digit run too large for any particular integer type is still
+                    // syntactically valid `1*DIGIT`, and the spec says what to do about
+                    // it — clamp, not reject — so there is nothing here to report. The
+                    // value's magnitude is the recipient's problem, not the sender's.
+                    // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648 (2^31) or the greatest positive integer it can conveniently represent."
                 }
                 "private" | "no-cache" => {
                     // Both take the same optional argument: a `#field-name` list, which
@@ -516,16 +512,21 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn max_age_too_large_is_violation() -> anyhow::Result<()> {
+    /// `delta-seconds = 1*DIGIT` sets no upper bound, and §1.2.2 tells a cache that
+    /// receives an unrepresentable value to clamp it to 2147483648 rather than treat
+    /// it as an error — so an oversized digit run is valid syntax, not a violation.
+    #[rstest]
+    #[case("max-age=18446744073709551616")]
+    #[case("s-maxage=99999999999999999999999999")]
+    fn oversized_delta_seconds_is_valid_syntax(#[case] value: &str) -> anyhow::Result<()> {
         let rule = MessageCacheControlDirectiveValidity;
-        let tx = make_req("max-age=18446744073709551616");
+        let tx = make_req(value);
         let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
+        assert!(v.is_none(), "unexpected violation for '{}': {:?}", value, v);
         Ok(())
     }
 
