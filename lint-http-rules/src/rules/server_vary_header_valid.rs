@@ -71,9 +71,16 @@ impl Rule for ServerVaryHeaderValid {
                 // "*" is a valid list member. Under RFC 9110 it may appear alongside
                 // field-names (RFC 7231's "*"-or-a-list exclusivity was dropped), so
                 // no combination check is made — only field-name tokens are validated.
-                // (The one MUST on "*", that a proxy MUST NOT generate it, is not
-                // enforced: this rule sees a response without knowing whether the
-                // sender is the origin or an intermediary. Left uncited, recorded.)
+                //
+                // §12.5.5's one MUST on "*" — "A proxy MUST NOT generate "*" in a Vary
+                // field value." — is deliberately not enforced, and not merely because
+                // the sender's role is unknown. It forbids *generating*, not carrying:
+                // an intermediary that forwards an origin's `Vary: *` is compliant, and
+                // an origin may send it freely. So even a definite "a proxy handled
+                // this" signal (a `Via` field) would not identify who authored the
+                // header, and no field records authorship. The check is undecidable
+                // from an observed response rather than merely unimplemented, so the
+                // sentence stays uncited here: the code does not enforce it.
                 if token == "*" {
                     continue;
                 }
@@ -104,7 +111,7 @@ impl Rule for ServerVaryHeaderValid {
             spec: "RFC 9110",
             section: Some("12.5.5"),
             url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5",
-            note: "Vary = #( \"*\" / field-name ) — a comma-separated list; \"*\" is an ordinary member (RFC 7231's \"*\"-or-a-list form is obsolete)",
+            note: "Vary = #( \"*\" / field-name ) — a comma-separated list; \"*\" is an ordinary member (RFC 7231's \"*\"-or-a-list form is obsolete). Not checked: the same section's \"A proxy MUST NOT generate \\\"*\\\"\", since a forwarded \"*\" is indistinguishable from a generated one in an observed response",
         }]
     }
 
