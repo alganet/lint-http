@@ -421,19 +421,43 @@ fn merge_paths(base_path: &str, ref_path: &str) -> String {
     }
 }
 
+/// The authority a URI reference defines *for itself*, or `None` when it
+/// inherits the base URI's.
+///
+/// Only two reference forms carry one: an absolute URI with an authority
+/// (`scheme://authority/…`) and a network-path reference (`//authority/…`).
+/// Every other form — absolute-path, relative-path, empty, query-only — resolves
+/// against the base and takes the base's authority.
+// cite(RFC 3986 § 4.2): "A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used."
+pub fn reference_authority(reference: &str) -> Option<String> {
+    let r = reference.trim();
+    let after_marker = match scheme_authority_marker(r) {
+        Some(idx) => &r[idx + 3..],
+        None => r.strip_prefix("//")?,
+    };
+    // cite(RFC 3986 § 3.2): "The authority component is preceded by a double slash ("//") and is terminated by the next slash ("/"), question mark ("?"), or number sign ("#") character, or by the end of the URI."
+    let end = after_marker
+        .find(['/', '?', '#'])
+        .unwrap_or(after_marker.len());
+    let authority = &after_marker[..end];
+    if authority.is_empty() {
+        return None;
+    }
+    Some(authority.to_string())
+}
+
 /// Resolve a URI reference against a base path-and-query and return the
 /// reference's effective path and query — the "conversion to absolute form"
 /// that comparing a reference against a target URI requires.
 ///
 /// This is RFC 3986 §5.2.2's transform, restricted to the two components this
-/// helper compares. Returns `None` when the reference carries no comparable
-/// path of its own:
+/// helper compares. Callers that also care *which* authority the result belongs
+/// to must ask [`reference_authority`]: a reference can name a path identical to
+/// the base's while pointing at an entirely different host.
 ///
-/// - a **network-path reference** (`//authority/path`), which supplies its own
-///   authority — the authority, not the path, is what decides the answer there;
-/// - a **non-hierarchical absolute URI** (`mailto:`, `urn:`), which has no path
-///   component in the generic-syntax sense.
-// cite(RFC 3986 § 4.2): "A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used."
+/// Returns `None` for a **non-hierarchical absolute URI** (`mailto:`, `urn:`),
+/// which has no path component in the generic-syntax sense and so has nothing
+/// comparable.
 pub fn resolve_reference_path_and_query(
     base_path_and_query: &str,
     reference: &str,
@@ -443,8 +467,18 @@ pub fn resolve_reference_path_and_query(
     // identifies a secondary resource and is not part of the URI being compared.
     let r = &r[..r.find('#').unwrap_or(r.len())];
 
-    if r.starts_with("//") {
-        return None;
+    // A network-path reference supplies its own authority, so §5.2.2 takes its
+    // path verbatim; only the scheme is inherited from the base.
+    if let Some(after_slashes) = r.strip_prefix("//") {
+        let rest = match after_slashes.find(['/', '?']) {
+            Some(i) => &after_slashes[i..],
+            None => "",
+        };
+        // `path-abempty` may be empty, in which case the effective path is "/".
+        if rest.is_empty() || rest.starts_with('?') {
+            return Some(format!("/{rest}"));
+        }
+        return Some(normalize_path_and_query(rest));
     }
 
     // A reference whose first component holds a ':' defines a scheme, so it is
@@ -667,11 +701,45 @@ mod tests {
         // No path component to compare.
         assert_eq!(resolve_reference_path_and_query("/foo", "mailto:a@b"), None);
         assert_eq!(resolve_reference_path_and_query("/foo", "urn:x:y"), None);
-        // Network-path reference: the authority decides, not the path.
+        // A network-path reference takes its path verbatim; the authority it
+        // also carries is `reference_authority`'s to report.
         assert_eq!(
             resolve_reference_path_and_query("/foo", "//other.example/foo"),
-            None
+            Some("/foo".into())
         );
+        assert_eq!(
+            resolve_reference_path_and_query("/foo", "//other.example/a/../foo?x=1"),
+            Some("/foo?x=1".into())
+        );
+        assert_eq!(
+            resolve_reference_path_and_query("/foo", "//other.example"),
+            Some("/".into())
+        );
+        assert_eq!(
+            resolve_reference_path_and_query("/foo", "//other.example?x=1"),
+            Some("/?x=1".into())
+        );
+    }
+
+    #[test]
+    fn reference_authority_reports_only_a_self_defined_authority() {
+        // Forms that carry their own authority.
+        assert_eq!(
+            reference_authority("https://evil.example/foo"),
+            Some("evil.example".into())
+        );
+        assert_eq!(
+            reference_authority("//evil.example/foo"),
+            Some("evil.example".into())
+        );
+        assert_eq!(
+            reference_authority("http://example.com:8080?x=1"),
+            Some("example.com:8080".into())
+        );
+        // Forms that inherit the base's.
+        for inheriting in ["/foo", "foo.html", "../foo", "", "?x=1", "#f", "mailto:a@b"] {
+            assert_eq!(reference_authority(inheriting), None, "{inheriting}");
+        }
     }
 
     #[test]

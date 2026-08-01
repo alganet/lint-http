@@ -150,6 +150,20 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 let req_origin_opt =
                     crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
 
+                // The target URI's authority is in the request-target only when
+                // that is in absolute form; an origin-form target keeps it in
+                // Host. Without this fallback the path decides alone, which is
+                // wrong in both directions at once — a Content-Location naming a
+                // different host but the same path passes silently, while a
+                // network-path reference naming *this* host is reported.
+                let req_authority =
+                    crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri)
+                        .or_else(|| {
+                            crate::helpers::headers::get_header_str(&tx.request.headers, "host")
+                                .map(|h| h.trim().to_string())
+                        });
+                let cl_authority = crate::helpers::uri::reference_authority(s);
+
                 let mut matches = false;
                 if let Some(cl_path) = cl_path_opt.as_deref() {
                     // Scheme and host fold case; the path and query do not, so
@@ -161,13 +175,23 @@ impl Rule for MessageContentLocationAndUriConsistency {
                         (Some(req_origin), Some(cl_origin)) => {
                             req_origin.eq_ignore_ascii_case(cl_origin)
                         }
-                        // Only one side is in absolute form. An origin-form
-                        // request-target keeps the target URI's authority in
-                        // Host, which this rule does not reach, so the paths
-                        // decide alone. A tolerance, not a licensed skip.
+                        // Only one side carries a scheme, and the target URI's
+                        // scheme is not on the wire for an origin-form request.
+                        // The authority check below still applies.
                         _ => true,
                     };
-                    matches = origins_agree && req_path == cl_path;
+                    let authorities_agree =
+                        match (req_authority.as_deref(), cl_authority.as_deref()) {
+                            (Some(req_auth), Some(cl_auth)) => {
+                                req_auth.eq_ignore_ascii_case(cl_auth)
+                            }
+                            // The reference defines no authority of its own, so
+                            // it inherits the target's — or the target's is
+                            // unknown (no Host, no absolute-form target), and
+                            // nothing can be concluded from it.
+                            _ => true,
+                        };
+                    matches = origins_agree && authorities_agree && req_path == cl_path;
                 }
 
                 // This is the one branch in the rule that reports something the
@@ -224,9 +248,15 @@ impl Rule for MessageContentLocationAndUriConsistency {
             },
             crate::rules::SpecRef {
                 spec: "RFC 3986",
-                section: Some("6.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2",
-                note: "Syntax-Based Normalization: scheme and host fold case, the remaining components do not, and dot-segments are removed before comparison",
+                section: Some("6.2.2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.1",
+                note: "Case Normalization: scheme and host fold case, the remaining components do not. The percent-triplet hex folding this section also describes is NOT applied, so `%2f` and `%2F` read as different paths",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 3986",
+                section: Some("6.2.2.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.3",
+                note: "Path Segment Normalization: dot-segments are removed from both sides before comparison. §6.2.2.2's decoding of unreserved percent-triplets is NOT applied, so `/a~b` and `/a%7Eb` read as different paths",
             },
         ]
     }
@@ -462,6 +492,40 @@ mod tests {
             v.is_some(),
             expect_violation,
             "{req_uri} + Content-Location: {content_location} -> {v:?}"
+        );
+    }
+
+    #[rstest]
+    // Names a different host with the same path — reported, and only Host can
+    // reveal it: the paths are identical.
+    #[case("https://evil.example/foo", true)]
+    #[case("http://example.com:8080/foo", true)]
+    // Network-path reference naming this very host: resolves to the target.
+    #[case("//example.com/foo", false)]
+    #[case("//EXAMPLE.com/foo", false)]
+    #[case("//evil.example/foo", true)]
+    // Absolute form naming this host still matches.
+    #[case("http://example.com/foo", false)]
+    fn authority_is_taken_from_host_for_an_origin_form_target(
+        #[case] content_location: &str,
+        #[case] expect_violation: bool,
+    ) {
+        let rule = MessageContentLocationAndUriConsistency;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_location_and_uri_consistency",
+        ]);
+        let mut tx = make_tx_with_req_uri("/foo", 200, &[("content-location", content_location)]);
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.is_some(),
+            expect_violation,
+            "Content-Location: {content_location} -> {v:?}"
         );
     }
 
