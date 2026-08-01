@@ -23,6 +23,10 @@ impl Rule for ServerCharsetSpecification {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // Response-only, though Content-Type is equally a request field. The concern
+        // driving this rule — a recipient guessing the encoding of text it renders —
+        // is a response-side one, so a request that omits charset is left alone.
+        // A scope choice, not something a sentence narrows.
         let Some(resp) = &tx.response else {
             return None;
         };
@@ -30,8 +34,18 @@ impl Rule for ServerCharsetSpecification {
         if let Some(ct_str) = crate::helpers::headers::get_header_str(&resp.headers, "content-type")
         {
             // Parse content-type to inspect type and parameters reliably
+            // The `media-type` grammar itself is owned by the helper; what matters
+            // here is that the top-level type compares case-insensitively, so
+            // `TEXT/HTML` is in scope exactly as `text/html` is.
+            // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
             if let Ok(parsed) = crate::helpers::headers::parse_media_type(ct_str) {
                 if parsed.type_.eq_ignore_ascii_case("text") {
+                    // Parameter *names* are case-insensitive too, which is why the
+                    // key comparison folds case. Only the name is compared — the
+                    // charset value is never inspected here, so this rule takes no
+                    // position on whether it is registered (that is the IANA-charset
+                    // rule's job).
+                    // cite(RFC 9110 § 8.3.2): "HTTP uses "charset" names to indicate or negotiate the character encoding scheme"
                     let has_charset = parsed.params.unwrap_or("").split(';').any(|p| {
                         let p = p.trim();
                         p.split_once('=')
@@ -60,16 +74,22 @@ impl Rule for ServerCharsetSpecification {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter.\n\nSpecifying the character encoding is crucial for security and correct rendering. If the charset is not explicitly defined, browsers may attempt to guess the encoding (MIME sniffing), which can lead to Cross-Site Scripting (XSS) vulnerabilities or incorrect display of characters."
+        "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter. Responses only, and the type is matched case-insensitively, so `TEXT/HTML` is in scope.\n\nSpecifying the character encoding is crucial for security and correct rendering. If the charset is not explicitly defined, browsers may attempt to guess the encoding (MIME sniffing), which can lead to Cross-Site Scripting (XSS) vulnerabilities or incorrect display of characters.\n\nNo specification requires the parameter — RFC 9110 defines what `charset` means and mandates nothing about sending it — so this rule is a deliberate policy rather than a conformance check. Only the parameter's presence is checked; whether its value names a registered charset is a separate rule's concern."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-                note: "Content-Type header",
+                section: Some("8.3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
+                note: "`media-type` and the case-insensitivity of its type/subtype tokens, which decides what counts as `text/*` here",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.3.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2",
+                note: "What `charset` is for. Note it mandates nothing: no requirement to send the parameter exists, so flagging its absence is this linter's policy",
             },
             crate::rules::SpecRef {
                 spec: "MDN Content-Type",

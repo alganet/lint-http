@@ -352,7 +352,7 @@ sources:
     snippet: Indicates the character encoding standard used. The value is case insensitive but lowercase is preferred.
     cited_by:
     - file: lint-http-rules/src/rules/server_charset_specification.rs
-      line: 47
+      line: 61
 - label: MDN X-XSS-Protection
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection
   fragments:
@@ -2065,6 +2065,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_authentication_challenge_validity.rs
       line: 90
+  - label: server_charset_specification
+    section: § 8.3.1
+    snippet: The type and subtype tokens are case-insensitive.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_charset_specification.rs
+      line: 40
+  - label: server_charset_specification (2)
+    section: § 8.3.2
+    snippet: HTTP uses "charset" names to indicate or negotiate the character encoding scheme
+    cited_by:
+    - file: lint-http-rules/src/rules/server_charset_specification.rs
+      line: 48
   - label: server_content_type_present
     section: § 8.3
     snippet: Content-Type = media-type
