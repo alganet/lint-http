@@ -222,14 +222,22 @@ fn check_content_type(
                     });
                 }
                 if value.starts_with('"') {
-                    if !value.ends_with('"') || value.len() < 2 {
+                    // The `quoted-string` production belongs to the shared
+                    // helper, which walks the interior. The check that stood here
+                    // was a second, weaker copy: it asked only that the value
+                    // start and end with DQUOTE, so a value whose closing quote
+                    // was itself escaped — `foo="a\"` — looked terminated, as did
+                    // `foo="a"b"` with an unescaped quote in the middle.
+                    if let Err(e) = crate::helpers::headers::validate_quoted_string(value) {
                         return Some(Violation {
                             rule: MessageContentTypeWellFormed.id().into(),
                             severity: config.severity,
-                            message: format!("Invalid Content-Type '{}': parameter '{}' has unterminated quoted-string", val, name),
+                            message: format!(
+                                "Invalid Content-Type '{}': parameter '{}' has invalid quoted-string: {}",
+                                val, name, e
+                            ),
                         });
                     }
-                    // We won't validate quoted-string contents further here
                 } else {
                     // must be a token
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
@@ -303,6 +311,15 @@ mod tests {
     #[case("", true)]
     #[case("text/plain; charset=utf-8;", false)]
     #[case("text/plain; foo=bar baz", true)]
+    // The closing DQUOTE is escaped, so the string is not terminated.
+    #[case("text/plain; foo=\"a\\\"", true)]
+    // An unescaped DQUOTE inside the string.
+    #[case("text/plain; foo=\"a\"b\"", true)]
+    // A control character inside the string.
+    #[case("text/plain; foo=\"a\u{1}b\"", true)]
+    // Still accepted: a properly escaped quote, and an empty quoted-string.
+    #[case("text/plain; foo=\"a\\\"b\"", false)]
+    #[case("text/plain; foo=\"\"", false)]
     fn extra_content_type_cases(#[case] val: &str, #[case] expect_violation: bool) {
         let cfg = crate::test_helpers::make_test_rule_config();
         let res = super::check_content_type("test", val, &cfg);
