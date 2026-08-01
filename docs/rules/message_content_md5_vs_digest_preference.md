@@ -30,12 +30,12 @@ severity = "warn"
 ### ✅ Good
 
 ```http
-Content-Digest: sha-256=":dGVzdA==:"
+Content-Digest: sha-256=:dGVzdA==:
 ```
 
 ### ❌ Bad
 
 ```http
-Content-Digest: sha-256=":dGVzdA==:"
+Content-Digest: sha-256=:dGVzdA==:
 Content-MD5: dGVzdA==
 ```
