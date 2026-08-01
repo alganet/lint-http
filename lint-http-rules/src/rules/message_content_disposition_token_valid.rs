@@ -231,17 +231,21 @@ impl Rule for MessageContentDispositionTokenValid {
             Example {
                 compliance: Compliance::Compliant,
                 label: Some("(an unrecognized type is conforming)"),
-                snippet: "Content-Disposition: x-custom-type; filename=\"a.txt\"",
+                snippet: "Content-Disposition: preview; filename=\"a.txt\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "Content-Disposition: bad@type; filename=\"a\"",
             },
+            // Framed as a response, not two bare field lines: a sibling rule
+            // publishes a multi-line block meaning "any of these spellings", and
+            // without the start-line the two constructs look identical while
+            // meaning opposite things.
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("(two field lines — Content-Disposition is a singleton)"),
-                snippet: "Content-Disposition: attachment; filename=\"a.txt\"\nContent-Disposition: inline",
+                label: Some("(two field lines in one message — Content-Disposition is a singleton)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Disposition: attachment; filename=\"a.txt\"\nContent-Disposition: inline",
             },
         ]
     }
@@ -528,29 +532,44 @@ mod tests {
         assert!(v.is_some());
     }
 
-    /// Published examples must survive the sibling rule that owns the parameter
-    /// syntax, and the `Compliant` ones must survive this rule. Nothing runs a
-    /// rule's own `examples()` through the engine, so a snippet that this rule
-    /// accepts but the parameter rule rejects would ship in the docs as the
-    /// recommended spelling. That has already happened twice in this family.
+    /// Published examples must survive every rule that reads this header, not
+    /// just this one. Nothing runs a rule's own `examples()` through the engine,
+    /// so a snippet this rule accepts but a sibling rejects would ship in the
+    /// docs as the recommended spelling. That has already happened twice in this
+    /// family. Three rules read `Content-Disposition`; all three are checked.
     #[test]
-    fn published_examples_agree_with_both_rules() {
+    fn published_examples_agree_with_every_rule_reading_this_header() {
         use crate::rules::Compliance;
         let rule = MessageContentDispositionTokenValid;
-        let sibling = crate::rules::message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_content_disposition_token_valid",
             "message_content_disposition_parameter_validity",
+            "message_form_data_content_disposition_valid",
         ]);
+        let siblings: [(&str, &dyn crate::rules::Rule); 2] = [
+            ("parameter validity", &crate::rules::message_content_disposition_parameter_validity::MessageContentDispositionParameterValidity),
+            ("form-data validity", &crate::rules::message_form_data_content_disposition_valid::MessageFormDataContentDispositionValid),
+        ];
 
         for ex in rule.examples() {
-            // Each snippet is one or more bare `Content-Disposition:` lines.
-            let values: Vec<&str> = ex
-                .snippet
-                .lines()
-                .filter_map(|l| l.strip_prefix("Content-Disposition: "))
-                .collect();
-            assert!(!values.is_empty(), "unparsed example: {}", ex.snippet);
+            // Every line must be accounted for: a start-line, or a field line
+            // this test knows how to feed in. A line silently dropped here is a
+            // line `gendocs` publishes unchecked.
+            let mut values: Vec<&str> = Vec::new();
+            for line in ex.snippet.lines() {
+                if line.starts_with("HTTP/") {
+                    continue;
+                }
+                let v = line.strip_prefix("Content-Disposition: ").unwrap_or_else(|| {
+                    panic!("example line is neither a start-line nor a Content-Disposition field line: {line:?}")
+                });
+                values.push(v);
+            }
+            assert!(
+                !values.is_empty(),
+                "example has no field lines: {}",
+                ex.snippet
+            );
 
             let pairs: Vec<(&str, &str)> =
                 values.iter().map(|v| ("content-disposition", *v)).collect();
@@ -567,12 +586,14 @@ mod tests {
                         "own rule rejects its Compliant example {:?}: {own:?}",
                         ex.snippet
                     );
-                    let other = sibling.check_transaction(&tx, &history, &cfg);
-                    assert!(
-                        other.is_none(),
-                        "the parameter rule rejects a Compliant example {:?}: {other:?}",
-                        ex.snippet
-                    );
+                    for (name, sibling) in siblings {
+                        let other = sibling.check_transaction(&tx, &history, &cfg);
+                        assert!(
+                            other.is_none(),
+                            "the {name} rule rejects a Compliant example {:?}: {other:?}",
+                            ex.snippet
+                        );
+                    }
                 }
                 Compliance::NonCompliant => {
                     assert!(
