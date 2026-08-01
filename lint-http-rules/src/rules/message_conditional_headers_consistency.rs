@@ -92,10 +92,37 @@ impl Rule for MessageConditionalHeadersConsistency {
             }
         }
 
+        // Neither date conditional is a list, so a second field line is a sender
+        // violation — and the combined value the recipient sees is then "more than one
+        // member" / "a list of dates", which it MUST ignore. The conditional silently
+        // degrades to an unconditional request, which is the harm worth reporting.
+        // Each line on its own may be a perfectly valid HTTP-date, so the date-format
+        // rules (which validate line by line) cannot see this; only the count can.
+        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+        // Each field's own recipient consequence — the two are worded differently
+        // ("more than one member" vs "appears to be a list of dates") but bite alike.
+        // cite(RFC 9110 § 13.1.3): "A recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD."
+        // cite(RFC 9110 § 13.1.4): "A recipient MUST ignore the If-Unmodified-Since header field if the received field value is not a valid HTTP-date (including when the field value appears to be a list of dates)."
+        for (name, label) in [
+            ("if-modified-since", "If-Modified-Since"),
+            ("if-unmodified-since", "If-Unmodified-Since"),
+        ] {
+            if req.headers.get_all(name).iter().count() > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "Multiple {} header fields present; the combined value is a list of dates, which the recipient MUST ignore",
+                        label
+                    ),
+                });
+            }
+        }
+
         // If-Modified-Since only meaningful for GET/HEAD. If present on other methods, flag it.
         // (The cited sentence bundles three ignore-conditions; this rule enforces the
-        // method one. The not-a-valid-HTTP-date clause is owned by the date-format rule;
-        // the "more than one member" clause is currently enforced by no rule.)
+        // method one and, above, the multiplicity one. The not-a-valid-HTTP-date clause
+        // is owned by the date-format rule.)
         // cite(RFC 9110 § 13.1.3): "A recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD."
         if has_if_modified_since
             && !(req.method.eq_ignore_ascii_case("GET") || req.method.eq_ignore_ascii_case("HEAD"))
@@ -111,7 +138,7 @@ impl Rule for MessageConditionalHeadersConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Validate consistency and mutual exclusivity of conditional request headers. When an ETag-based conditional is present, this rule flags a redundant date-based conditional that the recipient is required to ignore (RFC 9110 §13.1.3, §13.1.4); it also ensures `If-Range` is only used with `Range` requests, disallows a weak entity-tag in `If-Range`, and flags `If-Modified-Since` on methods other than GET/HEAD."
+        "Validate consistency and mutual exclusivity of conditional request headers. When an ETag-based conditional is present, this rule flags a redundant date-based conditional that the recipient is required to ignore (RFC 9110 §13.1.3, §13.1.4); it also ensures `If-Range` is only used with `Range` requests, disallows a weak entity-tag in `If-Range`, flags `If-Modified-Since` on methods other than GET/HEAD, and flags a repeated `If-Modified-Since`/`If-Unmodified-Since` field, whose combined value is a list of dates the recipient must ignore."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -188,6 +215,58 @@ static REGISTRATION: &dyn crate::rules::Rule = &MessageConditionalHeadersConsist
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// Two field lines, each on its own a perfectly valid HTTP-date — so the
+    /// line-by-line date-format rules see nothing wrong. Only the count reveals
+    /// that the recipient will discard the conditional entirely.
+    #[rstest]
+    #[case("if-modified-since", "If-Modified-Since")]
+    #[case("if-unmodified-since", "If-Unmodified-Since")]
+    fn multiple_date_conditional_field_lines_are_violation(
+        #[case] header: &'static str,
+        #[case] label: &str,
+    ) {
+        use hyper::header::HeaderValue;
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            header,
+            "Wed, 21 Oct 2015 07:28:00 GMT",
+        )]);
+        tx.request.headers.append(
+            header,
+            HeaderValue::from_static("Thu, 22 Oct 2015 07:28:00 GMT"),
+        );
+
+        let rule = MessageConditionalHeadersConsistency;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let v = v.unwrap_or_else(|| panic!("expected violation for two {} lines", label));
+        assert!(v.message.contains(label));
+        assert!(v.message.contains("list of dates"));
+    }
+
+    #[rstest]
+    #[case("if-modified-since")]
+    #[case("if-unmodified-since")]
+    fn single_date_conditional_field_line_is_fine(#[case] header: &'static str) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            header,
+            "Wed, 21 Oct 2015 07:28:00 GMT",
+        )]);
+
+        let rule = MessageConditionalHeadersConsistency;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "unexpected violation: {:?}", v);
+    }
 
     #[rstest]
     fn if_modified_since_ignored_when_if_none_match() {

@@ -1681,7 +1681,9 @@ sources:
     snippet: A recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD.
     cited_by:
     - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
-      line: 99
+      line: 104
+    - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
+      line: 126
   - label: message_conditional_headers_consistency (3)
     section: § 13.1.4
     snippet: A recipient MUST ignore If-Unmodified-Since if the request contains an If-Match header field
@@ -1689,17 +1691,45 @@ sources:
     - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
       line: 50
   - label: message_conditional_headers_consistency (4)
+    section: § 13.1.4
+    snippet: A recipient MUST ignore the If-Unmodified-Since header field if the received field value is not a valid HTTP-date (including when the field value appears to be a list of dates).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
+      line: 105
+  - label: message_conditional_headers_consistency (5)
     section: § 13.1.5
     snippet: A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak.
     cited_by:
     - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
       line: 76
-  - label: message_conditional_headers_consistency (5)
+  - label: message_conditional_headers_consistency (6)
     section: § 13.1.5
     snippet: A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field.
     cited_by:
     - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
       line: 62
+  - label: message_conditional_headers_consistency (7)
+    section: § 5.3
+    snippet: a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list
+    cited_by:
+    - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
+      line: 101
+    - file: lint-http-rules/src/rules/message_etag_syntax.rs
+      line: 77
+    - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
+      line: 43
+    - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
+      line: 40
+    - file: lint-http-rules/src/rules/message_sec_fetch_site_value_valid.rs
+      line: 40
+    - file: lint-http-rules/src/rules/message_sec_fetch_user_value_valid.rs
+      line: 40
+    - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
+      line: 40
+    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
+      line: 41
+    - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
+      line: 40
   - label: message_connection_header_tokens_valid
     section: § 7.6.1
     snippet: The "Connection" header field allows the sender to list desired control options for the current connection.
@@ -1747,32 +1777,12 @@ sources:
     - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
       line: 93
   - label: message_etag_syntax
-    section: § 5.3
-    snippet: a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list
-    cited_by:
-    - file: lint-http-rules/src/rules/message_etag_syntax.rs
-      line: 77
-    - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
-      line: 43
-    - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
-      line: 40
-    - file: lint-http-rules/src/rules/message_sec_fetch_site_value_valid.rs
-      line: 40
-    - file: lint-http-rules/src/rules/message_sec_fetch_user_value_valid.rs
-      line: 40
-    - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
-      line: 40
-    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
-      line: 41
-    - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
-      line: 40
-  - label: message_etag_syntax (2)
     section: § 8.8.3
     snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
     cited_by:
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 53
-  - label: message_etag_syntax (3)
+  - label: message_etag_syntax (2)
     section: § 8.8.3
     snippet: The "ETag" field in a response provides the current entity tag for the selected representation, as determined at the conclusion of handling the request.
     cited_by:
