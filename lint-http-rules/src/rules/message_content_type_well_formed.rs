@@ -69,23 +69,15 @@ impl Rule for MessageContentTypeWellFormed {
             }
 
             for hv in vals {
-                // A value carrying octets outside visible US-ASCII was skipped
-                // in silence, so the rule that exists to say "this media type is
-                // unparseable" said nothing about the least parseable value it
-                // could be handed. Every construct in `media-type` is a `token`
-                // or a `quoted-string`, neither of which reaches past US-ASCII.
-                // cite(RFC 9110 § 5.5): "Field values are usually constrained to the range of US-ASCII characters [USASCII]."
-                let Ok(s) = hv.to_str() else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!(
-                            "Content-Type header in the {} contains octets outside visible US-ASCII, so no media type can be read from it",
-                            which
-                        ),
-                    });
-                };
-                if let Some(v) = check_content_type(which, s, &config) {
+                // Decoded from the raw octets rather than through `to_str`, which
+                // refuses anything outside visible US-ASCII and so refuses
+                // `obs-text` — legal inside a `quoted-string`, and the reason a
+                // value like `boundary="<0xE4>"` must not be reported. Where
+                // obs-text is *not* legal, in a `token`, the checks below already
+                // reject it, so the decode decides nothing on its own.
+                // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+                let s = String::from_utf8_lossy(hv.as_bytes());
+                if let Some(v) = check_content_type(which, &s, &config) {
                     return Some(v);
                 }
             }
@@ -487,36 +479,38 @@ mod tests {
     }
 
     #[rstest]
-    #[case(true)]
-    #[case(false)]
-    fn undecodable_value_is_reported_not_skipped(#[case] on_response: bool) {
-        // The whole point of this rule is to say when a media type cannot be
-        // read; a value it cannot even decode used to be passed over in silence.
+    // obs-text is legal inside a quoted-string, so a raw high byte in a
+    // parameter value is not a defect and must not be reported.
+    #[case(b"multipart/form-data; boundary=\"\xe4\"", false)]
+    #[case("multipart/form-data; boundary=\"caf\u{e9}\"".as_bytes(), false)]
+    // obs-text is not legal in a token, so the same octet in the type, the
+    // subtype, a parameter name or an unquoted value is.
+    #[case(b"te\xe4xt/plain", true)]
+    #[case(b"text/pla\xe4in", true)]
+    #[case(b"text/plain; char\xe4set=utf-8", true)]
+    #[case(b"text/plain; charset=utf\xe4-8", true)]
+    // A value `to_str` refuses outright, previously skipped in silence.
+    #[case(b"\xff", true)]
+    fn obs_text_is_judged_by_where_it_appears(#[case] raw: &[u8], #[case] expect_violation: bool) {
         use hyper::header::HeaderValue;
         let rule = MessageContentTypeWellFormed;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_content_type_well_formed",
         ]);
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        hm.insert("content-type", HeaderValue::from_bytes(&[0xff]).unwrap());
+        hm.insert("content-type", HeaderValue::from_bytes(raw).unwrap());
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        if on_response {
-            tx.response.as_mut().unwrap().headers = hm;
-        } else {
-            tx.request.headers = hm;
-        }
-        let msg = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .expect("must be reported")
-            .message;
-        assert!(msg.contains("US-ASCII"), "{msg}");
-        assert!(
-            msg.contains(if on_response { "response" } else { "request" }),
-            "{msg}"
+        tx.response.as_mut().unwrap().headers = hm;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.is_some(),
+            expect_violation,
+            "{:?} -> {v:?}",
+            String::from_utf8_lossy(raw)
         );
     }
 
