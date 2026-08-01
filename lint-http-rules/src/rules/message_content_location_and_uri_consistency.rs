@@ -88,7 +88,9 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 });
             }
 
-            // Consistency check: if response is 2xx, compare Content-Location to target URI
+            // The comparison the spec asks for is between the target URI and the
+            // Content-Location *after conversion to absolute form*, and it is
+            // scoped to 2xx.
             if (200..300).contains(&resp.status) {
                 // Request path (if any) — preserve query when present and ignore fragment
                 let req_path_opt = crate::helpers::uri::extract_path_and_query_from_request_target(
@@ -96,44 +98,47 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 );
 
                 // If the request-target carries no path (authority-form or '*'), skip the consistency check
-                if req_path_opt.is_none() {
+                let Some(req_path) = req_path_opt else {
                     continue;
-                }
+                };
+                let req_path = crate::helpers::uri::normalize_path_and_query(&req_path);
 
-                // Try to get path+query from Content-Location (if any)
+                // The value may be a partial-URI, which means nothing on its own:
+                // it names a resource only once resolved against the target URI.
+                // Comparing the two as raw strings reports every relative form as
+                // a different resource, including one that resolves right back to
+                // the target.
                 let cl_path_opt =
-                    crate::helpers::uri::extract_path_and_query_from_request_target(s);
+                    crate::helpers::uri::resolve_reference_path_and_query(&req_path, s);
 
                 // If absolute, also compare origin
                 let cl_origin_opt = crate::helpers::uri::extract_origin_if_absolute(s);
                 let req_origin_opt =
                     crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
 
-                // If we can obtain a path for Content-Location, compare; require origin match when both are absolute
                 let mut matches = false;
-                if let (Some(req_path), Some(cl_path)) =
-                    (req_path_opt.as_deref(), cl_path_opt.as_deref())
-                {
-                    if let (Some(req_origin), Some(cl_origin)) =
-                        (req_origin_opt.as_deref(), cl_origin_opt.as_deref())
+                if let Some(cl_path) = cl_path_opt.as_deref() {
+                    // Scheme and host fold case; everything else in a URI does not,
+                    // so the path and query compare byte for byte.
+                    let origins_agree = match (req_origin_opt.as_deref(), cl_origin_opt.as_deref())
                     {
-                        // both absolute: require both origin and path+query to match
-                        if req_origin.eq_ignore_ascii_case(cl_origin) && req_path == cl_path {
-                            matches = true;
+                        (Some(req_origin), Some(cl_origin)) => {
+                            req_origin.eq_ignore_ascii_case(cl_origin)
                         }
-                    } else {
-                        // partial or both path-only: compare path+query
-                        if req_path == cl_path {
-                            matches = true;
-                        }
-                    }
+                        // Only one side is in absolute form. An origin-form
+                        // request-target keeps the target URI's authority in
+                        // Host, which this rule does not reach, so the paths
+                        // decide alone.
+                        _ => true,
+                    };
+                    matches = origins_agree && req_path == cl_path;
                 }
 
                 if !matches {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
-                        message: "Content-Location does not match the request target; content may identify a different resource".into(),
+                        message: "Content-Location identifies a different resource than the request target; RFC 9110 §8.7 permits this (a negotiated variant, a 201 pointing at the created resource, or a report on a POST), so confirm it is deliberate".into(),
                     });
                 }
             }
@@ -143,7 +148,7 @@ impl Rule for MessageContentLocationAndUriConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Content-Location` header values to ensure they are well-formed URI references and, for 2xx responses, that they consistently identify the representation. If the response's `Content-Location` resolves to the same URI as the request target, the response clearly identifies the representation of the target resource; otherwise, the header indicates the representation is identified by a different URI (allowed, but worth flagging)."
+        "Validate `Content-Location` header values. The value must be a well-formed URI reference (`absolute-URI / partial-URI`) with no whitespace, sound percent-encoding and a valid scheme where one is present, and — since neither alternative of the grammar is a comma-separated list — a message carries at most one `Content-Location` field line (RFC 9110 §5.3).\n\nFor 2xx responses the rule additionally compares the value against the request target, resolving a `partial-URI` against it first as RFC 9110 §8.7 requires (\"after conversion to absolute form\"), so a relative reference that names the target resource is not reported.\n\n**A difference is not a protocol error.** RFC 9110 §8.7 attaches no requirement to a differing `Content-Location`: it means \"the origin server claims that the URI is an identifier for a different resource\", which is exactly what a negotiated variant, a 201 pointing at the created resource, or a POST report is supposed to say. The rule reports the difference as an advisory — `config_example.toml` ships it at `info` — because the claim \"can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP\", so it is worth a human glance and nothing stronger. Raise the severity only if your deployment intends `Content-Location` to always echo the target."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -169,6 +174,11 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 snippet: "GET /foo HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Location: http://example.com/foo\nContent-Type: text/plain\n\nHello",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("(relative reference resolving to the target)"),
+                snippet: "GET /dir/foo.html HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Location: foo.html\nContent-Type: text/html\n\n<p>Hello",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("(invalid percent-encoding)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Location: /bad%2G",
@@ -177,6 +187,16 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 compliance: Compliance::NonCompliant,
                 label: Some("(contains whitespace)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Location: /bad path",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(two field lines — Content-Location is a singleton)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Location: /foo\nContent-Location: /bar",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(negotiated variant — reported as an advisory, not an error)"),
+                snippet: "GET /foo HTTP/1.1\nHost: example.com\nAccept-Language: en\n\nHTTP/1.1 200 OK\nContent-Location: /foo.en.html\nContent-Type: text/html\n\n<p>Hello",
             },
         ]
     }
@@ -335,6 +355,64 @@ mod tests {
             &cfg,
         );
         assert!(v.is_none());
+    }
+
+    #[rstest]
+    // A relative-path reference that resolves straight back to the target URI.
+    #[case("/dir/foo.html", "foo.html", false)]
+    #[case("/dir/foo.html", "./foo.html", false)]
+    #[case("/dir/sub/foo", "../sub/foo", false)]
+    // Dot-segments in an absolute-path reference normalize away.
+    #[case("/foo", "/a/../foo", false)]
+    // The query rides along through resolution.
+    #[case("/dir/foo?x=1", "foo?x=1", false)]
+    #[case("/dir/foo?x=1", "foo?x=2", true)]
+    // A relative reference that really does name something else still reports.
+    #[case("/dir/foo.html", "bar.html", true)]
+    #[case("/dir/sub/foo", "../bar", true)]
+    // No comparable path: reported, since the rule cannot show they agree.
+    #[case("/foo", "mailto:a@b", true)]
+    fn relative_references_resolve_against_the_target(
+        #[case] req_uri: &str,
+        #[case] content_location: &str,
+        #[case] expect_violation: bool,
+    ) {
+        let rule = MessageContentLocationAndUriConsistency;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_location_and_uri_consistency",
+        ]);
+        let tx = make_tx_with_req_uri(req_uri, 200, &[("content-location", content_location)]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.is_some(),
+            expect_violation,
+            "{req_uri} + Content-Location: {content_location} -> {v:?}"
+        );
+    }
+
+    #[test]
+    fn shipped_severity_is_advisory() {
+        // RFC 9110 §8.7 permits a differing Content-Location, so the mismatch
+        // report is guidance rather than a protocol error. Guard the shipped
+        // default against a silent bump.
+        let s = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
+        )
+        .expect("config_example.toml must be readable");
+        let section = s
+            .split("[rules.message_content_location_and_uri_consistency]")
+            .nth(1)
+            .expect("rule must appear in config_example.toml");
+        let shipped = section
+            .lines()
+            .take_while(|l| !l.starts_with('['))
+            .find_map(|l| l.strip_prefix("severity = "))
+            .expect("rule must ship a severity");
+        assert_eq!(shipped.trim(), "\"info\"");
     }
 
     #[test]
