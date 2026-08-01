@@ -1929,8 +1929,6 @@ sources:
       line: 140
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 63
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 77
   - label: message_content_disposition_token_valid (2)
     section: § 5.5
     snippet: Fields that only anticipate a single member as the field value are referred to as "singleton fields".
@@ -2042,7 +2040,7 @@ sources:
     - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
       line: 98
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 260
+      line: 252
     - file: lint-http-rules/src/rules/server_charset_specification.rs
       line: 40
   - label: message_content_type_well_formed
@@ -2050,38 +2048,44 @@ sources:
     snippet: The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 243
+      line: 235
   - label: message_content_type_well_formed (2)
+    section: § 5.5
+    snippet: A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 78
+  - label: message_content_type_well_formed (3)
     section: § 5.6.6
     snippet: parameter       = parameter-name "=" parameter-value
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 351
-  - label: message_content_type_well_formed (3)
+      line: 343
+  - label: message_content_type_well_formed (4)
     section: § 5.6.6
     snippet: parameter-name  = token
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 310
-  - label: message_content_type_well_formed (4)
+      line: 302
+  - label: message_content_type_well_formed (5)
     section: § 5.6.6
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 339
-  - label: message_content_type_well_formed (5)
+      line: 331
+  - label: message_content_type_well_formed (6)
     section: § 5.6.6
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 295
-  - label: message_content_type_well_formed (6)
+      line: 287
+  - label: message_content_type_well_formed (7)
     section: § 8.3
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 57
-  - label: message_content_type_well_formed (7)
+  - label: message_content_type_well_formed (8)
     section: § 8.3
     snippet: Content-Type = media-type
     cited_by:
@@ -2089,30 +2093,30 @@ sources:
       line: 56
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 57
-  - label: message_content_type_well_formed (8)
+  - label: message_content_type_well_formed (9)
     section: § 8.3
     snippet: Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 58
-  - label: message_content_type_well_formed (9)
+  - label: message_content_type_well_formed (10)
     section: § 8.3
     snippet: 'The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics.'
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 18
-  - label: message_content_type_well_formed (10)
+  - label: message_content_type_well_formed (11)
     section: § 8.3.1
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 286
-  - label: message_content_type_well_formed (11)
+      line: 278
+  - label: message_content_type_well_formed (12)
     section: § 8.3.1
     snippet: type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 259
+      line: 251
   - label: message_date_and_time_headers_consistency
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated
