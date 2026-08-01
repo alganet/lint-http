@@ -825,11 +825,15 @@ sources:
   type: text/plain
   fragments:
   - label: message_content_disposition_parameter_validity
-    section: § 4
-    snippet: The Content-Disposition response header field is used to convey additional information about how to process the response payload
+    section: § 4.1
+    snippet: content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )
     cited_by:
     - file: lint-http-rules/src/rules/message_content_disposition_parameter_validity.rs
-      line: 42
+      line: 35
+    - file: lint-http-rules/src/rules/message_content_disposition_token_valid.rs
+      line: 41
+    - file: lint-http-rules/src/rules/message_content_disposition_token_valid.rs
+      line: 112
   - label: message_content_disposition_token_valid
     section: § 1
     snippet: This document does not apply to Content-Disposition header fields appearing in payload bodies transmitted over HTTP, such as when using the media type "multipart/form-data" ([RFC2388]).
@@ -850,25 +854,17 @@ sources:
       line: 54
   - label: message_content_disposition_token_valid (4)
     section: § 4.1
-    snippet: content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )
-    cited_by:
-    - file: lint-http-rules/src/rules/message_content_disposition_token_valid.rs
-      line: 41
-    - file: lint-http-rules/src/rules/message_content_disposition_token_valid.rs
-      line: 112
-  - label: message_content_disposition_token_valid (5)
-    section: § 4.1
     snippet: disp-ext-type       = token
     cited_by:
     - file: lint-http-rules/src/rules/message_content_disposition_token_valid.rs
       line: 71
-  - label: message_content_disposition_token_valid (6)
+  - label: message_content_disposition_token_valid (5)
     section: § 4.1
     snippet: disposition-type = "inline" | "attachment" | disp-ext-type
     cited_by:
     - file: lint-http-rules/src/rules/message_content_disposition_token_valid.rs
       line: 56
-  - label: message_content_disposition_token_valid (7)
+  - label: message_content_disposition_token_valid (6)
     section: § 4.2
     snippet: Unknown or unhandled disposition types SHOULD be handled by recipients the same way as "attachment" (see also [RFC2183], Section 2.8).
     cited_by:

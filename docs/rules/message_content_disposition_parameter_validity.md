@@ -16,6 +16,8 @@ SPDX-License-Identifier: ISC
 
 When a parameter value is syntactically invalid, the rule raises a `warn`-level violation by default.
 
+**Scope:** this rule covers `disposition-parm` and nothing above it. An empty field value, a missing `disposition-type`, more than one `Content-Disposition` field line, and a value carrying octets outside visible US-ASCII are all reported by `message_content_disposition_token_valid`, which owns that part of the grammar. Those inputs leave no parameters to inspect, so this rule stays silent on them rather than emitting a second, identical finding.
+
 ## Specifications
 
 - [RFC 6266 §4](https://www.rfc-editor.org/rfc/rfc6266.html#section-4): Use of `Content-Disposition` in HTTP (parameters, `filename`, `filename*`, `size` notes)
