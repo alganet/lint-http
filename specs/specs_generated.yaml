@@ -942,6 +942,12 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc6838.txt
   type: text/plain
   fragments:
+  - label: message_content_type_iana_registered
+    section: § 4.2.8
+    snippet: it specified a suffix (in that case, "+xml") to be appended to the base subtype name.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
+      line: 121
   - label: message_media_type_suffix_validity
     section: § 4.2.8
     snippet: Media types that make use of a named structured syntax SHOULD use the appropriate registered "+suffix" for that structured syntax
