@@ -18,8 +18,10 @@ impl Rule for MessageContentDispositionTokenValid {
     // malformed disposition-type is worth reporting wherever it appears — but no
     // sentence licenses looking there, and the previous rationale ("multipart/
     // form-data parts") was wrong twice over: those are *part* headers inside the
-    // body, which this linter does not parse, and their grammar is RFC 7578's.
+    // body, which this linter does not parse, and their grammar is RFC 7578's —
+    // and RFC 6266 says so itself rather than merely implying it.
     // cite(RFC 6266 § 4): "The Content-Disposition response header field is used to convey additional information about how to process the response payload, and also can be used to attach additional metadata, such as the filename to use when saving the response payload locally."
+    // cite(RFC 6266 § 1): "This document does not apply to Content-Disposition header fields appearing in payload bodies transmitted over HTTP, such as when using the media type "multipart/form-data" ([RFC2388])."
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -82,13 +84,27 @@ impl Rule for MessageContentDispositionTokenValid {
             None
         };
 
-        // One message section's worth of Content-Disposition field lines.
-        let check_section = |section: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
-            let vals: Vec<_> = headers.get_all("content-disposition").iter().collect();
+        // One message's worth of Content-Disposition field lines. The §5.3
+        // prohibition is scoped to a message and spans both of its field
+        // sections, so the header and trailer sections are counted together: one
+        // line in each is the same defect as two in either.
+        let check_message = |kind: &str,
+                             headers: &hyper::HeaderMap,
+                             trailers: Option<&hyper::HeaderMap>|
+         -> Option<Violation> {
+            let vals: Vec<_> = headers
+                .get_all("content-disposition")
+                .iter()
+                .chain(
+                    trailers
+                        .into_iter()
+                        .flat_map(|t| t.get_all("content-disposition").iter()),
+                )
+                .collect();
 
             // The grammar is a disposition-type followed by parameters, with no
             // `#(...)` alternative anywhere in it, so §5.3's exception does not
-            // apply and a message section carries at most one field line.
+            // apply and a message carries at most one field line.
             // Combining two is worse here than the arithmetic suggests: the
             // recombined value is "attachment; filename="a", inline", which
             // different recipients truncate at different points, so the filename
@@ -97,22 +113,36 @@ impl Rule for MessageContentDispositionTokenValid {
             // cite(RFC 9110 § 5.5): "Fields that only anticipate a single member as the field value are referred to as "singleton fields"."
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             if vals.len() > 1 {
+                // The singleton conclusion is drawn from RFC 6266's grammar, so
+                // only a response — the message RFC 6266 governs — may be told
+                // that. A request Content-Disposition is outside that document,
+                // and the §5.3 requirement stands on its own for it.
+                let basis = if kind == "response" {
+                    "the grammar has no comma-separated-list alternative (RFC 6266 §4.1), so at most one field line may be sent (RFC 9110 §5.3)"
+                } else {
+                    "no definition of this field gives it a comma-separated-list form, so at most one field line may be sent (RFC 9110 §5.3)"
+                };
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
                     message: format!(
-                        "Multiple Content-Disposition header fields in the {}; the grammar has no comma-separated-list alternative (RFC 6266 §4.1), so at most one field line may be sent (RFC 9110 §5.3)",
-                        section
+                        "Multiple Content-Disposition header fields in the {}; {}",
+                        kind, basis
                     ),
                 });
             }
 
             for hv in vals {
+                // Not a UTF-8 question: `to_str` accepts only visible US-ASCII,
+                // which is the range field values are held to. A raw non-ASCII
+                // filename is well-formed UTF-8 and still wrong here — RFC 6266
+                // §4.3 has `filename*` for exactly that.
+                // cite(RFC 9110 § 5.5): "Field values are usually constrained to the range of US-ASCII characters [USASCII]."
                 let Ok(s) = hv.to_str() else {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
-                        message: "Content-Disposition header value is not valid UTF-8".into(),
+                        message: "Content-Disposition header value contains octets outside visible US-ASCII; non-ASCII filenames belong in a `filename*` parameter (RFC 6266 §4.3)".into(),
                     });
                 };
                 if let Some(v) = check_value("Content-Disposition", s) {
@@ -124,12 +154,13 @@ impl Rule for MessageContentDispositionTokenValid {
         };
 
         if let Some(resp) = &tx.response {
-            if let Some(v) = check_section("response", &resp.headers) {
+            if let Some(v) = check_message("response", &resp.headers, resp.trailers.as_ref()) {
                 return Some(v);
             }
         }
 
-        if let Some(v) = check_section("request", &tx.request.headers) {
+        if let Some(v) = check_message("request", &tx.request.headers, tx.request.trailers.as_ref())
+        {
             return Some(v);
         }
 
@@ -353,6 +384,90 @@ mod tests {
         let msg = v.expect("two field lines must be reported").message;
         assert!(msg.contains("Multiple Content-Disposition"), "{msg}");
         assert!(msg.contains("response"), "{msg}");
+    }
+
+    #[test]
+    fn a_header_line_and_a_trailer_line_are_still_two_field_lines() {
+        // §5.3 forbids multiple field lines "whether in the headers or
+        // trailers" — one in each section is the same defect as two in either.
+        let rule = MessageContentDispositionTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        {
+            let resp = tx.response.as_mut().unwrap();
+            resp.headers = crate::test_helpers::make_headers_from_pairs(&[(
+                "content-disposition",
+                "attachment; filename=\"a.txt\"",
+            )]);
+            resp.trailers = Some(crate::test_helpers::make_headers_from_pairs(&[(
+                "content-disposition",
+                "inline",
+            )]));
+        }
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_token_valid",
+            "warn",
+        );
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        );
+        assert!(v.expect("must be reported").message.contains("Multiple"));
+    }
+
+    #[test]
+    fn request_message_does_not_claim_rfc_6266_as_its_authority() {
+        // RFC 6266 defines a response header field, so a request-side finding
+        // must not cite its grammar as the reason.
+        let rule = MessageContentDispositionTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("content-disposition", "inline"),
+            ("content-disposition", "attachment"),
+        ]);
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_token_valid",
+            "warn",
+        );
+        let msg = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &config,
+            )
+            .expect("must be reported")
+            .message;
+        assert!(!msg.contains("RFC 6266"), "{msg}");
+        assert!(msg.contains("RFC 9110 §5.3"), "{msg}");
+    }
+
+    #[test]
+    fn non_ascii_value_message_does_not_blame_utf8() {
+        // A raw non-ASCII filename is perfectly good UTF-8; what it violates is
+        // the US-ASCII range field values are held to.
+        use hyper::header::HeaderValue;
+        let rule = MessageContentDispositionTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm.insert(
+            "content-disposition",
+            HeaderValue::from_bytes("attachment; filename=\"café.txt\"".as_bytes()).unwrap(),
+        );
+        tx.response.as_mut().unwrap().headers = hm;
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "message_content_disposition_token_valid",
+            "warn",
+        );
+        let msg = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &config,
+            )
+            .expect("must be reported")
+            .message;
+        assert!(!msg.contains("UTF-8"), "{msg}");
+        assert!(msg.contains("US-ASCII"), "{msg}");
     }
 
     #[test]
