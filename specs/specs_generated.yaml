@@ -2200,6 +2200,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_age_header_numeric.rs
       line: 57
+    - file: lint-http-rules/src/rules/message_cache_control_directive_validity.rs
+      line: 168
   - label: message_age_header_numeric (2)
     section: § 5.1
     snippet: Although it is defined as a singleton header field, a cache encountering a message with a list-based Age field value SHOULD use the first member of the field value, discarding subsequent ones.
@@ -2263,7 +2265,7 @@ sources:
     snippet: If a qualified private response directive is present, with an argument that lists one or more field names
     cited_by:
     - file: lint-http-rules/src/rules/message_cache_control_directive_validity.rs
-      line: 179
+      line: 175
   - label: message_caching_directive_interaction
     section: § 4.2.1
     snippet: 'When there is more than one value present for a given directive (e.g., two Expires header field lines or multiple Cache-Control: max-age directives), either the first occurrence should be used or the response should be considered stale.'
