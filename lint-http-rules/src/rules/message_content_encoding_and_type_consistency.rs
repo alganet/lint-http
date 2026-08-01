@@ -55,6 +55,12 @@ impl Rule for MessageContentEncodingAndTypeConsistency {
                         message: format!("Invalid token '{}' in {} header", c, hdr_name),
                     });
                 }
+                // Repeating a coding is not forbidden anywhere: §8.4 has the sender list
+                // the codings "in the order in which they were applied", which makes
+                // `gzip, gzip` a well-formed way to say gzip was applied twice. Flagging
+                // it is this rule's judgement that a repeat is far more often a
+                // configuration accident (two layers each adding the header) than a
+                // deliberate double-encoding. Uncited, since no sentence licenses it.
                 let key = token.to_ascii_lowercase();
                 if !seen.insert(key.clone()) {
                     return Some(Violation {
@@ -92,13 +98,31 @@ impl Rule for MessageContentEncodingAndTypeConsistency {
         if let Some(resp) = &tx.response {
             // No-body statuses should not carry Content-Encoding
             let status = resp.status;
+            // These three statuses reach the same verdict by different routes, and only
+            // one of them is a stated requirement.
+            //
+            // 304 is the grounded case: Content-Encoding is representation metadata,
+            // it is not among the fields a 304 is told to send, and it does not guide
+            // cache updates — so the sentence below covers it directly (a SHOULD NOT,
+            // which is why the message says "should not").
+            // cite(RFC 9110 § 15.4.5): "a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates"
+            //
+            // 1xx and 204 are the linter's inference: those responses carry no content,
+            // so a coding describing how the content was encoded has nothing to
+            // describe. No sentence says this, and for 204 the spec arguably leans the
+            // other way — §15.3.5 has metadata "refer to the target resource and its
+            // selected representation", which would make representation metadata
+            // meaningful even with no content to send. Kept because a Content-Encoding
+            // on a bodyless response is far more often a misconfiguration than a
+            // deliberate description of a representation the client is not receiving;
+            // recorded as the possible false positive it is.
             let is_no_body_status = (100..200).contains(&status) || status == 204 || status == 304;
             if is_no_body_status && resp.headers.contains_key("content-encoding") {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
                     message: format!(
-                        "Response {} must not have a Content-Encoding header (no message body)",
+                        "Response {} carries no content, so it should not send Content-Encoding",
                         status
                     ),
                 });
@@ -124,7 +148,7 @@ impl Rule for MessageContentEncodingAndTypeConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Content-Encoding` header members for common correctness issues: members must be valid `token`s, duplicate codings are likely a mistake and are flagged, and responses that must not carry a message body (1xx, 204, 304) MUST NOT include a `Content-Encoding` header."
+        "Validate `Content-Encoding` header members for common correctness issues: members must be valid `token`s, a wildcard `*` is rejected (it belongs to `Accept-Encoding`), and a coding repeated within the field is flagged.\n\nResponses that carry no content (1xx, 204, 304) are flagged for sending `Content-Encoding` at all. For 304 this follows RFC 9110 §15.4.5, which tells a sender not to include representation metadata beyond a listed set; for 1xx and 204 it is this rule's inference that a coding describing absent content is a misconfiguration.\n\nRepeating a coding is likewise a judgement call rather than a conformance failure — `gzip, gzip` legitimately expresses gzip applied twice — but in practice it usually means two layers each added the header.\n\n**Note:** despite the rule's name, no `Content-Type` consistency check is performed; the rule inspects `Content-Encoding` only."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -133,13 +157,13 @@ impl Rule for MessageContentEncodingAndTypeConsistency {
                 spec: "RFC 9110",
                 section: Some("8.4"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
-                note: "Content Coding",
+                note: "`Content-Encoding = #content-coding` — the list the member checks walk. Note it does not forbid repeating a coding, so the duplicate check is this rule's judgement",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-                note: "Message Body and status codes (1xx, 204, 304)",
+                section: Some("15.4.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5",
+                note: "Why a 304 should not carry Content-Encoding: a sender SHOULD NOT include representation metadata beyond the listed fields. (This reference previously pointed at §8.3, which is Content-Type, not message-body rules.) The 1xx and 204 cases have no such sentence and are inferred",
             },
         ]
     }
@@ -415,9 +439,7 @@ mod tests {
         );
         assert!(v.is_some());
         let v = v.unwrap();
-        assert!(v
-            .message
-            .contains("must not have a Content-Encoding header"));
+        assert!(v.message.contains("should not send Content-Encoding"));
         Ok(())
     }
 }
