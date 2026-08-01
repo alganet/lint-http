@@ -23,7 +23,9 @@ impl Rule for MessageContentTransferEncodingValid {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Allowed encodings per RFC 2045 §6
+        // The five named mechanisms. The grammar admits two more alternatives —
+        // `ietf-token` and `x-token` — so this list is not the whole of it; see the
+        // x-token branch below.
         let allowed = ["7bit", "8bit", "binary", "quoted-printable", "base64"];
 
         let check_header = |hdr_name: &str, val: &str| -> Option<Violation> {
@@ -60,7 +62,14 @@ impl Rule for MessageContentTransferEncodingValid {
                 });
             }
 
-            if !allowed.contains(&tok.to_ascii_lowercase().as_str()) {
+            let lower = tok.to_ascii_lowercase();
+            // `x-token` is a first-class alternative in the mechanism grammar, and
+            // §6.3 spells out how to use it: a private encoding *must* carry the `X-`
+            // prefix precisely so it is recognizable as non-standard. So an `x-`
+            // value is the conforming way to name a private mechanism, not an
+            // unrecognized one — rejecting it contradicted the grammar quoted above.
+            // cite(RFC 2045 § 6.3): "Implementors may, if necessary, define private Content-Transfer-Encoding values, but must use an x-token, which is a name prefixed by "X-", to indicate its non-standard status"
+            if !allowed.contains(&lower.as_str()) && !lower.starts_with("x-") {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
@@ -123,7 +132,7 @@ impl Rule for MessageContentTransferEncodingValid {
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Transfer-Encoding: x-custom\n\n<response body>",
+                snippet: "HTTP/1.1 200 OK\nContent-Transfer-Encoding: no-such-mechanism\n\n<response body>",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -149,7 +158,9 @@ mod tests {
     #[case(Some("7bit"), false)]
     #[case(Some("BASE64"), false)]
     #[case(Some("quoted-printable"), false)]
-    #[case(Some("x-custom"), true)]
+    // `x-token` is how RFC 2045 §6.3 says to spell a private mechanism.
+    #[case(Some("x-custom"), false)]
+    #[case(Some("X-My-New-Encoding"), false)]
     #[case(Some("base64, gzip"), true)]
     #[case(Some("bad@token"), true)]
     fn content_transfer_encoding_cases(
@@ -259,7 +270,8 @@ mod tests {
         // multiple header fields where one is invalid -> should report violation
         let tx2 = crate::test_helpers::make_test_transaction_with_headers(&[
             ("content-transfer-encoding", "base64"),
-            ("content-transfer-encoding", "x-bad"),
+            // Not `x-bad`: an `x-` name is a conforming private mechanism.
+            ("content-transfer-encoding", "no-such-mechanism"),
         ]);
         let v2 = rule.check_transaction(
             &tx2,

@@ -37,7 +37,7 @@ Content-Transfer-Encoding: base64
 
 ```http
 HTTP/1.1 200 OK
-Content-Transfer-Encoding: x-custom
+Content-Transfer-Encoding: no-such-mechanism
 
 <response body>
 ```

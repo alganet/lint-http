@@ -417,7 +417,13 @@ sources:
     snippet: mechanism := "7bit" / "8bit" / "binary" / "quoted-printable" / "base64" / ietf-token / x-token
     cited_by:
     - file: lint-http-rules/src/rules/message_content_transfer_encoding_valid.rs
-      line: 42
+      line: 44
+  - label: message_content_transfer_encoding_valid (2)
+    section: § 6.3
+    snippet: Implementors may, if necessary, define private Content-Transfer-Encoding values, but must use an x-token, which is a name prefixed by "X-", to indicate its non-standard status
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_transfer_encoding_valid.rs
+      line: 71
 - label: RFC 2046
   url: https://www.rfc-editor.org/rfc/rfc2046.txt
   type: text/plain
