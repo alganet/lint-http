@@ -70,9 +70,10 @@ impl Rule for MessageCharsetIanaRegistered {
         "message_charset_iana_registered"
     }
 
-    // The parameter this rule reads lives in Content-Type, which describes the
-    // representation a message carries — and both directions carry one.
-    // cite(RFC 9110 § 8.3.2): "HTTP uses "charset" names to indicate or negotiate the character encoding scheme ([RFC6365], Section 2) of a textual representation."
+    // The parameter this rule reads lives in Content-Type, and it is that field's
+    // definition — not the charset section — that puts both directions in scope:
+    // a request and a response each carry a representation.
+    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -157,15 +158,23 @@ impl Rule for MessageCharsetIanaRegistered {
                                     }
                                 }
                             } else {
-                                // Narrower than the charset production by two
-                                // characters: §8.3.2 notes that `mime-charset`
-                                // (RFC 2978 §2.3) admits "{" and "}", which
-                                // `token` does not, while also noting that no
-                                // registered charset name uses them. Since an
-                                // unregistered name is reported anyway, the
-                                // narrowing changes the message and not the
-                                // verdict. (That note sits in a gutter-marked
-                                // block, which apycite cannot quote verbatim.)
+                                // `token` is not the charset production, and the
+                                // two sets are *incomparable* rather than one
+                                // being a subset. `mime-charset` (RFC 2978 §2.3)
+                                // admits "{" and "}", which `token` does not;
+                                // `token` admits "*", "." and "|", which
+                                // `mime-charset` does not. So this check is
+                                // stricter in one direction and looser in the
+                                // other — `charset=utf.8` reaches the allowlist
+                                // instead of being called malformed.
+                                //
+                                // Neither direction changes a verdict. A name
+                                // with braces is not registered (RFC 9110 §8.3.2
+                                // says so outright), and a name with "." or "*"
+                                // that is not in the allowlist is reported by the
+                                // membership check below. Only the wording of the
+                                // finding differs. (§8.3.2 makes this point in a
+                                // gutter-marked note apycite cannot quote.)
                                 if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(value)
                                 {
@@ -218,18 +227,28 @@ impl Rule for MessageCharsetIanaRegistered {
         };
 
         // Every Content-Type field line, not just the first. `get_header_str`
-        // returns one value, and RFC 9110 §8.3 says recipients faced with a
-        // duplicated Content-Type often act on the *last* syntactically valid
-        // member — so an unregistered charset on a second line was invisible
-        // here while being the one a recipient might use.
+        // returns one value, and §8.3 is explicit that implementations differ
+        // over which member of a duplicated Content-Type they act on — so no
+        // line can be dismissed as the one nobody reads. The loop reports the
+        // first unregistered charset it finds, which is a choice among equals
+        // rather than a claim about precedence.
         //
         // That there is more than one line is `message_content_type_well_formed`'s
         // finding to report; this rule adds nothing by repeating it, and says
         // only what it owns: whether a charset it can see is recognized.
         let check_all = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
             for hv in headers.get_all("content-type").iter() {
-                let Ok(s) = hv.to_str() else { continue };
-                if let Some(v) = check_header(which, s) {
+                // Decoded from the raw octets, not through `to_str`, which
+                // refuses `obs-text` — legal in a `quoted-string`, so
+                // `charset="<0xE4>bogus"` and any value with obs-text in a
+                // *neighbouring* parameter are well-formed media-types whose
+                // charset still has to be judged. Skipping them meant an
+                // unregistered charset alongside an obs-text parameter was
+                // reported by nothing at all. Where obs-text is not legal, in an
+                // unquoted `token`, the check below already rejects it.
+                // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+                let s = String::from_utf8_lossy(hv.as_bytes());
+                if let Some(v) = check_header(which, &s) {
                     return Some(v);
                 }
             }
@@ -249,7 +268,7 @@ impl Rule for MessageCharsetIanaRegistered {
     }
 
     fn description(&self) -> &'static str {
-        "If a `Content-Type` header carries a `charset` parameter, this rule checks the name against an allowlist you configure. It also reports an empty `charset`, a malformed quoted-string, and characters that do not belong in the name.\n\n**It does not consult the IANA registry**, despite the rule's name: there is no lookup, and a charset is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. RFC 9110 §8.3.2 says charset names *ought to* be registered, which is the motivation for the rule, but the check itself is your policy. Matching is case-insensitive, as §8.3.2 requires, and a quoted value is compared after unescaping, since the quoted and unquoted forms are equivalent.\n\n**Known narrowing:** an unquoted name is checked against `token`, while the charset production (`mime-charset`, RFC 2978 §2.3) also admits `{` and `}`. RFC 9110 §8.3.2 notes both facts and adds that no registered charset name uses braces — and since an unrecognized name is reported anyway, this changes the wording of the finding rather than whether there is one.\n\n**Scope:** a `Content-Type` that does not parse as a `media-type` is skipped here; that is `message_content_type_well_formed`'s finding, as is the presence of more than one `Content-Type` field line. This rule reads every line and reports only on the charsets it finds."
+        "If a `Content-Type` header carries a `charset` parameter, this rule checks the name against an allowlist you configure. It also reports an empty `charset`, a malformed quoted-string, and characters that do not belong in the name.\n\n**It does not consult the IANA registry**, despite the rule's name: there is no lookup, and a charset is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. RFC 9110 §8.3.2 says charset names *ought to* be registered, which is the motivation for the rule, but the check itself is your policy. Matching is case-insensitive, as §8.3.2 requires, and a quoted value is compared after unescaping, since the quoted and unquoted forms are equivalent.\n\n**`token` is not the charset production.** An unquoted name is checked against `token`, while a charset name follows `mime-charset` (RFC 2978 §2.3). The two sets are *incomparable*: `mime-charset` admits `{` and `}` that `token` rejects, and `token` admits `*`, `.` and `|` that `mime-charset` rejects — so `charset=utf.8` reaches the allowlist rather than being called malformed. Neither direction changes a verdict: RFC 9110 §8.3.2 says no registered charset name uses braces, and a name carrying `.` or `*` is reported by the allowlist check if it is not configured. Only the wording of the finding differs.\n\n**Scope:** this rule reports only on charsets. A `Content-Type` that does not parse as a `media-type`, and the presence of more than one `Content-Type` field line, are both `message_content_type_well_formed`'s findings. It reads every `Content-Type` line in the header section of each message; trailers are not read, since a `Content-Type` there is malformed framing rather than a charset question.\n\n**One silence worth knowing about:** an unbalanced quote in an *earlier* parameter swallows the rest of the value, so `boundary=\"unterminated; charset=bogus` yields no charset finding here. The value is malformed and `message_content_type_well_formed` reports it; there is genuinely no parameter list left to read once the quoting breaks."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -270,7 +289,7 @@ impl Rule for MessageCharsetIanaRegistered {
                 spec: "RFC 2978",
                 section: Some("2.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc2978.html#section-2.3",
-                note: "`mime-charset`, the production a charset name actually follows. It admits `{` and `}`, which `token` does not; this rule checks `token`, a narrowing RFC 9110 §8.3.2 itself calls harmless",
+                note: "`mime-charset`, the production a charset name actually follows. It and `token` are incomparable — `{`/`}` on one side, `*`/`.`/`|` on the other — so checking `token` is stricter in one direction and looser in the other, and neither direction changes a verdict",
             },
             crate::rules::SpecRef {
                 spec: "IANA Character Sets",
@@ -292,7 +311,7 @@ impl Rule for MessageCharsetIanaRegistered {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Type: text/html; charset=\"UTF-8\"\n\n<html>...</html>",
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/html; charset=\"UTF-8\"\nX-Content-Type-Options: nosniff\n\n<html>...</html>",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -387,12 +406,16 @@ mod tests {
     }
 
     /// Every published snippet is run through this rule and, for the Compliant
-    /// ones, through the other rules that read `Content-Type`. Nothing else does
-    /// this, so a snippet this rule accepts but a sibling rejects would ship in
-    /// the docs as the recommended spelling. Three families have now published
-    /// one.
+    /// ones, through the other rules that inspect `Content-Type` on the side of
+    /// the message the example shows. Nothing else does this, so a snippet this
+    /// rule accepts but a sibling rejects would ship in the docs as the
+    /// recommended spelling. Four families have now published one.
+    ///
+    /// Deliberately not in the list: `server_content_type_present`, which fires
+    /// on a request-side example only because the synthetic response carries no
+    /// Content-Type — a fixture artefact, not a disagreement about the snippet.
     #[test]
-    fn published_examples_agree_with_every_rule_reading_this_header() {
+    fn published_examples_survive_the_other_content_type_rules() {
         use crate::rules::{Compliance, Rule as _};
         let rule = MessageCharsetIanaRegistered;
         // The example config is the one the docs describe, so the allowlist the
@@ -403,24 +426,41 @@ mod tests {
         .expect("config_example.toml must be readable");
         let cfg: crate::config::Config =
             toml::from_str(&toml_src).expect("config_example.toml must parse");
-        let siblings: [(&str, &dyn Rule); 3] = [
+        let siblings: [(&str, &dyn Rule); 4] = [
             ("well-formed", &crate::rules::message_content_type_well_formed::MessageContentTypeWellFormed),
             ("charset presence", &crate::rules::server_charset_specification::ServerCharsetSpecification),
             ("media-type allowlist", &crate::rules::message_content_type_iana_registered::MessageContentTypeIanaRegistered),
+            ("nosniff", &crate::rules::server_x_content_type_options::ServerXContentTypeOptions),
         ];
 
         for ex in rule.examples() {
-            let values: Vec<&str> = ex
-                .snippet
-                .lines()
-                .filter_map(|l| l.strip_prefix("Content-Type: "))
-                .collect();
+            // Every header line is fed in, not just Content-Type: dropping one
+            // silently would mean judging a message the example does not show.
+            let mut pairs: Vec<(&str, &str)> = Vec::new();
+            let mut in_headers = true;
+            for line in ex.snippet.lines() {
+                if line.starts_with("HTTP/") || line.contains(" HTTP/1.1") {
+                    continue;
+                }
+                if line.is_empty() {
+                    in_headers = false;
+                    continue;
+                }
+                if !in_headers {
+                    continue; // message body
+                }
+                let (k, v) = line.split_once(": ").unwrap_or_else(|| {
+                    panic!("example header line is not `Name: value`: {line:?}")
+                });
+                pairs.push((k, v));
+            }
             assert!(
-                !values.is_empty(),
-                "example has no Content-Type: {}",
+                pairs
+                    .iter()
+                    .any(|(k, _)| k.eq_ignore_ascii_case("content-type")),
+                "example carries no Content-Type: {}",
                 ex.snippet
             );
-            let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("content-type", *v)).collect();
 
             // Examples are written as whole messages, so honour the start-line.
             let on_response = ex.snippet.starts_with("HTTP/");
@@ -451,14 +491,79 @@ mod tests {
                     }
                 }
                 Compliance::NonCompliant => {
-                    assert!(
-                        v.is_some(),
-                        "rule accepts its NonCompliant example {:?}",
-                        ex.snippet
-                    )
+                    let v = v.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    // The example must fail for *this* rule's reason.
+                    assert_eq!(v.rule, rule.id(), "{:?} -> {v:?}", ex.snippet);
                 }
             }
         }
+    }
+
+    #[rstest]
+    // An unbalanced quote in an earlier parameter swallows the rest of the
+    // value, so no charset parameter survives to be judged. The value is
+    // malformed and `message_content_type_well_formed` reports it; there is
+    // genuinely nothing left to read here. Pinned so the silence is a decision.
+    #[case("text/plain; boundary=\"unterminated; charset=bogus")]
+    #[case("text/plain; boundary=x\"; charset=bogus")]
+    #[case("text/plain; x=\"a\"b\"; charset=bogus")]
+    #[case("text/plain; boundary=\"q\\\"; charset=bogus")]
+    fn an_unbalanced_quote_earlier_in_the_value_leaves_no_charset(#[case] val: &str) {
+        let rule = MessageCharsetIanaRegistered;
+        let cfg = make_cfg();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", val)]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none(), "{val} -> {v:?}");
+
+        // ...and the sibling that owns malformed values does report it.
+        let sibling_cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_type_well_formed",
+        ]);
+        let other = crate::rules::message_content_type_well_formed::MessageContentTypeWellFormed
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &sibling_cfg,
+            );
+        assert!(other.is_some(), "{val} is unreported by both rules");
+    }
+
+    #[rstest]
+    // obs-text is legal in a quoted-string, so these are well-formed media
+    // types whose charset still has to be judged. `to_str` refused them and the
+    // rule went silent, which meant nothing in the linter reported the charset.
+    #[case(b"text/plain; charset=bogus; x=\"\xe4\"", true)]
+    #[case(b"text/plain; charset=\"\xe4bogus\"", true)]
+    #[case(b"text/plain; charset=\"\xe4\"; x=1", true)]
+    // obs-text does not make a registered charset unregistered.
+    #[case(b"text/plain; charset=utf-8; x=\"\xe4\"", false)]
+    fn obs_text_does_not_hide_the_charset(#[case] raw: &[u8], #[case] expect_violation: bool) {
+        use hyper::header::HeaderValue;
+        let rule = MessageCharsetIanaRegistered;
+        let cfg = make_cfg();
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm.insert("content-type", HeaderValue::from_bytes(raw).unwrap());
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = hm;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.is_some(),
+            expect_violation,
+            "{:?} -> {v:?}",
+            String::from_utf8_lossy(raw)
+        );
     }
 
     #[rstest]
@@ -742,7 +847,11 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_header_values_are_ignored() {
+    fn obs_text_in_an_unquoted_charset_is_reported() {
+        // This asserted `is_none()` under the name "non_utf8_header_values_are
+        // _ignored" — the name was the claim and the claim was the defect. An
+        // unquoted value must satisfy `token`, which admits no octet above
+        // %x7F, so a bare obs-text byte here is not a charset name at all.
         let rule = MessageCharsetIanaRegistered;
         let cfg = make_cfg();
 
@@ -754,12 +863,15 @@ mod tests {
             .headers
             .insert("content-type", bad);
 
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_none());
+        let msg = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .expect("must be reported")
+            .message;
+        assert!(msg.contains("invalid character"), "{msg}");
     }
 
     #[test]
