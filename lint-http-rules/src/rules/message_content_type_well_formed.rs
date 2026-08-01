@@ -23,23 +23,65 @@ impl Rule for MessageContentTypeWellFormed {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Check request Content-Type
-        if let Some(hv) = tx.request.headers.get("content-type") {
-            if let Ok(s) = hv.to_str() {
-                if let Some(v) = check_content_type("request", s, &config) {
+
+        let check_message = |which: &str,
+                             headers: &hyper::HeaderMap,
+                             trailers: Option<&hyper::HeaderMap>|
+         -> Option<Violation> {
+            // Every field line, not just the first. `HeaderMap::get` returns one
+            // value, and RFC 9110 §8.3 says recipients often resolve a duplicated
+            // Content-Type by taking the *last* syntactically valid member — so
+            // checking only the first validated a value the recipient may never
+            // act on. Both field sections of the message are counted, since
+            // §5.3's prohibition spans them.
+            let vals: Vec<_> = headers
+                .get_all("content-type")
+                .iter()
+                .chain(
+                    trailers
+                        .into_iter()
+                        .flat_map(|t| t.get_all("content-type").iter()),
+                )
+                .collect();
+
+            // `Content-Type = media-type` is a single media-type with no list
+            // form, and RFC 9110 does not leave the consequences to inference:
+            // it names the duplication, names the recipient behaviour it
+            // provokes, and names the security risk. This is the one field whose
+            // own section spells out why a second line matters.
+            // cite(RFC 9110 § 8.3): "Content-Type = media-type"
+            // cite(RFC 9110 § 8.3): "Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list."
+            // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
+            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            if vals.len() > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "Multiple Content-Type header fields in the {}; Content-Type is a singleton field (RFC 9110 §8.3) and recipients differ over which member wins, so the media type the peer acts on is not the one this message states",
+                        which
+                    ),
+                });
+            }
+
+            for hv in vals {
+                let Ok(s) = hv.to_str() else { continue };
+                if let Some(v) = check_content_type(which, s, &config) {
                     return Some(v);
                 }
             }
+
+            None
+        };
+
+        if let Some(v) = check_message("request", &tx.request.headers, tx.request.trailers.as_ref())
+        {
+            return Some(v);
         }
 
-        // Check response Content-Type
         if let Some(resp) = &tx.response {
-            if let Some(hv) = resp.headers.get("content-type") {
-                if let Ok(s) = hv.to_str() {
-                    if let Some(v) = check_content_type("response", s, &config) {
-                        return Some(v);
-                    }
-                }
+            if let Some(v) = check_message("response", &resp.headers, resp.trailers.as_ref()) {
+                return Some(v);
             }
         }
 
@@ -259,6 +301,80 @@ mod tests {
                 res
             );
         }
+    }
+
+    #[rstest]
+    // Both individually valid: only the count can see this.
+    #[case(&["text/plain", "application/json"], true)]
+    // The second line is the malformed one, and §8.3 says recipients often take
+    // the last valid member — checking only the first missed it entirely.
+    #[case(&["text/plain", "text/"], true)]
+    #[case(&["text/plain"], false)]
+    fn multiple_content_type_field_lines_report_violation(
+        #[case] values: &[&str],
+        #[case] expect_violation: bool,
+    ) {
+        let rule = MessageContentTypeWellFormed;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_type_well_formed",
+        ]);
+        let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("content-type", *v)).collect();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&pairs);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(v.is_some(), expect_violation, "{values:?} -> {v:?}");
+    }
+
+    #[test]
+    fn a_header_line_and_a_trailer_line_are_still_two_field_lines() {
+        let rule = MessageContentTypeWellFormed;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_type_well_formed",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        {
+            let resp = tx.response.as_mut().unwrap();
+            resp.headers =
+                crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/plain")]);
+            resp.trailers = Some(crate::test_helpers::make_headers_from_pairs(&[(
+                "content-type",
+                "application/json",
+            )]));
+        }
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.expect("must be reported").message.contains("Multiple"));
+    }
+
+    #[test]
+    fn a_malformed_second_request_line_is_reached() {
+        // Before the loop read every line, `HeaderMap::get` stopped at the first.
+        let rule = MessageContentTypeWellFormed;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_type_well_formed",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("content-type", "text/plain"),
+            ("content-type", "*/plain"),
+        ]);
+        let msg = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .expect("must be reported")
+            .message;
+        assert!(msg.contains("request"), "{msg}");
     }
 
     #[rstest]

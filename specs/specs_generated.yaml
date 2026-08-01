@@ -1724,7 +1724,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1329
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 90
+      line: 132
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
@@ -1891,6 +1891,8 @@ sources:
       line: 114
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 51
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 55
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 77
     - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
@@ -2041,6 +2043,26 @@ sources:
       line: 98
     - file: lint-http-rules/src/rules/server_charset_specification.rs
       line: 40
+  - label: message_content_type_well_formed
+    section: § 8.3
+    snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 53
+  - label: message_content_type_well_formed (2)
+    section: § 8.3
+    snippet: Content-Type = media-type
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 52
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 57
+  - label: message_content_type_well_formed (3)
+    section: § 8.3
+    snippet: Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 54
   - label: message_date_and_time_headers_consistency
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated
@@ -2305,12 +2327,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_charset_specification.rs
       line: 48
-  - label: server_content_type_present
-    section: § 8.3
-    snippet: Content-Type = media-type
-    cited_by:
-    - file: lint-http-rules/src/rules/server_content_type_present.rs
-      line: 57
   - label: server_etag_or_last_modified
     section: § 8.8.2.1
     snippet: An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined
