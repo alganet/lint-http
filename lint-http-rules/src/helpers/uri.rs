@@ -69,18 +69,31 @@ pub fn validate_scheme_if_present(s: &str) -> Option<String> {
     None
 }
 
+/// Byte offset of the `://` that separates a scheme from an authority, or
+/// `None` when the value is not in absolute form.
+///
+/// A bare `s.find("://")` is not that test. `://` occurring later in a value is
+/// ordinary data — a URL carried in a query parameter (`?redirect_uri=`,
+/// `?next=`, `?url=`) is the everyday case — and reading an authority out of it
+/// invents an origin the message never had. Everything before a real marker is
+/// the scheme, which admits no component delimiter and is never empty.
+// cite(RFC 3986 § 3.1): "scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )"
+fn scheme_authority_marker(s: &str) -> Option<usize> {
+    let idx = s.find("://")?;
+    if idx == 0 || s[..idx].contains(['/', '?', '#']) {
+        return None;
+    }
+    Some(idx)
+}
+
 /// If `s` is an absolute-form request-target or full URI, return the origin
 /// component as `scheme://host[:port]`. Returns `None` if input is not absolute
 /// or if it does not contain a valid origin.
 pub fn extract_origin_if_absolute(s: &str) -> Option<String> {
-    let marker = "://";
-    let idx = s.find(marker)?;
-    let after = &s[idx + marker.len()..];
+    let idx = scheme_authority_marker(s)?;
+    let after = &s[idx + 3..];
     // find end of authority (first '/')
-    let end = after
-        .find('/')
-        .map(|p| idx + marker.len() + p)
-        .unwrap_or(s.len());
+    let end = after.find('/').map(|p| idx + 3 + p).unwrap_or(s.len());
     let origin = &s[..end];
 
     // Basic validation: scheme valid, no whitespace, authority part present
@@ -90,7 +103,7 @@ pub fn extract_origin_if_absolute(s: &str) -> Option<String> {
     if contains_whitespace(origin) {
         return None;
     }
-    let authority = &origin[idx + marker.len()..];
+    let authority = &origin[idx + 3..];
     if authority.is_empty() {
         return None;
     }
@@ -112,7 +125,7 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
     // which is the whole point of the header: an origin reveals where a request came
     // from without revealing what it was reading.
     // cite(RFC 6454 § 7.1): "serialized-origin = scheme "://" host [ ":" port ]"
-    if let Some(colon_pos) = s_trim.find("://") {
+    if let Some(colon_pos) = scheme_authority_marker(s_trim) {
         // no path allowed
         if s_trim[colon_pos + 3..].contains('/') {
             return Some("Origin must not include a path".into());
@@ -160,7 +173,7 @@ pub fn extract_authority_from_request_target(s: &str) -> Option<String> {
     }
 
     // Absolute-form: scheme://authority/path...
-    if let Some(idx) = s_trim.find("://") {
+    if let Some(idx) = scheme_authority_marker(s_trim) {
         let after = &s_trim[idx + 3..];
         // Authority ends at first '/', '?', or '#'
         let end = after.find(&['/', '?', '#'][..]).unwrap_or(after.len());
@@ -187,7 +200,7 @@ pub fn extract_authority_from_request_target(s: &str) -> Option<String> {
 /// This helper is primarily used by cookie-related stateful rules and keeps
 /// the shared parsing logic in one place.
 pub fn extract_host_from_request_target(s: &str) -> Option<String> {
-    if let Some(idx) = s.find("://") {
+    if let Some(idx) = scheme_authority_marker(s) {
         let after = &s[idx + 3..];
         let host = after
             .split('/')
@@ -223,7 +236,7 @@ pub fn extract_path_from_request_target(s: &str) -> Option<String> {
     }
 
     // Absolute-form: find scheme marker '://', then the first '/' after authority
-    if let Some(idx) = s_trim.find("://") {
+    if let Some(idx) = scheme_authority_marker(s_trim) {
         let after = &s_trim[idx + 3..];
         // find first '/' which marks start of path
         if let Some(pos) = after.find('/') {
@@ -266,7 +279,7 @@ pub fn extract_path_and_query_from_request_target(s: &str) -> Option<String> {
     }
 
     // Absolute-form: find scheme marker '://', then the first '/' after authority
-    if let Some(idx) = s_trim.find("://") {
+    if let Some(idx) = scheme_authority_marker(s_trim) {
         let after = &s_trim[idx + 3..];
         // find first '/' which marks start of path
         if let Some(pos) = after.find('/') {
@@ -508,6 +521,40 @@ mod tests {
         // as a scheme, which is why RFC 3986 forbids it there.
         assert!(validate_scheme_if_present("this:that").is_none());
         assert!(validate_scheme_if_present("1this:that").is_some());
+    }
+
+    #[test]
+    fn a_url_in_a_query_parameter_is_not_an_authority() {
+        // `?redirect_uri=`, `?next=`, `?url=` carry a whole URL as data. Reading
+        // an authority, host or path out of it invents an origin the message
+        // never had — and these values are attacker-supplied.
+        for target in [
+            "/redirect?url=http://evil.example",
+            "/a?next=https://evil.example/cb",
+            "/oauth/authorize?redirect_uri=https://client.example/cb",
+        ] {
+            assert_eq!(extract_origin_if_absolute(target), None, "{target}");
+            assert_eq!(extract_host_from_request_target(target), None, "{target}");
+        }
+        // The path extractors must read the real path, not the one inside the
+        // query parameter.
+        assert_eq!(
+            extract_path_from_request_target("/oauth/authorize?redirect_uri=https://c.example/cb"),
+            Some("/oauth/authorize".into())
+        );
+        assert_eq!(
+            extract_path_and_query_from_request_target(
+                "/oauth/authorize?redirect_uri=https://c.example/cb"
+            ),
+            Some("/oauth/authorize?redirect_uri=https://c.example/cb".into())
+        );
+        // A genuine absolute-form target still resolves, query URL and all.
+        assert_eq!(
+            extract_origin_if_absolute("http://a.example/p?u=http://b.example"),
+            Some("http://a.example".into())
+        );
+        // "://" with nothing before it is not a scheme.
+        assert_eq!(extract_origin_if_absolute("://example.com"), None);
     }
 
     #[test]

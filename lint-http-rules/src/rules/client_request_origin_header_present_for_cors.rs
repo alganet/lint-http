@@ -239,6 +239,24 @@ mod tests {
         assert!(v.is_none());
     }
 
+    #[rstest]
+    fn origin_form_target_carrying_a_url_in_its_query_is_not_cross_origin() {
+        // An OAuth authorize request is origin-form; the absolute URL lives in a
+        // query parameter as data. Mistaking it for the request-target's
+        // authority demands an Origin header on an ordinary same-origin GET.
+        let rule = ClientRequestOriginHeaderPresentForCors;
+        let mut tx = make_test_transaction();
+        tx.request.uri = "/oauth/authorize?redirect_uri=https://client.example/cb".into();
+        tx.request.headers = make_headers_from_pairs(&[("host", "auth.example")]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "unexpected violation: {v:?}");
+    }
+
     #[test]
     fn scope_is_client() {
         let rule = ClientRequestOriginHeaderPresentForCors;

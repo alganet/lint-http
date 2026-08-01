@@ -500,6 +500,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 53
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 80
   - label: lint-http-rules/src/helpers/uri.rs (2)
     section: § 3.3
     snippet: pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
@@ -517,31 +519,31 @@ sources:
     snippet: A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 405
+      line: 418
   - label: lint-http-rules/src/helpers/uri.rs (5)
     section: § 5.2.3
     snippet: If the base URI has a defined authority component and an empty path, then return a string consisting of "/" concatenated with the reference's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 382
+      line: 395
   - label: lint-http-rules/src/helpers/uri.rs (6)
     section: § 5.2.3
     snippet: return a string consisting of the reference's path component appended to all but the last segment of the base URI's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 386
+      line: 399
   - label: lint-http-rules/src/helpers/uri.rs (7)
     section: § 5.2.4
     snippet: This is done after the path is extracted from a reference, whether or not the path was relative, in order to remove any invalid or extraneous dot-segments prior to forming the target URI.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 324
+      line: 337
   - label: lint-http-rules/src/helpers/uri.rs (8)
     section: § 6.2.2.3
     snippet: URI normalizers should remove dot-segments by applying the remove_dot_segments algorithm to the path, as described in Section 5.2.4.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 373
+      line: 386
   - label: message_http3_host_authority_consistency
     section: § 3.2.2
     snippet: Although host is case-insensitive, producers and normalizers should use lowercase for registered names and hexadecimal addresses for the sake of uniformity
@@ -807,13 +809,13 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1420
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 114
+      line: 127
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 107
+      line: 120
 - label: RFC 6455
   url: https://www.rfc-editor.org/rfc/rfc6455.txt
   type: text/plain
@@ -2688,9 +2690,9 @@ sources:
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 157
+      line: 170
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 220
+      line: 233
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 30
   - label: message_content_length_vs_transfer_encoding
