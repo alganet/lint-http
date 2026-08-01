@@ -12,6 +12,10 @@ impl Rule for MessageContentTypeWellFormed {
         "message_content_type_well_formed"
     }
 
+    // The field describes the representation a message carries, and both
+    // directions carry one, so both are in scope. Nothing narrows this to
+    // responses the way RFC 6266 narrows Content-Disposition.
+    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -108,30 +112,96 @@ impl Rule for MessageContentTypeWellFormed {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks that `Content-Type` headers (both requests and responses) parse as a valid `media-type` with a non-empty type and subtype and well-formed parameters when present. This helps ensure downstream components and user agents can interpret the media type and parameters reliably."
+        "Check that a `Content-Type` header — in a request or a response — reads as a valid `media-type`: a non-empty `type` and `subtype`, each a `token`, separated by `/`, followed by well-formed parameters if any are present. A parameter is a `name=value` pair whose name is a `token` and whose value is a `token` or a `quoted-string`; a trailing `;` with nothing after it is fine, since the grammar brackets each parameter as optional.\n\n**More than one `Content-Type` field line is reported.** RFC 9110 §8.3 calls Content-Type a singleton and says duplicated ones are handled by recipients \"using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors\" — so the media type a peer acts on is not the one the message states. Header and trailer sections are counted together.\n\n**A wildcard is reported**, though `*` is a legal `token` and `*/plain` parses. The asterisk belongs to `media-range`, the Accept-side production for naming a *set* of media types; a Content-Type saying `*/*` identifies no representation. This is the rule's judgement rather than a grammar violation.\n\n**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `charset =utf-8` is accepted. It never causes a false report, only a missed one."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("8.3"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-            note: "Content-Type header and media type syntax",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+                note: "Content-Type: `Content-Type = media-type`, and the paragraph naming duplicated field lines as an error whose recipient handling differs between implementations",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
+                note: "Media Type: `media-type = type \"/\" subtype parameters`, both halves `token`, both case-insensitive",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.6.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
+                note: "Parameters: the `name=value` grammar, and the bracketing that makes a trailing `;` conforming. Its prohibition on whitespace around `=` is NOT enforced here",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("12.5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
+                note: "Accept: where `*` belongs — `media-range`, which names a set of media types. Cited to explain why a wildcard is reported in Content-Type, which carries a `media-type`",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+                note: "Field Order: a sender MUST NOT emit multiple field lines for a field with no comma-separated-list alternative",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
+        // One media type per example. These used to be two blocks of stacked
+        // `Content-Type:` lines meaning "any of these" — a reading the rule now
+        // contradicts, since stacked Content-Type lines in one message are
+        // themselves the defect the last example illustrates.
         &[
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "Content-Type: text/plain\nContent-Type: application/json; charset=utf-8\nContent-Type: image/vnd.example+json; foo=\"bar\"; charset=utf-8",
+                snippet: "Content-Type: text/plain",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(token parameter)"),
+                snippet: "Content-Type: application/json; charset=utf-8",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(quoted-string parameter, and a trailing `;` is conforming)"),
+                snippet: "Content-Type: image/vnd.example+json; foo=\"bar\"; charset=utf-8;",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Content-Type: text\nContent-Type: text/\nContent-Type: */plain\nContent-Type: text/plain; badparam\nContent-Type: text/plain; charset=\"unclosed",
+                label: Some("(no subtype)"),
+                snippet: "Content-Type: text",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(empty subtype)"),
+                snippet: "Content-Type: text/",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(wildcard belongs to Accept, not Content-Type)"),
+                snippet: "Content-Type: */plain",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(parameter without a value)"),
+                snippet: "Content-Type: text/plain; badparam",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(unterminated quoted-string)"),
+                snippet: "Content-Type: text/plain; charset=\"unclosed",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(two field lines in one message — Content-Type is a singleton)"),
+                snippet:
+                    "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Type: application/json",
             },
         ]
     }
@@ -144,7 +214,10 @@ fn check_content_type(
 ) -> Option<Violation> {
     use crate::helpers::headers::parse_media_type;
 
-    // cite(RFC 9110 § 8.3.1): "media-type = type "/" subtype parameters"
+    // `media-type = type "/" subtype parameters` is transcribed at
+    // `parse_media_type`, which owns it; a second copy here would be the same
+    // production stated twice. What the helper reports back is the split and the
+    // two "this is not a media-type at all" shapes: no "/", or an empty half.
     let parsed = match parse_media_type(val) {
         Ok(p) => p,
         Err(msg) => {
@@ -161,7 +234,13 @@ fn check_content_type(
         }
     };
 
-    // Wildcards are not valid in Content-Type (they are for Accept)
+    // `*` is a perfectly good `tchar`, so this check is not the grammar
+    // speaking — `*/plain` parses as a `media-type`. It is the two sentences
+    // below read together: Content-Type states *the* media type of the
+    // representation, while the asterisk exists to name a *range* of them, and
+    // ranges belong to the `media-range` production Accept uses. A wildcard
+    // here identifies nothing, so the field says nothing.
+    // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
     if parsed.type_ == "*" || parsed.subtype == "*" {
         return Some(Violation {
             rule: MessageContentTypeWellFormed.id().into(),
@@ -173,7 +252,12 @@ fn check_content_type(
         });
     }
 
-    // Validate tokens for type and subtype
+    // The helper split on "/" and rejected an empty half; what each half must
+    // *be* is these two productions, and `token` itself is the token helper's.
+    // Case is not checked because there is nothing to check: both are
+    // case-insensitive, so no spelling is wrong.
+    // cite(RFC 9110 § 8.3.1): "type       = token subtype    = token"
+    // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
     if let Some(c) = crate::helpers::token::find_invalid_token_char(parsed.type_) {
         return Some(Violation {
             rule: MessageContentTypeWellFormed.id().into(),
@@ -185,6 +269,7 @@ fn check_content_type(
         });
     }
 
+    // Same production, other half; the quote above covers both lines of it.
     if let Some(c) = crate::helpers::token::find_invalid_token_char(parsed.subtype) {
         return Some(Violation {
             rule: MessageContentTypeWellFormed.id().into(),
@@ -196,10 +281,18 @@ fn check_content_type(
         });
     }
 
-    // If parameters exist, do a basic validation: name=value pairs, name token, value token or quoted-string
+    // Parameters are optional after the type/subtype, and each one is a
+    // name/value pair; the two productions below carry the whole check.
+    // cite(RFC 9110 § 8.3.1): "The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs."
     if let Some(params) = parsed.params {
         for p_raw in crate::helpers::headers::split_semicolons_respecting_quotes(params) {
             let p = p_raw.trim();
+            // `[ parameter ]` is bracketed, so a semicolon with nothing after it
+            // is a conforming zero-parameter repetition rather than a defect --
+            // `text/plain; charset=utf-8;` is well formed. This is the same
+            // empty-element shape that produced four false positives in the
+            // caching family; here the code already had it right.
+            // cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
             if p.is_empty() {
                 continue;
             }
@@ -214,6 +307,7 @@ fn check_content_type(
                         message: format!("Invalid Content-Type '{}': empty parameter name", val),
                     });
                 }
+                // cite(RFC 9110 § 5.6.6): "parameter-name  = token"
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
                     return Some(Violation {
                         rule: MessageContentTypeWellFormed.id().into(),
@@ -239,7 +333,10 @@ fn check_content_type(
                         });
                     }
                 } else {
-                    // must be a token
+                    // The alternation is exclusive: a value that does not open
+                    // with DQUOTE has to satisfy `token`, which is why an
+                    // unquoted `utf 8` is a defect rather than a curiosity.
+                    // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
                         return Some(Violation {
                             rule: MessageContentTypeWellFormed.id().into(),
@@ -249,6 +346,9 @@ fn check_content_type(
                     }
                 }
             } else {
+                // The "=" is not optional inside `parameter`, so a bare token
+                // among the parameters is not a valueless flag.
+                // cite(RFC 9110 § 5.6.6): "parameter       = parameter-name "=" parameter-value"
                 return Some(Violation {
                     rule: MessageContentTypeWellFormed.id().into(),
                     severity: config.severity,
@@ -441,6 +541,63 @@ mod tests {
             .expect("must be reported")
             .message;
         assert!(msg.contains("request"), "{msg}");
+    }
+
+    /// Every published snippet is run through the rule. Nothing else does this,
+    /// so a `Compliant` example the rule rejects — or a `NonCompliant` one it
+    /// accepts — would ship in the docs unchallenged. This family has published
+    /// a wrong example twice already.
+    #[test]
+    fn published_examples_match_the_rules_verdict() {
+        use crate::rules::Compliance;
+        let rule = MessageContentTypeWellFormed;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_type_well_formed",
+        ]);
+
+        for ex in rule.examples() {
+            let mut values: Vec<&str> = Vec::new();
+            for line in ex.snippet.lines() {
+                if line.starts_with("HTTP/") {
+                    continue;
+                }
+                let v = line.strip_prefix("Content-Type: ").unwrap_or_else(|| {
+                    panic!("example line is neither a start-line nor a Content-Type field line: {line:?}")
+                });
+                values.push(v);
+            }
+            assert!(
+                !values.is_empty(),
+                "example has no field lines: {}",
+                ex.snippet
+            );
+
+            let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("content-type", *v)).collect();
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().unwrap().headers =
+                crate::test_helpers::make_headers_from_pairs(&pairs);
+            let v = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => {
+                    assert!(
+                        v.is_none(),
+                        "rule rejects its Compliant example {:?}: {v:?}",
+                        ex.snippet
+                    )
+                }
+                Compliance::NonCompliant => {
+                    assert!(
+                        v.is_some(),
+                        "rule accepts its NonCompliant example {:?}",
+                        ex.snippet
+                    )
+                }
+            }
+        }
     }
 
     #[rstest]
