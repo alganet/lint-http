@@ -1405,7 +1405,16 @@ pub fn media_type_subtype_suffix(subtype: &str) -> Option<&str> {
 /// even a bare trailing slash, which a byte-for-byte origin comparison rejects.
 /// This is a conservative validator: it ensures scheme chars, presence of host,
 /// and numeric port (if present). It does not attempt full IDNA or host label validation.
+// Both callers (Timing-Allow-Origin, Access-Control-Allow-Origin) take their value
+// grammar from Fetch, whose production supplants RFC 6454's. The two agree on the
+// shape checked here — an authority and nothing after it — so both are quoted.
+// cite(Fetch): "serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]"
+// cite(Fetch): "This supplants the definition in The Web Origin Concept"
 // cite(RFC 6454 § 7.1): "serialized-origin = scheme "://" host [ ":" port ]"
+// Where they differ, Fetch is the stricter of the two, which is the direction this
+// validator is deliberately permissive in: it accepts host shapes (IDNA, label
+// syntax) that Fetch's serialization would reject.
+// cite(Fetch): "The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways."
 pub fn is_valid_serialized_origin(val: &str) -> bool {
     let s = val.trim();
     if s.is_empty() {

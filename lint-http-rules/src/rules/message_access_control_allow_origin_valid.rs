@@ -117,10 +117,16 @@ impl Rule for MessageAccessControlAllowOriginValid {
                 note: "`Access-Control-Allow-Origin` carries one value: an echoed origin, `null`, or `*`",
             },
             crate::rules::SpecRef {
+                spec: "Fetch",
+                section: Some("3.2"),
+                url: "https://fetch.spec.whatwg.org/#origin-header",
+                note: "Governing origin syntax: `serialized-origin` has no path component (not even a trailing slash), and `origin-or-null`'s `null` is case-sensitive",
+            },
+            crate::rules::SpecRef {
                 spec: "RFC 6454",
                 section: Some("7.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1",
-                note: "Origin syntax the non-`*` value is validated against — `serialized-origin = scheme \"://\" host [ \":\" port ]`, and `null` via origin-list-or-null",
+                note: "Historical origin syntax the non-`*` value is validated against — `serialized-origin = scheme \"://\" host [ \":\" port ]`, and `null` via origin-list-or-null; Fetch §3.2 supplants it",
             },
         ]
     }
