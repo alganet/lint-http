@@ -36,14 +36,17 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
         // Expires is an HTTP-date; parse it with the recipient parser (the HTTP-date grammar
         // itself, §5.6.7, is owned by the http_date helper).
         // cite(RFC 9111 § 5.3): "The Expires field value is an HTTP-date timestamp, as defined in Section 5.6.7 of [HTTP]."
+        // An unparseable Expires is not missing information: §5.3 assigns it a meaning,
+        // so it is retained here (as already-expired) rather than returning early.
+        // Reporting the *invalidity* itself still belongs to other rules; what this rule
+        // does with it is compare the meaning against Cache-Control.
+        let mut expires_raw = String::new();
         if let Some(hv) = resp.headers.get_all("expires").iter().next() {
             if let Ok(s) = hv.to_str() {
                 has_expires = true;
+                expires_raw = s.trim().to_string();
                 if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
                     expires_dt = Some(dt);
-                } else {
-                    // Let other rules (or server_status_and_caching_semantics) report invalid Expires.
-                    return None;
                 }
             }
         }
@@ -87,7 +90,31 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
         // parsing is consistent with other uses in the codebase.
         let cc_s_maxage = crate::helpers::headers::get_cache_control_s_maxage(&resp.headers);
 
-        if !has_expires || !cc_present || expires_dt.is_none() {
+        if !has_expires || !cc_present {
+            return None;
+        }
+
+        // The recipient is required to read an invalid Expires — `0` above all, the
+        // classic anti-caching idiom — as a time already past. So it contradicts a
+        // positive max-age/s-maxage exactly the way a stale date does, and the
+        // disagreement is sharper than usual: §5.3 says Expires is "only intended for
+        // recipients that have not yet implemented the Cache-Control header field", and
+        // those are precisely the recipients that will act on the already-expired
+        // reading while everyone else honours max-age. Same precedence-not-illegality
+        // framing as the dated checks below; needs no reference time, since "already
+        // expired" is true against any.
+        // cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
+        if expires_dt.is_none() {
+            if cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "Expires '{}' is not a valid HTTP-date, so a cache MUST read it as already expired, but Cache-Control max-age/s-maxage says the response is still fresh — values are contradictory (RFC 9111 §5.3)",
+                        expires_raw
+                    ),
+                });
+            }
             return None;
         }
 
@@ -173,7 +200,7 @@ impl Rule for MessageExpiresAndCacheControlConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected."
+        "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected.\n\nAn `Expires` value that is not a valid HTTP-date counts as contradictory too, rather\nthan as no information: a cache is required to read it as already expired, so the\ncommon `Expires: 0` paired with a positive `max-age` is flagged."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -230,6 +257,13 @@ mod tests {
     #[case(Some(("cache-control","max-age=0")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","Wed, 21 Oct 2015 07:29:00 GMT")), true)]
     #[case(Some(("cache-control","no-cache")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","Wed, 21 Oct 2015 08:28:00 GMT")), true)]
     #[case(Some(("cache-control","max-age=60")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","Wed, 21 Oct 2015 07:27:00 GMT")), true)]
+    // An invalid Expires means "already expired", so it contradicts a positive
+    // max-age/s-maxage just as a past date does — `0` is the classic idiom.
+    #[case(Some(("cache-control","max-age=3600")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","0")), true)]
+    #[case(Some(("cache-control","s-maxage=3600")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","not-a-date")), true)]
+    // ... but agrees with directives that already deny reuse, so those stay quiet.
+    #[case(Some(("cache-control","no-store")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","0")), false)]
+    #[case(Some(("cache-control","max-age=0")), Some(("date","Wed, 21 Oct 2015 07:28:00 GMT")), Some(("expires","0")), false)]
     fn expires_and_cache_control_cases(
         #[case] cc: Option<(&str, &str)>,
         #[case] date: Option<(&str, &str)>,
@@ -303,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_expires_is_ignored() -> anyhow::Result<()> {
+    fn invalid_expires_reads_as_already_expired_and_contradicts_max_age() -> anyhow::Result<()> {
         let tx = make_test_transaction_with_response(
             200,
             &[("cache-control", "max-age=60"), ("expires", "not-a-date")],
@@ -317,8 +351,11 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        // invalid Expires is left to other rules; this rule returns None
-        assert!(v.is_none());
+        // Reporting the invalidity itself is another rule's job, but its *meaning*
+        // is fixed by §5.3 — already expired — which max-age=60 contradicts.
+        let v = v.expect("expected a contradiction violation");
+        assert!(v.message.contains("already expired"));
+        assert!(v.message.contains("not-a-date"));
         Ok(())
     }
 
