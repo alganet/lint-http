@@ -23,6 +23,16 @@ impl Rule for MessageFormDataContentDispositionValid {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // Scope worth being honest about: RFC 7578 §4.2 places its requirement on
+        // each *part* of a multipart/form-data body, and this proxy does not parse
+        // bodies — the transaction carries header maps, not parts. So what is
+        // actually inspected is a message-level `Content-Disposition`, which is a
+        // different position from the one the spec is talking about. A message-level
+        // `form-data` disposition is itself out of place (RFC 6266 defines `inline`
+        // and `attachment` for HTTP messages), so when this rule does fire the
+        // missing `name` is usually the lesser of the two oddities. Part-level
+        // checking would need a body parser; until then this is a best-effort
+        // approximation and not the §4.2 check itself.
         // Helper that checks a single header value
         let check_value = |_hdr: &str, val: &str| -> Option<Violation> {
             let s = val.trim();
@@ -34,12 +44,23 @@ impl Rule for MessageFormDataContentDispositionValid {
             let dispo = parts.next().unwrap().trim();
             let params_part = parts.next().map(|p| p.trim()).unwrap_or("");
 
-            // cite(RFC 7578 § 4.2): "Each part MUST contain a Content-Disposition header field"
+            // Everything below is scoped to the `form-data` disposition type; an
+            // `inline` or `attachment` disposition (RFC 6266) carries no `name`
+            // requirement and is left alone. The previous quote here stopped at
+            // "...Content-Disposition header field", dropping the very clause that
+            // licenses this gate. The full sentence cannot be quoted as one span
+            // because an `[RFC2183]` hyperlink sits in the middle of it, so the
+            // operative clause is quoted on its own.
+            // cite(RFC 7578 § 4.2): "where the disposition type is "form-data"."
             if !dispo.eq_ignore_ascii_case("form-data") {
                 return None; // only applies to form-data dispositions
             }
 
-            // We MUST have a 'name' parameter with a non-empty value per RFC 7578 §4.2
+            // The `name` parameter is a MUST, and its value is meant to be the form
+            // field name — which is the basis for treating an empty one as a defect
+            // below, though the spec does not spell out "non-empty" and an empty
+            // value is a linter judgement rather than a quoted requirement.
+            // cite(RFC 7578 § 4.2): "The Content-Disposition header field MUST also contain an additional parameter of "name"; the value of the "name" parameter is the original field name from the form"
             if params_part.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -165,7 +186,7 @@ impl Rule for MessageFormDataContentDispositionValid {
     }
 
     fn description(&self) -> &'static str {
-        "Ensure that `Content-Disposition` headers for `form-data` parts include a `name` parameter (non-empty). When a multipart part uses `form-data` disposition, RFC 7578 §4.2 requires a `name` parameter whose value is the field name from the form.\n\nMultipart `form-data` parts identify the form field that produced the part using a `Content-Disposition: form-data; name=\"...\"` header. Receiving applications rely on the `name` parameter to associate part data with form fields; missing or empty `name` parameters break form processing and interoperability.\n\nThis rule flags `Content-Disposition` header fields whose disposition-type is `form-data` but that do not include a `name` parameter or include an empty `name` value."
+        "Ensure that a `form-data` `Content-Disposition` includes a non-empty `name` parameter. RFC 7578 §4.2 requires the parameter and defines its value as the original field name from the form; receiving applications rely on it to associate part data with form fields, so a missing or empty `name` breaks form processing.\n\n**Scope:** RFC 7578 places this requirement on each *part* of a multipart body, but the linter inspects message header fields rather than parsed body parts, so what it checks is a message-level `Content-Disposition`. That position is itself unusual — RFC 6266 defines `inline` and `attachment` for HTTP messages, not `form-data` — so this is a best-effort approximation of the §4.2 check rather than the check itself. Dispositions other than `form-data` are ignored.\n\nAn empty `name` value is reported as a defect. The specification requires the parameter and says what it means, but does not literally say \"non-empty\"; treating an empty field name as broken is this linter's judgement."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -174,7 +195,13 @@ impl Rule for MessageFormDataContentDispositionValid {
                 spec: "RFC 7578",
                 section: Some("4.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc7578.html#section-4.2",
-                note: "Each multipart/form-data part MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain an additional parameter of `name`",
+                note: "Each multipart/form-data *part* MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain a `name` parameter — a requirement on parts, which this rule approximates at the message level",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6266",
+                section: Some("4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4.1",
+                note: "The disposition types HTTP messages actually use (`inline`, `attachment`); a message-level `form-data` is outside this grammar, which is why the type gate skips everything else",
             },
         ]
     }

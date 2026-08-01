@@ -8,15 +8,16 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Ensure that `Content-Disposition` headers for `form-data` parts include a `name` parameter (non-empty). When a multipart part uses `form-data` disposition, RFC 7578 §4.2 requires a `name` parameter whose value is the field name from the form.
+Ensure that a `form-data` `Content-Disposition` includes a non-empty `name` parameter. RFC 7578 §4.2 requires the parameter and defines its value as the original field name from the form; receiving applications rely on it to associate part data with form fields, so a missing or empty `name` breaks form processing.
 
-Multipart `form-data` parts identify the form field that produced the part using a `Content-Disposition: form-data; name="..."` header. Receiving applications rely on the `name` parameter to associate part data with form fields; missing or empty `name` parameters break form processing and interoperability.
+**Scope:** RFC 7578 places this requirement on each *part* of a multipart body, but the linter inspects message header fields rather than parsed body parts, so what it checks is a message-level `Content-Disposition`. That position is itself unusual — RFC 6266 defines `inline` and `attachment` for HTTP messages, not `form-data` — so this is a best-effort approximation of the §4.2 check rather than the check itself. Dispositions other than `form-data` are ignored.
 
-This rule flags `Content-Disposition` header fields whose disposition-type is `form-data` but that do not include a `name` parameter or include an empty `name` value.
+An empty `name` value is reported as a defect. The specification requires the parameter and says what it means, but does not literally say "non-empty"; treating an empty field name as broken is this linter's judgement.
 
 ## Specifications
 
-- [RFC 7578 §4.2](https://www.rfc-editor.org/rfc/rfc7578.html#section-4.2): Each multipart/form-data part MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain an additional parameter of `name`
+- [RFC 7578 §4.2](https://www.rfc-editor.org/rfc/rfc7578.html#section-4.2): Each multipart/form-data *part* MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain a `name` parameter — a requirement on parts, which this rule approximates at the message level
+- [RFC 6266 §4.1](https://www.rfc-editor.org/rfc/rfc6266.html#section-4.1): The disposition types HTTP messages actually use (`inline`, `attachment`); a message-level `form-data` is outside this grammar, which is why the type gate skips everything else
 
 ## Configuration
 

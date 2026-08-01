@@ -995,10 +995,16 @@ sources:
   fragments:
   - label: message_form_data_content_disposition_valid
     section: § 4.2
-    snippet: Each part MUST contain a Content-Disposition header field
+    snippet: The Content-Disposition header field MUST also contain an additional parameter of "name"; the value of the "name" parameter is the original field name from the form
     cited_by:
     - file: lint-http-rules/src/rules/message_form_data_content_disposition_valid.rs
-      line: 37
+      line: 63
+  - label: message_form_data_content_disposition_valid (2)
+    section: § 4.2
+    snippet: where the disposition type is "form-data".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_form_data_content_disposition_valid.rs
+      line: 54
 - label: RFC 7616
   url: https://www.rfc-editor.org/rfc/rfc7616.txt
   type: text/plain
