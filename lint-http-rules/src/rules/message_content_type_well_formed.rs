@@ -65,7 +65,22 @@ impl Rule for MessageContentTypeWellFormed {
             }
 
             for hv in vals {
-                let Ok(s) = hv.to_str() else { continue };
+                // A value carrying octets outside visible US-ASCII was skipped
+                // in silence, so the rule that exists to say "this media type is
+                // unparseable" said nothing about the least parseable value it
+                // could be handed. Every construct in `media-type` is a `token`
+                // or a `quoted-string`, neither of which reaches past US-ASCII.
+                // cite(RFC 9110 § 5.5): "Field values are usually constrained to the range of US-ASCII characters [USASCII]."
+                let Ok(s) = hv.to_str() else {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: format!(
+                            "Content-Type header in the {} contains octets outside visible US-ASCII, so no media type can be read from it",
+                            which
+                        ),
+                    });
+                };
                 if let Some(v) = check_content_type(which, s, &config) {
                     return Some(v);
                 }
@@ -352,6 +367,40 @@ mod tests {
             &cfg,
         );
         assert!(v.expect("must be reported").message.contains("Multiple"));
+    }
+
+    #[rstest]
+    #[case(true)]
+    #[case(false)]
+    fn undecodable_value_is_reported_not_skipped(#[case] on_response: bool) {
+        // The whole point of this rule is to say when a media type cannot be
+        // read; a value it cannot even decode used to be passed over in silence.
+        use hyper::header::HeaderValue;
+        let rule = MessageContentTypeWellFormed;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_content_type_well_formed",
+        ]);
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm.insert("content-type", HeaderValue::from_bytes(&[0xff]).unwrap());
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        if on_response {
+            tx.response.as_mut().unwrap().headers = hm;
+        } else {
+            tx.request.headers = hm;
+        }
+        let msg = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .expect("must be reported")
+            .message;
+        assert!(msg.contains("US-ASCII"), "{msg}");
+        assert!(
+            msg.contains(if on_response { "response" } else { "request" }),
+            "{msg}"
+        );
     }
 
     #[test]
