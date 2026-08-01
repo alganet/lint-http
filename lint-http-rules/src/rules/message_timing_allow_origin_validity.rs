@@ -346,6 +346,25 @@ mod tests {
         assert!(v.is_none());
     }
 
+    #[rstest]
+    #[case("https://a/")]
+    #[case("https://a/path")]
+    #[case("https://ok.example, https://b/path")]
+    fn member_with_path_or_trailing_slash_is_violation(#[case] val: &str) {
+        let rule = MessageTimingAllowOriginValidity;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("timing-allow-origin", val)],
+        );
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let v = v.unwrap_or_else(|| panic!("expected violation for '{}'", val));
+        assert!(v.message.contains("invalid origin"));
+    }
+
     #[test]
     fn uppercase_null_is_violation() {
         let rule = MessageTimingAllowOriginValidity;

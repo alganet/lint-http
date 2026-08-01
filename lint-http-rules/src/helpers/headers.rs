@@ -1401,7 +1401,8 @@ pub fn media_type_subtype_suffix(subtype: &str) -> Option<&str> {
 }
 
 /// Validate a serialized-origin as defined by RFC 6454: scheme "://" host [":" port]
-/// Accepts an optional trailing slash (examples in RFC 7034 include it).
+/// The grammar has no path component, so nothing may follow the authority — not
+/// even a bare trailing slash, which a byte-for-byte origin comparison rejects.
 /// This is a conservative validator: it ensures scheme chars, presence of host,
 /// and numeric port (if present). It does not attempt full IDNA or host label validation.
 // cite(RFC 6454 § 7.1): "serialized-origin = scheme "://" host [ ":" port ]"
@@ -1417,12 +1418,7 @@ pub fn is_valid_serialized_origin(val: &str) -> bool {
         return false;
     }
     let scheme = parts[0];
-    let mut rest = parts[1];
-
-    // If a path or any data after '/', ignore it per RFC 7034 examples and advice
-    if let Some(idx) = rest.find('/') {
-        rest = &rest[..idx];
-    }
+    let rest = parts[1];
 
     // Scheme: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) per RFC3986
     let mut chars = scheme.chars();
@@ -1580,7 +1576,6 @@ mod tests {
     #[test]
     fn test_is_valid_serialized_origin() {
         assert!(is_valid_serialized_origin("https://example.com"));
-        assert!(is_valid_serialized_origin("https://example.com/"));
         assert!(is_valid_serialized_origin("http://example.com:8080"));
         assert!(is_valid_serialized_origin("https://localhost"));
         assert!(is_valid_serialized_origin("https://[::1]:8080"));
@@ -1596,6 +1591,13 @@ mod tests {
         assert!(!is_valid_serialized_origin(
             "http://example.com:999999999999"
         )); // too large
+
+        // The grammar has no path component, and a browser compares the value
+        // byte-for-byte against a serialized origin, which never carries one.
+        assert!(!is_valid_serialized_origin("https://example.com/"));
+        assert!(!is_valid_serialized_origin("https://example.com/path"));
+        assert!(!is_valid_serialized_origin("https://example.com:8080/"));
+        assert!(!is_valid_serialized_origin("https://[::1]/path"));
 
         assert!(!is_valid_serialized_origin("example.com"));
         assert!(!is_valid_serialized_origin("https:///foo"));

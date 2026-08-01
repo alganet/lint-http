@@ -112,12 +112,13 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
         if contains_whitespace(s_trim) {
             return Some("Origin contains whitespace".into());
         }
-        // ensure authority (host:port) present
-        let authority = &s_trim[colon_pos + 3..];
-        if authority.is_empty() {
-            // treat a lack of host as simply "not a valid serialized origin" so
-            // callers that inspect the reason don't need to handle multiple
-            // error strings.  The tests only look for the generic phrase.
+        // The authority itself — host present, bracketed IPv6 well formed, port
+        // numeric and in range, no userinfo — is checked by the shared
+        // serialized-origin predicate rather than a second hand-written copy, so
+        // the two validators cannot drift apart on what an origin is. A lack of
+        // host reports the same generic reason, so callers that inspect the
+        // string do not need to handle multiple error forms.
+        if !crate::helpers::headers::is_valid_serialized_origin(s_trim) {
             return Some("Origin is not a valid serialized origin".into());
         }
         return None;
@@ -445,6 +446,10 @@ mod tests {
         assert!(validate_origin_value("http:///bad").is_some());
         assert!(validate_origin_value("https://exa mple").is_some());
         assert!(validate_origin_value("invalid-origin").is_some());
+        // The authority is validated too, not merely required to be non-empty.
+        assert!(validate_origin_value("http://host:notaport").is_some());
+        assert!(validate_origin_value("https://user@example.com").is_some());
+        assert!(validate_origin_value("http://example.com:0").is_some());
         // invalid scheme in Origin
         let m = validate_origin_value("1http://example.com").unwrap();
         assert!(m.contains("Invalid scheme"));

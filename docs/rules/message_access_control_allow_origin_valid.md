@@ -60,3 +60,10 @@ Access-Control-Allow-Origin: https://b
 HTTP/1.1 200 OK
 Access-Control-Allow-Origin: example.com
 ```
+
+### ❌ Bad a serialized origin has no path, not even a trailing slash
+
+```http
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: https://example.com/
+```
