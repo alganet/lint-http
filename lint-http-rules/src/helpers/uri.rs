@@ -6,6 +6,12 @@
 
 /// Check percent-encoding runs inside a string. Returns `Some(msg)` describing the
 /// first problem found, or `None` if all percent-encodings look well-formed.
+///
+/// The triplet is the whole production: a '%' obliges exactly two hex digits,
+/// which is why a short run at the end of the string and a run with a non-hex
+/// digit are reported separately rather than as one "malformed" verdict.
+// cite(RFC 3986 § 2.1): "pct-encoded = "%" HEXDIG HEXDIG"
+// cite(RFC 3986 § 2.1): "A percent-encoded octet is encoded as a character triplet, consisting of the percent character "%" followed by the two hexadecimal digits representing that octet's numeric value."
 pub fn check_percent_encoding(s: &str) -> Option<String> {
     let bytes = s.as_bytes();
     let len = bytes.len();
