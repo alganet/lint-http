@@ -158,6 +158,11 @@ impl Rule for MessageAccessControlAllowOriginValid {
                 label: None,
                 snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: example.com",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("a serialized origin has no path, not even a trailing slash"),
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.com/",
+            },
         ]
     }
 }
@@ -222,6 +227,24 @@ mod tests {
             val,
             v
         );
+    }
+
+    #[rstest]
+    #[case("https://example.com/")]
+    #[case("https://example.com/path")]
+    fn origin_with_path_or_trailing_slash_is_violation(#[case] val: &str) {
+        let rule = MessageAccessControlAllowOriginValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("access-control-allow-origin", val)],
+        );
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let v = v.unwrap_or_else(|| panic!("expected violation for '{}'", val));
+        assert!(v.message.contains("invalid origin"));
     }
 
     #[test]

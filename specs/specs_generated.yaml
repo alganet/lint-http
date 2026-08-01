@@ -714,7 +714,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1407
+      line: 1408
     - file: lint-http-rules/src/helpers/uri.rs
       line: 103
   - label: lint-http-rules/src/helpers/uri.rs
@@ -2494,9 +2494,9 @@ sources:
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 145
+      line: 146
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 208
+      line: 209
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 30
   - label: message_content_length_vs_transfer_encoding
