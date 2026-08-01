@@ -23,8 +23,19 @@ impl Rule for MessageContentLengthVsTransferEncoding {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Check request headers
+        // "in any message" is what puts both directions in scope; the same check runs
+        // over the response below.
         // cite(RFC 9112 § 6.2): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
+        //
+        // The recipient side is why this is worth more than a style note. The two
+        // fields give conflicting framing, recipients are told to resolve the
+        // conflict one way, and disagreement between two recipients about where a
+        // message ends is exactly the primitive that request smuggling and response
+        // splitting are built on — so the pairing is treated as an attack signal,
+        // not merely as redundancy.
+        // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
+        // cite(RFC 9112 § 6.3): "An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding"
+        // Check request headers
         if tx.request.headers.contains_key("content-length")
             && tx.request.headers.contains_key("transfer-encoding")
         {
@@ -56,16 +67,24 @@ impl Rule for MessageContentLengthVsTransferEncoding {
     }
 
     fn description(&self) -> &'static str {
-        "This rule flags messages (requests or responses) that include both `Content-Length` and `Transfer-Encoding` headers, which can lead to ambiguous or unsafe interpretations of message length."
+        "This rule flags messages (requests or responses) that include both `Content-Length` and `Transfer-Encoding` headers. A sender must never combine them: the two describe message framing differently, so a message carrying both says two things about where it ends.\n\nRecipients are told to let `Transfer-Encoding` win and an intermediary that forwards the message must strip the `Content-Length` first. Where that does not happen consistently, two recipients can disagree about the message boundary — the primitive behind request smuggling and response splitting — so the combination is treated as an attack signal rather than mere redundancy."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9112",
-            section: Some("6.2"),
-            url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
-            note: "Content-Length MUST NOT be sent when Transfer-Encoding is present",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("6.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
+                note: "The sender-side prohibition this rule enforces: Content-Length MUST NOT be sent in any message that contains Transfer-Encoding",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("6.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
+                note: "The recipient side and the stakes: Transfer-Encoding overrides, a forwarding intermediary must strip the Content-Length, and such a message may be an attempt at request smuggling or response splitting",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

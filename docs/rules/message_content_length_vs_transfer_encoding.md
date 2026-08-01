@@ -8,11 +8,14 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-This rule flags messages (requests or responses) that include both `Content-Length` and `Transfer-Encoding` headers, which can lead to ambiguous or unsafe interpretations of message length.
+This rule flags messages (requests or responses) that include both `Content-Length` and `Transfer-Encoding` headers. A sender must never combine them: the two describe message framing differently, so a message carrying both says two things about where it ends.
+
+Recipients are told to let `Transfer-Encoding` win and an intermediary that forwards the message must strip the `Content-Length` first. Where that does not happen consistently, two recipients can disagree about the message boundary — the primitive behind request smuggling and response splitting — so the combination is treated as an attack signal rather than mere redundancy.
 
 ## Specifications
 
-- [RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): Content-Length MUST NOT be sent when Transfer-Encoding is present
+- [RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): The sender-side prohibition this rule enforces: Content-Length MUST NOT be sent in any message that contains Transfer-Encoding
+- [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3): The recipient side and the stakes: Transfer-Encoding overrides, a forwarding intermediary must strip the Content-Length, and such a message may be an attempt at request smuggling or response splitting
 
 ## Configuration
 
