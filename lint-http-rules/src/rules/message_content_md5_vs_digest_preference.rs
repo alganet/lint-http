@@ -23,17 +23,36 @@ impl Rule for MessageContentMd5VsDigestPreference {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Helper to check a header map for both Content-Digest and Content-MD5
+        // Helper to check a header map for both Content-Digest and Content-MD5.
+        // The same check runs over the request and the response below, which is
+        // what this sentence licenses — Content-Digest is defined for both
+        // directions, so neither side is out of scope.
+        // cite(RFC 9530 § 2): "The Content-Digest HTTP field can be used in requests and responses"
         let check_map = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
             let has_new = headers.get_all("content-digest").iter().next().is_some();
             let has_md5 = headers.get_all("content-md5").iter().next().is_some();
 
-            // cite(RFC 9530 § 2): "The Content-Digest HTTP field can be used in requests and responses"
+            // No sentence anywhere says "prefer Content-Digest over Content-MD5":
+            // RFC 9530 never mentions Content-MD5, so it cannot rank them. What is
+            // citable is that Content-MD5 is not part of HTTP at all — removed by
+            // RFC 7231, years before RFC 9530 existed. The preference is this
+            // linter's judgement resting on that fact.
+            //
+            // The distinct hazard here, and the reason this rule earns its keep
+            // beside `message_digest_header_syntax` (which reports a lone
+            // Content-MD5 already), is *disagreement*: two integrity values over
+            // the same content, computed by different algorithms, with nothing
+            // saying which a recipient validates. The message names that rather
+            // than repeating the sibling's obsolescence report.
+            // cite(RFC 7231): "The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses."
             if has_new && has_md5 {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
-                    message: format!("Both Content-Digest and Content-MD5 present in {}; prefer validating with Content-Digest; Content-MD5 is deprecated (RFC 9530)", which),
+                    message: format!(
+                        "Both Content-Digest and Content-MD5 present in {}; they are independent integrity values that can disagree, and nothing specifies which a recipient validates. Content-MD5 was removed from HTTP by RFC 7231 — send only Content-Digest",
+                        which
+                    ),
                 });
             }
             None
@@ -55,7 +74,7 @@ impl Rule for MessageContentMd5VsDigestPreference {
     }
 
     fn description(&self) -> &'static str {
-        "If both legacy `Content-MD5` and modern `Content-Digest` are present in the same message, prefer validating and using `Content-Digest`. `Content-MD5` is deprecated by newer specifications (see RFC 9530) and may not carry the same algorithm flexibility or security guarantees.\n\nThis rule flags messages (requests or responses) that include both `Content-Digest` (RFC 9530 structured digest) and the legacy `Content-MD5` header. When both are present, `Content-Digest` should be preferred for integrity validation and `Content-MD5` should be avoided because it is deprecated."
+        "This rule flags messages (requests or responses) that carry both `Content-Digest` (the RFC 9530 structured field) and the legacy `Content-MD5` header.\n\nCarrying both is a hazard in its own right: they are independent integrity values over the same content, computed by different algorithms, and no specification says which one a recipient validates — so a mismatch between them has no defined resolution.\n\n`Content-MD5` should simply be dropped. It is not merely discouraged but absent from HTTP: RFC 7231 removed it, for being inconsistently implemented with respect to partial responses. (RFC 9530, which defines `Content-Digest`, does not mention `Content-MD5` at all and so is not the document that retired it.)"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -64,7 +83,13 @@ impl Rule for MessageContentMd5VsDigestPreference {
                 spec: "RFC 9530",
                 section: Some("2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-2",
-                note: "Content-Digest and related structured fields",
+                note: "`Content-Digest`, the field to keep — defined for both requests and responses, which is why both are checked. Note it does not mention `Content-MD5`, so it is not what retired it",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7231",
+                section: Some("Appendix B"),
+                url: "https://www.rfc-editor.org/rfc/rfc7231.html#appendix-B",
+                note: "Where `Content-MD5` was removed from HTTP, and the reason: inconsistent implementation with respect to partial responses",
             },
             crate::rules::SpecRef {
                 spec: "RFC 2616",
@@ -159,7 +184,12 @@ mod tests {
         assert!(v.is_some());
         let v = v.unwrap();
         assert_eq!(v.rule, "message_content_md5_vs_digest_preference");
-        assert!(v.message.contains("prefer validating with Content-Digest"));
+        assert!(v.message.contains("send only Content-Digest"));
+        assert!(v.message.contains("can disagree"));
+        // The obsolescence is attributed to the document that actually removed
+        // the field, not to RFC 9530, which never mentions it.
+        assert!(v.message.contains("RFC 7231"));
+        assert!(!v.message.contains("deprecated (RFC 9530)"));
     }
 
     #[test]
