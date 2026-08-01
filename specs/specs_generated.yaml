@@ -1724,7 +1724,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1329
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 132
+      line: 147
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
@@ -1931,6 +1931,8 @@ sources:
       line: 140
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 63
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 73
   - label: message_content_disposition_token_valid (2)
     section: § 5.5
     snippet: Fields that only anticipate a single member as the field value are referred to as "singleton fields".
