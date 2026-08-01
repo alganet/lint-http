@@ -14,6 +14,10 @@ present, `Cache-Control` directives take precedence; clearly contradictory value
 (e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate
 misconfiguration and should be corrected.
 
+An `Expires` value that is not a valid HTTP-date counts as contradictory too, rather
+than as no information: a cache is required to read it as already expired, so the
+common `Expires: 0` paired with a positive `max-age` is flagged.
+
 ## Specifications
 
 - [RFC 9111 §5.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3): Cache-Control overrides Expires: a recipient MUST ignore Expires when max-age is present, and a shared cache MUST ignore it when s-maxage is present
