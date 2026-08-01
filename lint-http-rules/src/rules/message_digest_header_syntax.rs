@@ -122,10 +122,17 @@ impl Rule for MessageDigestHeaderSyntax {
             };
 
             for (alg, val) in members {
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(&alg) {
+                // These are Dictionary *keys*, not RFC 3230 tokens: an SF key may not
+                // contain uppercase. The distinction matters most on exactly the path a
+                // deployment is likely to take — RFC 3230's `digest-algorithm = token`
+                // is case-insensitive and its registry spells the algorithms `SHA-256`,
+                // `MD5`, so carrying that spelling across to Content-Digest produces a
+                // field no structured-field parser will accept.
+                if !crate::helpers::structured_fields::is_valid_sf_key(&alg) {
                     return Some(format!(
-                        "Digest algorithm contains invalid character: '{}'",
-                        c
+                        "Digest algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
+                        alg,
+                        alg.to_ascii_lowercase()
                     ));
                 }
 
@@ -165,10 +172,12 @@ impl Rule for MessageDigestHeaderSyntax {
             };
 
             for (alg, val) in members {
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(&alg) {
+                // Same Dictionary-key rule as the digest fields above.
+                if !crate::helpers::structured_fields::is_valid_sf_key(&alg) {
                     return Some(format!(
-                        "Want-* algorithm contains invalid character: '{}'",
-                        c
+                        "Want-* algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
+                        alg,
+                        alg.to_ascii_lowercase()
                     ));
                 }
 
@@ -1276,6 +1285,14 @@ mod tests {
     #[case("content-digest", "sha@1=:dGVzdA==:", true)] // invalid alg token char
     #[case("repr-digest", "sha-256=:dGVzdA==:", false)]
     #[case("repr-digest", "sha-256=:not-base64!:", true)]
+    // Dictionary keys are lowercase-only. `SHA-256` is how RFC 3230's registry
+    // spells it, so this is the spelling a migration from `Digest` carries over —
+    // and it makes the field unparseable as a structured field.
+    #[case("content-digest", "SHA-256=:dGVzdA==:", true)]
+    #[case("repr-digest", "SHA-512=:dGVzdA==:", true)]
+    #[case("content-digest", "sha-256=:dGVzdA==:, SHA-512=:dGVzdA==:", true)]
+    // `+` is a valid token character but not a valid SF key character.
+    #[case("content-digest", "sha+256=:dGVzdA==:", true)]
     fn structured_digest_cases(
         #[case] header: &str,
         #[case] value: &str,
@@ -1306,6 +1323,53 @@ mod tests {
                 value
             );
         }
+    }
+
+    /// The lowercase rule belongs to the structured fields only. RFC 3230's
+    /// `digest-algorithm = token` is explicitly case-insensitive, so an uppercase
+    /// algorithm in the legacy header is *not* a syntax error — the rule reports
+    /// only the obsolescence. This guards against over-applying the fix.
+    #[rstest]
+    #[case("SHA-256=dGVzdA==")]
+    #[case("MD5=dGVzdA==")]
+    fn legacy_digest_algorithm_stays_case_insensitive(#[case] value: &str) {
+        let rule = MessageDigestHeaderSyntax;
+        let tx = make_req_digest(value);
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_header_syntax",
+        ]);
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .expect("legacy Digest is always reported as obsolete");
+        assert!(
+            v.message.contains("obsoleted by RFC 9530"),
+            "expected the obsolescence report, not a syntax error: {}",
+            v.message
+        );
+        assert!(!v.message.contains("structured-field key"));
+    }
+
+    #[rstest]
+    #[case("want-content-digest", "SHA-256=5")]
+    #[case("want-repr-digest", "SHA-512=3, sha-256=10")]
+    fn want_field_keys_must_be_lowercase(#[case] header: &str, #[case] value: &str) {
+        let rule = MessageDigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(200, &[(header, value)]);
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_digest_header_syntax",
+        ]);
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap_or_else(|| panic!("expected violation for '{}: {}'", header, value));
+        assert!(v.message.contains("structured-field key"));
     }
 
     // Non-UTF8 tests for structured digest and want headers
