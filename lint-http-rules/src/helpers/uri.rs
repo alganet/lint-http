@@ -21,7 +21,12 @@ pub fn check_percent_encoding(s: &str) -> Option<String> {
             let hi = bytes[i + 1];
             let lo = bytes[i + 2];
             if !hi.is_ascii_hexdigit() || !lo.is_ascii_hexdigit() {
-                let seq = &s[i..i + 3.min(len - i)];
+                // Take three *characters*, not three bytes. The bytes after '%'
+                // are non-hex precisely here, which is when they may be the lead
+                // or continuation bytes of a multi-byte character — slicing to
+                // `i + 3` would cut one in half and panic. `i` is always at a '%'
+                // and so always on a character boundary.
+                let seq: String = s[i..].chars().take(3).collect();
                 return Some(format!("Invalid percent-encoding '{}'", seq));
             }
             i += 3;
@@ -492,6 +497,18 @@ mod tests {
         );
         let m = check_percent_encoding("/bad%2G").unwrap();
         assert!(m.contains("Invalid percent-encoding") && m.contains("%2G"));
+    }
+
+    #[test]
+    fn percent_followed_by_a_multibyte_character_does_not_panic() {
+        // A '%' whose next bytes are the lead/continuation bytes of a multi-byte
+        // character used to be reported by slicing three *bytes*, splitting the
+        // character and panicking. Request targets are not guaranteed ASCII.
+        let m = check_percent_encoding("/p%\u{20AC}x").expect("must be reported, not panic");
+        assert!(m.contains("Invalid percent-encoding"), "{m}");
+        assert!(check_percent_encoding("%\u{20AC}").is_some());
+        assert!(check_percent_encoding("\u{20AC}%2G").is_some());
+        assert!(check_percent_encoding("/caf\u{e9}/ok%20").is_none());
     }
 
     #[test]
