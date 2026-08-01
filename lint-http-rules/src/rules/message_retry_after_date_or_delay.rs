@@ -27,6 +27,19 @@ impl Rule for MessageRetryAfterDateOrDelay {
         // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
         let resp = tx.response.as_ref()?;
 
+        // The grammar is a bare disjunction, not a `#list`, so Retry-After is a singleton
+        // and a second field line is a sender violation. It cannot even be repaired by
+        // line-combining the way a list field can: the HTTP-date alternative contains a
+        // comma of its own, so a comma-joined value is ambiguous rather than merely long.
+        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+        if resp.headers.get_all("retry-after").iter().count() > 1 {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: "Multiple Retry-After header fields present; Retry-After takes a single value and cannot be combined into a list".into(),
+            });
+        }
+
         // Each value is either a delay-seconds count or an HTTP-date.
         // cite(RFC 9110 § 10.2.3): "Retry-After = HTTP-date / delay-seconds"
         for val in resp.headers.get_all("retry-after").iter() {
@@ -75,7 +88,7 @@ impl Rule for MessageRetryAfterDateOrDelay {
     }
 
     fn description(&self) -> &'static str {
-        "The `Retry-After` header, when present in responses, MUST be either a non-negative integer (delay-seconds) or an HTTP-date. This rule flags `Retry-After` values that do not match either form. The HTTP-date is accepted in any of the three formats a recipient must parse; this rule does not additionally enforce the sender's IMF-fixdate obligation."
+        "The `Retry-After` header, when present in responses, MUST be either a non-negative integer (delay-seconds) or an HTTP-date. This rule flags `Retry-After` values that do not match either form, and flags a repeated `Retry-After` field: the grammar takes a single value, and because the HTTP-date form contains a comma the values cannot be combined into a list. The HTTP-date is accepted in any of the three formats a recipient must parse; this rule does not additionally enforce the sender's IMF-fixdate obligation."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -149,7 +162,7 @@ mod tests {
     }
 
     #[test]
-    fn multiple_values_all_valid() -> anyhow::Result<()> {
+    fn multiple_field_lines_are_violation() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         use hyper::HeaderMap;
         let rule = MessageRetryAfterDateOrDelay;
@@ -174,7 +187,10 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_none());
+        // Both lines are individually well-formed, which is exactly why this needs
+        // its own check: the per-value loop finds nothing to complain about.
+        let v = v.expect("expected violation for two Retry-After field lines");
+        assert!(v.message.contains("Multiple Retry-After"));
         Ok(())
     }
 
