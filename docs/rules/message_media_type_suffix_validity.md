@@ -8,15 +8,16 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Flags media types — in `Content-Type` on either side of a transaction, or in any member of a request `Accept` — whose subtype ends in a `+suffix` that is not in the list you configure. A suffix names the structured syntax the payload is written in (`+json`, `+xml`), so a misspelled one is a claim about the payload that recipients cannot act on: RFC 6838 §4.2.8 says media types "MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ", and that "+suffix constructs for as-yet unregistered structured syntaxes SHOULD NOT be used". A subtype ending in a bare `+` is reported too — it appends nothing and so names no syntax.
+Flags media types — in `Content-Type` on either side of a transaction, or in any member of a request `Accept` — whose subtype ends in a `+suffix` that is not in the list you configure. A suffix names the structured syntax the payload is written in (`+json`, `+xml`), so a misspelled one is a claim about the payload that recipients cannot act on: RFC 6838 §4.2.8 says media types "MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ", and that "+suffix constructs for as-yet unregistered structured syntaxes SHOULD NOT be used". A subtype ending in a bare `+` is reported too — it appends nothing and so names no syntax — as is one that is *only* a suffix (`application/+json`), which has no base name for the suffix to qualify.
 
 **It does not consult the IANA registry**, despite what its SpecRef points at: there is no lookup, and a suffix is "registered" as far as this rule is concerned exactly when your `allowed` array covers it. Comparison is case-insensitive, because the subtype a suffix lives in is.
 
-**Scope:** only the suffix. Whether the media type parses at all, and whether more than one `Content-Type` field line is present, are `message_content_type_well_formed`'s findings; whether the full media type is one you allow is `message_content_type_iana_registered`'s. A value that does not parse as a `media-type` is skipped here.
+**Scope:** only the suffix, and only on a subtype that is a well-formed name. Whether the media type parses at all, whether the subtype's characters are legal, and whether more than one `Content-Type` field line is present are all `message_content_type_well_formed`'s findings; whether the full media type is one you allow is `message_content_type_iana_registered`'s. A subtype carrying characters no name may contain is skipped here rather than reported as a bad suffix — that would name the wrong defect, and say it twice.
 
 ## Specifications
 
-- [RFC 6838 §4.2.8](https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8): Structured Syntax Name Suffixes: what a `+suffix` is and where it sits in the subtype, that an unregistered one SHOULD NOT be used, and — the sharper half — that a suffix MUST NOT name a syntax the type does not employ
+- [RFC 6838 §4.2.8](https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8): Structured Syntax Name Suffixes: that an unregistered `+suffix` SHOULD NOT be used, and — the sharper half — that a suffix MUST NOT name a syntax the type does not employ
+- [RFC 6838 §4.2](https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2): Naming Requirements: `restricted-name`, which decides where a suffix starts ("characters after last plus") and that a name must begin with ALPHA or DIGIT — so a subtype that is only a suffix has no base name
 - [RFC 9110 §8.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1): Media Type: the subtype a suffix lives in is case-insensitive, which is why suffixes are compared folded
 - [IANA Media Type Structured Suffixes](https://www.iana.org/assignments/media-type-structured-suffix/media-type-structured-suffix.xhtml): The registry this rule stands in for but does not read; the configured `allowed` array is what it actually checks against
 
