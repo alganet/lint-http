@@ -18,7 +18,9 @@ Check that a `Content-Type` naming a `multipart/*` media type carries a `boundar
 
 **What is not checked:** this is a header rule, so the rest of RFC 2046 §5.1.1 — that the delimiter must not appear inside the encapsulated material, and that nested multipart entities must use different boundaries — is outside it. Whether the declared boundary actually delimits the body is `message_multipart_content_type_and_body_consistency`'s question. A conforming boundary also says nothing about message length: RFC 9110 §8.3.3 is explicit that HTTP framing does not use the boundary.
 
-**One silence worth knowing about:** an unbalanced quote in an *earlier* parameter swallows the rest of the value, so `foo="unterminated; boundary=abc` yields no boundary finding here. The value is malformed and `message_content_type_well_formed` reports it; there is no parameter list left to read once the quoting breaks.
+**Quoting that never closes is declined, not guessed at.** After a stray `"` no separator can be trusted, so `multipart/mixed; foo="unterminated; boundary=abc` is not reported as missing a boundary — whether that text is a parameter is precisely what the broken quoting makes unknowable, and the malformed value is `message_content_type_well_formed`'s finding. This applies only to the *absence* claim: a boundary the scan did find is still judged, so `boundary="unfinished` is reported as the malformed quoted-string it is.
+
+**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `boundary= abc` is accepted. It never causes a false report, only a missed one — and the missed report belongs to `message_content_type_well_formed`, which is lenient in the same place.
 
 ## Specifications
 

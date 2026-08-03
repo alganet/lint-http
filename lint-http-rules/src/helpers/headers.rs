@@ -904,6 +904,37 @@ pub fn split_semicolons_respecting_quotes(s: &str) -> Vec<&str> {
         .collect()
 }
 
+/// Whether every DQUOTE in `s` closes, under exactly the escape rules the two
+/// splitters above use.
+///
+/// A quote-respecting splitter cannot return a trustworthy member list when the
+/// quoting never closes: everything after the stray DQUOTE collapses into one
+/// member, and no separator past it is a separator. A rule whose finding is
+/// that some member is *absent* has to ask this first, or it states as missing
+/// what is merely unreadable. Rules that judge a member they did find need no
+/// such gate — that member was legible.
+///
+/// It lives beside the splitters because it has to agree with them about what a
+/// quote is; a gate with its own idea of escaping would pass values the splitter
+/// then mangles, or vice versa.
+pub fn quoting_is_balanced(s: &str) -> bool {
+    let mut in_quote = false;
+    let mut prev_backslash = false;
+    for b in s.bytes() {
+        if prev_backslash {
+            prev_backslash = false;
+        // `quoted-pair` lives inside `quoted-string`, so a backslash outside
+        // one escapes nothing.
+        // cite(RFC 9110 § 5.6.4): "quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )"
+        } else if b == b'\\' && in_quote {
+            prev_backslash = true;
+        } else if b == b'"' {
+            in_quote = !in_quote;
+        }
+    }
+    !in_quote
+}
+
 /// Validate a quoted-string per HTTP rules: must start and end with DQUOTE, support backslash escapes,
 /// must not contain unescaped control characters (except HTAB). Returns Ok(()) on success, Err(msg)
 /// on failure.
@@ -1999,6 +2030,36 @@ mod tests {
         // backslash-escaped parentheses should be preserved and not treated as comment delimiters
         let s = strip_comments("Agent\\(1.0\\)").unwrap();
         assert_eq!(s, "Agent(1.0)");
+    }
+
+    /// The gate has to agree with the splitters about what a quote is, so the
+    /// pairs below are the cases where the two could disagree: a backslash
+    /// outside a quoted-string escapes nothing, one inside escapes the next
+    /// octet — including a DQUOTE that would otherwise close the string.
+    #[test]
+    fn test_quoting_is_balanced() {
+        for s in [
+            "",
+            "a; b",
+            "token=\"a;b\";x",
+            "p=\"\"",
+            "p=\"a\\\"b\"",
+            // The backslash is outside a quoted-string, so it escapes nothing
+            // and leaves no quote open.
+            "p=a\\",
+            "p=a\\; q=b",
+        ] {
+            assert!(quoting_is_balanced(s), "{s:?} should be balanced");
+        }
+        for s in [
+            "p=\"x",
+            "p=a\"b",
+            "p=\"a\"\"",
+            // The escaped DQUOTE does not close the string.
+            "p=\"a\\\"",
+        ] {
+            assert!(!quoting_is_balanced(s), "{s:?} should be unbalanced");
+        }
     }
 
     #[test]

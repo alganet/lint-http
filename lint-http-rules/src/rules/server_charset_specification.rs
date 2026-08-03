@@ -55,18 +55,9 @@ impl Rule for ServerCharsetSpecification {
                     // carries one — so the rule declines to judge instead. The
                     // malformed value is `message_content_type_well_formed`'s
                     // finding; unreadable parameters are not an absent charset.
-                    let mut in_quote = false;
-                    let mut escaped = false;
-                    for b in params.bytes() {
-                        if escaped {
-                            escaped = false;
-                        } else if b == b'\\' && in_quote {
-                            escaped = true;
-                        } else if b == b'"' {
-                            in_quote = !in_quote;
-                        }
-                    }
-                    if in_quote {
+                    // The check lives beside the splitter it guards, so the two
+                    // cannot drift apart over what counts as a quote.
+                    if !crate::helpers::headers::quoting_is_balanced(params) {
                         return None;
                     }
 
