@@ -12,8 +12,15 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
         "message_accept_header_media_type_syntax"
     }
 
+    // `Both`, because the rule reads a response's Accept as well as a
+    // request's, and §12.5.1 gives that one a meaning of its own rather than
+    // treating it as a stray request field. The label said `Client` while the
+    // code checked both directions; dispatch is unaffected (only `Server` is
+    // filtered), so this corrects what the rule *says* it looks at.
+    // cite(RFC 9110 § 12.5.1): "The "Accept" header field can be used by user agents to specify their preferences regarding response media types."
+    // cite(RFC 9110 § 12.5.1): "When sent by a server in a response, Accept provides information about which content types are preferred in the content of a subsequent request to the same resource."
     fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
+        crate::rules::RuleScope::Both
     }
 
     fn check_transaction(
@@ -23,7 +30,11 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Validate a single Accept-like header value (media-range list)
+        // The list grammar, and the one production every branch below is a
+        // piece of. A member is a media-range and at most one weight; the
+        // media-range carries the parameters.
+        // cite(RFC 9110 § 12.5.1): "Accept = #( media-range [ weight ] )"
+        // cite(RFC 9110 § 12.5.1): "Each media-range might be followed by optional applicable media type parameters (e.g., charset), followed by an optional "q" parameter for indicating a relative weight (Section 12.4.2)."
         let check_val = |hdr: &str, val: &str| -> Option<Violation> {
             // Quote-aware, because a comma inside a quoted parameter value is
             // not a list separator. A raw `split(',')` cut such a value in half
@@ -35,7 +46,10 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
             for member in crate::helpers::headers::split_commas_respecting_quotes(val) {
                 let member = member.trim();
                 // An empty list element is legal for a recipient to ignore, and
-                // ignoring it is all this rule does with it.
+                // ignoring it is all this rule does with it. The production
+                // brackets each element, so `a, , b` conforms.
+                // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
+                // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
                 if member.is_empty() {
                     continue;
                 }
@@ -44,6 +58,8 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                 let mut parts =
                     crate::helpers::headers::split_semicolons_respecting_quotes(member).into_iter();
                 let media = parts.next().unwrap_or("").trim();
+                // A member that is all parameters has no media-range to carry
+                // them: `[ weight ]` is optional, the media-range is not.
                 if media.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -52,7 +68,11 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                     });
                 }
 
-                // Accept allows "*/*", "type/*" or "type/subtype" only. A bare "*" is invalid.
+                // Three shapes, and a bare asterisk is none of them. The
+                // asterisk stands for a whole type or a whole subtype; on its
+                // own it names neither side of a pair the grammar requires.
+                // cite(RFC 9110 § 12.5.1): "media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters"
+                // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
                 if media == "*" {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -76,9 +96,13 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                         });
                     }
 
-                    // cite(RFC 9110 § 12.5.1): "Accept = #( media-range [ weight ] )"
+                    // Both halves are `token`, which is what these checks
+                    // enforce; the subtype is exempted when it is the literal
+                    // asterisk, since that is the wildcard rather than a name.
+                    // (Quoted as the whole production block: either half on its
+                    // own is under apycite's 20-character floor for evidence.)
+                    // cite(RFC 9110 § 8.3.1): "media-type = type "/" subtype parameters type       = token subtype    = token"
                     if let Ok(parsed) = crate::helpers::headers::parse_media_type(media) {
-                        // validate type and subtype tokens (allow '*' as subtype)
                         if let Some(c) =
                             crate::helpers::token::find_invalid_token_char(parsed.type_)
                         {
@@ -145,9 +169,10 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                     // [ weight ] )` puts it after the media-range, and the
                     // media-range is what carries the parameters, so a
                     // parameter after `q=` derives from nothing in this
-                    // grammar. RFC 9110 removed the `accept-ext` production
-                    // that used to allow it and states the consequence as a
-                    // SHOULD on senders.
+                    // grammar. RFC 9110 removed the production that used to
+                    // allow it and states the consequence as a SHOULD.
+                    // cite(RFC 9110 § 12.5.1): "The accept extension grammar (accept-params, accept-ext) has been removed because it had a complicated definition, was not being used in practice, and is more easily deployed through new header fields."
+                    // cite(RFC 9110 § 12.5.1): "Senders using weights SHOULD send "q" last (after all media-range parameters)."
                     if weight_seen {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -158,6 +183,11 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                             ),
                         });
                     }
+                    // A parameter is a name, an "=", and a value; none of the
+                    // three is optional, so a bare word among the parameters is
+                    // not a parameter with a missing value but not a parameter
+                    // at all.
+                    // cite(RFC 9110 § 5.6.6): "parameter       = parameter-name "=" parameter-value"
                     let mut kv = p.splitn(2, '=');
                     let k = kv.next().unwrap().trim();
                     let v = kv.next();
@@ -172,7 +202,7 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                         });
                     }
                     let v = v.unwrap().trim();
-                    // Parameter name must be a token
+                    // cite(RFC 9110 § 5.6.6): "parameter-name  = token"
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(k) {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -184,8 +214,20 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                         });
                     }
 
+                    // The weight's name is matched without regard to case
+                    // because §12.4.2 defines it that way, and it is looked for
+                    // among all the parameters because §12.5.1 tells recipients
+                    // to find it wherever it sits.
+                    // cite(RFC 9110 § 12.4.2): "The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content."
+                    // cite(RFC 9110 § 12.5.1): "Recipients SHOULD process any parameter named "q" as weight, regardless of parameter ordering."
                     if k.eq_ignore_ascii_case("q") {
                         weight_seen = true;
+                        // The three-digit cap and the asymmetry between the
+                        // two branches are both in the production, and the
+                        // helper owns it — this rule does not keep a second
+                        // copy. The MUST NOT is the sender-side statement of
+                        // the same bound, and it is senders this rule reports.
+                        // cite(RFC 9110 § 12.4.2): "A sender of qvalue MUST NOT generate more than three digits after the decimal point."
                         if !crate::helpers::headers::valid_qvalue(v) {
                             return Some(Violation {
                                 rule: self.id().into(),
@@ -194,7 +236,9 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                             });
                         }
                     } else {
-                        // value may be token or quoted-string
+                        // The two alternatives of `parameter-value`, each handed
+                        // to the helper that owns its grammar.
+                        // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
                         if v.starts_with('"') {
                             if let Err(e) = crate::helpers::headers::validate_quoted_string(v) {
                                 return Some(Violation {
@@ -259,17 +303,47 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Accept Header Media Type Syntax")
+    }
+
     fn description(&self) -> &'static str {
-        "Validate `Accept` header media-range syntax. Each member must be a valid media-range (`type/subtype`, `type/*`, or `*/*`), and parameters must be well-formed (`name=value`). The `q` parameter must be a valid quality value (0.000–1.000 with up to three decimal places). This rule is conservative and focuses on syntactic correctness rather than semantic content negotiation."
+        "Check that an `Accept` header reads as `#( media-range [ weight ] )`: each member a `media-range` — `*/*`, `type/*`, or `type/subtype`, both halves `token` — optionally followed by media type parameters and then a weight. A `q` value must be a `qvalue`: `0` to `1` with at most three digits after the decimal point.\n\n**A bare `*` is reported**, and so is a wildcard type with a concrete subtype (`*/json`). The second of those is a judgement about the prose rather than a reading of the ABNF: `type` is a `token` and `*` is a `tchar`, so `*/json` does derive from `type \"/\" subtype`. But §12.5.1 gives the asterisk exactly two jobs — all media types, or all subtypes of one type — and this is neither, so it names no set a recipient could match against. `message_content_type_well_formed` takes the same position on the same shape in `Content-Type`.\n\n**A parameter after the weight is reported.** `Accept = #( media-range [ weight ] )` puts the weight last and the media-range is what carries the parameters, so `text/html;q=0.5;charset=utf-8` derives from nothing in this grammar. RFC 9110 removed the `accept-ext` production that used to allow it and states the consequence as a SHOULD on senders. Finding the `q` itself is unaffected: it is looked for among all the parameters and its name matched case-insensitively, because §12.5.1 tells recipients to process it regardless of ordering. This rule reports what a sender did; it does not pretend not to understand it.\n\n**Both directions are read.** A request's `Accept` states a preference; a response's, per §12.5.1, says what a subsequent request to the same resource should prefer. Each field line is validated on its own rather than recombined, so an unbalanced quote in one line cannot swallow the members of the next.\n\n**Quoting that never closes is reported here** rather than declined. The rules that consume `Accept` — `message_accept_and_content_type_negotiation` among them — decline to judge a member list they cannot read; this rule is the one that owns a malformed `Accept`, so declining would leave the defect with no reporter.\n\n**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `q =0.5` is accepted. Empty list elements (`text/html, , text/plain`) are skipped, which §5.6.1.2 permits a recipient to do."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("12.5.1"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
-            note: "Accept header field and media-range syntax",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("12.5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
+                note: "Accept: the `#( media-range [ weight ] )` list, the three shapes a `media-range` takes and what the asterisk ranges over, the removal of the extension parameters that once followed the weight, and the meaning of an Accept sent in a response",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("12.4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
+                note: "Quality Values: the `qvalue` production and its three-digit bound, and that the parameter name is matched case-insensitively",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
+                note: "Media Type: `type` and `subtype` are both `token`, which is what the character checks enforce",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.6.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
+                note: "Parameters: the `name=value` grammar and the two alternatives a value may take. Its prohibition on whitespace around `=` is NOT enforced here",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.6.1.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
+                note: "Sender Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -278,12 +352,52 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "Accept: text/html\nAccept: application/json; charset=utf-8\nAccept: text/*;q=0.8, application/json;q=0.9\nAccept: */*;q=0.1",
+                snippet: "Accept: text/html",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a media type parameter, then the weight)"),
+                snippet: "Accept: text/*;q=0.8, application/json;charset=utf-8;q=0.9",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a comma inside a quoted value is not a separator)"),
+                snippet: "Accept: text/html;foo=\"a,b\", */*;q=0.1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Accept: *\nAccept: text; q=0.8\nAccept: text/html; q=1.0000\nAccept: application/json; charset=bad\\x01",
+                label: Some("(the asterisk names a type or a subtype, not a pair)"),
+                snippet: "Accept: *",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a wildcard type ranges over nothing without a wildcard subtype)"),
+                snippet: "Accept: */json",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(no subtype)"),
+                snippet: "Accept: text; q=0.8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a qvalue has at most three digits after the point)"),
+                snippet: "Accept: text/html; q=1.0000",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the weight closes a media-range)"),
+                snippet: "Accept: text/html; q=0.5; charset=utf-8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a parameter is a name, an \"=\", and a value)"),
+                snippet: "Accept: text/html; charset",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the quoting never closes)"),
+                snippet: "Accept: text/html; foo=\"unterminated",
             },
         ]
     }
@@ -383,11 +497,81 @@ mod tests {
         Ok(())
     }
 
+    /// Every published snippet is run through the rule, and each NonCompliant
+    /// one is pinned to the finding it illustrates. The old NonCompliant
+    /// example bundled four different defects into one snippet, of which a
+    /// rule can only ever report the first — so three of them were published
+    /// as illustrations of nothing.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageAcceptHeaderMediaTypeSyntax;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let reasons: [(&str, &str); 7] = [
+            ("Accept: *", "Invalid media-range '*'"),
+            ("Accept: */json", "wildcard type is only meaningful"),
+            ("Accept: text; q=0.8", "missing '/'"),
+            ("Accept: text/html; q=1.0000", "Invalid qvalue"),
+            (
+                "Accept: text/html; q=0.5; charset=utf-8",
+                "follows the weight",
+            ),
+            ("Accept: text/html; charset", "missing '='"),
+            (
+                "Accept: text/html; foo=\"unterminated",
+                "Invalid quoted-string parameter",
+            ),
+        ];
+
+        for ex in rule.examples() {
+            let (k, v) = ex
+                .snippet
+                .split_once(": ")
+                .unwrap_or_else(|| panic!("example is not `Name: value`: {:?}", ex.snippet));
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(k, v)]);
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    let found = found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    let expected = *reasons
+                        .iter()
+                        .find(|(s, _)| *s == ex.snippet)
+                        .map(|(_, reason)| reason)
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "NonCompliant example {:?} has no expected finding here",
+                                ex.snippet
+                            )
+                        });
+                    assert!(
+                        found.message.contains(expected),
+                        "NonCompliant example {:?} should fail with {expected:?}: {found:?}",
+                        ex.snippet
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn message_and_id() {
         let rule = MessageAcceptHeaderMediaTypeSyntax;
         assert_eq!(rule.id(), "message_accept_header_media_type_syntax");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        // `Both`: the rule reads a response's Accept as well as a request's,
+        // and §12.5.1 gives that one a meaning of its own.
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
     }
 
     #[test]
