@@ -129,7 +129,14 @@ impl Rule for MessageFormDataContentDispositionValid {
                 }
             }
 
-            if !name_found {
+            // Not reported when the quoting never closes. After a stray DQUOTE
+            // everything collapses into one segment and no separator past it is
+            // a separator, so `p="x; name="a"` — which plainly carries a name —
+            // was announced as missing one. Whether that text is a parameter is
+            // exactly what the broken quoting makes unknowable, and this is a
+            // claim about absence. A name the scan did find is judged above and
+            // needs no such gate.
+            if !name_found && crate::helpers::headers::quoting_is_balanced(params_part) {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
@@ -186,7 +193,7 @@ impl Rule for MessageFormDataContentDispositionValid {
     }
 
     fn description(&self) -> &'static str {
-        "Ensure that a `form-data` `Content-Disposition` includes a non-empty `name` parameter. RFC 7578 §4.2 requires the parameter and defines its value as the original field name from the form; receiving applications rely on it to associate part data with form fields, so a missing or empty `name` breaks form processing.\n\n**Scope:** RFC 7578 places this requirement on each *part* of a multipart body, but the linter inspects message header fields rather than parsed body parts, so what it checks is a message-level `Content-Disposition`. That position is itself unusual — RFC 6266 defines `inline` and `attachment` for HTTP messages, not `form-data` — so this is a best-effort approximation of the §4.2 check rather than the check itself. Dispositions other than `form-data` are ignored.\n\nAn empty `name` value is reported as a defect. The specification requires the parameter and says what it means, but does not literally say \"non-empty\"; treating an empty field name as broken is this linter's judgement."
+        "Ensure that a `form-data` `Content-Disposition` includes a non-empty `name` parameter. RFC 7578 §4.2 requires the parameter and defines its value as the original field name from the form; receiving applications rely on it to associate part data with form fields, so a missing or empty `name` breaks form processing.\n\n**Scope:** RFC 7578 places this requirement on each *part* of a multipart body, but the linter inspects message header fields rather than parsed body parts, so what it checks is a message-level `Content-Disposition`. That position is itself unusual — RFC 6266 defines `inline` and `attachment` for HTTP messages, not `form-data` — so this is a best-effort approximation of the §4.2 check rather than the check itself. Dispositions other than `form-data` are ignored.\n\nAn empty `name` value is reported as a defect. The specification requires the parameter and says what it means, but does not literally say \"non-empty\"; treating an empty field name as broken is this linter's judgement.\n\n**Quoting that never closes is declined, not guessed at.** After a stray `\"` no separator can be trusted, so `form-data; p=\"x; name=\"a\"` is not reported as missing a name — whether that text is a parameter is exactly what the broken quoting makes unknowable. This applies only to the *absence* claim: a `name` the scan did find is still judged."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -237,6 +244,17 @@ mod tests {
     #[case(Some("form-data; name=user; filename=example.txt"), false)]
     #[case(Some("form-data; filename=example.txt"), true)]
     #[case(Some("form-data; name="), true)]
+    // Quoting that never closes makes the absence of a name unknowable, so the
+    // rule declines rather than announce one is missing from a value that
+    // plainly carries it.
+    #[case(Some("form-data; p=\"x; name=\"a\""), false)]
+    #[case(Some("form-data; p=a\"b; name=\"a\""), false)]
+    // A backslash outside a quoted-string escapes nothing, so this list is
+    // readable and the missing name is a real finding.
+    #[case(Some("form-data; p=a\\"), true)]
+    // Balanced quoting with no name is still reported, so the gate narrows
+    // nothing it should not.
+    #[case(Some("form-data; p=\"a;b\""), true)]
     #[case(Some("attachment; filename=example.txt"), false)]
     #[case(None, false)]
     fn check_request_cases(
