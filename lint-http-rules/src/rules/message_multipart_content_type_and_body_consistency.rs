@@ -23,49 +23,61 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Check request body when Content-Type is multipart
+
         // cite(RFC 2046 § 5.1.1): "The Content-Type field for multipart entities requires one parameter, "boundary"."
-        if let Some(hv) = tx.request.headers.get("content-type") {
-            if let Ok(s) = hv.to_str() {
-                if let Some(boundary) = crate::helpers::headers::extract_multipart_boundary(s) {
-                    // Skip a truncated prefix (streaming): the terminating boundary
-                    // sits at the body's end and would be missing from a prefix.
-                    if let Some(b) = tx
-                        .request_body
-                        .as_ref()
-                        .filter(|_| !tx.request_body_over_limit)
+        let check_message = |which: &str,
+                             headers: &hyper::HeaderMap,
+                             body: Option<&bytes::Bytes>|
+         -> Option<Violation> {
+            // A body captured only as a prefix is not scanned: the terminating
+            // delimiter sits at the body's end, so every truncated capture would
+            // be reported as missing one. Nothing licenses this — it is a fact
+            // about the capture, not about the message.
+            let body = body?;
+
+            // Every Content-Type field line, not just the first. `HeaderMap::get`
+            // returns one value, and RFC 9110 §8.3 says recipients differ over
+            // which member of a duplicated Content-Type they act on, so a
+            // multipart declaration on a second line names a boundary the peer
+            // may well be the one to look for. That there is more than one line
+            // is `message_content_type_well_formed`'s finding, not this one's.
+            for hv in headers.get_all("content-type").iter() {
+                // Decoded from the raw octets rather than through `to_str`,
+                // which refuses `obs-text` — legal inside a `quoted-string`, so
+                // a boundary is not unreadable merely because a neighbouring
+                // parameter carries one.
+                // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+                let s = String::from_utf8_lossy(hv.as_bytes());
+                if let Some(boundary) = crate::helpers::headers::extract_multipart_boundary(&s) {
+                    if let Some(v) =
+                        check_body_contains_boundary(which, &boundary, body.as_ref(), &config)
                     {
-                        if let Some(v) =
-                            check_body_contains_boundary("request", &boundary, b.as_ref(), &config)
-                        {
-                            return Some(v);
-                        }
+                        return Some(v);
                     }
                 }
             }
+            None
+        };
+
+        if let Some(v) = check_message(
+            "request",
+            &tx.request.headers,
+            tx.request_body
+                .as_ref()
+                .filter(|_| !tx.request_body_over_limit),
+        ) {
+            return Some(v);
         }
 
-        // Check response body when Content-Type is multipart
         if let Some(resp) = &tx.response {
-            if let Some(hv) = resp.headers.get("content-type") {
-                if let Ok(s) = hv.to_str() {
-                    if let Some(boundary) = crate::helpers::headers::extract_multipart_boundary(s) {
-                        if let Some(b) = tx
-                            .response_body
-                            .as_ref()
-                            .filter(|_| !tx.response_body_over_limit)
-                        {
-                            if let Some(v) = check_body_contains_boundary(
-                                "response",
-                                &boundary,
-                                b.as_ref(),
-                                &config,
-                            ) {
-                                return Some(v);
-                            }
-                        }
-                    }
-                }
+            if let Some(v) = check_message(
+                "response",
+                &resp.headers,
+                tx.response_body
+                    .as_ref()
+                    .filter(|_| !tx.response_body_over_limit),
+            ) {
+                return Some(v);
             }
         }
 
@@ -593,6 +605,47 @@ mod tests {
             "{:?} -> {v:?}",
             String::from_utf8_lossy(body)
         );
+    }
+
+    /// A recipient may act on any Content-Type line, so a multipart
+    /// declaration on the second one names a boundary the body still has to
+    /// use. Only the first line was ever read.
+    #[test]
+    fn every_content_type_line_is_read() {
+        let rule = MessageMultipartContentTypeAndBodyConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("content-type", "text/plain"),
+            ("content-type", "multipart/mixed; boundary=abc"),
+        ]);
+        tx.response_body = Some(Bytes::from_static(b"no boundaries here"));
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some(), "the second line declares a boundary: {v:?}");
+    }
+
+    /// obs-text is legal in a quoted-string, so this is a well-formed
+    /// media-type whose boundary is perfectly readable. `to_str` refused the
+    /// whole value and the body went unchecked.
+    #[test]
+    fn obs_text_in_a_neighbouring_parameter_does_not_hide_the_boundary() {
+        use hyper::header::HeaderValue;
+        let rule = MessageMultipartContentTypeAndBodyConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers.insert(
+            "content-type",
+            HeaderValue::from_bytes(b"multipart/mixed; boundary=abc; foo=\"\xe4\"").unwrap(),
+        );
+        tx.response_body = Some(Bytes::from_static(b"no boundaries here"));
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some(), "the boundary is readable: {v:?}");
     }
 
     /// When the text is present but never at a line start, the finding says so
