@@ -46,22 +46,45 @@ impl Rule for ServerCharsetSpecification {
                     // position on whether it is registered (that is the IANA-charset
                     // rule's job).
                     // cite(RFC 9110 § 8.3.2): "HTTP uses "charset" names to indicate or negotiate the character encoding scheme"
+                    let params = parsed.params.unwrap_or("");
+
+                    // An odd number of DQUOTEs means the quoting never closes,
+                    // and then no parameter boundary after it can be trusted.
+                    // Saying "missing charset" about such a value would be a
+                    // false statement — `text/html; p="x; charset=utf-8` plainly
+                    // carries one — so the rule declines to judge instead. The
+                    // malformed value is `message_content_type_well_formed`'s
+                    // finding; unreadable parameters are not an absent charset.
+                    let mut in_quote = false;
+                    let mut escaped = false;
+                    for b in params.bytes() {
+                        if escaped {
+                            escaped = false;
+                        } else if b == b'\\' && in_quote {
+                            escaped = true;
+                        } else if b == b'"' {
+                            in_quote = !in_quote;
+                        }
+                    }
+                    if in_quote {
+                        return None;
+                    }
+
                     // Quote-aware: a `;` inside a quoted parameter value does not
                     // start a new parameter. A raw `split(';')` cut such a value
                     // apart and then read the pieces as parameters, so text that
                     // merely *looks* like `charset=` inside another value — say
                     // `boundary="x; charset=utf-8"` — satisfied this check and
                     // suppressed the finding for a response that has no charset.
-                    let has_charset = crate::helpers::headers::split_semicolons_respecting_quotes(
-                        parsed.params.unwrap_or(""),
-                    )
-                    .into_iter()
-                    .any(|p| {
-                        let p = p.trim();
-                        p.split_once('=')
-                            .map(|(k, _)| k.trim().eq_ignore_ascii_case("charset"))
-                            .unwrap_or(false)
-                    });
+                    let has_charset =
+                        crate::helpers::headers::split_semicolons_respecting_quotes(params)
+                            .into_iter()
+                            .any(|p| {
+                                let p = p.trim();
+                                p.split_once('=')
+                                    .map(|(k, _)| k.trim().eq_ignore_ascii_case("charset"))
+                                    .unwrap_or(false)
+                            });
 
                     // No specification requires `charset` on a `text/*` response — searched
                     // for, not found. RFC 9110 mentions the parameter twice and mandates
@@ -84,7 +107,7 @@ impl Rule for ServerCharsetSpecification {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter. Responses only, and the type is matched case-insensitively, so `TEXT/HTML` is in scope.\n\nSpecifying the character encoding is crucial for security and correct rendering. If the charset is not explicitly defined, browsers may attempt to guess the encoding (MIME sniffing), which can lead to Cross-Site Scripting (XSS) vulnerabilities or incorrect display of characters.\n\nNo specification requires the parameter — RFC 9110 defines what `charset` means and mandates nothing about sending it — so this rule is a deliberate policy rather than a conformance check. Only the parameter's presence is checked; whether its value names a registered charset is a separate rule's concern."
+        "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter. Responses only, and the type is matched case-insensitively, so `TEXT/HTML` is in scope.\n\nSpecifying the character encoding is crucial for security and correct rendering. If the charset is not explicitly defined, browsers may attempt to guess the encoding (MIME sniffing), which can lead to Cross-Site Scripting (XSS) vulnerabilities or incorrect display of characters.\n\nNo specification requires the parameter — RFC 9110 defines what `charset` means and mandates nothing about sending it — so this rule is a deliberate policy rather than a conformance check. Only the parameter's presence is checked; whether its value names a registered charset is a separate rule's concern.\n\nThe parameter list is read quote-aware, so a `;` inside a quoted value does not start a new parameter and text that merely looks like `charset=` inside another value does not count. If the quoting never closes, the rule declines to judge rather than report a charset missing that the value plainly carries — an unreadable parameter list is `message_content_type_well_formed`'s finding, not an absent charset."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -156,6 +179,21 @@ mod tests {
     )]
     // A real charset following a quoted value that carries a ";" is still found.
     #[case("text/html; boundary=\"a;b\"; charset=utf-8", false, None)]
+    // Unbalanced quoting: no parameter boundary after the stray DQUOTE can be
+    // trusted, and a charset is plainly present, so "missing charset" would be
+    // a false statement. The malformed value is a sibling's finding.
+    #[case("text/html; p=a\"b; charset=utf-8", false, None)]
+    #[case("text/html; p=\"a\"\"; charset=utf-8", false, None)]
+    #[case("text/html; p=\"x; charset=utf-8", false, None)]
+    // A backslash outside a quoted-string escapes nothing, so this list is
+    // readable and the charset is found.
+    #[case(r"text/html; p=a\; charset=utf-8", false, None)]
+    // Balanced quoting with no charset is still reported.
+    #[case(
+        "text/html; p=\"a;b\"",
+        true,
+        Some("Text-based Content-Type header missing charset parameter.")
+    )]
     #[case("application/json", false, None)]
     #[case("", false, None)]
     fn check_response_cases(
