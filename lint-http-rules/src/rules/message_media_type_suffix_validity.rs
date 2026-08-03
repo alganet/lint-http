@@ -141,8 +141,18 @@ impl Rule for MessageMediaTypeSuffixValidity {
         // Accept is a list, so each member is checked; the field lines are
         // recombined by the same comma the list uses, which is why they need no
         // separate handling here.
+        //
+        // Quote-aware, because a comma inside a quoted parameter value is not a
+        // list separator. A raw `split(',')` cut such a value apart and then
+        // read the pieces as media types, so text that merely looks like one
+        // was reported as a real media type with a bad suffix:
+        //
+        //   Accept: application/json;p="a,foo/bar+bogus"
+        //   -> Unrecognized structured syntax suffix '+bogus"' in 'foo/bar+bogus"'
+        //
+        // The message even carried the stray quote, which is the tell.
         for ah in values(&tx.request.headers, "accept") {
-            for part in ah.split(',') {
+            for part in crate::helpers::headers::split_commas_respecting_quotes(&ah) {
                 let p = part.trim();
                 if p.is_empty() {
                     continue;
@@ -214,6 +224,28 @@ static REGISTRATION: &dyn crate::rules::Rule = &MessageMediaTypeSuffixValidity;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    #[rstest]
+    // A comma inside a quoted parameter value is not a list separator, so the
+    // text after it is not a media type and must not be judged as one.
+    #[case("application/json;p=\"a,foo/bar+bogus\"", false)]
+    #[case("application/json;p=\"x,y/z+nope\", text/html", false)]
+    // Real members are still each checked, before and after a quoted comma.
+    #[case("text/html, application/vnd.x+bogus", true)]
+    #[case("application/json;p=\"a,b\", application/vnd.x+bogus", true)]
+    #[case("application/ld+json, text/html", false)]
+    fn accept_members_split_on_real_commas_only(#[case] accept: &str, #[case] expect: bool) {
+        let rule = MessageMediaTypeSuffixValidity;
+        let cfg = make_cfg();
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("accept", accept)]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(v.is_some(), expect, "{accept} -> {v:?}");
+    }
 
     #[rstest]
     // A bad suffix on a second Content-Type line: `get_header_str` stopped at
