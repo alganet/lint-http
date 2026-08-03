@@ -204,9 +204,11 @@ impl Rule for MessageMediaTypeSuffixValidity {
             }
         }
 
-        // Accept is a list, so each member is checked; the field lines are
-        // recombined by the same comma the list uses, which is why they need no
-        // separate handling here.
+        // Accept is a list, so each member is checked. Each field line is split
+        // on its own rather than after recombining them, which is *not* the same
+        // thing: an unbalanced quote in one line would otherwise swallow the
+        // members of every line after it. Splitting per line confines that
+        // damage to the line that carries the typo.
         //
         // Quote-aware, because a comma inside a quoted parameter value is not a
         // list separator. A raw `split(',')` cut such a value apart and then
@@ -343,20 +345,24 @@ mod tests {
         .expect("config_example.toml must be readable");
         let cfg: crate::config::Config =
             toml::from_str(&toml_src).expect("config_example.toml must parse");
-        let siblings: [(&str, &dyn Rule); 4] = [
+        let siblings: [(&str, &dyn Rule); 5] = [
             ("well-formed", &crate::rules::message_content_type_well_formed::MessageContentTypeWellFormed),
             ("media-type allowlist", &crate::rules::message_content_type_iana_registered::MessageContentTypeIanaRegistered),
             ("charset presence", &crate::rules::server_charset_specification::ServerCharsetSpecification),
             ("nosniff", &crate::rules::server_x_content_type_options::ServerXContentTypeOptions),
+            ("header-name allowlist", &crate::rules::message_extension_headers_registered::MessageExtensionHeadersRegistered),
         ];
 
         for ex in rule.examples() {
             let mut pairs: Vec<(&str, &str)> = Vec::new();
+            // One predicate for "this is the start-line", used both to skip it
+            // and to decide which half of the transaction the example is. Two
+            // different tests would let a request-line the skip missed reach
+            // the header parser, or a response be fed in as a request.
+            let is_status_line = |l: &str| l.starts_with("HTTP/");
+            let is_request_line = |l: &str| l.contains(" HTTP/");
             for line in ex.snippet.lines() {
-                if line.starts_with("HTTP/") || line.contains(" HTTP/1.1") {
-                    continue;
-                }
-                if line.is_empty() {
+                if is_status_line(line) || is_request_line(line) || line.is_empty() {
                     continue;
                 }
                 let (k, v) = line.split_once(": ").unwrap_or_else(|| {
@@ -366,7 +372,7 @@ mod tests {
             }
             assert!(!pairs.is_empty(), "example has no headers: {}", ex.snippet);
 
-            let on_response = ex.snippet.starts_with("HTTP/");
+            let on_response = ex.snippet.lines().next().is_some_and(is_status_line);
             let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
             if on_response {
                 tx.response.as_mut().unwrap().headers =
@@ -394,10 +400,18 @@ mod tests {
                     }
                 }
                 Compliance::NonCompliant => {
+                    // `v.rule` is always this rule's id — the rule only ever
+                    // builds violations with `self.id()` — so asserting that
+                    // says nothing. What is worth pinning is that the example
+                    // fails for the reason it illustrates.
                     let v = v.unwrap_or_else(|| {
                         panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
                     });
-                    assert_eq!(v.rule, rule.id(), "{:?} -> {v:?}", ex.snippet);
+                    assert!(
+                        v.message.contains("suffix"),
+                        "NonCompliant example {:?} fails for an unrelated reason: {v:?}",
+                        ex.snippet
+                    );
                 }
             }
         }

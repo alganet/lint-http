@@ -21,7 +21,7 @@ Non-standard or extension header field-names (i.e., those not registered in the 
 [rules.message_extension_headers_registered]
 enabled = true
 severity = "warn"
-allowed = ["host", "content-type", "user-agent", "x-custom"]
+allowed = ["host", "content-type", "user-agent", "accept", "x-custom"]
 ```
 
 ## Examples
