@@ -95,20 +95,52 @@ impl Rule for MessageMediaTypeSuffixValidity {
                 Err(_) => return None,
             };
             let subtype = parsed.subtype.trim();
-            // What a "+suffix" is, and where in the subtype it lives — which is
-            // what the helper's `rfind('+')` encodes: the suffix is appended to
-            // the base name, so the last "+" starts it.
-            // cite(RFC 6838 § 4.2.8): "That is, it specified a suffix (in that case, "+xml") to be appended to the base subtype name."
+
+            // `parse_media_type` is structural — it finds the "/" and checks that
+            // neither half is empty — so a subtype full of characters no subtype
+            // may contain still arrives here. Judging its *suffix* would name the
+            // wrong defect and would say it twice, since
+            // `message_content_type_well_formed` already reports the subtype. A
+            // suffix question only arises once there is a well-formed name to
+            // hang it on.
+            //
+            // `restricted-name` is stricter than `token`, but `token` is the
+            // shared predicate this catalogue has, and the two agree on
+            // everything that matters here: neither admits obs-text, whitespace,
+            // or a separator. Erring toward `token` keeps the rule from
+            // adjudicating subtype spelling, which is not its job.
+            // cite(RFC 6838 § 4.2): "Type and subtype names MUST conform to the following ABNF:"
+            if crate::helpers::token::find_invalid_token_char(subtype).is_some() {
+                return None;
+            }
+
+            // Which "+" starts the suffix is not a matter of inference: the ABNF
+            // says it in the comment on its own production, which is what the
+            // helper's `rfind('+')` encodes. A base name may itself contain "+".
+            // cite(RFC 6838 § 4.2): "restricted-name-chars =/ "+" ; Characters after last plus always ; specify a structured syntax suffix"
             if let Some(suffix) = crate::helpers::headers::media_type_subtype_suffix(subtype) {
+                // A subtype that is *only* a suffix has no base name to qualify,
+                // and `restricted-name-first` admits no "+". The mirror image of
+                // the bare-trailing-"+" check below, on the same reasoning.
+                // cite(RFC 6838 § 4.2): "restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT"
+                if subtype.starts_with('+') {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: format!(
+                            "Media type '{}/{}' in {} is a structured suffix with no base subtype name",
+                            parsed.type_, parsed.subtype, hdr_name
+                        ),
+                    });
+                }
                 // Suffixes are compared folded because the subtype they sit in
                 // is case-insensitive; `+JSON` is the same suffix as `+json`.
                 // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
                 let suffix = suffix.to_ascii_lowercase();
-                // A trailing "+" appends nothing. No sentence forbids it in so
-                // many words, and `token` permits it, so this is the rule
-                // reading the construct's purpose rather than a grammar: a
-                // suffix that names no structured syntax cannot be the
-                // "appropriate registered +suffix" for one.
+                // A trailing "+" appends nothing, so it names no structured
+                // syntax. `restricted-name-chars` admits "+" anywhere after the
+                // first character, so the grammar permits this shape; the
+                // reading is the construct's purpose, as above.
                 if suffix.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -213,7 +245,7 @@ impl Rule for MessageMediaTypeSuffixValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Flags media types — in `Content-Type` on either side of a transaction, or in any member of a request `Accept` — whose subtype ends in a `+suffix` that is not in the list you configure. A suffix names the structured syntax the payload is written in (`+json`, `+xml`), so a misspelled one is a claim about the payload that recipients cannot act on: RFC 6838 §4.2.8 says media types \"MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ\", and that \"+suffix constructs for as-yet unregistered structured syntaxes SHOULD NOT be used\". A subtype ending in a bare `+` is reported too — it appends nothing and so names no syntax.\n\n**It does not consult the IANA registry**, despite what its SpecRef points at: there is no lookup, and a suffix is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. Comparison is case-insensitive, because the subtype a suffix lives in is.\n\n**Scope:** only the suffix. Whether the media type parses at all, and whether more than one `Content-Type` field line is present, are `message_content_type_well_formed`'s findings; whether the full media type is one you allow is `message_content_type_iana_registered`'s. A value that does not parse as a `media-type` is skipped here."
+        "Flags media types — in `Content-Type` on either side of a transaction, or in any member of a request `Accept` — whose subtype ends in a `+suffix` that is not in the list you configure. A suffix names the structured syntax the payload is written in (`+json`, `+xml`), so a misspelled one is a claim about the payload that recipients cannot act on: RFC 6838 §4.2.8 says media types \"MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ\", and that \"+suffix constructs for as-yet unregistered structured syntaxes SHOULD NOT be used\". A subtype ending in a bare `+` is reported too — it appends nothing and so names no syntax — as is one that is *only* a suffix (`application/+json`), which has no base name for the suffix to qualify.\n\n**It does not consult the IANA registry**, despite what its SpecRef points at: there is no lookup, and a suffix is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. Comparison is case-insensitive, because the subtype a suffix lives in is.\n\n**Scope:** only the suffix, and only on a subtype that is a well-formed name. Whether the media type parses at all, whether the subtype's characters are legal, and whether more than one `Content-Type` field line is present are all `message_content_type_well_formed`'s findings; whether the full media type is one you allow is `message_content_type_iana_registered`'s. A subtype carrying characters no name may contain is skipped here rather than reported as a bad suffix — that would name the wrong defect, and say it twice."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -222,7 +254,13 @@ impl Rule for MessageMediaTypeSuffixValidity {
                 spec: "RFC 6838",
                 section: Some("4.2.8"),
                 url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8",
-                note: "Structured Syntax Name Suffixes: what a `+suffix` is and where it sits in the subtype, that an unregistered one SHOULD NOT be used, and — the sharper half — that a suffix MUST NOT name a syntax the type does not employ",
+                note: "Structured Syntax Name Suffixes: that an unregistered `+suffix` SHOULD NOT be used, and — the sharper half — that a suffix MUST NOT name a syntax the type does not employ",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6838",
+                section: Some("4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2",
+                note: "Naming Requirements: `restricted-name`, which decides where a suffix starts (\"characters after last plus\") and that a name must begin with ALPHA or DIGIT — so a subtype that is only a suffix has no base name",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
@@ -362,6 +400,60 @@ mod tests {
                     assert_eq!(v.rule, rule.id(), "{:?} -> {v:?}", ex.snippet);
                 }
             }
+        }
+    }
+
+    #[rstest]
+    // A subtype that is not a well-formed name is `message_content_type_well_formed`'s
+    // finding, not a suffix question. Before the token gate these were reported
+    // here as bad *suffixes*, naming the wrong defect and saying it twice.
+    #[case(b"application/ld+json\xe4", false)]
+    #[case("application/ld+jso\u{ad}n".as_bytes(), false)]
+    // A subtype that is only a suffix has no base name to qualify.
+    #[case(b"application/+json", true)]
+    // Well-formed names are still judged on their suffix.
+    #[case(b"application/ld+json", false)]
+    #[case(b"application/vnd.x+bogus", true)]
+    #[case(b"application/vnd.x+", true)]
+    fn only_well_formed_subtypes_are_judged_on_their_suffix(
+        #[case] raw: &[u8],
+        #[case] expect: bool,
+    ) {
+        use hyper::header::HeaderValue;
+        let rule = MessageMediaTypeSuffixValidity;
+        let cfg = make_cfg();
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm.insert("content-type", HeaderValue::from_bytes(raw).unwrap());
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = hm;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.is_some(),
+            expect,
+            "{:?} -> {v:?}",
+            String::from_utf8_lossy(raw)
+        );
+
+        // The malformed subtypes are not silent overall: the rule that owns
+        // subtype syntax reports them.
+        if !expect && String::from_utf8_lossy(raw).contains(char::REPLACEMENT_CHARACTER)
+            || raw.contains(&0xc2)
+        {
+            let sib_cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "message_content_type_well_formed",
+            ]);
+            let other =
+                crate::rules::message_content_type_well_formed::MessageContentTypeWellFormed
+                    .check_transaction(
+                        &tx,
+                        &crate::transaction_history::TransactionHistory::empty(),
+                        &sib_cfg,
+                    );
+            assert!(other.is_some(), "unreported by both rules");
         }
     }
 
