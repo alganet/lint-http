@@ -112,27 +112,76 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
     }
 }
 
+/// What the scan below found in the body: delimiter *lines*, not text.
+#[derive(Default)]
+struct DelimiterScan {
+    /// A delimiter line that is not the closing one, so it opens a body part.
+    opens_a_part: bool,
+    /// The closing delimiter line, `dash-boundary` followed by two more hyphens.
+    closes: bool,
+    /// The `dash-boundary` text occurs somewhere, but never at the start of a
+    /// line. Kept only so the finding can say which of the two is wrong.
+    appears_off_line: bool,
+}
+
+fn scan_delimiter_lines(body: &[u8], boundary: &str) -> DelimiterScan {
+    let dash_boundary = ["--", boundary].concat();
+    let db = dash_boundary.as_bytes();
+    let mut scan = DelimiterScan::default();
+
+    if db.len() > body.len() {
+        return scan;
+    }
+    for i in 0..=(body.len() - db.len()) {
+        if &body[i..i + db.len()] != db {
+            continue;
+        }
+        // The line break is located on LF so that a body using bare LF is still
+        // read as having delimiter lines. Such a body is malformed — RFC 9110
+        // §8.3.3 requires CRLF between parts — but that is a different finding
+        // from "the delimiter is not there", and naming the wrong one helps
+        // nobody.
+        if !(i == 0 || body[i - 1] == b'\n') {
+            scan.appears_off_line = true;
+            continue;
+        }
+        // `close-delimiter := delimiter "--"`: the two extra hyphens are the
+        // only thing distinguishing the closing line from one that opens a
+        // part, so this is the whole classification.
+        if body[i + db.len()..].starts_with(b"--") {
+            scan.closes = true;
+        } else {
+            scan.opens_a_part = true;
+        }
+    }
+    scan
+}
+
 fn check_body_contains_boundary(
     which: &str,
     boundary: &str,
     body: &[u8],
     config: &crate::rules::RuleConfig,
 ) -> Option<Violation> {
-    let marker = ["--", boundary].concat();
-    let final_marker = ["--", boundary, "--"].concat();
-    let has_marker = haystack_contains(body, marker.as_bytes());
-    if !has_marker {
+    let scan = scan_delimiter_lines(body, boundary);
+
+    if !scan.opens_a_part && !scan.closes {
+        let detail = if scan.appears_off_line {
+            format!(
+                "the text '--{}' occurs in the body but never at the start of a line, so it delimits nothing",
+                boundary
+            )
+        } else {
+            format!("body does not contain boundary marker '--{}'", boundary)
+        };
         return Some(Violation {
             rule: MessageMultipartContentTypeAndBodyConsistency.id().into(),
             severity: config.severity,
-            message: format!(
-                "Invalid multipart Content-Type in {}: body does not contain boundary marker '--{}'",
-                which, boundary
-            ),
+            message: format!("Invalid multipart Content-Type in {}: {}", which, detail),
         });
     }
-    let has_final = haystack_contains(body, final_marker.as_bytes());
-    if !has_final {
+
+    if !scan.closes {
         return Some(Violation {
             rule: MessageMultipartContentTypeAndBodyConsistency.id().into(),
             severity: config.severity,
@@ -145,16 +194,6 @@ fn check_body_contains_boundary(
     None
 }
 
-fn haystack_contains(hay: &[u8], needle: &[u8]) -> bool {
-    if needle.is_empty() {
-        return true;
-    }
-    if hay.len() < needle.len() {
-        return false;
-    }
-    hay.windows(needle.len()).any(|w| w == needle)
-}
-
 /// Registers this rule into the engine's auto-collected catalogue.
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
 static REGISTRATION: &dyn crate::rules::Rule = &MessageMultipartContentTypeAndBodyConsistency;
@@ -163,6 +202,7 @@ static REGISTRATION: &dyn crate::rules::Rule = &MessageMultipartContentTypeAndBo
 mod tests {
     use super::*;
     use bytes::Bytes;
+    use rstest::rstest;
 
     #[test]
     fn valid_multipart_with_final_boundary_ok() {
@@ -465,13 +505,19 @@ mod tests {
         assert!(v.is_none());
     }
 
+    /// Binary part content must not disturb the scan. The fixture used to put
+    /// the delimiters *inside* the binary run, where they delimit nothing —
+    /// it passed only because the scan was a substring search, so it asserted
+    /// the defect rather than the behaviour it was named for.
     #[test]
     fn binary_body_marker_ok() {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(
             200,
             &[("content-type", "multipart/mixed; boundary=bin")],
         );
-        tx.response_body = Some(Bytes::from_static(b"\x00\x01--bin\x02--bin--\x03"));
+        tx.response_body = Some(Bytes::from_static(
+            b"--bin\r\n\r\n\x00\x01\x02--bin\x03\r\n--bin--\r\n",
+        ));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
         let v = rule.check_transaction(
             &tx,
@@ -481,12 +527,58 @@ mod tests {
         assert!(v.is_none());
     }
 
+    /// The delimiter is a *line*. Text that merely contains `--abc` delimits
+    /// nothing, and a body made entirely of such text used to satisfy both
+    /// checks — the exact defect this rule exists to catch, passing.
+    #[rstest]
+    #[case(b"hello --abc-- world", true)]
+    #[case(b"the text --abc appears mid-line and --abc-- too", true)]
+    #[case(b"prologue\r\n--abc\r\nx\r\n--abc--\r\n", false)]
+    // Bare LF is malformed per RFC 9110 §8.3.3, but the delimiters are plainly
+    // there; this rule must not report them as absent.
+    #[case(b"--abc\nx\n--abc--\n", false)]
+    // A body shorter than the delimiter cannot contain one.
+    #[case(b"--a", true)]
+    #[case(b"", true)]
+    fn delimiter_must_begin_a_line(#[case] body: &[u8], #[case] expect_violation: bool) {
+        let rule = MessageMultipartContentTypeAndBodyConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-type", "multipart/mixed; boundary=abc")],
+        );
+        tx.response_body = Some(Bytes::copy_from_slice(body));
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(
+            v.is_some(),
+            expect_violation,
+            "{:?} -> {v:?}",
+            String::from_utf8_lossy(body)
+        );
+    }
+
+    /// When the text is present but never at a line start, the finding says so
+    /// rather than claiming the boundary is absent — the body does carry it,
+    /// just nowhere it can delimit anything.
     #[test]
-    fn haystack_edge_cases() {
-        // empty needle -> true
-        assert!(haystack_contains(b"abc", b""));
-        // hay shorter than needle -> false
-        assert!(!haystack_contains(b"a", b"--abcd"));
+    fn off_line_text_is_named_as_such() {
+        let rule = MessageMultipartContentTypeAndBodyConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-type", "multipart/mixed; boundary=abc")],
+        );
+        tx.response_body = Some(Bytes::from_static(b"hello --abc-- world"));
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .expect("text that delimits nothing is a violation");
+        assert!(v.message.contains("never at the start of a line"), "{v:?}");
     }
 
     #[test]
