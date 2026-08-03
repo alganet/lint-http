@@ -218,7 +218,8 @@ mod tests {
     #[case(Some("*, en;q=0.5"), false)]
     #[case(Some("en;q=1.0000"), true)]
     #[case(Some("en;q="), true)]
-    #[case(Some("en;q=0."), true)]
+    // A qvalue may end at the point: `0*3DIGIT` admits no digits at all.
+    #[case(Some("en;q=0."), false)]
     #[case(Some("en;param=bad value"), true)]
     fn check_request_cases(
         #[case] al: Option<&str>,

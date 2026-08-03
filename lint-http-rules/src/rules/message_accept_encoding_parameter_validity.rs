@@ -214,7 +214,8 @@ mod tests {
     #[case(Some("x!bad;q=0.5"), false)]
     #[case(Some("gzip;q="), true)]
     #[case(Some("gzip; q=not-a-number"), true)]
-    #[case(Some("gzip;q=0."), true)]
+    // A qvalue may end at the point: `0*3DIGIT` admits no digits at all.
+    #[case(Some("gzip;q=0."), false)]
     #[case(Some("gzip;q=01.0"), true)]
     #[case(Some("gzip;q=0.1234"), true)]
     fn check_request_cases(#[case] ae: Option<&str>, #[case] expect_violation: bool) {
