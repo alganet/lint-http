@@ -14,6 +14,8 @@ Specifying the character encoding is crucial for security and correct rendering.
 
 No specification requires the parameter — RFC 9110 defines what `charset` means and mandates nothing about sending it — so this rule is a deliberate policy rather than a conformance check. Only the parameter's presence is checked; whether its value names a registered charset is a separate rule's concern.
 
+The parameter list is read quote-aware, so a `;` inside a quoted value does not start a new parameter and text that merely looks like `charset=` inside another value does not count. If the quoting never closes, the rule declines to judge rather than report a charset missing that the value plainly carries — an unreadable parameter list is `message_content_type_well_formed`'s finding, not an absent charset.
+
 ## Specifications
 
 - [RFC 9110 §8.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1): `media-type` and the case-insensitivity of its type/subtype tokens, which decides what counts as `text/*` here
