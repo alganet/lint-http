@@ -14,6 +14,8 @@ Ensure that a `form-data` `Content-Disposition` includes a non-empty `name` para
 
 An empty `name` value is reported as a defect. The specification requires the parameter and says what it means, but does not literally say "non-empty"; treating an empty field name as broken is this linter's judgement.
 
+**Quoting that never closes is declined, not guessed at.** After a stray `"` no separator can be trusted, so `form-data; p="x; name="a"` is not reported as missing a name — whether that text is a parameter is exactly what the broken quoting makes unknowable. This applies only to the *absence* claim: a `name` the scan did find is still judged.
+
 ## Specifications
 
 - [RFC 7578 §4.2](https://www.rfc-editor.org/rfc/rfc7578.html#section-4.2): Each multipart/form-data *part* MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain a `name` parameter — a requirement on parts, which this rule approximates at the message level
