@@ -135,10 +135,28 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                 }
 
                 // Validate parameters (name=value). 'q' must be a valid qvalue
+                let mut weight_seen = false;
                 for p in parts {
                     let p = p.trim();
                     if p.is_empty() {
                         continue;
+                    }
+                    // The weight closes the member. `Accept = #( media-range
+                    // [ weight ] )` puts it after the media-range, and the
+                    // media-range is what carries the parameters, so a
+                    // parameter after `q=` derives from nothing in this
+                    // grammar. RFC 9110 removed the `accept-ext` production
+                    // that used to allow it and states the consequence as a
+                    // SHOULD on senders.
+                    if weight_seen {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Parameter '{}' follows the weight in {} header: the weight closes a media-range, and the extension parameters that once came after it were removed from the grammar",
+                                p, hdr
+                            ),
+                        });
                     }
                     let mut kv = p.splitn(2, '=');
                     let k = kv.next().unwrap().trim();
@@ -167,6 +185,7 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                     }
 
                     if k.eq_ignore_ascii_case("q") {
+                        weight_seen = true;
                         if !crate::helpers::headers::valid_qvalue(v) {
                             return Some(Violation {
                                 rule: self.id().into(),
@@ -317,6 +336,14 @@ mod tests {
     #[case(Some("text/html, */json"), true)]
     #[case(Some("*/*"), false)]
     #[case(Some("text/*"), false)]
+    // The weight closes a media-range; the extension parameters that used to
+    // follow it were removed from the grammar.
+    #[case(Some("text/html;q=0.5;charset=utf-8"), true)]
+    #[case(Some("text/html;q=0.5;q=0.8"), true)]
+    #[case(Some("text/html;charset=utf-8;q=0.5"), false)]
+    #[case(Some("text/html;charset=utf-8;q=0.5, text/plain;q=1"), false)]
+    // The weight closes its own member, not the ones after it.
+    #[case(Some("text/html;q=0.5, text/plain;charset=utf-8"), false)]
     #[case(None, false)]
     fn check_accept_request(
         #[case] accept: Option<&str>,
