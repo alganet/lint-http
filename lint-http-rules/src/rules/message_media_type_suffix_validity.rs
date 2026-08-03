@@ -43,6 +43,9 @@ fn parse_allowed_config(
         return Err(anyhow::anyhow!("'allowed' array cannot be empty"));
     }
 
+    // Folded once here rather than at every comparison; the subtype a suffix
+    // lives in is case-insensitive, so the fold is the matching rule.
+    // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
     let mut out = Vec::new();
     for (i, item) in arr.iter().enumerate() {
         let s = item.as_str().ok_or_else(|| {
@@ -63,6 +66,10 @@ impl Rule for MessageMediaTypeSuffixValidity {
         "message_media_type_suffix_validity"
     }
 
+    // Suffixes are read from Content-Type, which describes the representation a
+    // message carries, and from Accept, which is request-only — so the request
+    // side sees strictly more than the response side.
+    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -80,14 +87,28 @@ impl Rule for MessageMediaTypeSuffixValidity {
     ) -> Option<Violation> {
         let config = parse_allowed_config(cfg, self.id()).ok()?;
         let check_media = |hdr_name: &str, val: &str| -> Option<Violation> {
+            // A value that is not a media-type has no subtype to inspect, and
+            // saying so is `message_content_type_well_formed`'s finding. The
+            // `media-type` grammar is the helper's.
             let parsed = match crate::helpers::headers::parse_media_type(val) {
                 Ok(p) => p,
-                Err(_) => return None, // let well-formed rules handle syntax
+                Err(_) => return None,
             };
             let subtype = parsed.subtype.trim();
-            // cite(RFC 6838 § 4.2.8): "Media types that make use of a named structured syntax SHOULD use the appropriate registered "+suffix" for that structured syntax"
+            // What a "+suffix" is, and where in the subtype it lives — which is
+            // what the helper's `rfind('+')` encodes: the suffix is appended to
+            // the base name, so the last "+" starts it.
+            // cite(RFC 6838 § 4.2.8): "That is, it specified a suffix (in that case, "+xml") to be appended to the base subtype name."
             if let Some(suffix) = crate::helpers::headers::media_type_subtype_suffix(subtype) {
+                // Suffixes are compared folded because the subtype they sit in
+                // is case-insensitive; `+JSON` is the same suffix as `+json`.
+                // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
                 let suffix = suffix.to_ascii_lowercase();
+                // A trailing "+" appends nothing. No sentence forbids it in so
+                // many words, and `token` permits it, so this is the rule
+                // reading the construct's purpose rather than a grammar: a
+                // suffix that names no structured syntax cannot be the
+                // "appropriate registered +suffix" for one.
                 if suffix.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -99,6 +120,19 @@ impl Rule for MessageMediaTypeSuffixValidity {
                     });
                 }
 
+                // The sentence that actually governs this check. The one that
+                // stood here before — "media types … SHOULD use the appropriate
+                // registered "+suffix" … when they are registered" — is about
+                // choosing a suffix at *registration* time, not about using an
+                // unregistered one on the wire, which is what a linter sees. The
+                // MUST NOT beside it is the sharper half of the same paragraph
+                // and explains why a wrong suffix is worth reporting at all: it
+                // is a claim about the payload's structure.
+                //
+                // As with every `allowed` list in this catalogue, the registry
+                // is not consulted — the operator's array stands in for it.
+                // cite(RFC 6838 § 4.2.8): ""+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions."
+                // cite(RFC 6838 § 4.2.8): "By the same token, media types MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ."
                 if !config.allowed.contains(&suffix) {
                     return Some(Violation {
                                 rule: self.id().into(),
@@ -179,7 +213,7 @@ impl Rule for MessageMediaTypeSuffixValidity {
     }
 
     fn description(&self) -> &'static str {
-        "This rule flags media types (in `Content-Type` or `Accept`) whose subtype ends with a `+suffix` that is not a recognized structured-syntax suffix. Unknown or misspelled suffixes may lead to incorrect parsing or interoperability issues."
+        "Flags media types — in `Content-Type` on either side of a transaction, or in any member of a request `Accept` — whose subtype ends in a `+suffix` that is not in the list you configure. A suffix names the structured syntax the payload is written in (`+json`, `+xml`), so a misspelled one is a claim about the payload that recipients cannot act on: RFC 6838 §4.2.8 says media types \"MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ\", and that \"+suffix constructs for as-yet unregistered structured syntaxes SHOULD NOT be used\". A subtype ending in a bare `+` is reported too — it appends nothing and so names no syntax.\n\n**It does not consult the IANA registry**, despite what its SpecRef points at: there is no lookup, and a suffix is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. Comparison is case-insensitive, because the subtype a suffix lives in is.\n\n**Scope:** only the suffix. Whether the media type parses at all, and whether more than one `Content-Type` field line is present, are `message_content_type_well_formed`'s findings; whether the full media type is one you allow is `message_content_type_iana_registered`'s. A value that does not parse as a `media-type` is skipped here."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -188,13 +222,19 @@ impl Rule for MessageMediaTypeSuffixValidity {
                 spec: "RFC 6838",
                 section: Some("4.2.8"),
                 url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8",
-                note: "Structured Syntax Name Suffixes",
+                note: "Structured Syntax Name Suffixes: what a `+suffix` is and where it sits in the subtype, that an unregistered one SHOULD NOT be used, and — the sharper half — that a suffix MUST NOT name a syntax the type does not employ",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
+                note: "Media Type: the subtype a suffix lives in is case-insensitive, which is why suffixes are compared folded",
             },
             crate::rules::SpecRef {
                 spec: "IANA Media Type Structured Suffixes",
                 section: None,
                 url: "https://www.iana.org/assignments/media-type-structured-suffix/media-type-structured-suffix.xhtml",
-                note: "IANA Structured Syntax Suffix registry",
+                note: "The registry this rule stands in for but does not read; the configured `allowed` array is what it actually checks against",
             },
         ]
     }
@@ -202,15 +242,40 @@ impl Rule for MessageMediaTypeSuffixValidity {
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
+            // One message per example. These were two blocks of stacked
+            // `Content-Type:` lines meaning "any of these" — a reading
+            // `message_content_type_well_formed` now contradicts, since two
+            // Content-Type lines in one message are themselves a defect.
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "Content-Type: application/ld+json\nContent-Type: application/xml\nAccept: application/vnd.example+json; q=0.8",
+                snippet: "HTTP/1.1 200 OK\nContent-Type: application/ld+json",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(+xml)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: image/svg+xml",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(Accept member)"),
+                snippet:
+                    "GET / HTTP/1.1\nHost: example.com\nAccept: application/vnd.example+json; q=0.8",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("— unknown suffix"),
-                snippet: "Content-Type: application/vnd.example+unknown\nAccept: application/bar+nope",
+                label: Some("(unknown suffix)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: application/vnd.example+unknown",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(unknown suffix in an Accept member)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept: application/bar+nope",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a bare `+` appends nothing)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: application/vnd.example+",
             },
         ]
     }
@@ -224,6 +289,81 @@ static REGISTRATION: &dyn crate::rules::Rule = &MessageMediaTypeSuffixValidity;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// Every published snippet is run through this rule and, for the Compliant
+    /// ones, through the other rules that read the same headers — judged against
+    /// `config_example.toml`, so the allowlists are the ones a reader has.
+    /// Nothing else does this, and four families have now shipped a Compliant
+    /// example a sibling rejects.
+    #[test]
+    fn published_examples_survive_the_other_media_type_rules() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageMediaTypeSuffixValidity;
+        let toml_src = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
+        )
+        .expect("config_example.toml must be readable");
+        let cfg: crate::config::Config =
+            toml::from_str(&toml_src).expect("config_example.toml must parse");
+        let siblings: [(&str, &dyn Rule); 4] = [
+            ("well-formed", &crate::rules::message_content_type_well_formed::MessageContentTypeWellFormed),
+            ("media-type allowlist", &crate::rules::message_content_type_iana_registered::MessageContentTypeIanaRegistered),
+            ("charset presence", &crate::rules::server_charset_specification::ServerCharsetSpecification),
+            ("nosniff", &crate::rules::server_x_content_type_options::ServerXContentTypeOptions),
+        ];
+
+        for ex in rule.examples() {
+            let mut pairs: Vec<(&str, &str)> = Vec::new();
+            for line in ex.snippet.lines() {
+                if line.starts_with("HTTP/") || line.contains(" HTTP/1.1") {
+                    continue;
+                }
+                if line.is_empty() {
+                    continue;
+                }
+                let (k, v) = line.split_once(": ").unwrap_or_else(|| {
+                    panic!("example header line is not `Name: value`: {line:?}")
+                });
+                pairs.push((k, v));
+            }
+            assert!(!pairs.is_empty(), "example has no headers: {}", ex.snippet);
+
+            let on_response = ex.snippet.starts_with("HTTP/");
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            if on_response {
+                tx.response.as_mut().unwrap().headers =
+                    crate::test_helpers::make_headers_from_pairs(&pairs);
+            } else {
+                tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+            }
+            let history = crate::transaction_history::TransactionHistory::empty();
+
+            let v = rule.check_transaction(&tx, &history, &cfg);
+            match ex.compliance {
+                Compliance::Compliant => {
+                    assert!(
+                        v.is_none(),
+                        "rule rejects its Compliant example {:?}: {v:?}",
+                        ex.snippet
+                    );
+                    for (name, sibling) in siblings {
+                        let other = sibling.check_transaction(&tx, &history, &cfg);
+                        assert!(
+                            other.is_none(),
+                            "the {name} rule rejects a Compliant example {:?}: {other:?}",
+                            ex.snippet
+                        );
+                    }
+                }
+                Compliance::NonCompliant => {
+                    let v = v.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    assert_eq!(v.rule, rule.id(), "{:?} -> {v:?}", ex.snippet);
+                }
+            }
+        }
+    }
 
     #[rstest]
     // A comma inside a quoted parameter value is not a list separator, so the
