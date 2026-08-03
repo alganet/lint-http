@@ -12,6 +12,14 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
         "message_accept_and_content_type_negotiation"
     }
 
+    // A transaction rule: it reads a request field and a response field and
+    // compares them, so neither half alone is its subject. Accept is the
+    // request side of proactive negotiation — the field a user agent sends to
+    // state a preference — and Content-Type is what the response came back
+    // with. (Accept may also appear in a response, where §12.5.1 says it
+    // describes a *subsequent* request; that is a different field's job and
+    // this rule does not read it.)
+    // cite(RFC 9110 § 12.5.1): "The "Accept" header field can be used by user agents to specify their preferences regarding response media types."
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -23,12 +31,27 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Only check when request has Accept and response has Content-Type
+
+        // What this rule is, stated before anything it does: an advisory, not a
+        // conformance check. RFC 9110 gives the origin server the choice
+        // outright — a representation the Accept header does not cover may be
+        // sent, and the header simply disregarded — so a message this rule
+        // reports may be entirely conforming. §12.1 says the same from the
+        // client's side. What is left is worth saying anyway, because a
+        // response the client cannot use is usually not what the server meant
+        // to send; it is a suggestion, and the finding is worded as one.
+        // cite(RFC 9110 § 12.4.1): "If a content negotiation header field is present in a request and none of the available representations for the response can be considered acceptable according to it, the origin server can either honor the header field by sending a 406 (Not Acceptable) response or disregard the header field by treating the response as if it is not subject to content negotiation for that request header field."
+        // cite(RFC 9110 § 12.1): "A user agent cannot rely on proactive negotiation preferences being consistently honored, since the origin server might not implement proactive negotiation for the requested resource or might decide that sending a response that doesn't conform to the user agent's preferences is better than sending a 406 (Not Acceptable) response."
+        //
         // The whole Accept field, not its first line. `Accept` is a list field,
         // so a sender may spread its members over several field lines and a
         // recipient recombines them into one comma-separated list — reading
         // only the first announced that a response was unacceptable to a client
-        // that had listed it on the second.
+        // that had listed it on the second. The helper performs exactly the
+        // §5.3 recombination, joining the lines with comma-SP; it returns None
+        // for a value carrying obs-text, which only ever suppresses an advisory
+        // finding and never produces one.
+        // cite(RFC 9110 § 12.5.1): "Accept = #( media-range [ weight ] )"
         let accept = crate::helpers::headers::get_all_header_values(&tx.request.headers, "accept");
         let accept = accept.as_deref();
         let resp = tx.response.as_ref()?;
@@ -39,18 +62,26 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
         // whether the client got something it asked for depends on which one it
         // reads. Judging the first would be a guess dressed as a finding. The
         // duplication itself is `message_content_type_well_formed`'s to report.
+        // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
         let mut cts = resp.headers.get_all("content-type").iter();
         let content_type = cts.next()?.to_str().ok()?;
         if cts.next().is_some() {
             return None;
         }
 
-        // If server already returned 406 Not Acceptable, don't flag
+        // A 406 is the server taking the *other* branch of §12.4.1's choice: it
+        // honoured the header rather than disregarding it, and this status is
+        // how it says so. Suggesting a 406 to a response that is one would be
+        // the rule arguing with itself.
         // cite(RFC 9110 § 15.5.7): "The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent"
         if resp.status == 406 {
             return None;
         }
 
+        // No Accept, no preference, nothing to be inconsistent with. §12.4.1
+        // says what an absent negotiation field means, so this is a licensed
+        // silence rather than a shortcut.
+        // cite(RFC 9110 § 12.4.1): "For each of the content negotiation fields, a request that does not contain the field implies that the sender has no preference on that dimension of negotiation."
         let accept = accept?;
 
         // Parse response Content-Type media-type
@@ -93,13 +124,20 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
             // for a whole type or a whole subtype, never for the pair. A
             // wildcard type with a concrete subtype — `*/json` — is not a range
             // either, though it parses as a media-type.
+            // cite(RFC 9110 § 12.5.1): "media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters"
+            // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
             let range = match crate::helpers::headers::parse_media_type(media) {
                 Ok(mr) if mr.type_ != "*" || mr.subtype == "*" => mr,
                 _ => continue,
             };
             readable_preference = true;
 
-            // find q param if present
+            // Every parameter is examined for the name `q`, not just the last
+            // one, and the name is matched without regard to case. Both are
+            // §12.5.1's instruction to recipients: senders *should* put the
+            // weight last, and a recipient should find it wherever it is.
+            // cite(RFC 9110 § 12.5.1): "Recipients SHOULD process any parameter named "q" as weight, regardless of parameter ordering."
+            // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."
             let mut qval: Option<&str> = None;
             for p in parts {
                 let p = p.trim();
@@ -120,6 +158,8 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
             // which turned a malformed Accept into a finding about the
             // response. Anything that is not a qvalue leaves the member at its
             // default weight of 1, which is also what a member with no `q` gets.
+            // cite(RFC 9110 § 12.4.2): "The weight is normalized to a real number in the range 0 through 1, where 0.001 is the least preferred and 1 is the most preferred; a value of 0 means "not acceptable"."
+            // cite(RFC 9110 § 12.4.2): "If no "q" parameter is present, the default weight is 1."
             if let Some(q) = qval {
                 if crate::helpers::headers::valid_qvalue(q)
                     && q.parse::<f32>().is_ok_and(|n| n == 0.0)
@@ -133,6 +173,18 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
             // `type/subtype` only itself. The asterisks are compared literally
             // because they are literals; the type and subtype tokens are
             // compared without regard to case because they are case-insensitive.
+            //
+            // The range's own parameters are not compared, and that is a
+            // leniency rather than a reading of the grammar: §12.5.1 says a
+            // range may carry media type parameters and that a more specific
+            // range takes precedence, so `text/plain;format=flowed` and
+            // `text/plain;format=fixed` are different preferences. Treating
+            // them as one can only make this rule quieter, never noisier, which
+            // suits an advisory — but it does mean a response whose parameters
+            // nobody asked for goes unmentioned.
+            // cite(RFC 9110 § 12.5.1): "The media-range can include media type parameters that are applicable to that range."
+            // cite(RFC 9110 § 12.5.1): "If more than one media range applies to a given type, the most specific reference has precedence."
+            // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
             let type_matches =
                 range.type_ == "*" || range.type_.eq_ignore_ascii_case(parsed_ct.type_);
             let subtype_matches =
@@ -168,29 +220,51 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Accept and Content-Type Negotiation")
+    }
+
     fn description(&self) -> &'static str {
-        "Validate that a server response's `Content-Type` matches the client's `Accept` header when present. If the request provides an `Accept` header that does not allow the response media type (for example `Accept: application/json` but response `Content-Type: text/html`), the server should consider returning `406 Not Acceptable` or use a matching representation."
+        "Report a response whose `Content-Type` is not covered by any `media-range` the request's `Accept` header listed with a non-zero weight — `Accept: application/json` answered with `Content-Type: text/html`. The suggested remedies are the two the specification names: send a representation the client asked for, or say so with `406 (Not Acceptable)`.\n\n**This is advice, not a conformance check, and the specification is explicit about it.** RFC 9110 §12.4.1 gives the origin server the choice in as many words: when no available representation is acceptable it \"can either honor the header field by sending a 406 (Not Acceptable) response or disregard the header field by treating the response as if it is not subject to content negotiation\". §12.1 says the same from the other side — a user agent \"cannot rely on proactive negotiation preferences being consistently honored\". So **a message this rule reports may be perfectly conforming**, and the finding is worded as a suggestion because that is all it can be. It is worth having anyway: a response the client cannot use is usually not what the server meant to send.\n\n**A 406 response is never reported** — that status is the server taking the other branch of the same choice.\n\n**Weights:** a member with `q=0` is a refusal and does not count as accepting anything. `q` is read wherever it appears in the member and its name is matched case-insensitively, which is what §12.5.1 tells recipients to do. A `q` whose value is not a `qvalue` (`q=-1`, `q=0.0001`, `q=1e-9`) is not a weight at all; the member keeps the default weight of 1, and reporting the malformed value is `message_accept_header_media_type_syntax`'s job.\n\n**Nothing is reported when the question has no answer.** If no member of `Accept` is a `media-range` — `Accept: *`, `Accept: not-a-media-range`, an empty value — then no preference was expressed that this rule can read, and naming the response for a defect in the request would be the wrong finding about the wrong message. Likewise if the response carries more than one `Content-Type` field line: recipients differ over which one they act on, so which media type the client actually got is unknown.\n\n**Known leniency: media-range parameters are ignored.** §12.5.1 lets a range carry media type parameters and makes a more specific range take precedence, so `text/plain;format=flowed` and `text/plain;format=fixed` are different preferences. This rule compares only type and subtype, which can only make it quieter — a response whose *parameters* nobody asked for goes unmentioned."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
+                section: Some("12.4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.1",
+                note: "Absence: what a missing negotiation field means, and — the reason this rule is advisory — the origin server's explicit choice between sending 406 and disregarding the header entirely",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
                 section: Some("12.5.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
-                note: "Accept (media ranges and q-values)",
+                note: "Accept: the `#( media-range [ weight ] )` list, the three shapes a `media-range` takes and what the asterisk ranges over, the instruction to find `q` wherever it sits, and the media-range parameters this rule does not compare",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("12.4.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
-                note: "Quality values (q parameter)",
+                note: "Quality Values: `qvalue`, the meaning of a zero weight, and the default weight of 1 that a member with no readable `q` keeps",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("12.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.1",
+                note: "Proactive negotiation: that a user agent cannot rely on its preferences being honoured, which is the same point as §12.4.1's from the client's side",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("15.5.7"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.7",
-                note: "406 Not Acceptable",
+                note: "406 (Not Acceptable): the status this rule suggests, and the one response it never reports",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+                note: "Content-Type: that recipients differ over which member of a duplicated field they act on, which is why a response with two Content-Type lines is not judged",
             },
         ]
     }
@@ -204,9 +278,24 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
                 snippet: "GET /resource HTTP/1.1\nAccept: application/json\n\nHTTP/1.1 200 OK\nContent-Type: application/json; charset=utf-8",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a range covers every subtype of its type)"),
+                snippet: "GET /resource HTTP/1.1\nAccept: text/*\n\nHTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(the server honoured the header instead of disregarding it)"),
+                snippet: "GET /resource HTTP/1.1\nAccept: application/json\n\nHTTP/1.1 406 Not Acceptable\nContent-Type: text/html; charset=utf-8",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "GET /resource HTTP/1.1\nAccept: application/json\n\nHTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a weight of zero is a refusal)"),
+                snippet: "GET /resource HTTP/1.1\nAccept: text/html;q=0\n\nHTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8",
             },
         ]
     }
@@ -326,6 +415,73 @@ mod tests {
             expect_violation,
             "{accepts:?} vs {content_type} -> {v:?}"
         );
+    }
+
+    /// Every published snippet is run through the rule. These carry a request
+    /// and a response, so the parser has to split them — and that split is the
+    /// point: an example of a *negotiation* failure is only an example if both
+    /// halves reach the rule.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageAcceptAndContentTypeNegotiation;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+
+        for ex in rule.examples() {
+            let (req, resp) = ex
+                .snippet
+                .split_once("\n\n")
+                .unwrap_or_else(|| panic!("example has no response half: {:?}", ex.snippet));
+            // One predicate for "this is a start-line", so a request-line the
+            // skip missed cannot reach the header parser.
+            let headers = |block: &str| -> hyper::HeaderMap {
+                let pairs: Vec<(&str, &str)> = block
+                    .lines()
+                    .filter(|l| !l.contains("HTTP/"))
+                    .map(|l| {
+                        l.split_once(": ")
+                            .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                    })
+                    .collect();
+                crate::test_helpers::make_headers_from_pairs(&pairs)
+            };
+            let status: u16 = resp
+                .lines()
+                .next()
+                .and_then(|l| l.split_whitespace().nth(1))
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| panic!("no status line: {resp:?}"));
+
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
+            tx.request.headers = headers(req);
+            tx.response.as_mut().unwrap().headers = headers(resp);
+
+            let v = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    v.is_none(),
+                    "rule rejects its Compliant example {:?}: {v:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    let v = v.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    // Every message this rule emits names the Content-Type, so
+                    // asserting that would assert nothing. The suggestion is
+                    // what the example is published to illustrate.
+                    assert!(
+                        v.message.contains("consider returning 406 Not Acceptable"),
+                        "NonCompliant example {:?} fails for an unrelated reason: {v:?}",
+                        ex.snippet
+                    );
+                }
+            }
+        }
     }
 
     #[test]
