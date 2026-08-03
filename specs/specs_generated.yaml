@@ -17,17 +17,17 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1433
+      line: 1440
   - label: lint-http-rules/src/helpers/headers.rs (2)
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1428
+      line: 1435
   - label: lint-http-rules/src/helpers/headers.rs (3)
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1427
+      line: 1434
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -917,7 +917,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1429
+      line: 1436
     - file: lint-http-rules/src/helpers/uri.rs
       line: 145
   - label: lint-http-rules/src/helpers/uri.rs
@@ -1774,6 +1774,26 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 756
   - label: lint-http-rules/src/helpers/headers.rs (11)
+    section: § 5.6.6
+    snippet: Parameter names are case-insensitive.
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1389
+    - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
+      line: 121
+    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
+      line: 211
+  - label: lint-http-rules/src/helpers/headers.rs (12)
+    section: § 5.6.6
+    snippet: parameters      = *( OWS ";" OWS [ parameter ] )
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1379
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 296
+    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
+      line: 196
+  - label: lint-http-rules/src/helpers/headers.rs (13)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
     cited_by:
@@ -1797,7 +1817,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1297
-  - label: lint-http-rules/src/helpers/headers.rs (12)
+  - label: lint-http-rules/src/helpers/headers.rs (14)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
     cited_by:
@@ -1901,14 +1921,6 @@ sources:
       line: 49
   - label: message_charset_iana_registered (2)
     section: § 5.6.6
-    snippet: Parameter names are case-insensitive.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
-      line: 121
-    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 211
-  - label: message_charset_iana_registered (3)
-    section: § 5.6.6
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
@@ -1917,7 +1929,7 @@ sources:
       line: 340
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
       line: 217
-  - label: message_charset_iana_registered (4)
+  - label: message_charset_iana_registered (3)
     section: § 8.3
     snippet: 'The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics.'
     cited_by:
@@ -1929,13 +1941,13 @@ sources:
       line: 72
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
       line: 20
-  - label: message_charset_iana_registered (5)
+  - label: message_charset_iana_registered (4)
     section: § 8.3.2
     snippet: Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978].
     cited_by:
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
       line: 210
-  - label: message_charset_iana_registered (6)
+  - label: message_charset_iana_registered (5)
     section: § 8.3.2
     snippet: In both cases, charset names are matched case-insensitively.
     cited_by:
@@ -2182,20 +2194,12 @@ sources:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 311
   - label: message_content_type_well_formed (4)
-    section: § 5.6.6
-    snippet: parameters      = *( OWS ";" OWS [ parameter ] )
-    cited_by:
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 296
-    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 196
-  - label: message_content_type_well_formed (5)
     section: § 8.3
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 57
-  - label: message_content_type_well_formed (6)
+  - label: message_content_type_well_formed (5)
     section: § 8.3
     snippet: Content-Type = media-type
     cited_by:
@@ -2203,19 +2207,19 @@ sources:
       line: 56
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 57
-  - label: message_content_type_well_formed (7)
+  - label: message_content_type_well_formed (6)
     section: § 8.3
     snippet: Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 58
-  - label: message_content_type_well_formed (8)
+  - label: message_content_type_well_formed (7)
     section: § 8.3.1
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 287
-  - label: message_content_type_well_formed (9)
+  - label: message_content_type_well_formed (8)
     section: § 8.3.1
     snippet: type       = token subtype    = token
     cited_by:

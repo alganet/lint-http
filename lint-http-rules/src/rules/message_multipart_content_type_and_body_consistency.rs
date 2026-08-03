@@ -199,6 +199,33 @@ mod tests {
         assert!(v.unwrap().message.contains("--abc"));
     }
 
+    /// The boundary this rule hunts for has to be one the message declared. A
+    /// `;` inside a quoted parameter value is not a separator, so there is no
+    /// boundary parameter here — the text that reads like one is part of
+    /// `foo`'s value. Reading it as a parameter made the rule demand `--abc`
+    /// delimiters of a body that was never told to have them.
+    #[test]
+    fn a_boundary_inside_a_quoted_value_is_not_a_boundary_parameter() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[(
+                "content-type",
+                "multipart/mixed; foo=\"a; boundary=abc; b=1\"",
+            )],
+        );
+        tx.response_body = Some(Bytes::from_static(b"no boundaries here"));
+        let rule = MessageMultipartContentTypeAndBodyConsistency;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(
+            v.is_none(),
+            "no boundary was declared, so there is nothing to look for: {v:?}"
+        );
+    }
+
     #[test]
     fn truncated_body_prefix_skips_boundary_scan() {
         // A truncated prefix is missing the terminating boundary (it sits at the
