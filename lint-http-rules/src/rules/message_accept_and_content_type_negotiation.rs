@@ -32,7 +32,18 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
         let accept = crate::helpers::headers::get_all_header_values(&tx.request.headers, "accept");
         let accept = accept.as_deref();
         let resp = tx.response.as_ref()?;
-        let content_type = crate::helpers::headers::get_header_str(&resp.headers, "content-type")?;
+
+        // One Content-Type, or no opinion. With two field lines there is no
+        // single media type the response sent: RFC 9110 §8.3 says recipients
+        // differ over which member of a duplicated Content-Type they act on, so
+        // whether the client got something it asked for depends on which one it
+        // reads. Judging the first would be a guess dressed as a finding. The
+        // duplication itself is `message_content_type_well_formed`'s to report.
+        let mut cts = resp.headers.get_all("content-type").iter();
+        let content_type = cts.next()?.to_str().ok()?;
+        if cts.next().is_some() {
+            return None;
+        }
 
         // If server already returned 406 Not Acceptable, don't flag
         // cite(RFC 9110 § 15.5.7): "The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent"
@@ -50,6 +61,11 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
 
         // Iterate Accept members and see if any non-zero-q member matches the response Content-Type
         let mut matched = false;
+        // Whether the header expressed a preference this rule could read at
+        // all. A finding here says the response is not among the media types
+        // the client asked for, and that is a claim about what the client
+        // asked for — so it needs at least one member that is a `media-range`.
+        let mut readable_preference = false;
         // Quote-aware, because a comma inside a quoted parameter value is not a
         // list separator. A raw `split(',')` cut such a value apart and read the
         // pieces as members of their own, so `text/plain;foo="a,image/png,b"` —
@@ -72,10 +88,16 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
                 Some(m) => m,
                 None => continue,
             };
-            if media == "*" {
-                // invalid per syntax rule; treat as non-matching
-                continue;
-            }
+            // `media-range` is one of three shapes, and a bare `*` is none of
+            // them: the asterisk groups media *types* into ranges, so it stands
+            // for a whole type or a whole subtype, never for the pair. A
+            // wildcard type with a concrete subtype — `*/json` — is not a range
+            // either, though it parses as a media-type.
+            let range = match crate::helpers::headers::parse_media_type(media) {
+                Ok(mr) if mr.type_ != "*" || mr.subtype == "*" => mr,
+                _ => continue,
+            };
+            readable_preference = true;
 
             // find q param if present
             let mut qval: Option<&str> = None;
@@ -106,27 +128,30 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
                 }
             }
 
-            // wildcard '*/*'
-            if media == "*/*" {
+            // The three shapes, matched by what each one ranges over: `*/*`
+            // covers every media type, `type/*` every subtype of its type, and
+            // `type/subtype` only itself. The asterisks are compared literally
+            // because they are literals; the type and subtype tokens are
+            // compared without regard to case because they are case-insensitive.
+            let type_matches =
+                range.type_ == "*" || range.type_.eq_ignore_ascii_case(parsed_ct.type_);
+            let subtype_matches =
+                range.subtype == "*" || range.subtype.eq_ignore_ascii_case(parsed_ct.subtype);
+            if type_matches && subtype_matches {
                 matched = true;
                 break;
             }
+        }
 
-            // try parsing media-range as media-type (type/* or type/subtype)
-            match crate::helpers::headers::parse_media_type(media) {
-                Ok(mr) => {
-                    if mr.type_.eq_ignore_ascii_case(parsed_ct.type_)
-                        && (mr.subtype == "*" || mr.subtype.eq_ignore_ascii_case(parsed_ct.subtype))
-                    {
-                        matched = true;
-                        break;
-                    }
-                }
-                Err(_) => {
-                    // invalid media-range syntax -> ignore conservatively
-                    continue;
-                }
-            }
+        // No member was a media-range, so the header states no preference this
+        // rule can read — `Accept: *`, `Accept: not-a-media-range`, or an empty
+        // value. Saying the response "does not match" such a header would be a
+        // claim about a preference nobody expressed, and it would name the
+        // response for a defect that is in the request.
+        // `message_accept_header_media_type_syntax` reports the malformed
+        // header; this rule declines.
+        if !readable_preference {
+            return None;
         }
 
         if !matched {
@@ -342,47 +367,80 @@ mod tests {
         assert!(v.is_none());
     }
 
-    #[test]
-    fn invalid_accept_member_is_ignored_but_may_cause_violation() {
-        // An invalid media-range in Accept is ignored; if it is the only member, the response may be unacceptable
+    /// A finding here says the response is not among the media types the client
+    /// asked for. When no member of Accept is a `media-range`, nobody asked for
+    /// anything this rule can read, and the header — not the response — is the
+    /// malformed thing. These used to be reported, under test names recording
+    /// it as intended: an unreadable Accept produced a finding against a
+    /// response that had done nothing wrong.
+    #[rstest]
+    #[case("not-a-media-range")]
+    // A bare asterisk is not a `media-range`: the asterisk stands for a whole
+    // type or a whole subtype, never for the pair.
+    #[case("*")]
+    // A wildcard type with a concrete subtype is not one either, though it
+    // parses as a media-type.
+    #[case("*/json")]
+    // A zero-element list expresses no preference at all.
+    #[case("")]
+    #[case(",  ,")]
+    fn an_unreadable_accept_is_not_a_finding_about_the_response(#[case] accept: &str) {
         let rule = MessageAcceptAndContentTypeNegotiation;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_accept_and_content_type_negotiation",
-        ]);
-
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("accept", "not-a-media-range")]);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("accept", accept)]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/plain")]);
-
         let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
+        assert!(v.is_none(), "Accept {accept:?} states no preference: {v:?}");
     }
 
+    /// One readable member is enough to make the question meaningful, and the
+    /// unreadable ones alongside it change nothing.
     #[test]
-    fn star_in_accept_is_treated_as_invalid_member() {
-        // A literal '*' is invalid per media-range syntax and is ignored; without other members this leads to violation
+    fn a_readable_member_beside_an_unreadable_one_is_still_judged() {
         let rule = MessageAcceptAndContentTypeNegotiation;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_accept_and_content_type_negotiation",
-        ]);
-
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("accept", "*")]);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "accept",
+            "not-a-media-range, application/json",
+        )]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/plain")]);
-
         let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
+        assert!(v.is_some(), "application/json is a real preference: {v:?}");
+    }
+
+    /// With two Content-Type lines there is no single media type the response
+    /// sent — recipients differ over which one they act on — so whether the
+    /// client got what it asked for depends on which it reads. The rule judged
+    /// the first and reported, though the second is one the client accepts.
+    #[test]
+    fn two_content_type_lines_leave_the_question_unanswerable() {
+        let rule = MessageAcceptAndContentTypeNegotiation;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("accept", "application/json")]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("content-type", "text/html"),
+            ("content-type", "application/json"),
+        ]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none(), "which media type applies is unknown: {v:?}");
     }
 
     #[test]
