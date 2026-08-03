@@ -1371,7 +1371,13 @@ pub fn extract_multipart_boundary(val: &str) -> Option<String> {
         return None;
     }
     let params = parsed.params?;
-    for raw in params.split(';') {
+    // Quote-aware, because a `;` inside a quoted parameter value does not start
+    // a new parameter. A raw `split(';')` cut such a value apart and read the
+    // pieces as parameters, so `foo="a; boundary=abc; b=1"` — which has no
+    // boundary parameter at all — yielded `abc`, and the caller then hunted a
+    // body for `--abc` delimiters that were never declared.
+    // cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
+    for raw in split_semicolons_respecting_quotes(params) {
         let p = raw.trim();
         if p.is_empty() {
             continue;
@@ -1380,6 +1386,7 @@ pub fn extract_multipart_boundary(val: &str) -> Option<String> {
             let (name, value) = p.split_at(eq);
             let name = name.trim();
             let value = value[1..].trim(); // skip '='
+                                           // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."
             if name.eq_ignore_ascii_case("boundary") {
                 if value.is_empty() {
                     return None;
@@ -1580,6 +1587,18 @@ mod tests {
         // multiple params and surrounding whitespace
         assert_eq!(
             extract_multipart_boundary("multipart/mixed; foo=bar; boundary=abc ; baz=1"),
+            Some("abc".to_string())
+        );
+        // A `;` inside a quoted value is not a parameter separator, so there is
+        // no boundary parameter here. Returning one made the caller look for
+        // delimiters the message never declared.
+        assert_eq!(
+            extract_multipart_boundary("multipart/mixed; foo=\"a; boundary=abc; b=1\""),
+            None
+        );
+        // A quoted value carrying a `;` does not hide the real boundary after it.
+        assert_eq!(
+            extract_multipart_boundary("multipart/mixed; foo=\"a;b\"; boundary=abc"),
             Some("abc".to_string())
         );
     }
