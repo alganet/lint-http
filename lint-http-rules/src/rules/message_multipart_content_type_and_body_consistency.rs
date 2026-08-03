@@ -181,6 +181,17 @@ fn check_body_contains_boundary(
         });
     }
 
+    if !scan.opens_a_part {
+        return Some(Violation {
+            rule: MessageMultipartContentTypeAndBodyConsistency.id().into(),
+            severity: config.severity,
+            message: format!(
+                "Invalid multipart Content-Type in {}: the only boundary delimiter line is the terminating '--{}--', so the body encapsulates no part",
+                which, boundary
+            ),
+        });
+    }
+
     if !scan.closes {
         return Some(Violation {
             rule: MessageMultipartContentTypeAndBodyConsistency.id().into(),
@@ -450,21 +461,45 @@ mod tests {
         assert!(v.unwrap().message.contains("terminating boundary"));
     }
 
+    /// `multipart-body` brackets the preamble and the epilogue but not the
+    /// first `dash-boundary ... body-part`, so a body whose only delimiter line
+    /// is the closing one encapsulates nothing. This used to pass: the closing
+    /// line starts with `--abc`, which was all the first check looked for, so
+    /// that check could never fail while the second one passed.
     #[test]
-    fn response_final_marker_alone_is_accepted() {
+    fn a_body_with_only_the_closing_delimiter_encapsulates_no_part() {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(
             200,
             &[("content-type", "multipart/mixed; boundary=abc")],
         );
-        // body contains only the final boundary marker
         tx.response_body = Some(Bytes::from_static(b"--abc--\r\n"));
+        let rule = MessageMultipartContentTypeAndBodyConsistency;
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .expect("a multipart body with no part is not a multipart body");
+        assert!(v.message.contains("encapsulates no part"), "{v:?}");
+    }
+
+    /// The minimum RFC 2046 permits, and it must still pass: one part, opened
+    /// by a delimiter line and closed by the terminating one.
+    #[test]
+    fn a_single_empty_part_is_permitted() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-type", "multipart/mixed; boundary=abc")],
+        );
+        tx.response_body = Some(Bytes::from_static(b"--abc\r\n\r\n\r\n--abc--\r\n"));
         let rule = MessageMultipartContentTypeAndBodyConsistency;
         let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_none());
+        assert!(v.is_none(), "one part is the documented minimum: {v:?}");
     }
 
     #[test]
