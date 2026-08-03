@@ -192,38 +192,13 @@ fn check_multipart_boundary(
                             value.to_string()
                         };
 
-                        // length 1..70
-                        let len = boundary_unquoted.len();
-                        if len == 0 || len > 70 {
-                            return Some(Violation {
-                                rule: MessageMultipartBoundarySyntax.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "Invalid multipart Content-Type in {}: 'boundary' must be between 1 and 70 characters",
-                                    which
-                                ),
-                            });
-                        }
-
-                        // must not end with whitespace
-                        if boundary_unquoted
-                            .chars()
-                            .last()
-                            .map(|c| c.is_whitespace())
-                            .unwrap_or(false)
-                        {
-                            return Some(Violation {
-                                rule: MessageMultipartBoundarySyntax.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "Invalid multipart Content-Type in {}: 'boundary' must not end with whitespace",
-                                    which
-                                ),
-                            });
-                        }
-
-                        // For quoted values ensure characters are from bchars set (DIGIT / ALPHA / "'()" / "+_,-./:=?") or space
-                        // (unquoted tokens already validated against token grammar)
+                        // The character set is judged first, before the length,
+                        // because the length is a count of characters and only a
+                        // value drawn from this set has a meaningful one. A
+                        // boundary of non-ASCII text was measured in bytes and
+                        // reported as too long, which named a limit it might not
+                        // have exceeded instead of the octets that are not
+                        // `bchars` at all.
                         for ch in boundary_unquoted.chars() {
                             if ch.is_ascii_alphanumeric()
                                 || matches!(
@@ -250,6 +225,33 @@ fn check_multipart_boundary(
                                 message: format!(
                                     "Invalid multipart Content-Type in {}: boundary contains invalid character '{}'",
                                     which, ch
+                                ),
+                            });
+                        }
+
+                        // length 1..70, counted in characters
+                        let len = boundary_unquoted.chars().count();
+                        if len == 0 || len > 70 {
+                            return Some(Violation {
+                                rule: MessageMultipartBoundarySyntax.id().into(),
+                                severity: config.severity,
+                                message: format!(
+                                    "Invalid multipart Content-Type in {}: 'boundary' must be between 1 and 70 characters",
+                                    which
+                                ),
+                            });
+                        }
+
+                        // Space is the one whitespace character the check above
+                        // lets through, so this is the grammar's "last character
+                        // must be `bcharsnospace`" and nothing wider.
+                        if boundary_unquoted.ends_with(' ') {
+                            return Some(Violation {
+                                rule: MessageMultipartBoundarySyntax.id().into(),
+                                severity: config.severity,
+                                message: format!(
+                                    "Invalid multipart Content-Type in {}: 'boundary' must not end with whitespace",
+                                    which
                                 ),
                             });
                         }
@@ -282,30 +284,51 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
+    /// `boundary := 0*69<bchars> bcharsnospace` puts the limit at 70, so 70 is
+    /// the longest conforming value and 71 the shortest over-long one. Only the
+    /// over-long side was ever exercised, and by a test that re-implemented the
+    /// parameter scan rather than running the rule — so the boundary itself, the
+    /// one place an off-by-one can hide, went untested.
+    #[rstest]
+    #[case(69, false)]
+    #[case(70, false)]
+    #[case(71, true)]
+    fn boundary_length_limit(#[case] len: usize, #[case] expect_violation: bool) {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_multipart_boundary_syntax",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let header = format!("multipart/mixed; boundary={}", "a".repeat(len));
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", &header)]);
+        let v = MessageMultipartBoundarySyntax.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(v.is_some(), expect_violation, "{len} characters -> {v:?}");
+    }
+
+    /// A boundary of non-ASCII characters is short and entirely outside
+    /// `bchars`. Measured in bytes it also looked too long, and the rule named
+    /// the length — a limit this value does not exceed — instead of the
+    /// characters that are the actual problem.
     #[test]
-    fn debug_long_boundary_len() {
-        // ensure parsing returns the expected long value length (71 a's)
-        let boundary = "a".repeat(71);
-        let long = format!("multipart/mixed; boundary={}", boundary);
-        let parsed = crate::helpers::headers::parse_media_type(&long).unwrap();
-        assert!(parsed.params.is_some());
-        let params = parsed.params.unwrap();
-        let mut found_val: Option<&str> = None;
-        for raw in crate::helpers::headers::split_semicolons_respecting_quotes(params) {
-            let p = raw.trim();
-            if p.is_empty() {
-                continue;
-            }
-            if let Some(eq) = p.find('=') {
-                let (_name, value) = p.split_at(eq);
-                let value = value[1..].trim();
-                if _name.trim().eq_ignore_ascii_case("boundary") {
-                    found_val = Some(value);
-                }
-            }
-        }
-        assert!(found_val.is_some());
-        assert_eq!(found_val.unwrap().len(), 71);
+    fn non_ascii_boundary_is_reported_as_a_character_problem() {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_multipart_boundary_syntax",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let header = format!("multipart/mixed; boundary=\"{}\"", "é".repeat(36));
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", &header)]);
+        let v = MessageMultipartBoundarySyntax.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let msg = v.expect("36 non-bchars characters is a violation").message;
+        assert!(msg.contains("invalid character"), "{msg}");
     }
 
     #[rstest]
