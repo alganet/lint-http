@@ -25,9 +25,24 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Validate a single Accept-like header value (media-range list)
         let check_val = |hdr: &str, val: &str| -> Option<Violation> {
-            for member in crate::helpers::headers::parse_list_header(val) {
-                // Split token and params
-                let mut parts = member.split(';').map(|s| s.trim());
+            // Quote-aware, because a comma inside a quoted parameter value is
+            // not a list separator. A raw `split(',')` cut such a value in half
+            // and handed the halves on as members, so `text/html;foo="a,b"` —
+            // a conforming header — was reported for the malformed
+            // quoted-string the splitting had just created. An unbalanced quote
+            // is still reported, and reported here: this is the rule that owns
+            // a malformed Accept, so it names the defect rather than declining.
+            for member in crate::helpers::headers::split_commas_respecting_quotes(val) {
+                let member = member.trim();
+                // An empty list element is legal for a recipient to ignore, and
+                // ignoring it is all this rule does with it.
+                if member.is_empty() {
+                    continue;
+                }
+                // Quote-aware for the same reason: a `;` inside a quoted value
+                // does not start a parameter.
+                let mut parts =
+                    crate::helpers::headers::split_semicolons_respecting_quotes(member).into_iter();
                 let media = parts.next().unwrap_or("").trim();
                 if media.is_empty() {
                     return Some(Violation {
@@ -101,6 +116,7 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
 
                 // Validate parameters (name=value). 'q' must be a valid qvalue
                 for p in parts {
+                    let p = p.trim();
                     if p.is_empty() {
                         continue;
                     }
@@ -246,6 +262,17 @@ mod tests {
     #[case(Some("text/html; param=\"unterminated"), true)]
     #[case(Some("text/html; bad name=value"), true)]
     #[case(Some("application/json; charset=bad@"), true)]
+    // A comma or semicolon inside a quoted parameter value is not a separator.
+    // Splitting on it produced the very malformed quoted-string it then
+    // reported, out of a header that is conforming.
+    #[case(Some("text/html;foo=\"a,b\""), false)]
+    #[case(Some("text/html;foo=\"a;b\""), false)]
+    #[case(Some("text/html;foo=\"a,b\", application/json"), false)]
+    // Quoting that never closes is still a finding, and it is this rule's:
+    // nothing downstream can read the members once the quoting breaks.
+    #[case(Some("text/html;foo=\"a, application/json"), true)]
+    // An empty list element is legal for a recipient to ignore.
+    #[case(Some("text/html, , application/json"), false)]
     #[case(None, false)]
     fn check_accept_request(
         #[case] accept: Option<&str>,

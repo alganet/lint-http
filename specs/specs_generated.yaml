@@ -1942,7 +1942,7 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 54
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 64
+      line: 79
   - label: message_accept_and_content_type_negotiation (7)
     section: § 12.5.1
     snippet: If more than one media range applies to a given type, the most specific reference has precedence.
