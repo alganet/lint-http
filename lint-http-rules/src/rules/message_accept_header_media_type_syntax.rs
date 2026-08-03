@@ -183,19 +183,37 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
             None
         };
 
-        // Check request Accept header
-        if let Some(val) = crate::helpers::headers::get_header_str(&tx.request.headers, "accept") {
-            if let Some(v) = check_val("Accept", val) {
-                return Some(v);
-            }
-        }
-
-        // Also conservatively check Accept echoed in responses
-        if let Some(resp) = &tx.response {
-            if let Some(val) = crate::helpers::headers::get_header_str(&resp.headers, "accept") {
-                if let Some(v) = check_val("Accept", val) {
+        // Every Accept field line, not just the first. `Accept` is a list
+        // field, so a sender may spread its members over several lines and a
+        // malformed member on the second is as malformed as one on the first —
+        // it was simply never read.
+        //
+        // Each line is validated on its own rather than after recombining them,
+        // which is not the same thing: an unbalanced quote in one line would
+        // otherwise swallow the members of every line after it, and this rule
+        // would report the first line's defect against the last line's text.
+        let check_all = |hdr: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+            for hv in headers.get_all("accept").iter() {
+                // Decoded from the raw octets rather than through `to_str`,
+                // which refuses `obs-text` — legal inside a `quoted-string`, so
+                // a value carrying one is a value this rule still has to judge.
+                // Skipping it meant a bare `*` sitting on the same line as an
+                // obs-text parameter was reported by nothing at all.
+                let val = String::from_utf8_lossy(hv.as_bytes());
+                if let Some(v) = check_val(hdr, &val) {
                     return Some(v);
                 }
+            }
+            None
+        };
+
+        if let Some(v) = check_all("Accept", &tx.request.headers) {
+            return Some(v);
+        }
+
+        if let Some(resp) = &tx.response {
+            if let Some(v) = check_all("Accept", &resp.headers) {
+                return Some(v);
             }
         }
 
@@ -326,6 +344,51 @@ mod tests {
         ]);
         crate::rules::validate_rules(&cfg)?;
         Ok(())
+    }
+
+    /// A malformed member on the second Accept line is as malformed as one on
+    /// the first; only the first was ever read.
+    #[rstest]
+    #[case(&["text/html", "*"], true)]
+    #[case(&["*", "text/html"], true)]
+    #[case(&["text/html", "application/json;q=0.5"], false)]
+    // Each line is validated on its own, so an unbalanced quote is reported
+    // against the line that carries it and does not swallow the next one.
+    #[case(&["text/html;foo=\"x", "application/json"], true)]
+    fn every_accept_field_line_is_read(#[case] values: &[&str], #[case] expect_violation: bool) {
+        let rule = MessageAcceptHeaderMediaTypeSyntax;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("accept", *v)).collect();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(v.is_some(), expect_violation, "{values:?} -> {v:?}");
+    }
+
+    /// obs-text is legal inside a quoted-string, so this is a value the rule
+    /// still has to judge — and it carries a bare `*`, which is not a
+    /// media-range. `to_str` refused the whole line and the `*` went unreported.
+    #[test]
+    fn obs_text_does_not_hide_the_rest_of_the_line() {
+        use hyper::header::HeaderValue;
+        let rule = MessageAcceptHeaderMediaTypeSyntax;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.insert(
+            "accept",
+            HeaderValue::from_bytes(b"*, text/html;foo=\"\xe4\"").unwrap(),
+        );
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let v = v.expect("a bare '*' is not a media-range");
+        assert!(v.message.contains("'*'"), "{v:?}");
     }
 
     #[test]
