@@ -1908,7 +1908,7 @@ sources:
     snippet: The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 32
+      line: 38
   - label: message_accept_header_media_type_syntax
     section: § 12.5.1
     snippet: 'Accept = #( media-range [ weight ] )'

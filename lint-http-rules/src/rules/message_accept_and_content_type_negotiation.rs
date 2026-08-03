@@ -24,7 +24,13 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check when request has Accept and response has Content-Type
-        let accept = crate::helpers::headers::get_header_str(&tx.request.headers, "accept");
+        // The whole Accept field, not its first line. `Accept` is a list field,
+        // so a sender may spread its members over several field lines and a
+        // recipient recombines them into one comma-separated list — reading
+        // only the first announced that a response was unacceptable to a client
+        // that had listed it on the second.
+        let accept = crate::helpers::headers::get_all_header_values(&tx.request.headers, "accept");
+        let accept = accept.as_deref();
         let resp = tx.response.as_ref()?;
         let content_type = crate::helpers::headers::get_header_str(&resp.headers, "content-type")?;
 
@@ -44,7 +50,16 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
 
         // Iterate Accept members and see if any non-zero-q member matches the response Content-Type
         let mut matched = false;
-        for member in crate::helpers::headers::parse_list_header(accept) {
+        // Quote-aware, because a comma inside a quoted parameter value is not a
+        // list separator. A raw `split(',')` cut such a value apart and read the
+        // pieces as members of their own, so `text/plain;foo="a,image/png,b"` —
+        // which accepts `text/plain` and nothing else — was read as accepting
+        // `image/png` too, and a response nobody asked for went unreported.
+        for member in crate::helpers::headers::split_commas_respecting_quotes(accept) {
+            let member = member.trim();
+            if member.is_empty() {
+                continue;
+            }
             let mut parts = member.split(';').map(|s| s.trim());
             let media = match parts.next() {
                 Some(m) => m,
@@ -176,6 +191,17 @@ mod tests {
     #[case(Some("application/json;q=0"), Some("application/json"), 406, false)]
     #[case(None, Some("application/json"), 200, false)]
     #[case(Some("application/json, text/html;q=0"), Some("text/html"), 200, true)]
+    // A comma inside a quoted parameter value is not a list separator. This
+    // header accepts `text/plain` and nothing else; reading the fragments as
+    // members made it look like it accepted `image/png`.
+    #[case(Some("text/plain;foo=\"a,image/png,b\""), Some("image/png"), 200, true)]
+    // The real list is still split on the commas that are separators.
+    #[case(
+        Some("text/plain;foo=\"a,b\", image/png"),
+        Some("image/png"),
+        200,
+        false
+    )]
     fn negotiation_cases(
         #[case] accept: Option<&str>,
         #[case] content_type: Option<&str>,
@@ -212,6 +238,38 @@ mod tests {
             assert!(v.is_none());
         }
         Ok(())
+    }
+
+    /// `Accept` is a list field, so its members may be spread over several
+    /// field lines and are recombined into one list. Reading only the first
+    /// announced that a response was unacceptable to a client that had asked
+    /// for it on the second.
+    #[rstest]
+    #[case(&["application/json", "text/html"], "text/html", false)]
+    #[case(&["application/json", "text/html"], "application/json", false)]
+    #[case(&["application/json", "text/html"], "image/png", true)]
+    fn every_accept_field_line_is_read(
+        #[case] accepts: &[&str],
+        #[case] content_type: &str,
+        #[case] expect_violation: bool,
+    ) {
+        let rule = MessageAcceptAndContentTypeNegotiation;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let pairs: Vec<(&str, &str)> = accepts.iter().map(|a| ("accept", *a)).collect();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", content_type)]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.is_some(),
+            expect_violation,
+            "{accepts:?} vs {content_type} -> {v:?}"
+        );
     }
 
     #[test]
