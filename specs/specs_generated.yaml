@@ -1839,6 +1839,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1420
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 140
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
       line: 121
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
@@ -1904,17 +1906,113 @@ sources:
     - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
       line: 143
   - label: message_accept_and_content_type_negotiation
+    section: § 12.1
+    snippet: A user agent cannot rely on proactive negotiation preferences being consistently honored, since the origin server might not implement proactive negotiation for the requested resource or might decide that sending a response that doesn't conform to the user agent's preferences is better than sending a 406 (Not Acceptable) response.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 44
+  - label: message_accept_and_content_type_negotiation (2)
+    section: § 12.4.1
+    snippet: For each of the content negotiation fields, a request that does not contain the field implies that the sender has no preference on that dimension of negotiation.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 84
+  - label: message_accept_and_content_type_negotiation (3)
+    section: § 12.4.1
+    snippet: If a content negotiation header field is present in a request and none of the available representations for the response can be considered acceptable according to it, the origin server can either honor the header field by sending a 406 (Not Acceptable) response or disregard the header field by treating the response as if it is not subject to content negotiation for that request header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 43
+  - label: message_accept_and_content_type_negotiation (4)
+    section: § 12.4.2
+    snippet: If no "q" parameter is present, the default weight is 1.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 162
+  - label: message_accept_and_content_type_negotiation (5)
+    section: § 12.4.2
+    snippet: The weight is normalized to a real number in the range 0 through 1, where 0.001 is the least preferred and 1 is the most preferred; a value of 0 means "not acceptable".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 161
+  - label: message_accept_and_content_type_negotiation (6)
+    section: § 12.5.1
+    snippet: 'Accept = #( media-range [ weight ] )'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 54
+    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
+      line: 64
+  - label: message_accept_and_content_type_negotiation (7)
+    section: § 12.5.1
+    snippet: If more than one media range applies to a given type, the most specific reference has precedence.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 186
+  - label: message_accept_and_content_type_negotiation (8)
+    section: § 12.5.1
+    snippet: Recipients SHOULD process any parameter named "q" as weight, regardless of parameter ordering.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 139
+  - label: message_accept_and_content_type_negotiation (9)
+    section: § 12.5.1
+    snippet: The "Accept" header field can be used by user agents to specify their preferences regarding response media types.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 22
+  - label: message_accept_and_content_type_negotiation (10)
+    section: § 12.5.1
+    snippet: The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 128
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 244
+  - label: message_accept_and_content_type_negotiation (11)
+    section: § 12.5.1
+    snippet: The media-range can include media type parameters that are applicable to that range.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 185
+  - label: message_accept_and_content_type_negotiation (12)
+    section: § 12.5.1
+    snippet: media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 127
+  - label: message_accept_and_content_type_negotiation (13)
     section: § 15.5.7
     snippet: The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 49
-  - label: message_accept_header_media_type_syntax
-    section: § 12.5.1
-    snippet: 'Accept = #( media-range [ weight ] )'
+      line: 76
+  - label: message_accept_and_content_type_negotiation (14)
+    section: § 8.3
+    snippet: Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors.
     cited_by:
-    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 64
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 65
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 58
+  - label: message_accept_and_content_type_negotiation (15)
+    section: § 8.3.1
+    snippet: The type and subtype tokens are case-insensitive.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 187
+    - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
+      line: 98
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 261
+    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
+      line: 48
+    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
+      line: 138
+    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
+      line: 180
+    - file: lint-http-rules/src/rules/server_charset_specification.rs
+      line: 40
   - label: message_accept_language_weight_validity
     section: § 12.5.4
     snippet: 'Accept-Language = #( language-range [ weight ] )'
@@ -2221,29 +2319,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
       line: 112
-  - label: message_content_type_iana_registered (2)
-    section: § 8.3.1
-    snippet: The type and subtype tokens are case-insensitive.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
-      line: 98
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 261
-    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
-      line: 48
-    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
-      line: 138
-    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 180
-    - file: lint-http-rules/src/rules/server_charset_specification.rs
-      line: 40
   - label: message_content_type_well_formed
-    section: § 12.5.1
-    snippet: The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 244
-  - label: message_content_type_well_formed (2)
     section: § 5.6.6
     snippet: parameter       = parameter-name "=" parameter-value
     cited_by:
@@ -2251,19 +2327,19 @@ sources:
       line: 352
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
       line: 213
-  - label: message_content_type_well_formed (3)
+  - label: message_content_type_well_formed (2)
     section: § 5.6.6
     snippet: parameter-name  = token
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 311
-  - label: message_content_type_well_formed (4)
+  - label: message_content_type_well_formed (3)
     section: § 8.3
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 57
-  - label: message_content_type_well_formed (5)
+  - label: message_content_type_well_formed (4)
     section: § 8.3
     snippet: Content-Type = media-type
     cited_by:
@@ -2271,19 +2347,13 @@ sources:
       line: 56
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 57
-  - label: message_content_type_well_formed (6)
-    section: § 8.3
-    snippet: Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 58
-  - label: message_content_type_well_formed (7)
+  - label: message_content_type_well_formed (5)
     section: § 8.3.1
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 287
-  - label: message_content_type_well_formed (8)
+  - label: message_content_type_well_formed (6)
     section: § 8.3.1
     snippet: type       = token subtype    = token
     cited_by:
