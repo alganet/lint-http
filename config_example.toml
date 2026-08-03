@@ -784,7 +784,7 @@ severity = "warn"
 [rules.message_extension_headers_registered]
 enabled = true
 severity = "warn"
-allowed = ["host", "content-type", "user-agent", "x-custom"]
+allowed = ["host", "content-type", "user-agent", "accept", "x-custom"]
 
 [rules.message_transfer_encoding_chunked_final]
 enabled = true
