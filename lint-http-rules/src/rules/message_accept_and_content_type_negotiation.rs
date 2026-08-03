@@ -97,6 +97,22 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
         // the client asked for, and that is a claim about what the client
         // asked for — so it needs at least one member that is a `media-range`.
         let mut readable_preference = false;
+
+        // An odd number of DQUOTEs means the quoting never closes, and then no
+        // separator after it is a separator — both splitters below swallow the
+        // rest of the field into one member. A finding drawn from that would be
+        // a false statement about the request:
+        //
+        //     Accept: text/html;foo="x, application/json
+        //
+        // plainly lists `application/json`, and the response was reported for
+        // not being it. The value is malformed either way — `"` is not a
+        // `tchar` in an unquoted parameter value — so nothing conforming is
+        // lost, and `message_accept_header_media_type_syntax` is the rule that
+        // reports the malformed header.
+        if !crate::helpers::headers::quoting_is_balanced(accept) {
+            return None;
+        }
         // Quote-aware, because a comma inside a quoted parameter value is not a
         // list separator. A raw `split(',')` cut such a value apart and read the
         // pieces as members of their own, so `text/plain;foo="a,image/png,b"` —
@@ -225,7 +241,7 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
     }
 
     fn description(&self) -> &'static str {
-        "Report a response whose `Content-Type` is not covered by any `media-range` the request's `Accept` header listed with a non-zero weight — `Accept: application/json` answered with `Content-Type: text/html`. The suggested remedies are the two the specification names: send a representation the client asked for, or say so with `406 (Not Acceptable)`.\n\n**This is advice, not a conformance check, and the specification is explicit about it.** RFC 9110 §12.4.1 gives the origin server the choice in as many words: when no available representation is acceptable it \"can either honor the header field by sending a 406 (Not Acceptable) response or disregard the header field by treating the response as if it is not subject to content negotiation\". §12.1 says the same from the other side — a user agent \"cannot rely on proactive negotiation preferences being consistently honored\". So **a message this rule reports may be perfectly conforming**, and the finding is worded as a suggestion because that is all it can be. It is worth having anyway: a response the client cannot use is usually not what the server meant to send.\n\n**A 406 response is never reported** — that status is the server taking the other branch of the same choice.\n\n**Weights:** a member with `q=0` is a refusal and does not count as accepting anything. `q` is read wherever it appears in the member and its name is matched case-insensitively, which is what §12.5.1 tells recipients to do. A `q` whose value is not a `qvalue` (`q=-1`, `q=0.0001`, `q=1e-9`) is not a weight at all; the member keeps the default weight of 1, and reporting the malformed value is `message_accept_header_media_type_syntax`'s job.\n\n**Nothing is reported when the question has no answer.** If no member of `Accept` is a `media-range` — `Accept: *`, `Accept: not-a-media-range`, an empty value — then no preference was expressed that this rule can read, and naming the response for a defect in the request would be the wrong finding about the wrong message. Likewise if the response carries more than one `Content-Type` field line: recipients differ over which one they act on, so which media type the client actually got is unknown.\n\n**Known leniency: media-range parameters are ignored.** §12.5.1 lets a range carry media type parameters and makes a more specific range take precedence, so `text/plain;format=flowed` and `text/plain;format=fixed` are different preferences. This rule compares only type and subtype, which can only make it quieter — a response whose *parameters* nobody asked for goes unmentioned."
+        "Report a response whose `Content-Type` is not covered by any `media-range` the request's `Accept` header listed with a non-zero weight — `Accept: application/json` answered with `Content-Type: text/html`. The suggested remedies are the two the specification names: send a representation the client asked for, or say so with `406 (Not Acceptable)`.\n\n**This is advice, not a conformance check, and the specification is explicit about it.** RFC 9110 §12.4.1 gives the origin server the choice in as many words: when no available representation is acceptable it \"can either honor the header field by sending a 406 (Not Acceptable) response or disregard the header field by treating the response as if it is not subject to content negotiation\". §12.1 says the same from the other side — a user agent \"cannot rely on proactive negotiation preferences being consistently honored\". So **a message this rule reports may be perfectly conforming**, and the finding is worded as a suggestion because that is all it can be. It is worth having anyway: a response the client cannot use is usually not what the server meant to send.\n\n**A 406 response is never reported** — that status is the server taking the other branch of the same choice.\n\n**Weights:** a member with `q=0` is a refusal and does not count as accepting anything. `q` is read wherever it appears in the member and its name is matched case-insensitively, which is what §12.5.1 tells recipients to do. A `q` whose value is not a `qvalue` (`q=-1`, `q=0.0001`, `q=1e-9`) is not a weight at all; the member keeps the default weight of 1, and reporting the malformed value is `message_accept_header_media_type_syntax`'s job.\n\n**Nothing is reported when the question has no answer.** If no member of `Accept` is a `media-range` — `Accept: *`, `Accept: not-a-media-range`, an empty value — then no preference was expressed that this rule can read, and naming the response for a defect in the request would be the wrong finding about the wrong message. Likewise if the response carries more than one `Content-Type` field line: recipients differ over which one they act on, so which media type the client actually got is unknown.\n\n**Quoting that never closes is declined too.** After a stray `\"` no separator can be trusted — the rest of the field collapses into one member — so `Accept: text/html;foo=\"x, application/json` is not reported against an `application/json` response it plainly asks for.\n\n**Known leniency: media-range parameters are ignored.** §12.5.1 lets a range carry media type parameters and makes a more specific range take precedence, so `text/plain;format=flowed` and `text/plain;format=fixed` are different preferences. This rule compares only type and subtype, which can only make it quieter — a response whose *parameters* nobody asked for goes unmentioned."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -553,6 +569,38 @@ mod tests {
             &cfg,
         );
         assert!(v.is_none(), "Accept {accept:?} states no preference: {v:?}");
+    }
+
+    /// Quoting that never closes swallows every separator after it, so the
+    /// member list past that point is not a member list. Both headers below
+    /// plainly name `application/json`, and both were reported for a response
+    /// that is exactly what was asked for.
+    #[rstest]
+    #[case("text/html;foo=\"x, application/json", "application/json", false)]
+    #[case("text/html;foo=a\"b, application/json", "application/json", false)]
+    // Balanced quoting is judged as before, so the gate narrows nothing it
+    // should not.
+    #[case("text/html;foo=\"x,y\"", "application/json", true)]
+    // A backslash outside a quoted-string escapes nothing, so this list is
+    // readable and its second member is found.
+    #[case("text/html;foo=a\\, application/json", "application/json", false)]
+    fn quoting_that_never_closes_is_not_a_member_list(
+        #[case] accept: &str,
+        #[case] content_type: &str,
+        #[case] expect_violation: bool,
+    ) {
+        let rule = MessageAcceptAndContentTypeNegotiation;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("accept", accept)]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", content_type)]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(v.is_some(), expect_violation, "{accept:?} -> {v:?}");
     }
 
     /// One readable member is enough to make the question meaningful, and the
