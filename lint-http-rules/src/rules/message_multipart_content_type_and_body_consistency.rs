@@ -106,7 +106,7 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "When a `Content-Type` declares a `multipart/*` media type, the body it describes has to be delimited by the `boundary` the header names. This rule reads a captured body and checks that it carries at least one **boundary delimiter line** opening a part, and the terminating one — `--<boundary>--` — that says no further parts follow.\n\n**A delimiter is a line, not text.** RFC 2046 §5.1.1 requires the delimiter to occur at the beginning of a line, so a body carrying the boundary text mid-line delimits nothing: `hello --abc-- world` is reported, and the finding says the text occurs but never at a line start rather than claiming the boundary is absent. Matching is a *prefix* match against the start of each candidate line, which §5.1.1 instructs implementors to do — the rest of the line may be `transport-padding`.\n\n**A body whose only delimiter line is the closing one is reported.** The closing line is defined as the one following the last body part, so with no part to follow it the body encapsulates nothing. A single part is the documented minimum, and it passes.\n\n**RFC 9110 §8.3.3 is why a MIME grammar governs an HTTP body**, and it is also careful about what this rule is not: HTTP framing does not use the boundary as a length indicator, so nothing here says anything about where the message ends.\n\n**Known leniency: line endings.** §8.3.3 requires senders to generate only CRLF between body parts, and this rule locates line starts on LF, so a body using bare LF has its delimiters recognised rather than reported as missing. The wrong line ending is a real defect and a different one; blaming the boundary for it would name the wrong thing. No rule currently reports it.\n\n**Scope:** every `Content-Type` field line in each message is read, since recipients differ over which one they act on; that there is more than one is `message_content_type_well_formed`'s finding. Whether the boundary *value* is syntactically legal is `message_multipart_boundary_syntax`'s. A body captured only as a prefix is skipped entirely — the terminating delimiter sits at a body's end, so a truncated capture would always look like it is missing one. Nothing before the first delimiter line or after the last is examined, which §5.1.1 requires: the preamble and epilogue are to be ignored."
+        "When a `Content-Type` declares a `multipart/*` media type, the body it describes has to be delimited by the `boundary` the header names. This rule reads a captured body and checks that it carries at least one **boundary delimiter line** opening a part, and the terminating one — `--<boundary>--` — that says no further parts follow.\n\n**A delimiter is a line, not text.** RFC 2046 §5.1.1 requires the delimiter to occur at the beginning of a line, so a body carrying the boundary text mid-line delimits nothing: `hello --abc-- world` is reported, and the finding says the text occurs but never at a line start rather than claiming the boundary is absent. Matching is a *prefix* match against the start of each candidate line, which §5.1.1 instructs implementors to do — the rest of the line may be `transport-padding`.\n\n**A body whose only delimiter line is the closing one is reported.** The closing line is defined as the one following the last body part, so with no part to follow it the body encapsulates nothing. A single part is the documented minimum, and it passes.\n\n**RFC 9110 §8.3.3 is why a MIME grammar governs an HTTP body**, and it is also careful about what this rule is not: HTTP framing does not use the boundary as a length indicator, so nothing here says anything about where the message ends.\n\n**Known leniency: line endings.** §8.3.3 requires senders to generate only CRLF between body parts, and this rule locates line starts on LF, so a body using bare LF has its delimiters recognised rather than reported as missing. The wrong line ending is a real defect and a different one; blaming the boundary for it would name the wrong thing. No rule currently reports it.\n\n**Cost:** a conforming body settles the question in its first two lines and the scan stops there. A body that never carries the delimiter is walked in full, which is inherent — the answer is only known at the end — and is bounded by `max_body_bytes`.\n\n**Scope:** every `Content-Type` field line in each message is read, since recipients differ over which one they act on; that there is more than one is `message_content_type_well_formed`'s finding. Whether the boundary *value* is syntactically legal is `message_multipart_boundary_syntax`'s. A body captured only as a prefix is skipped entirely — the terminating delimiter sits at a body's end, so a truncated capture would always look like it is missing one. Nothing before the first delimiter line or after the last is examined, which §5.1.1 requires: the preamble and epilogue are to be ignored."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -193,29 +193,48 @@ fn scan_delimiter_lines(body: &[u8], boundary: &str) -> DelimiterScan {
     if db.len() > body.len() {
         return scan;
     }
+
+    // Only line starts are candidates, and the position is the requirement —
+    // it is the whole difference between a delimiter and some bytes that look
+    // like one. Offset zero counts because the preamble is optional, so the
+    // first delimiter may open the body with no CRLF before it.
+    //
+    // The line break is located on LF rather than CRLF so that a body using
+    // bare LF is still read as having delimiter lines. Such a body violates the
+    // CRLF requirement below, but that is a different finding from "the
+    // delimiter is not there", and naming the wrong one helps nobody. This rule
+    // does not report line endings; it only declines to blame the boundary for
+    // them.
+    // cite(RFC 2046 § 5.1.1): "The boundary delimiter MUST occur at the beginning of a line, i.e., following a CRLF, and the initial CRLF is considered to be attached to the boundary delimiter line rather than part of the preceding part."
+    // cite(RFC 9110 § 8.3.3): "The message body is itself a protocol element; a sender MUST generate only CRLF to represent line breaks between body parts."
     for i in 0..=(body.len() - db.len()) {
+        // Once one delimiter line has opened a part and another has closed the
+        // body, the verdict is settled and the rest cannot change it. A body
+        // may be as large as `max_body_bytes` — 64 MiB by default — so this is
+        // the difference between reading a delimiter and reading a file.
+        // `appears_off_line` is consulted only when neither flag is set, so
+        // stopping here loses nothing.
+        if scan.opens_a_part && scan.closes {
+            break;
+        }
+        // `dash-boundary` begins with a hyphen, so one byte rejects nearly
+        // every position before a slice comparison is set up. Every position is
+        // examined, not only line starts, because a body with no delimiter line
+        // still has to be told apart from one whose boundary text is merely in
+        // the wrong place — and doing that here costs a byte rather than a
+        // second walk over the body.
+        if body[i] != b'-' {
+            continue;
+        }
         // A prefix match, deliberately: the rest of the line may be
         // `transport-padding`, and §5.1.1 tells implementors in as many words
-        // not to require the whole line to match. Comparing the whole line
-        // would reject conforming bodies whose delimiter lines carry padding.
+        // not to require the whole line to match. Comparing whole lines would
+        // reject conforming bodies whose delimiter lines carry padding.
         // cite(RFC 2046 § 5.1.1): "Boundary string comparisons must compare the boundary value with the beginning of each candidate line."
         // cite(RFC 2046 § 5.1.1): "An exact match of the entire candidate line is not required; it is sufficient that the boundary appear in its entirety following the CRLF."
         if &body[i..i + db.len()] != db {
             continue;
         }
-        // The position is the requirement, and it is the whole difference
-        // between a delimiter and some bytes that look like one. Offset zero
-        // counts because the preamble is optional, so the first delimiter may
-        // open the body with no CRLF before it.
-        //
-        // The line break is located on LF rather than CRLF so that a body using
-        // bare LF is still read as having delimiter lines. Such a body violates
-        // the CRLF requirement below, but that is a different finding from "the
-        // delimiter is not there", and naming the wrong one helps nobody. This
-        // rule does not report the line endings; it only declines to blame the
-        // boundary for them.
-        // cite(RFC 2046 § 5.1.1): "The boundary delimiter MUST occur at the beginning of a line, i.e., following a CRLF, and the initial CRLF is considered to be attached to the boundary delimiter line rather than part of the preceding part."
-        // cite(RFC 9110 § 8.3.3): "The message body is itself a protocol element; a sender MUST generate only CRLF to represent line breaks between body parts."
         if !(i == 0 || body[i - 1] == b'\n') {
             scan.appears_off_line = true;
             continue;
@@ -682,6 +701,34 @@ mod tests {
             expect_violation,
             "{:?} -> {v:?}",
             String::from_utf8_lossy(body)
+        );
+    }
+
+    /// A conforming body settles the question in its first two lines, and the
+    /// scan must stop there. Without the early exit it read to the end of every
+    /// well-formed multipart message — 34 ms of release-build work for a 16 MiB
+    /// body whose answer was known after 150 bytes, and a body may be
+    /// `max_body_bytes` large, 64 MiB by default.
+    ///
+    /// The bound is coarse on purpose: this guards against the scan losing its
+    /// exit and walking the whole body again, which costs milliseconds, not
+    /// against small changes in constant factors. The measured figure with the
+    /// exit in place is tens of microseconds either way.
+    #[test]
+    fn a_settled_verdict_stops_the_scan() {
+        let boundary = "a".repeat(70);
+        let mut body = Vec::with_capacity(16 * 1024 * 1024);
+        body.extend_from_slice(format!("--{boundary}\r\n\r\n\r\n--{boundary}--\r\n").as_bytes());
+        body.resize(16 * 1024 * 1024, b'x');
+
+        let started = std::time::Instant::now();
+        let scan = scan_delimiter_lines(&body, &boundary);
+        let elapsed = started.elapsed();
+
+        assert!(scan.opens_a_part && scan.closes);
+        assert!(
+            elapsed < std::time::Duration::from_millis(50),
+            "scanning 16 MiB took {elapsed:?}; the verdict was settled in the first two lines"
         );
     }
 
