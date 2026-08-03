@@ -90,13 +90,19 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
                 }
             }
 
-            // If q is present and equals 0 (or numerically zero), this member is unacceptable
+            // A weight of zero is a refusal, and that is the one thing a weight
+            // tells this rule. But it says so only when it *is* a weight: the
+            // meaning belongs to `qvalue`, and `q=-1` is not one. A raw
+            // `parse::<f32>()` read that as less than zero and refused the
+            // member on the strength of a value the grammar does not admit,
+            // which turned a malformed Accept into a finding about the
+            // response. Anything that is not a qvalue leaves the member at its
+            // default weight of 1, which is also what a member with no `q` gets.
             if let Some(q) = qval {
-                // Use simple numeric parse; valid_qvalue should have been checked elsewhere
-                if let Ok(n) = q.parse::<f32>() {
-                    if n <= 0.0 {
-                        continue;
-                    }
+                if crate::helpers::headers::valid_qvalue(q)
+                    && q.parse::<f32>().is_ok_and(|n| n == 0.0)
+                {
+                    continue;
                 }
             }
 
@@ -215,6 +221,18 @@ mod tests {
     #[case(Some("text/html;foo=\"a;q=0;b=1\""), Some("text/html"), 200, false)]
     // A real weight of zero after a quoted value carrying one is still found.
     #[case(Some("text/html;foo=\"a;q=1\";q=0"), Some("text/html"), 200, true)]
+    // The forms `qvalue` admits, at both ends of the range.
+    #[case(Some("text/html;q=0"), Some("text/html"), 200, true)]
+    #[case(Some("text/html;q=0.000"), Some("text/html"), 200, true)]
+    #[case(Some("text/html;q=0.001"), Some("text/html"), 200, false)]
+    #[case(Some("text/html;q=1"), Some("text/html"), 200, false)]
+    // Not a `qvalue`, so not a weight. Refusing the member on the strength of
+    // these would turn a malformed Accept into a finding about the response;
+    // the member keeps the default weight of 1 instead.
+    #[case(Some("text/html;q=-1"), Some("text/html"), 200, false)]
+    #[case(Some("text/html;q=0.0001"), Some("text/html"), 200, false)]
+    #[case(Some("text/html;q=1e-9"), Some("text/html"), 200, false)]
+    #[case(Some("text/html;q=00"), Some("text/html"), 200, false)]
     fn negotiation_cases(
         #[case] accept: Option<&str>,
         #[case] content_type: Option<&str>,
