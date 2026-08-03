@@ -1072,10 +1072,22 @@ sources:
       line: 136
   - label: message_media_type_suffix_validity
     section: § 4.2.8
-    snippet: Media types that make use of a named structured syntax SHOULD use the appropriate registered "+suffix" for that structured syntax
+    snippet: '"+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions.'
     cited_by:
     - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
-      line: 88
+      line: 134
+  - label: message_media_type_suffix_validity (2)
+    section: § 4.2.8
+    snippet: By the same token, media types MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
+      line: 135
+  - label: message_media_type_suffix_validity (3)
+    section: § 4.2.8
+    snippet: That is, it specified a suffix (in that case, "+xml") to be appended to the base subtype name.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
+      line: 101
 - label: RFC 7231
   url: https://www.rfc-editor.org/rfc/rfc7231.txt
   type: text/plain
@@ -1834,7 +1846,7 @@ sources:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 84
     - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
-      line: 126
+      line: 160
   - label: message_charset_iana_registered (2)
     section: § 5.6.6
     snippet: Parameter names are case-insensitive.
@@ -1857,6 +1869,8 @@ sources:
       line: 76
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 18
+    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
+      line: 72
   - label: message_charset_iana_registered (5)
     section: § 8.3.2
     snippet: Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978].
@@ -2081,6 +2095,10 @@ sources:
       line: 98
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 261
+    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
+      line: 48
+    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
+      line: 105
     - file: lint-http-rules/src/rules/server_charset_specification.rs
       line: 40
   - label: message_content_type_well_formed
