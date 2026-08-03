@@ -18,6 +18,8 @@ When a `Content-Type` declares a `multipart/*` media type, the body it describes
 
 **Known leniency: line endings.** §8.3.3 requires senders to generate only CRLF between body parts, and this rule locates line starts on LF, so a body using bare LF has its delimiters recognised rather than reported as missing. The wrong line ending is a real defect and a different one; blaming the boundary for it would name the wrong thing. No rule currently reports it.
 
+**The epilogue is not read.** A delimiter line written after the closing one is `discard-text` that implementations must ignore, so it opens no part — a body consisting of a closing line followed by something that looks like a delimiter still encapsulates nothing and is reported.
+
 **Cost:** a conforming body settles the question in its first two lines and the scan stops there. A body that never carries the delimiter is walked in full, which is inherent — the answer is only known at the end — and is bounded by `max_body_bytes`.
 
 **Scope:** every `Content-Type` field line in each message is read, since recipients differ over which one they act on; that there is more than one is `message_content_type_well_formed`'s finding. Whether the boundary *value* is syntactically legal is `message_multipart_boundary_syntax`'s. A body captured only as a prefix is skipped entirely — the terminating delimiter sits at a body's end, so a truncated capture would always look like it is missing one. Nothing before the first delimiter line or after the last is examined, which §5.1.1 requires: the preamble and epilogue are to be ignored.
