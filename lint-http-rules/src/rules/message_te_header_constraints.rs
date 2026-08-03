@@ -347,7 +347,8 @@ mod tests {
 
     #[rstest]
     #[case(Some(("te","chunked;q=0.0")), Some(("connection","TE")), false)]
-    #[case(Some(("te","chunked;q=0.")), Some(("connection","TE")), true)]
+    // A qvalue may end at the point: `0*3DIGIT` admits no digits at all.
+    #[case(Some(("te","chunked;q=0.")), Some(("connection","TE")), false)]
     #[case(Some(("te","chunked;q=.5")), Some(("connection","TE")), true)]
     #[case(Some(("te","chunked;q=0.123")), Some(("connection","TE")), false)]
     #[case(Some(("te","chunked;foo=\"ok\"")), Some(("connection","TE")), false)]
@@ -400,7 +401,10 @@ mod tests {
     #[case("1.0000", false)]
     #[case("0", true)]
     #[case("0.0", true)]
-    #[case("0.", false)]
+    // `0*3DIGIT` is satisfied by no digits, so a point with nothing after
+    // it conforms. This case asserted the helper's old enumeration.
+    #[case("0.", true)]
+    #[case("1.", true)]
     #[case("0.123", true)]
     #[case("0.1234", false)]
     #[case(" 0.5 ", true)]
