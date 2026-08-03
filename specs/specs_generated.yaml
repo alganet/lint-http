@@ -17,17 +17,17 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1424
+      line: 1433
   - label: lint-http-rules/src/helpers/headers.rs (2)
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1419
+      line: 1428
   - label: lint-http-rules/src/helpers/headers.rs (3)
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1418
+      line: 1427
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -611,25 +611,25 @@ sources:
     snippet: 'Normally, a mailbox is composed of two parts: (1) an optional display name that indicates the name of the recipient (which can be a person or a system) that could be displayed to the user of a mail application, and (2) an addr-spec address enclosed in angle brackets'
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1175
+      line: 1184
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.4
     snippet: There is an alternate simple form of a mailbox where the addr-spec address appears alone, without the recipient's name or the angle brackets.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1188
+      line: 1197
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.4.1
     snippet: An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1206
+      line: 1215
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.4.1
     snippet: The locally interpreted string is either a quoted-string or a dot-atom.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1209
+      line: 1218
 - label: RFC 5646
   url: https://www.rfc-editor.org/rfc/rfc5646.txt
   type: text/plain
@@ -879,7 +879,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1420
+      line: 1429
     - file: lint-http-rules/src/helpers/uri.rs
       line: 145
   - label: lint-http-rules/src/helpers/uri.rs
@@ -1274,25 +1274,25 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1105
+      line: 1114
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1046
+      line: 1055
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1084
+      line: 1093
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1077
+      line: 1086
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
@@ -1652,7 +1652,7 @@ sources:
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1013
+      line: 1022
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 78
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
@@ -1692,25 +1692,25 @@ sources:
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 978
+      line: 987
   - label: lint-http-rules/src/helpers/headers.rs (6)
     section: § 5.6.4
     snippet: qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 909
+      line: 918
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 926
+      line: 935
   - label: lint-http-rules/src/helpers/headers.rs (8)
     section: § 5.6.4
     snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 908
+      line: 917
   - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
@@ -1734,7 +1734,7 @@ sources:
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1329
+      line: 1338
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
@@ -1746,7 +1746,7 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1288
+      line: 1297
   - label: lint-http-rules/src/helpers/headers.rs (12)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".

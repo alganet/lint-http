@@ -829,7 +829,14 @@ pub fn split_commas_respecting_quotes(s: &str) -> Vec<&str> {
         let b = bytes[i];
         if prev_backslash {
             prev_backslash = false;
-        } else if b == b'\\' {
+        // A backslash escapes only inside a quoted-string: `quoted-pair` is
+        // defined as part of `quoted-string` and nowhere else, so outside one
+        // a backslash is an ordinary octet. Both productions are transcribed
+        // at `validate_quoted_string` below, which owns them; honouring an
+        // escape out here let a stray backslash suppress the DQUOTE after it,
+        // flipping quote parity for the rest of the value and swallowing every
+        // later member into one segment.
+        } else if b == b'\\' && in_quote {
             prev_backslash = true;
         } else if b == b'"' {
             in_quote = !in_quote;
@@ -863,7 +870,9 @@ pub fn split_semicolons_respecting_quotes(s: &str) -> Vec<&str> {
         let b = bytes[i];
         if prev_backslash {
             prev_backslash = false;
-        } else if b == b'\\' {
+        // Same as the comma splitter: `quoted-pair` lives inside
+        // `quoted-string`, so a backslash outside one escapes nothing.
+        } else if b == b'\\' && in_quote {
             prev_backslash = true;
         } else if b == b'"' {
             in_quote = !in_quote;
@@ -1885,6 +1894,31 @@ mod tests {
         assert!(validate_ext_value("UTF-8''%ZZ").is_err());
         // Invalid: invalid attr-char
         assert!(validate_ext_value("UTF-8''hello@world").is_err());
+    }
+
+    #[test]
+    fn a_backslash_outside_a_quoted_string_escapes_nothing() {
+        // `quoted-pair` is part of `quoted-string`, so outside one a backslash
+        // is an ordinary octet. Honouring it there let a stray backslash eat
+        // the DQUOTE after it, flipping quote parity and swallowing the rest of
+        // the value into a single member.
+        assert_eq!(
+            split_commas_respecting_quotes(r#"text/html\, application/z+bogus"#),
+            vec![r#"text/html\"#, " application/z+bogus"]
+        );
+        assert_eq!(
+            split_semicolons_respecting_quotes(r#"text/html; p=a\; charset=utf-8"#),
+            vec!["text/html", r#"p=a\"#, "charset=utf-8"]
+        );
+        // Inside a quoted-string it still escapes, including an escaped DQUOTE.
+        assert_eq!(
+            split_commas_respecting_quotes(r#"a;p="x\",y", b"#),
+            vec![r#"a;p="x\",y""#, " b"]
+        );
+        assert_eq!(
+            split_semicolons_respecting_quotes(r#"a; p="x\";y"; q=1"#),
+            vec!["a", r#"p="x\";y""#, "q=1"]
+        );
     }
 
     #[test]
