@@ -113,17 +113,35 @@ impl Rule for MessageMediaTypeSuffixValidity {
             None
         };
 
-        // Check request Content-Type
-        if let Some(val) =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "content-type")
-        {
-            if let Some(v) = check_media("Content-Type", val) {
+        // Every field line, and decoded from the raw octets. `get_header_str`
+        // does neither: it returns the first value and gives up entirely on a
+        // value `to_str` refuses. Both losses are silent here, and both hide the
+        // exact thing this rule looks for —
+        //
+        //   Content-Type: application/json
+        //   Content-Type: application/vnd.x+bogus
+        //
+        // reported nothing, and so did a bad suffix sitting next to a parameter
+        // carrying obs-text, which is legal in a `quoted-string`.
+        // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+        let values = |headers: &hyper::HeaderMap, name: &'static str| -> Vec<String> {
+            headers
+                .get_all(name)
+                .iter()
+                .map(|hv| String::from_utf8_lossy(hv.as_bytes()).into_owned())
+                .collect()
+        };
+
+        for val in values(&tx.request.headers, "content-type") {
+            if let Some(v) = check_media("Content-Type", &val) {
                 return Some(v);
             }
         }
 
-        // Check Accept header members
-        if let Some(ah) = crate::helpers::headers::get_header_str(&tx.request.headers, "accept") {
+        // Accept is a list, so each member is checked; the field lines are
+        // recombined by the same comma the list uses, which is why they need no
+        // separate handling here.
+        for ah in values(&tx.request.headers, "accept") {
             for part in ah.split(',') {
                 let p = part.trim();
                 if p.is_empty() {
@@ -135,12 +153,9 @@ impl Rule for MessageMediaTypeSuffixValidity {
             }
         }
 
-        // Check response Content-Type
         if let Some(resp) = &tx.response {
-            if let Some(val) =
-                crate::helpers::headers::get_header_str(&resp.headers, "content-type")
-            {
-                if let Some(v) = check_media("Content-Type", val) {
+            for val in values(&resp.headers, "content-type") {
+                if let Some(v) = check_media("Content-Type", &val) {
                     return Some(v);
                 }
             }
@@ -199,6 +214,54 @@ static REGISTRATION: &dyn crate::rules::Rule = &MessageMediaTypeSuffixValidity;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    #[rstest]
+    // A bad suffix on a second Content-Type line: `get_header_str` stopped at
+    // the first and reported nothing.
+    #[case(&["application/json", "application/vnd.x+bogus"], true)]
+    #[case(&["application/vnd.x+bogus", "application/json"], true)]
+    #[case(&["application/json", "application/ld+json"], false)]
+    fn every_content_type_line_is_checked(#[case] values: &[&str], #[case] expect: bool) {
+        let rule = MessageMediaTypeSuffixValidity;
+        let cfg = make_cfg();
+        let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("content-type", *v)).collect();
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&pairs);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(v.is_some(), expect, "{values:?} -> {v:?}");
+    }
+
+    #[rstest]
+    // obs-text is legal in a quoted parameter value, so these are well-formed
+    // media types whose suffix still has to be judged. `to_str` refused them
+    // and the rule went silent.
+    #[case(b"application/vnd.x+bogus; p=\"\xe4\"", true)]
+    #[case(b"application/ld+json; p=\"\xe4\"", false)]
+    fn obs_text_does_not_hide_the_suffix(#[case] raw: &[u8], #[case] expect: bool) {
+        use hyper::header::HeaderValue;
+        let rule = MessageMediaTypeSuffixValidity;
+        let cfg = make_cfg();
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm.insert("content-type", HeaderValue::from_bytes(raw).unwrap());
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = hm;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.is_some(),
+            expect,
+            "{:?} -> {v:?}",
+            String::from_utf8_lossy(raw)
+        );
+    }
 
     fn make_cfg() -> crate::config::Config {
         let mut cfg = crate::config::Config::default();

@@ -1833,6 +1833,8 @@ sources:
       line: 249
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 84
+    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
+      line: 126
   - label: message_charset_iana_registered (2)
     section: § 5.6.6
     snippet: Parameter names are case-insensitive.
