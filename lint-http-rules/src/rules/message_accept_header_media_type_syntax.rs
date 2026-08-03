@@ -91,6 +91,26 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                                 ),
                             });
                         }
+                        // A wildcard type with a concrete subtype is not one of
+                        // the shapes the asterisk has a meaning in. This is a
+                        // judgement about the prose, not a reading of the ABNF:
+                        // `type` is a `token` and `*` is a `tchar`, so `*/json`
+                        // does derive from `type "/" subtype`. But §12.5.1 gives
+                        // the asterisk exactly two jobs — all media types, or
+                        // all subtypes of one type — and this is neither, so
+                        // there is nothing a recipient could match it against.
+                        // `message_content_type_well_formed` takes the same
+                        // position on the same shape in Content-Type.
+                        if parsed.type_ == "*" {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: config.severity,
+                                message: format!(
+                                    "Invalid media-range '{}' in {} header: a wildcard type is only meaningful with a wildcard subtype ('*/*'), since the asterisk names all media types or all subtypes of one type and nothing else",
+                                    media, hdr
+                                ),
+                            });
+                        }
                         if parsed.subtype != "*" {
                             if let Some(c) =
                                 crate::helpers::token::find_invalid_token_char(parsed.subtype)
@@ -291,6 +311,12 @@ mod tests {
     #[case(Some("text/html;foo=\"a, application/json"), true)]
     // An empty list element is legal for a recipient to ignore.
     #[case(Some("text/html, , application/json"), false)]
+    // A wildcard type with a concrete subtype names no set a recipient could
+    // match against. The two shapes the asterisk does have still pass.
+    #[case(Some("*/json"), true)]
+    #[case(Some("text/html, */json"), true)]
+    #[case(Some("*/*"), false)]
+    #[case(Some("text/*"), false)]
     #[case(None, false)]
     fn check_accept_request(
         #[case] accept: Option<&str>,
