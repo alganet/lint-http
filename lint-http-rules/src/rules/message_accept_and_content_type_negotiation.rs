@@ -60,7 +60,14 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
             if member.is_empty() {
                 continue;
             }
-            let mut parts = member.split(';').map(|s| s.trim());
+            // Quote-aware for the same reason the comma split is: a `;` inside
+            // a quoted parameter value does not start a parameter. A raw
+            // `split(';')` read the pieces as parameters, so a `q=0` sitting
+            // inside some other value — `foo="a;q=0;b=1"` — was taken for a
+            // weight and the member declared unacceptable, when the member has
+            // no weight at all and accepts everything it names.
+            let mut parts =
+                crate::helpers::headers::split_semicolons_respecting_quotes(member).into_iter();
             let media = match parts.next() {
                 Some(m) => m,
                 None => continue,
@@ -73,6 +80,7 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
             // find q param if present
             let mut qval: Option<&str> = None;
             for p in parts {
+                let p = p.trim();
                 let mut kv = p.splitn(2, '=');
                 let k = kv.next().unwrap().trim();
                 if k.eq_ignore_ascii_case("q") {
@@ -202,6 +210,11 @@ mod tests {
         200,
         false
     )]
+    // A `;` inside a quoted value does not start a parameter, so the `q=0` in
+    // this member's `foo` value is not a weight and the member is acceptable.
+    #[case(Some("text/html;foo=\"a;q=0;b=1\""), Some("text/html"), 200, false)]
+    // A real weight of zero after a quoted value carrying one is still found.
+    #[case(Some("text/html;foo=\"a;q=1\";q=0"), Some("text/html"), 200, true)]
     fn negotiation_cases(
         #[case] accept: Option<&str>,
         #[case] content_type: Option<&str>,
