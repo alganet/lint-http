@@ -17,17 +17,17 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1440
+      line: 1471
   - label: lint-http-rules/src/helpers/headers.rs (2)
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1435
+      line: 1466
   - label: lint-http-rules/src/helpers/headers.rs (3)
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1434
+      line: 1465
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -352,7 +352,7 @@ sources:
     snippet: Indicates the character encoding standard used. The value is case insensitive but lowercase is preferred.
     cited_by:
     - file: lint-http-rules/src/rules/server_charset_specification.rs
-      line: 94
+      line: 85
 - label: MDN X-XSS-Protection
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection
   fragments:
@@ -445,7 +445,7 @@ sources:
     snippet: The Content-Type field for multipart entities requires one parameter, "boundary".
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 374
+      line: 381
     - file: lint-http-rules/src/rules/message_multipart_content_type_and_body_consistency.rs
       line: 27
   - label: message_multipart_boundary_syntax (3)
@@ -453,39 +453,39 @@ sources:
     snippet: The boundary delimiter line is then defined as a line consisting entirely of two hyphen characters ("-", decimal value 45) followed by the boundary parameter value from the Content-Type header field, optional linear whitespace, and a terminating CRLF.
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 375
+      line: 382
   - label: message_multipart_boundary_syntax (4)
     section: § 5.1.1
     snippet: The grammar for parameters on the Content-type field is such that it is often necessary to enclose the boundary parameter values in quotes on the Content-type line.
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 242
+      line: 249
   - label: message_multipart_boundary_syntax (5)
     section: § 5.1.1
     snippet: The only mandatory global parameter for the "multipart" media type is the boundary parameter, which consists of 1 to 70 characters from a set of characters known to be very robust through mail gateways, and NOT ending with white space.
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 333
+      line: 340
   - label: message_multipart_boundary_syntax (6)
     section: § 5.1.1
     snippet: bchars := bcharsnospace / " "
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 294
+      line: 301
   - label: message_multipart_boundary_syntax (7)
     section: § 5.1.1
     snippet: bcharsnospace := DIGIT / ALPHA / "'" / "(" / ")" / "+" / "_" / "," / "-" / "." / "/" / ":" / "=" / "?"
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 295
+      line: 302
   - label: message_multipart_boundary_syntax (8)
     section: § 5.1.1
     snippet: boundary := 0*69<bchars> bcharsnospace
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 332
+      line: 339
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 354
+      line: 361
 - label: RFC 3230
   url: https://www.rfc-editor.org/rfc/rfc3230.txt
   type: text/plain
@@ -649,25 +649,25 @@ sources:
     snippet: 'Normally, a mailbox is composed of two parts: (1) an optional display name that indicates the name of the recipient (which can be a person or a system) that could be displayed to the user of a mail application, and (2) an addr-spec address enclosed in angle brackets'
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1184
+      line: 1215
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.4
     snippet: There is an alternate simple form of a mailbox where the addr-spec address appears alone, without the recipient's name or the angle brackets.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1197
+      line: 1228
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.4.1
     snippet: An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1215
+      line: 1246
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.4.1
     snippet: The locally interpreted string is either a quoted-string or a dot-atom.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1218
+      line: 1249
 - label: RFC 5646
   url: https://www.rfc-editor.org/rfc/rfc5646.txt
   type: text/plain
@@ -917,7 +917,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1436
+      line: 1467
     - file: lint-http-rules/src/helpers/uri.rs
       line: 145
   - label: lint-http-rules/src/helpers/uri.rs
@@ -1324,25 +1324,25 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1114
+      line: 1145
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1055
+      line: 1086
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1093
+      line: 1124
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1086
+      line: 1117
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
@@ -1702,7 +1702,7 @@ sources:
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1022
+      line: 1053
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 78
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
@@ -1742,25 +1742,27 @@ sources:
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 987
+      line: 1018
   - label: lint-http-rules/src/helpers/headers.rs (6)
     section: § 5.6.4
     snippet: qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 918
+      line: 949
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 935
+      line: 928
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 966
   - label: lint-http-rules/src/helpers/headers.rs (8)
     section: § 5.6.4
     snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 917
+      line: 948
   - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
@@ -1778,21 +1780,21 @@ sources:
     snippet: Parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1389
+      line: 1420
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
       line: 121
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 211
+      line: 218
   - label: lint-http-rules/src/helpers/headers.rs (12)
     section: § 5.6.6
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1379
+      line: 1410
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 296
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 196
+      line: 203
   - label: lint-http-rules/src/helpers/headers.rs (13)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
@@ -1804,7 +1806,7 @@ sources:
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1338
+      line: 1369
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
@@ -1816,7 +1818,7 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1297
+      line: 1328
   - label: lint-http-rules/src/helpers/headers.rs (14)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
@@ -1928,7 +1930,7 @@ sources:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 340
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 217
+      line: 224
   - label: message_charset_iana_registered (3)
     section: § 8.3
     snippet: 'The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics.'
@@ -2186,7 +2188,7 @@ sources:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 352
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 206
+      line: 213
   - label: message_content_type_well_formed (3)
     section: § 5.6.6
     snippet: parameter-name  = token
@@ -2326,19 +2328,19 @@ sources:
     snippet: A parameter value that matches the token production can be transmitted either as a token or within a quoted-string.
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 240
+      line: 247
   - label: message_multipart_boundary_syntax (2)
     section: § 5.6.6
     snippet: Parameter values might or might not be case-sensitive, depending on the semantics of the parameter name.
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 296
+      line: 303
   - label: message_multipart_boundary_syntax (3)
     section: § 5.6.6
     snippet: The quoted and unquoted values are equivalent.
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 241
+      line: 248
   - label: message_multipart_boundary_syntax (4)
     section: § 8.3.3
     snippet: All multipart types share a common syntax, as defined in Section 5.1.1 of [RFC2046], and include a boundary parameter as part of the media type value.
