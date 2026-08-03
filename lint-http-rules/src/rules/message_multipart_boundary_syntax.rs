@@ -23,25 +23,41 @@ impl Rule for MessageMultipartBoundarySyntax {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Check request Content-Type
         // cite(RFC 2046 § 5.1.1): "The Content-Type field for multipart entities requires one parameter, "boundary"."
         // cite(RFC 2046 § 5.1.1): "boundary := 0*69<bchars> bcharsnospace"
-        if let Some(hv) = tx.request.headers.get("content-type") {
-            if let Ok(s) = hv.to_str() {
-                if let Some(v) = check_multipart_boundary("request", s, &config) {
+        //
+        // Every Content-Type field line, not just the first. `HeaderMap::get`
+        // returns one value, and RFC 9110 §8.3 is explicit that implementations
+        // differ over which member of a duplicated Content-Type they act on, so
+        // no line can be dismissed as the one nobody reads. A multipart type
+        // with no boundary is unusable whichever line the recipient picks.
+        //
+        // That there is more than one line is `message_content_type_well_formed`'s
+        // finding; this rule says only what it owns.
+        let check_all = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+            for hv in headers.get_all("content-type").iter() {
+                // Decoded from the raw octets rather than through `to_str`, which
+                // refuses anything outside visible US-ASCII and so refuses
+                // `obs-text` — legal inside a `quoted-string`. Skipping such a
+                // value meant `multipart/mixed; foo="<0xE4>"`, which has no
+                // boundary parameter at all, was reported by nothing. Where
+                // obs-text appears in the boundary itself the character check
+                // below rejects it, as `bcharsnospace` is US-ASCII throughout.
+                let s = String::from_utf8_lossy(hv.as_bytes());
+                if let Some(v) = check_multipart_boundary(which, &s, &config) {
                     return Some(v);
                 }
             }
+            None
+        };
+
+        if let Some(v) = check_all("request", &tx.request.headers) {
+            return Some(v);
         }
 
-        // Check response Content-Type
         if let Some(resp) = &tx.response {
-            if let Some(hv) = resp.headers.get("content-type") {
-                if let Ok(s) = hv.to_str() {
-                    if let Some(v) = check_multipart_boundary("response", s, &config) {
-                        return Some(v);
-                    }
-                }
+            if let Some(v) = check_all("response", &resp.headers) {
+                return Some(v);
             }
         }
 
@@ -407,6 +423,58 @@ mod tests {
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("boundary quoted-string invalid"));
+    }
+
+    #[rstest]
+    // obs-text is legal inside a quoted-string, so these are well-formed
+    // media-types whose boundary still has to be judged. `to_str` refused them
+    // and the rule went silent, so a multipart type with no boundary at all went
+    // unreported for the sake of an octet in a neighbouring parameter.
+    #[case(b"multipart/mixed; foo=\"\xe4\"", true)]
+    #[case(b"multipart/mixed; boundary=\"a\xe4b\"", true)]
+    // obs-text elsewhere does not make a valid boundary invalid.
+    #[case(b"multipart/mixed; boundary=abc; foo=\"\xe4\"", false)]
+    fn obs_text_does_not_hide_the_boundary(#[case] raw: &[u8], #[case] expect_violation: bool) {
+        use hyper::header::HeaderValue;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_multipart_boundary_syntax",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request
+            .headers
+            .insert("content-type", HeaderValue::from_bytes(raw).unwrap());
+        let v = MessageMultipartBoundarySyntax.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.is_some(),
+            expect_violation,
+            "{:?} -> {v:?}",
+            String::from_utf8_lossy(raw)
+        );
+    }
+
+    #[rstest]
+    // A recipient may act on any of the lines, so a multipart type missing its
+    // boundary is a finding wherever it sits. Only the first was ever read.
+    #[case(&["text/plain", "multipart/mixed"], true)]
+    #[case(&["multipart/mixed; boundary=abc", "multipart/mixed"], true)]
+    #[case(&["multipart/mixed; boundary=abc", "text/plain"], false)]
+    fn every_field_line_is_checked(#[case] values: &[&str], #[case] expect_violation: bool) {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_multipart_boundary_syntax",
+        ]);
+        let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("content-type", *v)).collect();
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+        let v = MessageMultipartBoundarySyntax.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(v.is_some(), expect_violation, "{values:?} -> {v:?}");
     }
 
     #[test]

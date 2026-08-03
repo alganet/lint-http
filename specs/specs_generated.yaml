@@ -439,7 +439,7 @@ sources:
     snippet: The Content-Type field for multipart entities requires one parameter, "boundary".
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 27
+      line: 26
     - file: lint-http-rules/src/rules/message_multipart_content_type_and_body_consistency.rs
       line: 27
   - label: message_multipart_boundary_syntax (2)
@@ -447,7 +447,7 @@ sources:
     snippet: boundary := 0*69<bchars> bcharsnospace
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 28
+      line: 27
 - label: RFC 3230
   url: https://www.rfc-editor.org/rfc/rfc3230.txt
   type: text/plain
