@@ -12,6 +12,12 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
         "message_multipart_content_type_and_body_consistency"
     }
 
+    // Both directions carry a representation, and both carry multipart ones:
+    // RFC 9110 §8.3.3 names `multipart/form-data` for requests and
+    // `multipart/byteranges` for 206 responses in the same paragraph. (That
+    // sentence cannot be quoted as one span — the media type name is broken
+    // across a line at its slash — so the field's own definition stands here.)
+    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -24,6 +30,15 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
+        // Why a MIME grammar governs an HTTP body at all, and why the boundary
+        // named in the header is the one the body must use: RFC 9110 adopts
+        // §5.1.1 for every multipart type and makes the parameter part of the
+        // media type value. The same paragraph is careful that this is a claim
+        // about the *content*, not about framing — the boundary tells a
+        // recipient nothing about where the message ends, so nothing here is a
+        // length check.
+        // cite(RFC 9110 § 8.3.3): "All multipart types share a common syntax, as defined in Section 5.1.1 of [RFC2046], and include a boundary parameter as part of the media type value."
+        // cite(RFC 9110 § 8.3.3): "HTTP message framing does not use the multipart boundary as an indicator of message body length, though it might be used by implementations that generate or process the content."
         // cite(RFC 2046 § 5.1.1): "The Content-Type field for multipart entities requires one parameter, "boundary"."
         let check_message = |which: &str,
                              headers: &hyper::HeaderMap,
@@ -32,7 +47,9 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
             // A body captured only as a prefix is not scanned: the terminating
             // delimiter sits at the body's end, so every truncated capture would
             // be reported as missing one. Nothing licenses this — it is a fact
-            // about the capture, not about the message.
+            // about the capture, not about the message. A message with no body
+            // is skipped for the plainer reason that §5.1.1's grammar describes
+            // content, and there is none to describe.
             let body = body?;
 
             // Every Content-Type field line, not just the first. `HeaderMap::get`
@@ -84,17 +101,35 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Multipart Content-Type and Body Consistency")
+    }
+
     fn description(&self) -> &'static str {
-        "When a `Content-Type` header declares `multipart/*` it MUST include a `boundary` parameter and the corresponding message body (when present) MUST use that boundary to delimit parts. This rule verifies that when a `multipart/*` Content-Type provides a boundary and a captured body is available, the body contains at least one boundary marker (`--<boundary>`) and a terminating boundary (`--<boundary>--`). Missing markers indicate a malformed or truncated multipart body and may break message parsing."
+        "When a `Content-Type` declares a `multipart/*` media type, the body it describes has to be delimited by the `boundary` the header names. This rule reads a captured body and checks that it carries at least one **boundary delimiter line** opening a part, and the terminating one — `--<boundary>--` — that says no further parts follow.\n\n**A delimiter is a line, not text.** RFC 2046 §5.1.1 requires the delimiter to occur at the beginning of a line, so a body carrying the boundary text mid-line delimits nothing: `hello --abc-- world` is reported, and the finding says the text occurs but never at a line start rather than claiming the boundary is absent. Matching is a *prefix* match against the start of each candidate line, which §5.1.1 instructs implementors to do — the rest of the line may be `transport-padding`.\n\n**A body whose only delimiter line is the closing one is reported.** The closing line is defined as the one following the last body part, so with no part to follow it the body encapsulates nothing. A single part is the documented minimum, and it passes.\n\n**RFC 9110 §8.3.3 is why a MIME grammar governs an HTTP body**, and it is also careful about what this rule is not: HTTP framing does not use the boundary as a length indicator, so nothing here says anything about where the message ends.\n\n**Known leniency: line endings.** §8.3.3 requires senders to generate only CRLF between body parts, and this rule locates line starts on LF, so a body using bare LF has its delimiters recognised rather than reported as missing. The wrong line ending is a real defect and a different one; blaming the boundary for it would name the wrong thing. No rule currently reports it.\n\n**Scope:** every `Content-Type` field line in each message is read, since recipients differ over which one they act on; that there is more than one is `message_content_type_well_formed`'s finding. Whether the boundary *value* is syntactically legal is `message_multipart_boundary_syntax`'s. A body captured only as a prefix is skipped entirely — the terminating delimiter sits at a body's end, so a truncated capture would always look like it is missing one. Nothing before the first delimiter line or after the last is examined, which §5.1.1 requires: the preamble and epilogue are to be ignored."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 2046",
-            section: Some("5.1.1"),
-            url: "https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1",
-            note: "Multipart common syntax and the `boundary` parameter",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 2046",
+                section: Some("5.1.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1",
+                note: "Multipart common syntax: `dash-boundary`, `delimiter` and `close-delimiter`, the requirement that a delimiter begin a line, the instruction to compare against the beginning of a candidate line rather than the whole of it, and the ignoring of preamble and epilogue",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.3.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.3",
+                note: "Multipart Types: where HTTP adopts RFC 2046 §5.1.1, and the CRLF-between-parts requirement this rule tolerates rather than enforces. It also says HTTP framing does not use the boundary as a length indicator, so nothing here is a framing check",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+                note: "Content-Type: the field describes a representation in either direction, which is what puts request and response bodies both in scope",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -120,6 +155,16 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
                 label: Some("(missing final boundary)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Type: multipart/mixed; boundary=abc\n\n--abc\nContent-Type: text/plain\n\nhello\n--abc",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the boundary text never begins a line, so it delimits nothing)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: multipart/mixed; boundary=abc\n\nhello --abc-- world",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the closing delimiter has no part to follow)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: multipart/mixed; boundary=abc\n\n--abc--",
+            },
         ]
     }
 }
@@ -137,6 +182,10 @@ struct DelimiterScan {
 }
 
 fn scan_delimiter_lines(body: &[u8], boundary: &str) -> DelimiterScan {
+    // The two hyphens are not decoration: `dash-boundary` is what the body
+    // carries, and the boundary parameter is only its tail.
+    // cite(RFC 2046 § 5.1.1): "dash-boundary := "--" boundary"
+    // cite(RFC 2046 § 5.1.1): "The boundary delimiter line is then defined as a line consisting entirely of two hyphen characters ("-", decimal value 45) followed by the boundary parameter value from the Content-Type header field, optional linear whitespace, and a terminating CRLF."
     let dash_boundary = ["--", boundary].concat();
     let db = dash_boundary.as_bytes();
     let mut scan = DelimiterScan::default();
@@ -145,21 +194,37 @@ fn scan_delimiter_lines(body: &[u8], boundary: &str) -> DelimiterScan {
         return scan;
     }
     for i in 0..=(body.len() - db.len()) {
+        // A prefix match, deliberately: the rest of the line may be
+        // `transport-padding`, and §5.1.1 tells implementors in as many words
+        // not to require the whole line to match. Comparing the whole line
+        // would reject conforming bodies whose delimiter lines carry padding.
+        // cite(RFC 2046 § 5.1.1): "Boundary string comparisons must compare the boundary value with the beginning of each candidate line."
+        // cite(RFC 2046 § 5.1.1): "An exact match of the entire candidate line is not required; it is sufficient that the boundary appear in its entirety following the CRLF."
         if &body[i..i + db.len()] != db {
             continue;
         }
-        // The line break is located on LF so that a body using bare LF is still
-        // read as having delimiter lines. Such a body is malformed — RFC 9110
-        // §8.3.3 requires CRLF between parts — but that is a different finding
-        // from "the delimiter is not there", and naming the wrong one helps
-        // nobody.
+        // The position is the requirement, and it is the whole difference
+        // between a delimiter and some bytes that look like one. Offset zero
+        // counts because the preamble is optional, so the first delimiter may
+        // open the body with no CRLF before it.
+        //
+        // The line break is located on LF rather than CRLF so that a body using
+        // bare LF is still read as having delimiter lines. Such a body violates
+        // the CRLF requirement below, but that is a different finding from "the
+        // delimiter is not there", and naming the wrong one helps nobody. This
+        // rule does not report the line endings; it only declines to blame the
+        // boundary for them.
+        // cite(RFC 2046 § 5.1.1): "The boundary delimiter MUST occur at the beginning of a line, i.e., following a CRLF, and the initial CRLF is considered to be attached to the boundary delimiter line rather than part of the preceding part."
+        // cite(RFC 9110 § 8.3.3): "The message body is itself a protocol element; a sender MUST generate only CRLF to represent line breaks between body parts."
         if !(i == 0 || body[i - 1] == b'\n') {
             scan.appears_off_line = true;
             continue;
         }
         // `close-delimiter := delimiter "--"`: the two extra hyphens are the
         // only thing distinguishing the closing line from one that opens a
-        // part, so this is the whole classification.
+        // part, so this comparison is the whole classification.
+        // cite(RFC 2046 § 5.1.1): "close-delimiter := delimiter "--""
+        // cite(RFC 2046 § 5.1.1): "Such a delimiter line is identical to the previous delimiter lines, with the addition of two more hyphens after the boundary parameter value."
         if body[i + db.len()..].starts_with(b"--") {
             scan.closes = true;
         } else {
@@ -177,6 +242,11 @@ fn check_body_contains_boundary(
 ) -> Option<Violation> {
     let scan = scan_delimiter_lines(body, boundary);
 
+    // Nothing outside the delimiter lines is judged, and that is the spec's
+    // instruction rather than this rule's convenience: the preamble and the
+    // epilogue are to be ignored, so their content can neither satisfy a check
+    // nor fail one.
+    // cite(RFC 2046 § 5.1.1): "implementations must ignore anything that appears before the first boundary delimiter line or after the last one."
     if !scan.opens_a_part && !scan.closes {
         let detail = if scan.appears_off_line {
             format!(
@@ -193,6 +263,11 @@ fn check_body_contains_boundary(
         });
     }
 
+    // The closing line is defined as the one *following the last body part*, so
+    // a body in which it is the only delimiter line has no part for it to
+    // follow. §5.1.1 calls a single body part the useful minimum, not zero.
+    // cite(RFC 2046 § 5.1.1): "The boundary delimiter line following the last body part is a distinguished delimiter that indicates that no further body parts will follow."
+    // cite(RFC 2046 § 5.1.1): "The use of the "multipart" media type with only a single body part may be useful in certain contexts, and is explicitly permitted."
     if !scan.opens_a_part {
         return Some(Violation {
             rule: MessageMultipartContentTypeAndBodyConsistency.id().into(),
@@ -204,6 +279,9 @@ fn check_body_contains_boundary(
         });
     }
 
+    // Without the closing line nothing tells a recipient the parts have ended,
+    // which is the whole function §5.1.1 gives it.
+    // cite(RFC 2046 § 5.1.1): "Such a delimiter line is identical to the previous delimiter lines, with the addition of two more hyphens after the boundary parameter value."
     if !scan.closes {
         return Some(Violation {
             rule: MessageMultipartContentTypeAndBodyConsistency.id().into(),
@@ -605,6 +683,77 @@ mod tests {
             "{:?} -> {v:?}",
             String::from_utf8_lossy(body)
         );
+    }
+
+    /// Every published snippet is run through the rule, and each NonCompliant
+    /// one is pinned to the finding it illustrates. Nothing in the engine does
+    /// this, and a rule cannot catch a bad example of its own — the three
+    /// families before this one each shipped a snippet their own rule judged
+    /// differently from the label. Pinning the *specific* message matters here:
+    /// every finding this rule emits mentions the boundary, so asserting that
+    /// would assert nothing.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageMultipartContentTypeAndBodyConsistency;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let reasons: [(&str, &str); 4] = [
+            ("no boundaries here", "does not contain boundary marker"),
+            (
+                "--abc\nContent-Type: text/plain\n\nhello\n--abc",
+                "missing terminating boundary",
+            ),
+            ("hello --abc-- world", "never at the start of a line"),
+            ("--abc--", "encapsulates no part"),
+        ];
+
+        for ex in rule.examples() {
+            let (head, body) = ex
+                .snippet
+                .split_once("\n\n")
+                .unwrap_or_else(|| panic!("example has no body: {:?}", ex.snippet));
+            let pairs: Vec<(&str, &str)> = head
+                .lines()
+                .filter(|l| !l.starts_with("HTTP/"))
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                })
+                .collect();
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().unwrap().headers =
+                crate::test_helpers::make_headers_from_pairs(&pairs);
+            tx.response_body = Some(Bytes::copy_from_slice(body.as_bytes()));
+
+            let v = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    v.is_none(),
+                    "rule rejects its Compliant example {:?}: {v:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    let v = v.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    let expected = *reasons
+                        .iter()
+                        .find(|(b, _)| *b == body)
+                        .map(|(_, reason)| reason)
+                        .unwrap_or_else(|| {
+                            panic!("NonCompliant example {body:?} has no expected finding here")
+                        });
+                    assert!(
+                        v.message.contains(expected),
+                        "NonCompliant example {body:?} should fail with {expected:?}: {v:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// A recipient may act on any Content-Type line, so a multipart
