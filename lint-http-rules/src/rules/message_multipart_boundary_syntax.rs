@@ -117,7 +117,13 @@ fn check_multipart_boundary(
         // params must include boundary
         let mut found = false;
         if let Some(params) = parsed.params {
-            for raw in params.split(';') {
+            // Quote-aware, because a `;` inside a quoted parameter value does not
+            // start a new parameter. A raw `split(';')` cut such a value apart and
+            // read the pieces as parameters of their own, in both directions: a
+            // message whose only `boundary=` text sits inside another value was
+            // credited with a boundary it does not have, and a fragment of a legal
+            // quoted value was reported as a malformed boundary.
+            for raw in crate::helpers::headers::split_semicolons_respecting_quotes(params) {
                 let p = raw.trim();
                 if p.is_empty() {
                     continue;
@@ -269,7 +275,7 @@ mod tests {
         assert!(parsed.params.is_some());
         let params = parsed.params.unwrap();
         let mut found_val: Option<&str> = None;
-        for raw in params.split(';') {
+        for raw in crate::helpers::headers::split_semicolons_respecting_quotes(params) {
             let p = raw.trim();
             if p.is_empty() {
                 continue;
@@ -299,6 +305,18 @@ mod tests {
     #[case(Some("multipart/mixed; boundary=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabb"), true)] // >70 chars
     #[case(Some("multipart/mixed; boundary=gc0pJq0M:08jU534c0p"), true)]
     #[case(Some("multipart/mixed; boundary=\"abc \""), true)]
+    // A `;` inside a quoted value is not a parameter separator. There is no
+    // boundary parameter here at all — the text that looks like one is part of
+    // `foo`'s value — so the missing boundary must still be reported.
+    #[case(Some("multipart/mixed; foo=\"a; boundary=abc; b=1\""), true)]
+    // The mirror image: a real, valid boundary alongside a quoted value whose
+    // interior merely reads like a malformed boundary parameter.
+    #[case(
+        Some("multipart/mixed; boundary=abc; foo=\"q; boundary=in:valid\""),
+        false
+    )]
+    // A quoted value carrying a `;` does not hide the real boundary that follows.
+    #[case(Some("multipart/mixed; foo=\"a;b\"; boundary=abc"), false)]
     #[case(None, false)]
     fn multipart_boundary_cases(#[case] header: Option<&str>, #[case] expect_violation: bool) {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
