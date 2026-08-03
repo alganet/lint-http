@@ -1840,7 +1840,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1420
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 140
+      line: 156
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
       line: 121
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
@@ -1928,13 +1928,13 @@ sources:
     snippet: If no "q" parameter is present, the default weight is 1.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 162
+      line: 178
   - label: message_accept_and_content_type_negotiation (5)
     section: § 12.4.2
     snippet: The weight is normalized to a real number in the range 0 through 1, where 0.001 is the least preferred and 1 is the most preferred; a value of 0 means "not acceptable".
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 161
+      line: 177
   - label: message_accept_and_content_type_negotiation (6)
     section: § 12.5.1
     snippet: 'Accept = #( media-range [ weight ] )'
@@ -1948,13 +1948,13 @@ sources:
     snippet: If more than one media range applies to a given type, the most specific reference has precedence.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 186
+      line: 202
   - label: message_accept_and_content_type_negotiation (8)
     section: § 12.5.1
     snippet: Recipients SHOULD process any parameter named "q" as weight, regardless of parameter ordering.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 139
+      line: 155
   - label: message_accept_and_content_type_negotiation (9)
     section: § 12.5.1
     snippet: The "Accept" header field can be used by user agents to specify their preferences regarding response media types.
@@ -1966,7 +1966,7 @@ sources:
     snippet: The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 128
+      line: 144
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 244
   - label: message_accept_and_content_type_negotiation (11)
@@ -1974,13 +1974,13 @@ sources:
     snippet: The media-range can include media type parameters that are applicable to that range.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 185
+      line: 201
   - label: message_accept_and_content_type_negotiation (12)
     section: § 12.5.1
     snippet: media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 127
+      line: 143
   - label: message_accept_and_content_type_negotiation (13)
     section: § 15.5.7
     snippet: The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent
@@ -2000,7 +2000,7 @@ sources:
     snippet: The type and subtype tokens are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 187
+      line: 203
     - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
       line: 98
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs

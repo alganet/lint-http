@@ -18,6 +18,8 @@ Report a response whose `Content-Type` is not covered by any `media-range` the r
 
 **Nothing is reported when the question has no answer.** If no member of `Accept` is a `media-range` — `Accept: *`, `Accept: not-a-media-range`, an empty value — then no preference was expressed that this rule can read, and naming the response for a defect in the request would be the wrong finding about the wrong message. Likewise if the response carries more than one `Content-Type` field line: recipients differ over which one they act on, so which media type the client actually got is unknown.
 
+**Quoting that never closes is declined too.** After a stray `"` no separator can be trusted — the rest of the field collapses into one member — so `Accept: text/html;foo="x, application/json` is not reported against an `application/json` response it plainly asks for.
+
 **Known leniency: media-range parameters are ignored.** §12.5.1 lets a range carry media type parameters and makes a more specific range take precedence, so `text/plain;format=flowed` and `text/plain;format=fixed` are different preferences. This rule compares only type and subtype, which can only make it quieter — a response whose *parameters* nobody asked for goes unmentioned.
 
 ## Specifications
