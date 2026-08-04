@@ -1802,7 +1802,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 129
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 300
+      line: 307
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 5.3
     snippet: Since it cannot be combined into a single field value, | recipients ought to handle "Set-Cookie" as a special case while | processing fields.
@@ -1844,7 +1844,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 949
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 313
+      line: 320
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -1862,7 +1862,7 @@ sources:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 110
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 312
+      line: 319
   - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
@@ -2776,13 +2776,13 @@ sources:
     snippet: 'TE                 = #t-codings t-codings          = "trailers" / ( transfer-coding [ weight ] ) transfer-coding    = token *( OWS ";" OWS transfer-parameter ) transfer-parameter = token BWS "=" BWS ( token / quoted-string )'
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 238
+      line: 245
   - label: message_transfer_coding_iana_registered (2)
     section: § 10.1.4
     snippet: The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 344
+      line: 351
   - label: message_transfer_coding_iana_registered (3)
     section: § 10.1.4
     snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
@@ -3442,13 +3442,13 @@ sources:
     snippet: A server that receives a request message with a transfer coding it does not understand SHOULD respond with 501 (Not Implemented).
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 260
+      line: 267
   - label: message_transfer_coding_iana_registered (2)
     section: § 6.1
     snippet: 'Transfer-Encoding = #transfer-coding'
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 320
+      line: 327
   - label: message_transfer_coding_iana_registered (3)
     section: § 7
     snippet: All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3.
@@ -3456,21 +3456,21 @@ sources:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 55
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 193
+      line: 200
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 272
+      line: 279
   - label: message_transfer_coding_iana_registered (4)
     section: § 7.2
     snippet: The compression codings do not define any parameters.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 208
+      line: 215
   - label: message_transfer_coding_iana_registered (5)
     section: § 7.2
     snippet: The presence of parameters with any of these compression codings SHOULD be treated as an error.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 209
+      line: 216
   - label: message_transfer_coding_iana_registered (6)
     section: § 7.3
     snippet: The "HTTP Transfer Coding Registry" defines the namespace for transfer coding names.
@@ -3482,13 +3482,13 @@ sources:
     snippet: A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 190
+      line: 197
   - label: message_transfer_coding_iana_registered (8)
     section: § 7.4
     snippet: If the TE field value is empty or if no TE field is present, the only acceptable transfer coding is chunked.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 343
+      line: 350
   - label: message_transfer_coding_iana_registered (9)
     section: § 7.4
     snippet: The keyword "trailers" indicates that the sender will not discard trailer fields, as described in Section 6.5 of [HTTP].
@@ -3500,7 +3500,7 @@ sources:
     snippet: When multiple transfer codings are acceptable, the client MAY rank the codings by preference using a case-insensitive "q" parameter (similar to the qvalues used in content negotiation fields; see Section 12.4.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 239
+      line: 246
   - label: message_transfer_encoding_chunked_final
     section: § 6.1
     snippet: A sender MUST NOT apply the chunked transfer coding more than once to a message body
