@@ -12,8 +12,15 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
         "message_compression_and_transfer_encoding_consistency"
     }
 
+    /// `Both`, because both fields are defined for both directions and the
+    /// observation this rule makes is about two *layers*, not two roles. It was
+    /// `Server`, which in this engine means "skip when there is no response" --
+    /// so a request carrying the same coding in both fields was never examined
+    /// at all.
+    /// cite(RFC 9110 § 8.4): "An origin server MAY respond with a status code of 415 (Unsupported Media Type) if a representation in the request message has a content coding that is not acceptable."
+    /// cite(RFC 9112 § 6.1): "If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed."
     fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+        crate::rules::RuleScope::Both
     }
 
     fn check_transaction(
@@ -23,8 +30,6 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Only applies to responses
-        let resp = tx.response.as_ref()?;
 
         // Both fields are lists whose members a sender may spread over several
         // field lines, and there the resemblance ends: their grammars differ in
@@ -39,69 +44,83 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
         let decode =
             |hv: &hyper::header::HeaderValue| String::from_utf8_lossy(hv.as_bytes()).into_owned();
 
-        // `content-coding` is a bare `token` with no parameters, so every comma
-        // is a separator and there is no quoting to respect.
-        // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
-        // cite(RFC 9110 § 8.4.1): "content-coding   = token"
-        let mut ce_set = std::collections::HashSet::new();
-        for hv in resp.headers.get_all("content-encoding").iter() {
-            let s = decode(hv);
-            for part in crate::helpers::headers::parse_list_header(&s) {
-                // Nothing in this field's grammar sits behind a `;`, so this
-                // strips something that cannot legally be there. It is kept as
-                // a deliberate tolerance: a sender writing `gzip;q=1.0` here
-                // has produced one malformed token, and reading the name out of
-                // it keeps this advisory useful on a value that
-                // `message_content_encoding_iana_registered` is already
-                // reporting as malformed. It cannot invent an overlap -- the
-                // text before the `;` is text the sender wrote.
-                // cite(RFC 9110 § 8.4.1): "All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry","
-                let token = part.split(';').next().unwrap().trim().to_ascii_lowercase();
-                if token.is_empty() {
-                    continue;
+        let check = |headers: &hyper::HeaderMap, side: &str| -> Option<Violation> {
+            // `content-coding` is a bare `token` with no parameters, so every comma
+            // is a separator and there is no quoting to respect.
+            // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
+            // cite(RFC 9110 § 8.4.1): "content-coding   = token"
+            let mut ce_set = std::collections::HashSet::new();
+            for hv in headers.get_all("content-encoding").iter() {
+                let s = decode(hv);
+                for part in crate::helpers::headers::parse_list_header(&s) {
+                    // Nothing in this field's grammar sits behind a `;`, so this
+                    // strips something that cannot legally be there. It is kept as
+                    // a deliberate tolerance: a sender writing `gzip;q=1.0` here
+                    // has produced one malformed token, and reading the name out of
+                    // it keeps this advisory useful on a value that
+                    // `message_content_encoding_iana_registered` is already
+                    // reporting as malformed. It cannot invent an overlap -- the
+                    // text before the `;` is text the sender wrote.
+                    // cite(RFC 9110 § 8.4.1): "All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry","
+                    let token = part.split(';').next().unwrap().trim().to_ascii_lowercase();
+                    if token.is_empty() {
+                        continue;
+                    }
+                    ce_set.insert(token);
                 }
-                ce_set.insert(token);
             }
-        }
 
-        // `transfer-coding` does carry parameters, and a parameter value may be
-        // a `quoted-string` holding a comma, so this split has to respect them.
-        // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
-        // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
-        let mut te_set = std::collections::HashSet::new();
-        for hv in resp.headers.get_all("transfer-encoding").iter() {
-            let s = decode(hv);
-            for part in crate::helpers::headers::split_commas_respecting_quotes(&s) {
-                // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
-                let token = part.split(';').next().unwrap().trim().to_ascii_lowercase();
-                if token.is_empty() {
-                    continue;
+            // `transfer-coding` does carry parameters, and a parameter value may be
+            // a `quoted-string` holding a comma, so this split has to respect them.
+            // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
+            // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
+            let mut te_set = std::collections::HashSet::new();
+            for hv in headers.get_all("transfer-encoding").iter() {
+                let s = decode(hv);
+                for part in crate::helpers::headers::split_commas_respecting_quotes(&s) {
+                    // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
+                    let token = part.split(';').next().unwrap().trim().to_ascii_lowercase();
+                    if token.is_empty() {
+                        continue;
+                    }
+                    te_set.insert(token);
                 }
-                te_set.insert(token);
             }
-        }
 
-        // If either header is absent or no valid tokens present, nothing to check
-        if ce_set.is_empty() || te_set.is_empty() {
-            return None;
-        }
+            // If either header is absent or no valid tokens present, nothing to check
+            if ce_set.is_empty() || te_set.is_empty() {
+                return None;
+            }
 
-        // Find overlapping tokens between Content-Encoding and Transfer-Encoding
-        let mut overlap: Vec<String> = ce_set
-            .intersection(&te_set)
-            .map(|s| s.to_string())
-            .collect();
-        overlap.sort();
+            // Find overlapping tokens between Content-Encoding and Transfer-Encoding
+            let mut overlap: Vec<String> = ce_set
+                .intersection(&te_set)
+                .map(|s| s.to_string())
+                .collect();
+            overlap.sort();
 
-        if !overlap.is_empty() {
-            return Some(Violation {
+            if !overlap.is_empty() {
+                return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
                 message: format!(
-                    "Compression coding(s) '{}' appear in both Content-Encoding and Transfer-Encoding; prefer using Content-Encoding for end-to-end compression (RFC 9110 §5.3)",
-                    overlap.join(", ")
+                    "Compression coding(s) '{}' appear in both Content-Encoding and Transfer-Encoding of the {}; the representation is coded once and then coded again in transit, which is decodable but almost never intended",
+                    overlap.join(", "),
+                    side
                 ),
             });
+            }
+
+            None
+        };
+
+        if let Some(v) = check(&tx.request.headers, "request") {
+            return Some(v);
+        }
+        if let Some(resp) = &tx.response {
+            if let Some(v) = check(&resp.headers, "response") {
+                return Some(v);
+            }
         }
 
         None
@@ -342,10 +361,54 @@ mod tests {
         assert!(msg.contains("br, gzip"));
     }
 
+    /// `Both`, so that a request-only transaction is examined too. It was
+    /// `Server`, which in this engine means the rule never ran without a
+    /// response.
     #[test]
-    fn scope_is_server() {
+    fn scope_is_both() {
         let rule = MessageCompressionAndTransferEncodingConsistency;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
+
+    /// A request can apply a content coding to the body it sends and a transfer
+    /// coding on top of it, which is the same observation on the same two
+    /// layers. Nothing looked.
+    #[test]
+    fn a_request_with_the_same_coding_in_both_fields_is_reported() {
+        let rule = MessageCompressionAndTransferEncodingConsistency;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[
+            ("content-encoding", "gzip"),
+            ("transfer-encoding", "gzip, chunked"),
+        ]);
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_compression_and_transfer_encoding_consistency",
+        ]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(
+            v.is_some_and(|v| v.message.contains("of the request")),
+            "the request side was never examined"
+        );
+    }
+
+    /// The two sides are reported separately, so a clean request does not
+    /// suppress a response finding and the message says which is which.
+    #[test]
+    fn the_message_names_the_side_it_is_about() {
+        let rule = MessageCompressionAndTransferEncodingConsistency;
+        let tx = make_tx_with_headers(Some("br"), Some("br, chunked"));
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_compression_and_transfer_encoding_consistency",
+        ]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some_and(|v| v.message.contains("of the response")));
     }
 
     #[test]
