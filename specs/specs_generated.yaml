@@ -1801,6 +1801,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 129
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 127
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 5.3
     snippet: Since it cannot be combined into a single field value, | recipients ought to handle "Set-Cookie" as a special case while | processing fields.
@@ -1839,6 +1841,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 949
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 140
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -1853,6 +1857,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 948
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 139
   - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
@@ -2759,6 +2765,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
       line: 185
+  - label: message_transfer_coding_iana_registered
+    section: § 10.1.4
+    snippet: The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 165
   - label: message_via_header_syntax_valid
     section: § 7.6.3
     snippet: The "Via" header field indicates the presence of intermediate protocols and recipients
@@ -3408,6 +3420,12 @@ sources:
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
       line: 39
   - label: message_transfer_coding_iana_registered
+    section: § 6.1
+    snippet: 'Transfer-Encoding = #transfer-coding'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 147
+  - label: message_transfer_coding_iana_registered (2)
     section: § 7.3
     snippet: The "HTTP Transfer Coding Registry" defines the namespace for transfer coding names.
     cited_by:
