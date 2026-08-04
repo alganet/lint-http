@@ -110,28 +110,61 @@ impl Rule for MessageTransferCodingIanaRegistered {
             }
             None
         };
-        // Check Transfer-Encoding header in response and request (if any)
+        // Both fields are lists, so a sender may spread their members over
+        // several field lines and a recipient recombines them. `get_header_str`
+        // returns the first line only, and of all the fields in HTTP,
+        // `Transfer-Encoding` is the one where reading only the first is worst:
+        // a second `Transfer-Encoding` line is the shape request smuggling
+        // arrives in, and
+        //
+        //     Transfer-Encoding: chunked
+        //     Transfer-Encoding: x-bogus
+        //
+        // reported nothing at all. Each line is walked on its own rather than
+        // joined first, which for a per-member check is the same answer either
+        // way and keeps a member from being described in terms of its
+        // neighbour.
+        // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP."
+        //
+        // Decoded from the raw octets rather than through `to_str`, which
+        // refuses everything outside visible US-ASCII and made the whole field
+        // line vanish on one stray byte. Unlike the fields whose grammars are
+        // ASCII throughout, `obs-text` *is* legal in this one — but only inside
+        // a `quoted-string`, which the grammar admits only as a
+        // transfer-parameter value, and this rule reads no parameter values.
+        // The coding name in front of them is a `token`, every character of
+        // which is ASCII, so the replacement character the decode leaves behind
+        // can only ever reach the name check, where it is reported like any
+        // other octet the production excludes.
+        // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
+        // cite(RFC 9110 § 5.6.4): "qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text"
+        fn decode(hv: &hyper::header::HeaderValue) -> std::borrow::Cow<'_, str> {
+            String::from_utf8_lossy(hv.as_bytes())
+        }
+
+        // Transfer-Encoding is defined for both directions: it names the codings
+        // applied to *this message's* body, whichever way it is travelling.
+        // cite(RFC 9112 § 6.1): "Transfer-Encoding = #transfer-coding"
         if let Some(resp) = &tx.response {
-            if let Some(val) =
-                crate::helpers::headers::get_header_str(&resp.headers, "transfer-encoding")
-            {
-                if let Some(v) = check_value("Transfer-Encoding", val, &config.allowed) {
+            for hv in resp.headers.get_all("transfer-encoding").iter() {
+                if let Some(v) = check_value("Transfer-Encoding", &decode(hv), &config.allowed) {
                     return Some(v);
                 }
             }
         }
 
-        if let Some(val) =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "transfer-encoding")
-        {
-            if let Some(v) = check_value("Transfer-Encoding", val, &config.allowed) {
+        for hv in tx.request.headers.get_all("transfer-encoding").iter() {
+            if let Some(v) = check_value("Transfer-Encoding", &decode(hv), &config.allowed) {
                 return Some(v);
             }
         }
 
-        // Check TE header in requests (TE is a request header)
-        if let Some(val) = crate::helpers::headers::get_header_str(&tx.request.headers, "te") {
-            if let Some(v) = check_value("TE", val, &config.allowed) {
+        // TE describes the client, so only the request side is read here. A TE
+        // field on a response is `message_te_header_constraints`' finding, not a
+        // coding-name question.
+        // cite(RFC 9110 § 10.1.4): "The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding."
+        for hv in tx.request.headers.get_all("te").iter() {
+            if let Some(v) = check_value("TE", &decode(hv), &config.allowed) {
                 return Some(v);
             }
         }
@@ -140,7 +173,7 @@ impl Rule for MessageTransferCodingIanaRegistered {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Transfer-Encoding` and `TE` header values to ensure transfer-coding tokens are syntactically valid and are recognised (SHOULD be IANA-registered or explicitly allowed via configuration). The `TE` header's special value `trailers` is accepted."
+        "Validate `Transfer-Encoding` and `TE` header values to ensure transfer-coding tokens are syntactically valid and are recognised (SHOULD be IANA-registered or explicitly allowed via configuration). The `TE` header's special value `trailers` is accepted.\n\n**Every field line of both fields is read**, since each is a list whose members may be spread across lines — and for `Transfer-Encoding` a second field line is the shape request smuggling arrives in, so reading only the first is the one omission this rule cannot afford. Values are decoded from the raw octets: an octet outside visible US-ASCII is not a `tchar`, so where a coding name belongs it is reported rather than used as a reason to skip the line."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -308,8 +341,12 @@ mod tests {
         Ok(())
     }
 
+    /// An octet outside visible US-ASCII is not a `tchar`, so where the grammar
+    /// wants a coding name it is a finding rather than a reason to stop reading.
+    /// This used to assert the opposite: `to_str` failed and the whole field
+    /// line was dropped, unreported.
     #[test]
-    fn non_utf8_header_values_are_ignored() {
+    fn non_ascii_octet_in_a_coding_name_is_reported() {
         let rule = MessageTransferCodingIanaRegistered;
         let cfg = make_cfg();
 
@@ -325,7 +362,7 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_none());
+        assert!(v.unwrap().message.contains("Invalid token"));
 
         let mut tx2 = crate::test_helpers::make_test_transaction();
         let mut hm2 = hyper::HeaderMap::new();
@@ -336,7 +373,80 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v2.is_none());
+        assert!(v2.unwrap().message.contains("Invalid token"));
+    }
+
+    /// The stray octet must not take its neighbours down with it: the member
+    /// after it is still read and still reported.
+    #[test]
+    fn a_stray_octet_does_not_hide_the_rest_of_the_line() {
+        let rule = MessageTransferCodingIanaRegistered;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = hyper::HeaderMap::new();
+        hm.insert(
+            "transfer-encoding",
+            HeaderValue::from_bytes(b"gzip, \xe4, x-bogus").unwrap(),
+        );
+        tx.response.as_mut().unwrap().headers = hm;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    /// Two `Transfer-Encoding` field lines is the shape request smuggling
+    /// arrives in. Reading only the first left the second unchecked.
+    #[rstest]
+    #[case("transfer-encoding", "chunked", "x-bogus")]
+    #[case("te", "trailers", "x-bogus")]
+    fn every_field_line_is_read(
+        #[case] name: &'static str,
+        #[case] first: &'static str,
+        #[case] second: &'static str,
+    ) {
+        let rule = MessageTransferCodingIanaRegistered;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut hm = hyper::HeaderMap::new();
+        hm.append(name, HeaderValue::from_static(first));
+        hm.append(name, HeaderValue::from_static(second));
+        tx.request.headers = hm;
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(
+            v.is_some_and(|v| v.message.contains("x-bogus")),
+            "the second {} field line went unread",
+            name
+        );
+    }
+
+    /// The same, for a response's `Transfer-Encoding`.
+    #[test]
+    fn every_response_transfer_encoding_line_is_read() {
+        let rule = MessageTransferCodingIanaRegistered;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = hyper::HeaderMap::new();
+        hm.append("transfer-encoding", HeaderValue::from_static("gzip"));
+        hm.append("transfer-encoding", HeaderValue::from_static("x-bogus"));
+        tx.response.as_mut().unwrap().headers = hm;
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some_and(|v| v.message.contains("x-bogus")));
     }
 
     #[test]
