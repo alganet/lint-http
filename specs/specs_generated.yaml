@@ -694,6 +694,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
       line: 64
+    - file: lint-http-rules/src/rules/message_language_tag_format_valid.rs
+      line: 104
+  - label: message_language_tag_format_valid
+    section: § 2.1
+    snippet: A basic language range differs from the language tags defined in [RFC4646] only in that there is no requirement that it be "well-formed" or be validated against the IANA Language Subtag Registry.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_language_tag_format_valid.rs
+      line: 51
 - label: RFC 4648
   url: https://www.rfc-editor.org/rfc/rfc4648.txt
   type: text/plain
@@ -751,7 +759,7 @@ sources:
     snippet: All subtags have a maximum length of eight characters.
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 78
+      line: 80
   - label: lint-http-rules/src/helpers/language.rs (3)
     section: § 2.1
     snippet: Subtags, in turn, are a sequence of alphanumeric characters (letters and digits), distinguished and separated from other subtags in a tag by a hyphen ("-", [Unicode] U+002D).
@@ -766,10 +774,10 @@ sources:
       line: 31
   - label: lint-http-rules/src/helpers/language.rs (5)
     section: § 2.1
-    snippet: language      = 2*3ALPHA
+    snippet: language      = 2*3ALPHA            ; shortest ISO 639 code
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 65
+      line: 67
 - label: RFC 5789
   url: https://www.rfc-editor.org/rfc/rfc5789.txt
   type: text/plain
@@ -2606,11 +2614,29 @@ sources:
     - file: lint-http-rules/src/rules/message_if_unmodified_since_date_format.rs
       line: 54
   - label: message_language_tag_format_valid
+    section: § 8.5
+    snippet: 'Content-Language = #language-tag'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_language_tag_format_valid.rs
+      line: 78
+  - label: message_language_tag_format_valid (2)
+    section: § 8.5
+    snippet: The "Content-Language" header field describes the natural language(s) of the intended audience for the representation.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_language_tag_format_valid.rs
+      line: 20
+  - label: message_language_tag_format_valid (3)
     section: § 8.5.1
     snippet: A language tag, as defined in [RFC5646], identifies a natural language spoken, written, or otherwise conveyed by human beings for communication of information to other human beings.
     cited_by:
     - file: lint-http-rules/src/rules/message_language_tag_format_valid.rs
-      line: 28
+      line: 53
+  - label: message_language_tag_format_valid (4)
+    section: § 8.5.1
+    snippet: HTTP uses language tags within the Accept-Language and Content-Language header fields.  Accept-Language uses the broader language-range production defined in Section 12.5.4, whereas Content-Language uses the language-tag production defined below.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_language_tag_format_valid.rs
+      line: 50
   - label: message_max_forwards_numeric
     section: § 7.6.2
     snippet: Max-Forwards = 1*DIGIT

@@ -12,6 +12,12 @@ impl Rule for MessageLanguageTagFormatValid {
         "message_language_tag_format_valid"
     }
 
+    // Content-Language describes a representation and travels in either
+    // direction; Accept-Language is a request field this rule also reads in a
+    // response, where §12.5.4 gives it no meaning (see
+    // `message_accept_language_weight_validity`, which records the same
+    // asymmetry). Either way both halves of a transaction are in scope.
+    // cite(RFC 9110 § 8.5): "The "Content-Language" header field describes the natural language(s) of the intended audience for the representation."
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -23,7 +29,26 @@ impl Rule for MessageLanguageTagFormatValid {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Helper to validate language-tag tokens according to helpers::language
+
+        // The two fields this rule reads do not use the same production, and
+        // RFC 9110 says so in one sentence. `Content-Language` carries
+        // `language-tag` (RFC 5646 §2.1); `Accept-Language` carries the broader
+        // `language-range` (RFC 4647 §2.1, by way of §12.5.4). A range needs no
+        // well-formedness at all — RFC 4647 says an ill-formed one "will
+        // probably not match anything", which is a statement about matching, not
+        // a licence to reject it.
+        //
+        // One validator serves both, and that is a choice rather than an
+        // oversight: it checks the properties the two productions agree on and
+        // nothing beyond. Where they differ it is lenient — `en-US-Latn` is a
+        // conforming range and not a conforming tag, and `e` is a conforming
+        // range whose single letter no `language` alternative admits — so a
+        // Content-Language carrying either goes unreported here. Being stricter
+        // would need two validators and a decision about how much of RFC 5646
+        // to implement; being wrong in the other direction would report
+        // conforming Accept-Language values, which is worse.
+        // cite(RFC 9110 § 8.5.1): "HTTP uses language tags within the Accept-Language and Content-Language header fields.  Accept-Language uses the broader language-range production defined in Section 12.5.4, whereas Content-Language uses the language-tag production defined below."
+        // cite(RFC 4647 § 2.1): "A basic language range differs from the language tags defined in [RFC4646] only in that there is no requirement that it be "well-formed" or be validated against the IANA Language Subtag Registry."
         let check_tag = |hdr: &str, tag: &str| -> Option<Violation> {
             // cite(RFC 9110 § 8.5.1): "A language tag, as defined in [RFC5646], identifies a natural language spoken, written, or otherwise conveyed by human beings for communication of information to other human beings."
             if let Err(e) = crate::helpers::language::validate_language_tag(tag) {
@@ -46,6 +71,11 @@ impl Rule for MessageLanguageTagFormatValid {
         // Each line is walked on its own rather than joined first, which for a
         // per-member syntax check is the same answer either way and keeps a
         // malformed line from being described in terms of its neighbour.
+        // `#language-tag`: a list of tags and nothing else. There is no
+        // wildcard and no weight here, so a `*` or a `;q=` reaches the tag
+        // validator and is reported as the invalid characters they are in this
+        // field — which is the right verdict for the right reason.
+        // cite(RFC 9110 § 8.5): "Content-Language = #language-tag"
         let content_language = |headers: &hyper::HeaderMap| -> Option<Violation> {
             for hv in headers.get_all("content-language").iter() {
                 let Ok(val) = hv.to_str() else { continue };
@@ -62,9 +92,18 @@ impl Rule for MessageLanguageTagFormatValid {
             for hv in headers.get_all("accept-language").iter() {
                 let Ok(val) = hv.to_str() else { continue };
                 for member in crate::helpers::headers::parse_list_header(val) {
+                    // The weight is stripped rather than checked; whether it is
+                    // a weight at all is `message_accept_language_weight_validity`'s
+                    // subject, and this rule reads only the range in front of it.
                     let lang = member.split(';').next().unwrap().trim();
+                    // `*` is one of the two alternatives of `language-range`,
+                    // not a tag — so it is skipped here and reported in
+                    // Content-Language, where the production has no such
+                    // alternative. The asymmetry is the two grammars', not this
+                    // rule's.
+                    // cite(RFC 4647 § 2.1): "language-range   = (1*8ALPHA *("-" 1*8alphanum)) / "*""
                     if lang == "*" {
-                        continue; // wildcard allowed
+                        continue;
                     }
                     if let Some(v) = check_tag("Accept-Language", lang) {
                         return Some(v);
@@ -94,29 +133,45 @@ impl Rule for MessageLanguageTagFormatValid {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Language Tag Format Valid")
+    }
+
     fn description(&self) -> &'static str {
-        "Validate that any language tag appearing in HTTP headers such as `Content-Language` and `Accept-Language` follows a well-formed BCP 47-style syntax (RFC 5646). This check is conservative: it rejects obvious syntax problems (invalid characters, empty subtags, consecutive hyphens, or overly long subtags) while accepting common valid forms such as `en`, `en-US`, `zh-Hant`, `sr-Latn-RS`, and private-use tags like `x-custom`."
+        "Check the language tags in `Content-Language` and the language ranges in `Accept-Language` for the syntax problems that are unambiguous: a non-alphanumeric character, whitespace, an empty subtag, a leading or trailing hyphen, a subtag longer than eight characters, and a first subtag that does not begin with a letter. Common forms pass — `en`, `en-US`, `zh-Hant`, `sr-Latn-RS`, `es-419`, and private-use tags like `x-custom`.\n\n**The two fields do not use the same production, and RFC 9110 §8.5.1 says so outright:** \"Accept-Language uses the broader `language-range` production defined in Section 12.5.4, whereas Content-Language uses the `language-tag` production defined below.\" A range is RFC 4647 §2.1; a tag is RFC 5646 §2.1. This rule's specifications used to claim that Accept-Language uses RFC 5646 tags, which is the opposite of what §8.5.1 says.\n\n**One validator serves both, and it checks only what the two productions agree on.** That is deliberate. RFC 4647 is explicit that a basic language range carries no well-formedness requirement at all — an ill-formed one \"will probably not match anything\", which is a statement about matching rather than a licence to reject it. So the check is set at the properties a range and a tag share, and **where they differ this rule is lenient toward Content-Language**: `en-US-Latn` is a conforming range and not a conforming tag (script must precede region), and `e` is a conforming range whose single letter no `language` alternative of RFC 5646 admits. Neither is reported. Being stricter would take two validators and a decision about how much of RFC 5646 to implement; being wrong in the other direction would report conforming `Accept-Language` values, which is worse.\n\n**`*` is skipped in Accept-Language and reported in Content-Language.** It is one of the two alternatives of `language-range` and is not a `language-tag`; `Content-Language = #language-tag` has no wildcard. The asymmetry belongs to the two grammars, not to this rule.\n\n**Weights are not read here.** In `Accept-Language` everything from the first `;` onward is stripped and left to `message_accept_language_weight_validity`; in `Content-Language` there is no `;` in the grammar, so one reaches the validator and is reported as the invalid character it is.\n\n**Every field line of both fields is read**, since each is a list whose members may be spread across lines."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
-                spec: "RFC 5646",
-                section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc5646.html",
-                note: "BCP 47 language tag syntax",
+                spec: "RFC 9110",
+                section: Some("8.5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.5.1",
+                note: "Language Tags: the sentence that assigns a different production to each of the two fields — `language-range` for Accept-Language, `language-tag` for Content-Language",
             },
             crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.5.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.4",
-                note: "Accept-Language — Accept-Language uses language-tags from RFC 5646",
+                spec: "RFC 5646",
+                section: Some("2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1",
+                note: "Syntax: the `Language-Tag` production Content-Language carries. Its prose properties are enforced; its subtag ordering and length classes are not",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 4647",
+                section: Some("2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc4647.html#section-2.1",
+                note: "Basic Language Range: the production Accept-Language carries, including the `*` alternative and the statement that a range needs no well-formedness at all",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("8.5"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.5",
-                note: "Content-Language — Content-Language uses language-tags from RFC 5646",
+                note: "Content-Language: `#language-tag` — a list of tags, with no wildcard and no weight in it",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("12.5.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.4",
+                note: "Accept-Language: where the `language-range` production is pulled in by reference. The weight beside it is `message_accept_language_weight_validity`'s subject",
             },
         ]
     }
@@ -130,9 +185,29 @@ impl Rule for MessageLanguageTagFormatValid {
                 snippet: "Accept-Language: en, fr-CA;q=0.8\nContent-Language: en-US",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("(the wildcard is a language-range, and digits are fine after the first subtag)"),
+                snippet: "Accept-Language: *, es-419\nContent-Language: mi, en",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Accept-Language: en_US\nContent-Language: en-TooLongSubtag123",
+                label: Some("(an underscore is not a subtag separator)"),
+                snippet: "Accept-Language: en_US",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a subtag is at most eight characters)"),
+                snippet: "Content-Language: en-TooLongSubtag123",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(neither a tag nor a range may begin with a digit)"),
+                snippet: "Accept-Language: 123-US",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(Content-Language has no wildcard alternative)"),
+                snippet: "Content-Language: *",
             },
         ]
     }
@@ -219,6 +294,68 @@ mod tests {
         let rule = MessageLanguageTagFormatValid;
         assert_eq!(rule.id(), "message_language_tag_format_valid");
         assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
+
+    /// Every published snippet is run through the rule, each NonCompliant one
+    /// pinned to the finding it illustrates. These snippets carry two header
+    /// lines apiece, so the parser has to feed both — an example that
+    /// contrasts the two fields is only an example if both reach the rule.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageLanguageTagFormatValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let reasons: [(&str, &str); 4] = [
+            ("Accept-Language: en_US", "invalid character '_'"),
+            ("Content-Language: en-TooLongSubtag123", "too long"),
+            ("Accept-Language: 123-US", "does not begin with a letter"),
+            ("Content-Language: *", "invalid character '*'"),
+        ];
+
+        for ex in rule.examples() {
+            let pairs: Vec<(&str, &str)> = ex
+                .snippet
+                .lines()
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                })
+                .collect();
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    let found = found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    let expected = *reasons
+                        .iter()
+                        .find(|(s, _)| *s == ex.snippet)
+                        .map(|(_, reason)| reason)
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "NonCompliant example {:?} has no expected finding here",
+                                ex.snippet
+                            )
+                        });
+                    assert!(
+                        found.message.contains(expected),
+                        "NonCompliant example {:?} should fail with {expected:?}: {found:?}",
+                        ex.snippet
+                    );
+                }
+            }
+        }
     }
 
     /// Both fields are lists whose members may be spread over several field
