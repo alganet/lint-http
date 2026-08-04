@@ -178,7 +178,14 @@ impl Rule for MessageTransferCodingIanaRegistered {
                     return Some(Violation {
                         rule: "message_transfer_coding_iana_registered".into(),
                         severity: config.severity,
-                        message: format!("Invalid token '{}' in {} header", c, hdr_name),
+                        // The offending character alone does not locate itself
+                        // on a field with several members -- `Invalid token
+                        // '<'` says nothing about which coding carried it.
+                        // The name goes in the message.
+                        message: format!(
+                            "Invalid token '{}' in transfer-coding '{}' of {} header",
+                            c, token, hdr_name
+                        ),
                     });
                 }
                 // `chunked` is a registered coding and sits in the default
