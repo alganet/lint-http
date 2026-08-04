@@ -574,7 +574,10 @@ severity = "warn"
 [rules.message_transfer_coding_iana_registered]
 enabled = true
 severity = "warn"
-allowed = ["chunked", "gzip", "deflate"]
+# The registry also holds x-compress and x-gzip (both Deprecated) and identity
+# (withdrawn in an erratum to RFC 2616); they are left out so that using them is
+# reported. "trailers" is registered as reserved and is not a coding name.
+allowed = ["chunked", "compress", "gzip", "deflate"]
 
 [rules.message_compression_and_transfer_encoding_consistency]
 enabled = true
