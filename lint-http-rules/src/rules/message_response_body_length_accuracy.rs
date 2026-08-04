@@ -134,22 +134,34 @@ impl Rule for MessageResponseBodyLengthAccuracy {
     }
 
     fn description(&self) -> &'static str {
-        "When a response includes a `Content-Length` header, its numeric value MUST match the actual length in bytes of the captured response body after HTTP framing has been resolved (for example, after processing chunked transfer-coding), but not necessarily after any `Content-Encoding` (such as gzip) has been decoded. Mismatches indicate truncated or malformed responses and can lead to framing errors, truncated reads, or incorrect downstream handling. This rule validates that `Content-Length` (when present and syntactically valid) equals the captured body length recorded in the transaction."
+        "Checks that a response's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that value the framing — \"necessary for determining where the data (and message) ends\" — and RFC 9110 §8.6 says why a proxy in particular must care: \"a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect\". A length that disagrees with the framing is how response splitting reaches the next hop.\n\n**RFC 9112 §6.3 lists eight ways a body length is determined, in precedence order, and this rule is item 6.** The items above it are the reason most of what follows is an exemption rather than a check:\n\n- *Item 1* — a response to `HEAD`, and any `1xx`, `204` or `304`, ends at the blank line \"regardless of the header fields present\". Its `Content-Length` describes a body that was deliberately not sent: §8.6 requires, in a MUST, that a HEAD response's value equal what a `GET` would have returned, and a 304's equal what a `200` would have. Comparing either against zero captured octets reports a conforming response, so these are not measured here. Whether the value matches what a GET *would* have returned needs two transactions; `semantic_head_response_headers_match_get` has them.\n- *Item 2* — a `2xx` to `CONNECT` becomes a tunnel, and a client \"MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message\".\n- *Item 3* — when `Transfer-Encoding` is also present it overrides, so the declared length is disregarded. Carrying both is its own MUST NOT (§6.2) and `message_content_length_vs_transfer_encoding` reports it.\n- *Item 8* — a response with no declared length is close-delimited; there is nothing to compare.\n\n**Syntax belongs to another rule.** A value that is not `1*DIGIT`, or whose field lines disagree, leaves no number to compare, so this rule declines and `message_content_length` reports it. That rule also implements §6.3's allowance for `Content-Length: 42, 42` — a comma list of equal values is one value, not a malformed field.\n\n**What the comparison is against.** The recorded length counts octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts. Where no body was captured, nothing is claimed."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
-                note: "The `Content-Length` header field and rules about forwarding incorrect values",
-            },
-            crate::rules::SpecRef {
                 spec: "RFC 9112",
                 section: Some("6.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
-                note: "Message body length determination and framing (how body length is determined and handled)",
+                note: "Message body length, in precedence order — this rule is item 6, and items 1, 2 and 3 are why most responses are exempt rather than checked",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
+                note: "Content-Length: the field, its grammar, the MUSTs that make a HEAD or 304 response's value describe a body it did not send, and the MUST NOT against forwarding a value known to be incorrect — this rule's reason to exist",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("6.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
+                note: "Content-Length as framing, and the MUST NOT against sending it beside Transfer-Encoding — another rule's finding",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.3.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
+                note: "HEAD — servers SHOULD answer it with the fields they would have sent for GET, which is what made the exemption the common case rather than a corner",
             },
         ]
     }
@@ -160,17 +172,27 @@ impl Rule for MessageResponseBodyLengthAccuracy {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Length: 3\n\nabc",
+                snippet: "GET /x HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 3\n\nabc",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a HEAD response declares what a GET would have returned)"),
+                snippet: "HEAD /large.iso HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 1048576\n\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(304 declares what a 200 would have returned)"),
+                snippet: "GET /x HTTP/1.1\n\nHTTP/1.1 304 Not Modified\nContent-Length: 1024\n\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(Transfer-Encoding overrides, so nothing here is measured)"),
+                snippet: "GET /x HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 10\nTransfer-Encoding: chunked\n\nabc",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("(mismatched Content-Length)"),
-                snippet: "HTTP/1.1 200 OK\nContent-Length: 10\n\nabc",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(invalid Content-Length)"),
-                snippet: "HTTP/1.1 200 OK\nContent-Length: abc\n\nabc",
+                label: Some("(the response is incomplete, and must not be forwarded)"),
+                snippet: "GET /x HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 10\n\nabc",
             },
         ]
     }
@@ -336,6 +358,70 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// Every published snippet is run through the rule. These now carry the
+    /// request line as well, because three of the five exemptions depend on the
+    /// request method and the old snippets showed only the response -- a HEAD
+    /// example that does not say it is a HEAD cannot illustrate anything.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageResponseBodyLengthAccuracy;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+
+        for ex in rule.examples() {
+            // request-line \n\n status-line \n headers \n\n body
+            let (req_part, resp_part) = ex
+                .snippet
+                .split_once("\n\n")
+                .unwrap_or_else(|| panic!("no request/response split: {:?}", ex.snippet));
+            let method = req_part
+                .split_whitespace()
+                .next()
+                .unwrap_or_else(|| panic!("no method: {req_part:?}"));
+            let (head, body) = resp_part
+                .split_once("\n\n")
+                .unwrap_or_else(|| panic!("no header/body split: {resp_part:?}"));
+            let mut lines = head.lines();
+            let status_line = lines.next().expect("no status line");
+            let status: u16 = status_line
+                .split_whitespace()
+                .nth(1)
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| panic!("no status: {status_line:?}"));
+            let pairs: Vec<(&str, &str)> = lines
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                })
+                .collect();
+
+            let mut tx = resp_with(status, &pairs, Some(body.len() as u64));
+            tx.request.method = method.to_string();
+
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    let found = found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    assert!(
+                        found.message.contains("does not match captured body bytes"),
+                        "{found:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// § 6.3 item 6 licenses this comparison only "without Transfer-Encoding";
