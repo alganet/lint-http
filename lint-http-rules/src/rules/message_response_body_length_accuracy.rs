@@ -86,7 +86,37 @@ impl Rule for MessageResponseBodyLengthAccuracy {
             return None;
         }
 
-        // Compare to captured body length when available
+        // Item 3, and then item 6 -- the sentence that licenses the comparison
+        // at all, whose condition is "without Transfer-Encoding". With one
+        // present the declared length is a number the specification says to
+        // disregard, and the body length comes from decoding the transfer
+        // coding instead, which is what the captured count already reflects.
+        // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
+        // cite(RFC 9112 § 6.3): "If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets."
+        //
+        // Carrying both is its own MUST NOT and its own rule's finding;
+        // presence is what overrides, not validity.
+        // cite(RFC 9112 § 6.2): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
+        if resp.headers.contains_key(hyper::header::TRANSFER_ENCODING) {
+            return None;
+        }
+
+        // What is left is item 6's case, and § 8.6 says why a difference in it
+        // is worth reporting rather than merely noting: this proxy is an
+        // intermediary, and forwarding such a message is how a length
+        // disagreement becomes a response-splitting bug downstream.
+        // cite(RFC 9110 § 8.6): "As a result, a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect."
+        // cite(RFC 9112 § 6.2): "For messages that do include content, the Content-Length field value provides the framing information necessary for determining where the data (and message) ends."
+        //
+        // A response with neither field is close-delimited and declares no
+        // length, so there is nothing to check and the early return above has
+        // already happened.
+        // cite(RFC 9112 § 6.3): "Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection."
+        //
+        // `body_length` counts the octets that streamed through with the
+        // transfer coding resolved and any `Content-Encoding` left encoded,
+        // which is what `Content-Length` counts too.
+        // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
         if let Some(body_len) = resp.body_length {
             if declared != body_len as u128 {
                 return Some(Violation {
@@ -306,6 +336,23 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// § 6.3 item 6 licenses this comparison only "without Transfer-Encoding";
+    /// item 3 says the Transfer-Encoding overrides. Presence is what overrides,
+    /// not validity.
+    #[rstest]
+    #[case("chunked")]
+    #[case("gzip, chunked")]
+    #[case("nonsense")]
+    #[case("")]
+    fn transfer_encoding_overrides_and_leaves_nothing_to_measure(#[case] te: &str) {
+        let tx = resp_with(
+            200,
+            &[("content-length", "10"), ("transfer-encoding", te)],
+            Some(3),
+        );
+        assert!(run(&tx).is_none(), "Transfer-Encoding: {te:?} overrides");
     }
 
     /// § 6.3 item 1: these responses end at the blank line "regardless of the
