@@ -20,13 +20,14 @@ Validate `Transfer-Encoding` and `TE` header values: transfer-coding names must 
 
 **`chunked` is reported in `TE` and only there.** RFC 9112 §7.4: "A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients." It is a registered coding, so the registry check waves it through; this is the one place where a recognised name is still the wrong name. In `Transfer-Encoding` it is the ordinary case.
 
-**A parameter on a compression coding is reported.** RFC 9112 §7.2 defines `compress`, `x-compress`, `deflate`, `gzip` and `x-gzip`, states that they "do not define any parameters", and says their presence "SHOULD be treated as an error". The `q` in `TE: deflate;q=0.5` is exempt — the grammar puts the `weight` outside `transfer-coding` and §7.3 calls it a pseudo-parameter — but `Transfer-Encoding` has no weight in its grammar, so a `q` there is an ordinary parameter. This reaches no other coding: `chunked;ext=1` is unreported because §7.2's sentence is about the compression codings and no sentence makes a parameter on `chunked` an error, and a coding you add to `allowed` answers to its own registration.
+**A parameter on a coding that defines none is reported.** RFC 9112 §7.2 defines `compress`, `x-compress`, `deflate`, `gzip` and `x-gzip`, states that they "do not define any parameters", and says their presence "SHOULD be treated as an error". §7.1 says the same of `chunked` in its own two sentences, so all six are covered. The `q` in `TE: deflate;q=0.5` is exempt — the grammar puts the `weight` outside `transfer-coding` and §7.3 calls it a pseudo-parameter — but `Transfer-Encoding` has no weight in its grammar, so a `q` there is an ordinary parameter. A coding you add to `allowed` is not reached: its parameters answer to whatever registered it.
 
 ## Specifications
 
 - [RFC 9112 §6.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1): Transfer-Encoding = #transfer-coding, and the 501 a recipient owes a coding it does not understand
 - [RFC 9112 §7](https://www.rfc-editor.org/rfc/rfc9112.html#section-7): Transfer codings: the names are case-insensitive and 'ought to be' registered — the whole of this rule's strength
-- [RFC 9112 §7.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.2): The five compression codings, which define no parameters
+- [RFC 9112 §7.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1): Chunked, which likewise defines no parameters
+- [RFC 9112 §7.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.2): The five compression codings, which define no parameters — §7.1 says the same of chunked
 - [RFC 9112 §7.4](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.4): Negotiating transfer codings: chunked is forbidden in TE, an empty TE is conforming, and the q is a rank
 - [RFC 9110 §10.1.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4): TE, and the grammar both fields share — including the quoted-string a transfer-parameter may carry
 - [IANA HTTP Parameters](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#transfer-coding): The registry this rule is named after and does not read: names are checked against the configured 'allowed' list instead
@@ -85,7 +86,7 @@ Host: example.com
 TE: chunked;q=0.8
 ```
 
-### ❌ Bad (the compression codings define no parameters)
+### ❌ Bad (gzip defines no parameters)
 
 ```http
 HTTP/1.1 200 OK
