@@ -33,8 +33,24 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                         crate::helpers::headers::split_semicolons_respecting_quotes(part)
                             .into_iter();
                     if let Some(primary) = iter.next() {
-                        // primary may be '*' or token
+                        // `codings` is a content-coding, the literal "identity",
+                        // or the literal "*", and the first two of those are
+                        // tokens. A token is one or more characters, which a
+                        // scan for an invalid character cannot tell you: an
+                        // empty string has no invalid character in it, so
+                        // `;q=0.5` — a member that is all weight and no coding —
+                        // passed on exactly that reasoning.
                         if primary != "*" {
+                            if primary.is_empty() {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: config.severity,
+                                    message: format!(
+                                        "Empty content-coding in Accept-Encoding member '{}'",
+                                        part
+                                    ),
+                                });
+                            }
                             if let Some(c) = crate::helpers::token::find_invalid_token_char(primary)
                             {
                                 return Some(Violation {
@@ -48,65 +64,79 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                             }
                         }
 
+                        // Everything after the coding must be a weight. There is
+                        // no parameter list here to be well formed — the whole
+                        // member is `codings [ weight ]`, and `weight` is the
+                        // fixed shape `OWS ";" OWS "q=" qvalue`. Validating
+                        // arbitrary `name=value` pairs answered a question this
+                        // field does not ask, and answered it in the direction
+                        // that matters: `gzip;charset=utf-8` was called well
+                        // formed, when nothing in the grammar produces it.
+                        let mut weight_seen = false;
                         for param in iter {
                             let param = param.trim();
+                            // Not skipped as an empty parameter slot, because
+                            // there are no parameter slots. `weight` brackets
+                            // nothing, so a `;` with nothing after it is a
+                            // separator introducing a weight that is not there.
                             if param.is_empty() {
-                                continue;
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: config.severity,
+                                    message: format!(
+                                        "Accept-Encoding member '{}' ends in ';' with no weight after it",
+                                        part
+                                    ),
+                                });
                             }
+
                             let mut nv = param.splitn(2, '=').map(|s| s.trim());
                             let name = nv.next().unwrap();
                             let val = nv.next();
 
-                            if crate::helpers::token::find_invalid_token_char(name).is_some() {
+                            if !name.eq_ignore_ascii_case("q") {
                                 return Some(Violation {
                                     rule: self.id().into(),
                                     severity: config.severity,
-                                    message: format!("Invalid parameter name '{}' in Accept-Encoding member '{}'", name, part),
+                                    message: format!(
+                                        "'{}' is not a weight, and a weight is the only thing an Accept-Encoding coding may carry (member '{}')",
+                                        param, part
+                                    ),
                                 });
                             }
-
-                            if val.is_none() {
+                            if weight_seen {
                                 return Some(Violation {
                                     rule: self.id().into(),
                                     severity: config.severity,
-                                    message: format!("Missing parameter value for '{}' in Accept-Encoding member '{}'", name, part),
+                                    message: format!(
+                                        "More than one weight in Accept-Encoding member '{}'",
+                                        part
+                                    ),
                                 });
                             }
-                            let v = val.unwrap();
+                            weight_seen = true;
 
-                            if name.eq_ignore_ascii_case("q") {
-                                // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
-                                if !crate::helpers::headers::valid_qvalue(v) {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: config.severity,
-                                        message: format!(
-                                            "Invalid qvalue '{}' in Accept-Encoding member '{}'",
-                                            v, part
-                                        ),
-                                    });
-                                }
-                            } else {
-                                // value must be token or quoted-string
-                                if v.starts_with('"') {
-                                    if let Err(e) =
-                                        crate::helpers::headers::validate_quoted_string(v)
-                                    {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: config.severity,
-                                            message: format!("Invalid quoted-string parameter value '{}' in Accept-Encoding: {}", v, e),
-                                        });
-                                    }
-                                } else if crate::helpers::token::find_invalid_token_char(v)
-                                    .is_some()
-                                {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: config.severity,
-                                        message: format!("Invalid parameter value '{}' for '{}' in Accept-Encoding member '{}'", v, name, part),
-                                    });
-                                }
+                            let Some(v) = val else {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: config.severity,
+                                    message: format!(
+                                        "Missing parameter value for '{}' in Accept-Encoding member '{}'",
+                                        name, part
+                                    ),
+                                });
+                            };
+
+                            // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
+                            if !crate::helpers::headers::valid_qvalue(v) {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: config.severity,
+                                    message: format!(
+                                        "Invalid qvalue '{}' in Accept-Encoding member '{}'",
+                                        v, part
+                                    ),
+                                });
                             }
                         }
                     }
@@ -275,23 +305,44 @@ mod tests {
         Ok(())
     }
 
+    /// `Accept-Encoding = #( codings [ weight ] )`. A coding may carry a weight
+    /// and nothing else, so every `param=` case below is malformed however
+    /// well formed the pair looks — which is what these cases used to assert
+    /// the opposite of. A well-formed parameter of a kind the field has no room
+    /// for is still a defect; it just is not a *parameter* defect.
     #[rstest]
-    #[case(Some("gzip;param=token"), false)]
-    #[case(Some("gzip;param=\"ok\""), false)]
-    #[case(Some("gzip;param=\"a;b\""), false)]
+    #[case(Some("gzip;param=token"), true)]
+    #[case(Some("gzip;param=\"ok\""), true)]
+    #[case(Some("gzip;param=\"a;b\""), true)]
     #[case(Some("gzip;param=bad value"), true)]
     #[case(Some("gzip;param=\"unterminated"), true)]
-    #[case(Some("gzip;#=1"), false)]
-    #[case(Some("*;param=token"), false)]
-    #[case(Some("gzip;param=\"a\\\"b\""), false)]
-    #[case(Some("gzip;"), false)]
-    #[case(Some("gzip; ;q=0.8"), false)]
+    #[case(Some("gzip;#=1"), true)]
+    #[case(Some("*;param=token"), true)]
+    #[case(Some("gzip;param=\"a\\\"b\""), true)]
+    // `weight` brackets nothing, so a `;` with no weight after it is a
+    // separator introducing something that is not there.
+    #[case(Some("gzip;"), true)]
+    #[case(Some("gzip; ;q=0.8"), true)]
     #[case(Some("gzip;param"), true)]
     #[case(Some("gzip;bad name=1"), true)]
     #[case(Some("gzip;q=1.0000, br;q=1.0"), true)]
     #[case(Some("gzip;q=1.0000, x!bad;q=0.5"), true)]
     #[case(Some("gzip@;q=0.5"), true)]
     #[case(Some("gzip;param=bad@val"), true)]
+    // A member that is all weight and no coding: `codings` is not optional, and
+    // a token is one or more characters — which a scan for an *invalid*
+    // character can never notice.
+    #[case(Some(";q=0.5"), true)]
+    // At most one weight; `[ weight ]` is singular.
+    #[case(Some("gzip;q=0.5;q=0.8"), true)]
+    // The forms the grammar does produce, including the RFC's own examples.
+    #[case(Some("compress, gzip"), false)]
+    #[case(Some("compress;q=0.5, gzip;q=1.0"), false)]
+    #[case(Some("gzip;q=1.0, identity; q=0.5, *;q=0"), false)]
+    #[case(Some("*"), false)]
+    // An empty field value is legal, and §12.5.3 gives it a meaning: no content
+    // coding is wanted at all.
+    #[case(Some(""), false)]
     fn check_additional_parameter_cases(#[case] ae: Option<&str>, #[case] expect_violation: bool) {
         let rule = MessageAcceptEncodingParameterValidity;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
