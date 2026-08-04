@@ -3527,6 +3527,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 259
+  - label: message_transfer_encoding_chunked_final
+    section: § 6.1
+    snippet: If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
+      line: 109
 - label: RFC 9113
   url: https://www.rfc-editor.org/rfc/rfc9113.txt
   type: text/plain
