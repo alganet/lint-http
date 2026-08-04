@@ -194,15 +194,22 @@ impl Rule for MessageTeHeaderConstraints {
                 label: None,
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\nConnection: TE\nTE: trailers",
             },
+            // These two published `TE: chunked;q=0.8`, one of them as the
+            // *compliant* way to rank a coding. RFC 9112 § 7.4 says a client
+            // MUST NOT send the chunked transfer coding name in TE at all --
+            // chunked is always acceptable, so declining it is not something TE
+            // can express. `message_transfer_coding_iana_registered` reports it,
+            // which left this rule publishing a snippet a sibling flags.
+            // § 7.4's own example ranks `deflate`, and so do these now.
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("(chunked listed in TE with quality)"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nConnection: keep-alive, TE\nTE: chunked;q=0.8",
+                label: Some("(coding ranked by quality)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nConnection: keep-alive, TE\nTE: deflate;q=0.8",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("(TE without Connection: TE)"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nTE: chunked;q=0.8",
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nTE: deflate;q=0.8",
             },
             Example {
                 compliance: Compliance::NonCompliant,

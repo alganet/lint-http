@@ -158,6 +158,25 @@ impl Rule for MessageTransferCodingIanaRegistered {
                         message: format!("Invalid token '{}' in {} header", c, hdr_name),
                     });
                 }
+                // `chunked` is a registered coding and sits in the default
+                // `allowed` list, so the registry check below waves it through
+                // wherever it appears. In TE it is forbidden outright, and for
+                // a reason the second half of the sentence gives: a client
+                // cannot decline it, so naming it says nothing. This is the one
+                // place where a name being *recognized* is not enough.
+                // cite(RFC 9112 § 7.4): "A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients."
+                //
+                // Case-insensitively, like every other name comparison here.
+                // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
+                if hdr_name.eq_ignore_ascii_case("TE") && token.eq_ignore_ascii_case("chunked") {
+                    return Some(Violation {
+                        rule: "message_transfer_coding_iana_registered".into(),
+                        severity: config.severity,
+                        message: "A client must not send the chunked transfer coding name in TE; \
+                             chunked is always acceptable for HTTP/1.1 recipients"
+                            .into(),
+                    });
+                }
                 if !allowed.contains(&token.to_ascii_lowercase()) {
                     return Some(Violation {
                         rule: "message_transfer_coding_iana_registered".into(),
@@ -234,7 +253,7 @@ impl Rule for MessageTransferCodingIanaRegistered {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Transfer-Encoding` and `TE` header values to ensure transfer-coding tokens are syntactically valid and are recognised (SHOULD be IANA-registered or explicitly allowed via configuration). The `TE` header's special value `trailers` is accepted.\n\n**Every field line of both fields is read**, since each is a list whose members may be spread across lines — and for `Transfer-Encoding` a second field line is the shape request smuggling arrives in, so reading only the first is the one omission this rule cannot afford. Values are decoded from the raw octets: an octet outside visible US-ASCII is not a `tchar`, so where a coding name belongs it is reported rather than used as a reason to skip the line.\n\n**Members are split on commas that are not inside a quoted-string.** `transfer-parameter = token BWS \"=\" BWS ( token / quoted-string )`, so `chunked;ext=\"a,b\"` is one coding carrying one parameter, not two members. Quoting that never closes leaves the members undelimitable and is reported here rather than passed over, because no other rule reports a malformed `Transfer-Encoding`."
+        "Validate `Transfer-Encoding` and `TE` header values to ensure transfer-coding tokens are syntactically valid and are recognised (SHOULD be IANA-registered or explicitly allowed via configuration). The `TE` header's special value `trailers` is accepted.\n\n**Every field line of both fields is read**, since each is a list whose members may be spread across lines — and for `Transfer-Encoding` a second field line is the shape request smuggling arrives in, so reading only the first is the one omission this rule cannot afford. Values are decoded from the raw octets: an octet outside visible US-ASCII is not a `tchar`, so where a coding name belongs it is reported rather than used as a reason to skip the line.\n\n**Members are split on commas that are not inside a quoted-string.** `transfer-parameter = token BWS \"=\" BWS ( token / quoted-string )`, so `chunked;ext=\"a,b\"` is one coding carrying one parameter, not two members. Quoting that never closes leaves the members undelimitable and is reported here rather than passed over, because no other rule reports a malformed `Transfer-Encoding`.\n\n**`chunked` is reported in `TE` and only there.** RFC 9112 §7.4: \"A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients.\" It is a registered coding, so the registry check waves it through; this is the one place where a recognised name is still the wrong name. In `Transfer-Encoding` it is the ordinary case."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -488,6 +507,51 @@ mod tests {
             "the second {} field line went unread",
             name
         );
+    }
+
+    /// `chunked` is registered, and in the default `allowed` list, so the
+    /// registry check passes it everywhere. TE is the one field where being
+    /// recognized is not enough.
+    #[rstest]
+    #[case("chunked")]
+    #[case("chunked;q=0.8")]
+    #[case("CHUNKED")]
+    #[case("trailers, chunked")]
+    fn chunked_is_forbidden_in_te(#[case] value: &str) {
+        let rule = MessageTransferCodingIanaRegistered;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("te", value)]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(
+            v.is_some_and(|v| v.message.contains("must not send the chunked")),
+            "TE: {value:?} is a MUST NOT"
+        );
+    }
+
+    /// The prohibition belongs to TE alone. `Transfer-Encoding: chunked` is the
+    /// ordinary case and must stay silent.
+    #[test]
+    fn chunked_is_ordinary_in_transfer_encoding() {
+        let rule = MessageTransferCodingIanaRegistered;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("transfer-encoding", "gzip, chunked")]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none(), "{v:?}");
     }
 
     /// A comma inside a transfer-parameter's quoted-string value is not a list

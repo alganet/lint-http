@@ -14,6 +14,8 @@ Validate `Transfer-Encoding` and `TE` header values to ensure transfer-coding to
 
 **Members are split on commas that are not inside a quoted-string.** `transfer-parameter = token BWS "=" BWS ( token / quoted-string )`, so `chunked;ext="a,b"` is one coding carrying one parameter, not two members. Quoting that never closes leaves the members undelimitable and is reported here rather than passed over, because no other rule reports a malformed `Transfer-Encoding`.
 
+**`chunked` is reported in `TE` and only there.** RFC 9112 §7.4: "A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients." It is a registered coding, so the registry check waves it through; this is the one place where a recognised name is still the wrong name. In `Transfer-Encoding` it is the ordinary case.
+
 ## Specifications
 
 - [RFC 9112 §6.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1): Transfer Coding

@@ -40,13 +40,13 @@ Connection: TE
 TE: trailers
 ```
 
-### ✅ Good (chunked listed in TE with quality)
+### ✅ Good (coding ranked by quality)
 
 ```http
 GET /resource HTTP/1.1
 Host: example.com
 Connection: keep-alive, TE
-TE: chunked;q=0.8
+TE: deflate;q=0.8
 ```
 
 ### ❌ Bad (TE without Connection: TE)
@@ -54,7 +54,7 @@ TE: chunked;q=0.8
 ```http
 GET /resource HTTP/1.1
 Host: example.com
-TE: chunked;q=0.8
+TE: deflate;q=0.8
 ```
 
 ### ❌ Bad (invalid token)
