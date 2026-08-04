@@ -39,6 +39,53 @@ impl Rule for MessageResponseBodyLengthAccuracy {
         // cite(RFC 9112 § 6.3): "The length of a message body is determined by one of the following (in order of precedence)"
         let declared = crate::helpers::headers::validate_content_length(&resp.headers).ok()??;
 
+        // § 6.3's list is in precedence order, and the first two items are
+        // about responses that cannot carry a body at all. This rule started at
+        // item 6 and never read up.
+        //
+        // Item 1: a response to HEAD, and any 1xx, 204 or 304, ends at the
+        // blank line -- "regardless of the header fields present". So the
+        // captured length is zero by construction, and comparing a declared
+        // length against it measures nothing.
+        // cite(RFC 9112 § 6.3): "Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section."
+        //
+        // The Content-Length is not wrong in such a response -- it is
+        // *deliberately* the length of a body that was not sent, and RFC 9110
+        // makes that its defined meaning, twice, in a MUST:
+        // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method."
+        // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a 304 (Not Modified) response to a conditional GET request (Section 15.4.5); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a 200 (OK) response to the same request."
+        //
+        // So the rule was reporting
+        //
+        //     HEAD /large.iso
+        //     HTTP/1.1 200 OK
+        //     Content-Length: 1048576
+        //
+        // -- a response conforming to a MUST -- for every HEAD of a non-empty
+        // resource. § 9.3.2 asks servers to answer HEAD with the same fields
+        // they would send for GET, so this is the common case, not a corner.
+        // cite(RFC 9110 § 9.3.2): "The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET."
+        //
+        // Whether the declared length matches what a GET *would* have returned
+        // is the real requirement, and nothing in one transaction can answer
+        // it: the octets it describes were never sent. `semantic_head_response_headers_match_get`
+        // is the rule with two transactions to compare.
+        let head_request = tx.request.method.eq_ignore_ascii_case("HEAD");
+        let bodiless_status =
+            (100..200).contains(&resp.status) || resp.status == 204 || resp.status == 304;
+        if head_request || bodiless_status {
+            return None;
+        }
+
+        // Item 2: a 2xx to CONNECT turns the connection into a tunnel, and what
+        // follows the header section is tunnelled octets rather than content.
+        // The field is to be ignored outright.
+        // cite(RFC 9112 § 6.3): "Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields."
+        // cite(RFC 9112 § 6.3): "A client MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message."
+        if tx.request.method.eq_ignore_ascii_case("CONNECT") && (200..300).contains(&resp.status) {
+            return None;
+        }
+
         // Compare to captured body length when available
         if let Some(body_len) = resp.body_length {
             if declared != body_len as u128 {
@@ -259,6 +306,54 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// § 6.3 item 1: these responses end at the blank line "regardless of the
+    /// header fields present", so the captured length is zero by construction.
+    /// The declared length is not wrong -- RFC 9110 § 8.6 makes it, in a MUST,
+    /// the size of the body a GET would have returned. Every HEAD of a
+    /// non-empty resource was reported.
+    #[rstest]
+    #[case("HEAD", 200, "1048576")]
+    #[case("HEAD", 200, "3")]
+    #[case("GET", 304, "1024")]
+    #[case("GET", 204, "1024")]
+    #[case("GET", 100, "1024")]
+    #[case("GET", 199, "1024")]
+    fn a_response_that_cannot_carry_a_body_is_not_measured(
+        #[case] method: &str,
+        #[case] status: u16,
+        #[case] cl: &str,
+    ) {
+        let mut tx = resp_with(status, &[("content-length", cl)], Some(0));
+        tx.request.method = method.to_string();
+        assert!(
+            run(&tx).is_none(),
+            "{method} -> {status} with Content-Length: {cl} declares a body it did not send"
+        );
+    }
+
+    /// § 6.3 item 2: the octets after a tunnelling 2xx are not content, and the
+    /// field is to be ignored outright.
+    #[rstest]
+    #[case(200)]
+    #[case(299)]
+    fn a_tunnelling_connect_response_is_not_measured(#[case] status: u16) {
+        let mut tx = resp_with(status, &[("content-length", "10")], Some(0));
+        tx.request.method = "CONNECT".into();
+        assert!(run(&tx).is_none());
+    }
+
+    /// The exemptions are bounded: an ordinary GET still gets measured, and a
+    /// CONNECT that did not tunnel is an ordinary response.
+    #[rstest]
+    #[case("GET", 200)]
+    #[case("CONNECT", 405)]
+    #[case("GET", 404)]
+    fn ordinary_responses_are_still_measured(#[case] method: &str, #[case] status: u16) {
+        let mut tx = resp_with(status, &[("content-length", "10")], Some(3));
+        tx.request.method = method.to_string();
+        assert!(run(&tx).is_some_and(|v| v.message.contains("does not match")));
     }
 
     /// A malformed value leaves no number to compare, so this rule declines and
