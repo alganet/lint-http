@@ -3538,25 +3538,25 @@ sources:
     snippet: A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed).
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
-      line: 130
+      line: 110
   - label: message_transfer_encoding_chunked_final (2)
     section: § 6.1
     snippet: If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
-      line: 168
+      line: 175
   - label: message_transfer_encoding_chunked_final (3)
     section: § 6.1
     snippet: If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
-      line: 102
+      line: 126
   - label: message_transfer_encoding_chunked_final (4)
     section: § 9.6
     snippet: A sender SHOULD send a Connection header field (Section 7.6.1 of [HTTP]) containing the "close" connection option when it intends to close a connection.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
-      line: 117
+      line: 146
   - label: message_transfer_encoding_chunked_final (5)
     section: § 9.6
     snippet: The "close" connection option is defined as a signal that the sender will close this connection after completion of the response.

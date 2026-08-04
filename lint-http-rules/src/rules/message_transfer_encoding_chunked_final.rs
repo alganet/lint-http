@@ -97,6 +97,30 @@ impl Rule for MessageTransferEncodingChunkedFinal {
                 return None;
             }
 
+            // This sentence was cited on the collection loop from the day the
+            // rule was written, and nothing implemented it. `chunked, chunked`
+            // did produce a finding -- the position check below sees the
+            // *first* one is not last -- but it said "chunked must be the final
+            // coding" about a value whose final coding is chunked. The right
+            // answer for the wrong reason, and unreadable to anyone trying to
+            // fix it. Counted here, ahead of the position check, so the more
+            // specific defect wins -- and ahead of the response's close
+            // exemption, because this sentence offers no alternative. Nothing
+            // in § 6.1 lets a closed connection excuse chunking twice.
+            // cite(RFC 9112 § 6.1): "A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed)."
+            let chunked_count = codings.iter().filter(|c| *c == "chunked").count();
+            if chunked_count > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "The chunked transfer coding must not be applied more than once: \
+                         codings found '{}'",
+                        codings.join(", ")
+                    ),
+                });
+            }
+
             // § 6.1 gives a response two ways to satisfy the same requirement,
             // and the rule knew only one of them:
             // cite(RFC 9112 § 6.1): "If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection."
@@ -114,31 +138,14 @@ impl Rule for MessageTransferEncodingChunkedFinal {
             // so is reported here, wrongly, and is also disregarding § 9.6.
             // Narrowing further would mean dropping the response side
             // altogether, which costs more than this tolerance does.
+            //
+            // It guards only what follows. The duplication MUST NOT above has
+            // no second alternative, and an earlier draft of this exemption sat
+            // in front of it -- so a response could chunk twice and be excused
+            // by announcing a close.
             // cite(RFC 9112 § 9.6): "A sender SHOULD send a Connection header field (Section 7.6.1 of [HTTP]) containing the "close" connection option when it intends to close a connection."
             if !is_request && announces_close(headers) {
                 return None;
-            }
-
-            // This sentence was cited on the collection loop from the day the
-            // rule was written, and nothing implemented it. `chunked, chunked`
-            // did produce a finding -- the position check below sees the
-            // *first* one is not last -- but it said "chunked must be the final
-            // coding" about a value whose final coding is chunked. The right
-            // answer for the wrong reason, and unreadable to anyone trying to
-            // fix it. Counted here, ahead of the position check, so the more
-            // specific defect wins.
-            // cite(RFC 9112 § 6.1): "A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed)."
-            let chunked_count = codings.iter().filter(|c| *c == "chunked").count();
-            if chunked_count > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "The chunked transfer coding must not be applied more than once: \
-                         codings found '{}'",
-                        codings.join(", ")
-                    ),
-                });
             }
 
             // If 'chunked' appears anywhere other than the final coding it's a violation
@@ -507,6 +514,30 @@ mod tests {
         assert!(
             v.is_some_and(|v| v.message.contains("must not be applied more than once")),
             "{value:?} chunks an already chunked message"
+        );
+    }
+
+    /// The duplication MUST NOT has no second alternative, so the response's
+    /// close exemption must not reach it. It briefly did.
+    #[test]
+    fn announcing_close_does_not_excuse_chunking_twice() {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("transfer-encoding", "chunked, chunked"),
+                ("connection", "close"),
+            ],
+        );
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(
+            v.is_some_and(|v| v.message.contains("must not be applied more than once")),
+            "closing the connection is not one of this sentence's alternatives"
         );
     }
 
