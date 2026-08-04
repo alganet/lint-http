@@ -2763,6 +2763,26 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 29
+  - label: message_response_body_length_accuracy
+    section: § 8.6
+    snippet: A server MAY send a Content-Length header field in a 304 (Not Modified) response to a conditional GET request (Section 15.4.5); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a 200 (OK) response to the same request.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
+      line: 56
+  - label: message_response_body_length_accuracy (2)
+    section: § 8.6
+    snippet: A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
+      line: 55
+  - label: message_response_body_length_accuracy (3)
+    section: § 9.3.2
+    snippet: The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
+      line: 67
+    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
+      line: 86
   - label: message_retry_after_date_or_delay
     section: § 10.2.3
     snippet: A delay-seconds value is a non-negative decimal integer, representing time in seconds.
@@ -2865,12 +2885,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/semantic_cache_coherence.rs
       line: 54
-  - label: semantic_head_response_headers_match_get
-    section: § 9.3.2
-    snippet: The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 86
   - label: semantic_options_method_capabilities
     section: § 9.3.7
     snippet: The OPTIONS method requests information about the communication options available for the target resource
@@ -3559,6 +3573,24 @@ sources:
       line: 46
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 39
+  - label: message_response_body_length_accuracy
+    section: § 6.3
+    snippet: A client MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
+      line: 84
+  - label: message_response_body_length_accuracy (2)
+    section: § 6.3
+    snippet: Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
+      line: 83
+  - label: message_response_body_length_accuracy (3)
+    section: § 6.3
+    snippet: Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
+      line: 50
   - label: message_trailer_headers_valid
     section: § 7.1.2
     snippet: trailer-section   = *( field-line CRLF )
