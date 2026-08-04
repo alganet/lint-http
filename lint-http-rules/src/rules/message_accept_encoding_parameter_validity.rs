@@ -13,7 +13,7 @@ impl Rule for MessageAcceptEncodingParameterValidity {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
+        crate::rules::RuleScope::Both
     }
 
     fn check_transaction(
@@ -23,64 +23,66 @@ impl Rule for MessageAcceptEncodingParameterValidity {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // This rule validates `Accept-Encoding` header parameters (q-values and param forms) in requests.
-        for hv in tx.request.headers.get_all("accept-encoding").iter() {
-            if let Ok(val) = hv.to_str() {
-                // For each comma-separated member
-                for part in crate::helpers::headers::parse_list_header(val) {
-                    // Split into token and optional params
-                    let mut iter =
-                        crate::helpers::headers::split_semicolons_respecting_quotes(part)
-                            .into_iter();
-                    if let Some(primary) = iter.next() {
-                        // `codings` is a content-coding, the literal "identity",
-                        // or the literal "*", and the first two of those are
-                        // tokens. A token is one or more characters, which a
-                        // scan for an invalid character cannot tell you: an
-                        // empty string has no invalid character in it, so
-                        // `;q=0.5` — a member that is all weight and no coding —
-                        // passed on exactly that reasoning.
-                        if primary != "*" {
-                            if primary.is_empty() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "Empty content-coding in Accept-Encoding member '{}'",
-                                        part
-                                    ),
-                                });
-                            }
-                            if let Some(c) = crate::helpers::token::find_invalid_token_char(primary)
-                            {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "Invalid token '{}' in Accept-Encoding header",
-                                        c
-                                    ),
-                                });
-                            }
-                        }
 
-                        // Everything after the coding must be a weight. There is
-                        // no parameter list here to be well formed — the whole
-                        // member is `codings [ weight ]`, and `weight` is the
-                        // fixed shape `OWS ";" OWS "q=" qvalue`. Validating
-                        // arbitrary `name=value` pairs answered a question this
-                        // field does not ask, and answered it in the direction
-                        // that matters: `gzip;charset=utf-8` was called well
-                        // formed, when nothing in the grammar produces it.
-                        let mut weight_seen = false;
-                        for param in iter {
-                            let param = param.trim();
-                            // Not skipped as an empty parameter slot, because
-                            // there are no parameter slots. `weight` brackets
-                            // nothing, so a `;` with nothing after it is a
-                            // separator introducing a weight that is not there.
-                            if param.is_empty() {
-                                return Some(Violation {
+        let check_all = |headers: &hyper::HeaderMap| -> Option<Violation> {
+            for hv in headers.get_all("accept-encoding").iter() {
+                if let Ok(val) = hv.to_str() {
+                    // For each comma-separated member
+                    for part in crate::helpers::headers::parse_list_header(val) {
+                        // Split into token and optional params
+                        let mut iter =
+                            crate::helpers::headers::split_semicolons_respecting_quotes(part)
+                                .into_iter();
+                        if let Some(primary) = iter.next() {
+                            // `codings` is a content-coding, the literal "identity",
+                            // or the literal "*", and the first two of those are
+                            // tokens. A token is one or more characters, which a
+                            // scan for an invalid character cannot tell you: an
+                            // empty string has no invalid character in it, so
+                            // `;q=0.5` — a member that is all weight and no coding —
+                            // passed on exactly that reasoning.
+                            if primary != "*" {
+                                if primary.is_empty() {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: config.severity,
+                                        message: format!(
+                                            "Empty content-coding in Accept-Encoding member '{}'",
+                                            part
+                                        ),
+                                    });
+                                }
+                                if let Some(c) =
+                                    crate::helpers::token::find_invalid_token_char(primary)
+                                {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: config.severity,
+                                        message: format!(
+                                            "Invalid token '{}' in Accept-Encoding header",
+                                            c
+                                        ),
+                                    });
+                                }
+                            }
+
+                            // Everything after the coding must be a weight. There is
+                            // no parameter list here to be well formed — the whole
+                            // member is `codings [ weight ]`, and `weight` is the
+                            // fixed shape `OWS ";" OWS "q=" qvalue`. Validating
+                            // arbitrary `name=value` pairs answered a question this
+                            // field does not ask, and answered it in the direction
+                            // that matters: `gzip;charset=utf-8` was called well
+                            // formed, when nothing in the grammar produces it.
+                            let mut weight_seen = false;
+                            for param in iter {
+                                let param = param.trim();
+                                // Not skipped as an empty parameter slot, because
+                                // there are no parameter slots. `weight` brackets
+                                // nothing, so a `;` with nothing after it is a
+                                // separator introducing a weight that is not there.
+                                if param.is_empty() {
+                                    return Some(Violation {
                                     rule: self.id().into(),
                                     severity: config.severity,
                                     message: format!(
@@ -88,14 +90,14 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                                         part
                                     ),
                                 });
-                            }
+                                }
 
-                            let mut nv = param.splitn(2, '=').map(|s| s.trim());
-                            let name = nv.next().unwrap();
-                            let val = nv.next();
+                                let mut nv = param.splitn(2, '=').map(|s| s.trim());
+                                let name = nv.next().unwrap();
+                                let val = nv.next();
 
-                            if !name.eq_ignore_ascii_case("q") {
-                                return Some(Violation {
+                                if !name.eq_ignore_ascii_case("q") {
+                                    return Some(Violation {
                                     rule: self.id().into(),
                                     severity: config.severity,
                                     message: format!(
@@ -103,21 +105,21 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                                         param, part
                                     ),
                                 });
-                            }
-                            if weight_seen {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "More than one weight in Accept-Encoding member '{}'",
-                                        part
-                                    ),
-                                });
-                            }
-                            weight_seen = true;
+                                }
+                                if weight_seen {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: config.severity,
+                                        message: format!(
+                                            "More than one weight in Accept-Encoding member '{}'",
+                                            part
+                                        ),
+                                    });
+                                }
+                                weight_seen = true;
 
-                            let Some(v) = val else {
-                                return Some(Violation {
+                                let Some(v) = val else {
+                                    return Some(Violation {
                                     rule: self.id().into(),
                                     severity: config.severity,
                                     message: format!(
@@ -125,30 +127,57 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                                         name, part
                                     ),
                                 });
-                            };
+                                };
 
-                            // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
-                            if !crate::helpers::headers::valid_qvalue(v) {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "Invalid qvalue '{}' in Accept-Encoding member '{}'",
-                                        v, part
-                                    ),
-                                });
+                                // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
+                                if !crate::helpers::headers::valid_qvalue(v) {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: config.severity,
+                                        message: format!(
+                                            "Invalid qvalue '{}' in Accept-Encoding member '{}'",
+                                            v, part
+                                        ),
+                                    });
+                                }
                             }
                         }
                     }
-                }
-            } else {
-                return Some(Violation {
+                } else {
+                    // Reported rather than skipped, and this field is the reason.
+                    // The rules audited alongside this one decode such a value
+                    // instead, because `obs-text` is legal inside a quoted-string
+                    // and refusing the value would hide findings elsewhere in it.
+                    // There are no quoted-strings here: every part of an
+                    // Accept-Encoding member is a `token` or the fixed text of a
+                    // weight, so an octet `to_str` refuses cannot be a legal part
+                    // of this field whatever else the value contains.
+                    return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
-                    message: "Accept-Encoding header value is not valid UTF-8".into(),
+                    message:
+                        "Accept-Encoding contains an octet no part of this field's grammar admits"
+                            .into(),
                 });
+                }
+            }
+            None
+        };
+
+        // A response's Accept-Encoding is not a stray request field: §12.5.3
+        // gives it a meaning of its own — what the resource was willing to
+        // accept — and says its value is evaluated the same way. Only the
+        // request was ever read, so a malformed one in a 415 response, which is
+        // where the field most often appears, went unchecked.
+        if let Some(v) = check_all(&tx.request.headers) {
+            return Some(v);
+        }
+        if let Some(resp) = &tx.response {
+            if let Some(v) = check_all(&resp.headers) {
+                return Some(v);
             }
         }
+
         None
     }
 
@@ -303,6 +332,31 @@ mod tests {
         );
         assert!(v.is_some());
         Ok(())
+    }
+
+    /// §12.5.3 gives a response's Accept-Encoding a meaning of its own — what
+    /// the resource was willing to accept — and says its value is evaluated the
+    /// same way as in a request. A 415 is where the field most often appears,
+    /// and only the request was ever read.
+    #[rstest]
+    #[case("gzip;q=1.0000", true)]
+    #[case("gzip;charset=utf-8", true)]
+    #[case("gzip, br;q=0.5", false)]
+    fn accept_encoding_in_a_response_is_read_too(
+        #[case] value: &str,
+        #[case] expect_violation: bool,
+    ) {
+        let rule = MessageAcceptEncodingParameterValidity;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(415, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("accept-encoding", value)]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(v.is_some(), expect_violation, "{value:?} -> {v:?}");
     }
 
     /// `Accept-Encoding = #( codings [ weight ] )`. A coding may carry a weight
