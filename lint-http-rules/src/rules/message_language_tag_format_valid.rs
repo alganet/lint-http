@@ -36,58 +36,58 @@ impl Rule for MessageLanguageTagFormatValid {
             None
         };
 
-        // Check Content-Language (response or request)
-        if let Some(resp) = &tx.response {
-            if let Some(val) =
-                crate::helpers::headers::get_header_str(&resp.headers, "content-language")
-            {
+        // Both fields are lists, so a sender may spread their members over
+        // several field lines and a recipient recombines them. Reading only the
+        // first — `get_header_str` returns one value — left every later line
+        // unchecked, and `message_accept_language_weight_validity` defers the
+        // range's syntax to this rule, so for those lines the deferral pointed
+        // at nobody.
+        //
+        // Each line is walked on its own rather than joined first, which for a
+        // per-member syntax check is the same answer either way and keeps a
+        // malformed line from being described in terms of its neighbour.
+        let content_language = |headers: &hyper::HeaderMap| -> Option<Violation> {
+            for hv in headers.get_all("content-language").iter() {
+                let Ok(val) = hv.to_str() else { continue };
                 for token in crate::helpers::headers::parse_list_header(val) {
                     if let Some(v) = check_tag("Content-Language", token) {
                         return Some(v);
                     }
                 }
             }
-        }
+            None
+        };
 
-        if let Some(val) =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "content-language")
-        {
-            for token in crate::helpers::headers::parse_list_header(val) {
-                if let Some(v) = check_tag("Content-Language", token) {
-                    return Some(v);
-                }
-            }
-        }
-
-        // Check Accept-Language: members may include parameters (e.g., q=0.8)
-        if let Some(val) =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "accept-language")
-        {
-            for member in crate::helpers::headers::parse_list_header(val) {
-                let lang = member.split(';').next().unwrap().trim();
-                if lang == "*" {
-                    continue; // wildcard allowed
-                }
-                if let Some(v) = check_tag("Accept-Language", lang) {
-                    return Some(v);
-                }
-            }
-        }
-
-        // Check Accept-Language in response (some servers may echo it back; be conservative)
-        if let Some(resp) = &tx.response {
-            if let Some(val) =
-                crate::helpers::headers::get_header_str(&resp.headers, "accept-language")
-            {
+        let accept_language = |headers: &hyper::HeaderMap| -> Option<Violation> {
+            for hv in headers.get_all("accept-language").iter() {
+                let Ok(val) = hv.to_str() else { continue };
                 for member in crate::helpers::headers::parse_list_header(val) {
                     let lang = member.split(';').next().unwrap().trim();
                     if lang == "*" {
-                        continue;
+                        continue; // wildcard allowed
                     }
                     if let Some(v) = check_tag("Accept-Language", lang) {
                         return Some(v);
                     }
                 }
+            }
+            None
+        };
+
+        if let Some(resp) = &tx.response {
+            if let Some(v) = content_language(&resp.headers) {
+                return Some(v);
+            }
+        }
+        if let Some(v) = content_language(&tx.request.headers) {
+            return Some(v);
+        }
+        if let Some(v) = accept_language(&tx.request.headers) {
+            return Some(v);
+        }
+        if let Some(resp) = &tx.response {
+            if let Some(v) = accept_language(&resp.headers) {
+                return Some(v);
             }
         }
 
@@ -219,6 +219,39 @@ mod tests {
         let rule = MessageLanguageTagFormatValid;
         assert_eq!(rule.id(), "message_language_tag_format_valid");
         assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
+
+    /// Both fields are lists whose members may be spread over several field
+    /// lines. Only the first was read, so a malformed tag on a later line was
+    /// reported by nobody — and `message_accept_language_weight_validity`
+    /// defers the range's syntax to this rule, so that deferral was false for
+    /// exactly those lines.
+    #[rstest]
+    #[case("accept-language", &["en", "e n"], true)]
+    #[case("accept-language", &["e n", "en"], true)]
+    #[case("accept-language", &["en", "fr;q=0.5"], false)]
+    #[case("content-language", &["en", "e n"], true)]
+    #[case("content-language", &["en", "fr"], false)]
+    fn every_field_line_is_read(
+        #[case] header: &str,
+        #[case] values: &[&str],
+        #[case] expect_violation: bool,
+    ) {
+        let rule = MessageLanguageTagFormatValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let pairs: Vec<(&str, &str)> = values.iter().map(|v| (header, *v)).collect();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.is_some(),
+            expect_violation,
+            "{header} {values:?} -> {v:?}"
+        );
     }
 
     #[test]
