@@ -695,7 +695,7 @@ sources:
     - file: lint-http-rules/src/helpers/language.rs
       line: 64
     - file: lint-http-rules/src/rules/message_language_tag_format_valid.rs
-      line: 104
+      line: 121
   - label: message_language_tag_format_valid
     section: § 2.1
     snippet: A basic language range differs from the language tags defined in [RFC4646] only in that there is no requirement that it be "well-formed" or be validated against the IANA Language Subtag Registry.
@@ -2618,7 +2618,7 @@ sources:
     snippet: 'Content-Language = #language-tag'
     cited_by:
     - file: lint-http-rules/src/rules/message_language_tag_format_valid.rs
-      line: 78
+      line: 95
   - label: message_language_tag_format_valid (2)
     section: § 8.5
     snippet: The "Content-Language" header field describes the natural language(s) of the intended audience for the representation.

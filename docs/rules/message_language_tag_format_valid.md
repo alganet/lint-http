@@ -18,6 +18,8 @@ Check the language tags in `Content-Language` and the language ranges in `Accept
 
 **Weights are not read here.** In `Accept-Language` everything from the first `;` onward is stripped and left to `message_accept_language_weight_validity`; in `Content-Language` there is no `;` in the grammar, so one reaches the validator and is reported as the invalid character it is.
 
+**An octet outside visible US-ASCII is reported, not skipped.** Neither production has a quoted-string in it, so no such octet is ever legal here — and refusing to decode the value used to make the whole field line vanish, hiding any other defect on it.
+
 **Every field line of both fields is read**, since each is a list whose members may be spread across lines.
 
 ## Specifications
