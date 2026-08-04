@@ -684,6 +684,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_host_authority_consistency.rs
       line: 67
+- label: RFC 4647
+  url: https://www.rfc-editor.org/rfc/rfc4647.txt
+  type: text/plain
+  fragments:
+  - label: lint-http-rules/src/helpers/language.rs
+    section: § 2.1
+    snippet: language-range   = (1*8ALPHA *("-" 1*8alphanum)) / "*"
+    cited_by:
+    - file: lint-http-rules/src/helpers/language.rs
+      line: 64
 - label: RFC 4648
   url: https://www.rfc-editor.org/rfc/rfc4648.txt
   type: text/plain
@@ -741,7 +751,7 @@ sources:
     snippet: All subtags have a maximum length of eight characters.
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 60
+      line: 78
   - label: lint-http-rules/src/helpers/language.rs (3)
     section: § 2.1
     snippet: Subtags, in turn, are a sequence of alphanumeric characters (letters and digits), distinguished and separated from other subtags in a tag by a hyphen ("-", [Unicode] U+002D).
@@ -754,6 +764,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
       line: 31
+  - label: lint-http-rules/src/helpers/language.rs (5)
+    section: § 2.1
+    snippet: language      = 2*3ALPHA
+    cited_by:
+    - file: lint-http-rules/src/helpers/language.rs
+      line: 65
 - label: RFC 5789
   url: https://www.rfc-editor.org/rfc/rfc5789.txt
   type: text/plain

@@ -53,6 +53,24 @@ pub fn validate_language_tag(tag: &str) -> Result<(), String> {
         return Err("invalid hyphen placement in language tag".into());
     }
 
+    // The first subtag is letters, in both of the productions this function is
+    // asked about. RFC 4647's `language-range` opens with `1*8ALPHA`; RFC 5646's
+    // `language` opens with `2*3ALPHA / 4ALPHA / 5*8ALPHA`. They disagree about
+    // the length and about what may follow, which is why neither is quoted here
+    // as the shape of the whole tag — but they agree that a tag or range cannot
+    // begin with a digit, so `123-US` is neither, and this function used to
+    // accept it as both.
+    //
+    // cite(RFC 4647 § 2.1): "language-range   = (1*8ALPHA *("-" 1*8alphanum)) / "*""
+    // cite(RFC 5646 § 2.1): "language      = 2*3ALPHA"
+    if !s
+        .split('-')
+        .next()
+        .is_some_and(|first| first.chars().all(|c| c.is_ascii_alphabetic()))
+    {
+        return Err("language tag does not begin with a letter".into());
+    }
+
     for sub in s.split('-') {
         if sub.is_empty() {
             return Err("empty subtag in language tag".into());
@@ -82,6 +100,29 @@ mod tests {
         ];
         for t in &good {
             assert!(validate_language_tag(t).is_ok(), "{} should be valid", t);
+        }
+    }
+
+    /// Both productions open with letters — `1*8ALPHA` in RFC 4647's range,
+    /// `2*3ALPHA / 4ALPHA / 5*8ALPHA` in RFC 5646's tag. They disagree about
+    /// nearly everything after that, and agree about this, so it is the one
+    /// shape check this permissive validator can make without choosing between
+    /// them. `123-US` used to pass as both.
+    #[test]
+    fn first_subtag_is_letters() {
+        for bad in ["123", "123-US", "1", "9x", "1a-BB"] {
+            assert!(
+                validate_language_tag(bad).is_err(),
+                "{bad} does not begin with a letter"
+            );
+        }
+        // A digit later in the tag is fine: `alphanum` allows it, and `es-419`
+        // is one of RFC 9110's own examples.
+        for good in ["es-419", "en-US", "x-pig-latin", "i-klingon", "de-1901"] {
+            assert!(
+                validate_language_tag(good).is_ok(),
+                "{good} should be valid"
+            );
         }
     }
 
