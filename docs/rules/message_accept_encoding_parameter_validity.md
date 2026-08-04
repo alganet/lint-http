@@ -20,6 +20,8 @@ Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each 
 
 **An empty field value is not reported.** §12.5.3 gives it a meaning of its own: the user agent wants no content coding at all.
 
+**Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted. The production spells the weight as the literal text `"q="` rather than as a parameter with a name and a separator, so there is no room in it for that space at all — but tolerating it never causes a false report, only a missed one.
+
 **An octet outside visible US-ASCII is reported** rather than skipped, unlike the neighbouring `Accept` rules. Those decode such a value because `obs-text` is legal inside a quoted-string; there are no quoted-strings here, so no octet `to_str` refuses can be a legal part of this field.
 
 ## Specifications
