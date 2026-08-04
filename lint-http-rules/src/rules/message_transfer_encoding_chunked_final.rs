@@ -119,6 +119,28 @@ impl Rule for MessageTransferEncodingChunkedFinal {
                 return None;
             }
 
+            // This sentence was cited on the collection loop from the day the
+            // rule was written, and nothing implemented it. `chunked, chunked`
+            // did produce a finding -- the position check below sees the
+            // *first* one is not last -- but it said "chunked must be the final
+            // coding" about a value whose final coding is chunked. The right
+            // answer for the wrong reason, and unreadable to anyone trying to
+            // fix it. Counted here, ahead of the position check, so the more
+            // specific defect wins.
+            // cite(RFC 9112 § 6.1): "A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed)."
+            let chunked_count = codings.iter().filter(|c| *c == "chunked").count();
+            if chunked_count > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "The chunked transfer coding must not be applied more than once: \
+                         codings found '{}'",
+                        codings.join(", ")
+                    ),
+                });
+            }
+
             // If 'chunked' appears anywhere other than the final coding it's a violation
             if let Some(pos) = codings.iter().position(|c| c == "chunked") {
                 if pos != codings.len() - 1 {
@@ -347,6 +369,50 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none(), "{v:?}");
+    }
+
+    /// Chunking an already chunked message is its own MUST NOT, and it was the
+    /// one sentence this rule had cited since it was written. `chunked,
+    /// chunked` used to be reported for `chunked` not being final, about a
+    /// value whose final coding is chunked.
+    #[rstest]
+    #[case("chunked, chunked")]
+    #[case("gzip, chunked, chunked")]
+    #[case("chunked, gzip, chunked")]
+    #[case("CHUNKED, chunked;ext=1")]
+    fn chunked_applied_twice_is_reported_as_such(#[case] value: &str) {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[(
+            "transfer-encoding",
+            value,
+        )]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(
+            v.is_some_and(|v| v.message.contains("must not be applied more than once")),
+            "{value:?} chunks an already chunked message"
+        );
+    }
+
+    /// Spread across field lines, which is the same message.
+    #[test]
+    fn chunked_twice_across_field_lines_is_reported() {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[
+            ("transfer-encoding", "chunked"),
+            ("transfer-encoding", "chunked"),
+        ]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some_and(|v| v.message.contains("must not be applied more than once")));
     }
 
     /// A response has a second way to satisfy § 6.1, and announcing the close
