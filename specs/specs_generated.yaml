@@ -2511,6 +2511,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_content_length.rs
       line: 32
+    - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
+      line: 94
   - label: message_content_location_and_uri_consistency
     section: § 8.7
     snippet: Content-Location = absolute-URI / partial-URI
@@ -3485,6 +3487,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_content_length_vs_transfer_encoding.rs
       line: 28
+    - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
+      line: 75
   - label: message_content_length_vs_transfer_encoding (2)
     section: § 6.3
     snippet: An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding
@@ -3518,18 +3522,36 @@ sources:
     - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
       line: 27
   - label: message_request_body_length_accuracy
+    section: § 6.2
+    snippet: For messages that do include content, the Content-Length field value provides the framing information necessary for determining where the data (and message) ends.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
+      line: 86
+  - label: message_request_body_length_accuracy (2)
+    section: § 6.2
+    snippet: When a message does not have a Transfer-Encoding header field, a Content-Length header field (Section 8.6 of [HTTP]) can provide the anticipated size, as a decimal number of octets, for potential content.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
+      line: 74
+  - label: message_request_body_length_accuracy (3)
     section: § 6.3
     snippet: If a Transfer-Encoding header field is present and the chunked transfer coding (Section 7.1) is the final encoding, the message body length is determined by reading and decoding the chunked data until the transfer coding indicates the data is complete.
     cited_by:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 59
-  - label: message_request_body_length_accuracy (2)
+  - label: message_request_body_length_accuracy (4)
     section: § 6.3
     snippet: If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets.
     cited_by:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 53
-  - label: message_request_body_length_accuracy (3)
+  - label: message_request_body_length_accuracy (5)
+    section: § 6.3
+    snippet: If the sender closes the connection or the recipient times out before the indicated number of octets are received, the recipient MUST consider the message to be incomplete and close the connection.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
+      line: 87
+  - label: message_request_body_length_accuracy (6)
     section: § 6.3
     snippet: The length of a message body is determined by one of the following (in order of precedence)
     cited_by:

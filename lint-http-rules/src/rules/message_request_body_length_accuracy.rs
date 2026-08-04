@@ -67,12 +67,31 @@ impl Rule for MessageRequestBodyLengthAccuracy {
         //
         // Presence is all that matters here, not what the field contains: the
         // overriding is unconditional on the transfer coding being valid or
-        // even parseable.
+        // even parseable. § 6.2 states the condition from the other end, and
+        // makes sending both a MUST NOT in its own right -- which is
+        // `message_content_length_vs_transfer_encoding`'s finding, not this
+        // rule's.
+        // cite(RFC 9112 § 6.2): "When a message does not have a Transfer-Encoding header field, a Content-Length header field (Section 8.6 of [HTTP]) can provide the anticipated size, as a decimal number of octets, for potential content."
+        // cite(RFC 9112 § 6.2): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
         if req.headers.contains_key(hyper::header::TRANSFER_ENCODING) {
             return None;
         }
 
-        // Compare to captured body length when available
+        // The comparison itself. What makes a difference worth reporting is not
+        // arithmetic: § 6.2 says this number is the framing, and § 6.3 says a
+        // recipient that does not receive that many octets has an incomplete
+        // message on its hands and must close the connection. A request whose
+        // declared length does not match the octets that arrived is one of
+        // those, whichever way the difference runs.
+        // cite(RFC 9112 § 6.2): "For messages that do include content, the Content-Length field value provides the framing information necessary for determining where the data (and message) ends."
+        // cite(RFC 9112 § 6.3): "If the sender closes the connection or the recipient times out before the indicated number of octets are received, the recipient MUST consider the message to be incomplete and close the connection."
+        //
+        // `body_length` counts the octets that streamed through, with the
+        // transfer coding already resolved and any `Content-Encoding` left
+        // alone -- which is the same thing `Content-Length` counts, so the two
+        // are comparable as they stand. It is `None` when nothing was captured,
+        // and then there is nothing to compare.
+        // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
         if let Some(body_len) = req.body_length {
             if declared != body_len as u128 {
                 return Some(Violation {
@@ -90,22 +109,28 @@ impl Rule for MessageRequestBodyLengthAccuracy {
     }
 
     fn description(&self) -> &'static str {
-        "When a request includes a `Content-Length` header, its numeric value MUST match the actual length in bytes of the captured request body after HTTP framing has been resolved (for example, after processing chunked transfer-coding), but not necessarily after any `Content-Encoding` (such as gzip) has been decoded. Mismatches indicate truncated or malformed requests and can lead to framing errors or request smuggling vulnerabilities. This rule validates that `Content-Length` (when present and syntactically valid) equals the captured body length recorded in the transaction."
+        "Checks that a request's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that number the framing — \"the Content-Length field value provides the framing information necessary for determining where the data (and message) ends\" — and §6.3 says a recipient that does not receive that many octets \"MUST consider the message to be incomplete and close the connection\". A mismatch is that message.\n\n**Only when there is no `Transfer-Encoding`.** §6.3 licenses the comparison in exactly those terms: \"If a valid Content-Length header field is present *without Transfer-Encoding*, its decimal value defines the expected message body length in octets.\" When both fields are present the Transfer-Encoding overrides, and the declared length is a number the specification says to disregard — so this rule stays silent. Sending both is its own MUST NOT (§6.2) and `message_content_length_vs_transfer_encoding` reports it.\n\n**Syntax belongs to another rule.** A `Content-Length` that is not a valid `1*DIGIT` — or whose field lines disagree, or which no integer can represent — leaves no number to compare, so this rule declines and `message_content_length` reports it. That rule is also where §6.3's comma-list allowance lives: `Content-Length: 3, 3` is one value of three, not a malformed field.\n\n**What the comparison is against.** The recorded length counts the octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts too, so the two are directly comparable. Where no body was captured, nothing is claimed."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9112",
-                section: Some("6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
-                note: "Content-Length header field usage",
+                section: Some("6.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
+                note: "Message body length — item 6 is what licenses this rule at all, and its condition is 'without Transfer-Encoding'; item 3 is why a message carrying both is measured by neither",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9112",
-                section: Some("6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
-                note: "Message body length determination and framing (how body length is determined and handled)",
+                section: Some("6.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
+                note: "Content-Length as framing — why a mismatch matters rather than merely differing. Also the MUST NOT against sending it beside Transfer-Encoding, which is another rule's finding",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
+                note: "Where the field and its `1*DIGIT` grammar are actually defined — the syntax itself is `message_content_length`'s subject, not this rule's",
             },
         ]
     }
@@ -116,18 +141,27 @@ impl Rule for MessageRequestBodyLengthAccuracy {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "POST /upload HTTP/1.1\nContent-Length: 3\n\nabc",
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 3\n\nabc",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a comma list of equal values is one value)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 3, 3\n\nabc",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(Transfer-Encoding overrides, so nothing here is measured)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 10\nTransfer-Encoding: chunked\n\nabc",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("(mismatched Content-Length)"),
-                snippet: "POST /upload HTTP/1.1\nContent-Length: 10\n\nabc",
+                label: Some("(the request is incomplete)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 10\n\nabc",
             },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(invalid Content-Length)"),
-                snippet: "POST /upload HTTP/1.1\nContent-Length: abc\n\nabc",
-            },
+            // The published `Content-Length: abc` example was labelled
+            // "(invalid Content-Length)" and is `message_content_length`'s
+            // finding, not this rule's -- it is gone rather than relabelled,
+            // because this rule reports nothing for it.
         ]
     }
 }
@@ -295,6 +329,66 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// Every published snippet is run through the rule, with the body length
+    /// taken from the snippet's own body rather than asserted separately --
+    /// which is the only way these examples mean anything, since the whole
+    /// finding is a comparison between the two.
+    ///
+    /// One of the three used to be `Content-Length: abc`, labelled "(invalid
+    /// Content-Length)". That is `message_content_length`'s finding, and this
+    /// rule now reports nothing for it, so it is gone rather than relabelled.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageRequestBodyLengthAccuracy;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+
+        for ex in rule.examples() {
+            let (head, body) = ex
+                .snippet
+                .split_once("\n\n")
+                .unwrap_or_else(|| panic!("example has no body: {:?}", ex.snippet));
+            let pairs: Vec<(&str, &str)> = head
+                .lines()
+                .skip(1)
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                })
+                .collect();
+
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.method = "POST".into();
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+            // The snippets show the body as it appears on the wire. For the
+            // chunked example that is not the decoded length, but that example
+            // is never measured -- the Transfer-Encoding sees to it.
+            tx.request.body_length = Some(body.len() as u64);
+
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    let found = found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    assert!(
+                        found.message.contains("does not match captured body bytes"),
+                        "{found:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// § 6.3's sixth item -- the sentence that gives a declared length any
