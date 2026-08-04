@@ -12,6 +12,14 @@ impl Rule for MessageAcceptLanguageWeightValidity {
         "message_accept_language_weight_validity"
     }
 
+    // `Both` describes what the code reads, not a second meaning the spec
+    // gives the field. This is the asymmetry worth noticing: §12.5.1 and
+    // §12.5.3 each say what Accept and Accept-Encoding mean *when sent by a
+    // server in a response*, and §12.5.4 says no such thing about
+    // Accept-Language — it defines a request field and stops. A response
+    // carrying one is outside what RFC 9110 describes, so the response arm
+    // here reports syntax and claims nothing about meaning.
+    // cite(RFC 9110 § 12.5.4): "The "Accept-Language" header field can be used by user agents to indicate the set of natural languages that are preferred in the response."
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -23,8 +31,16 @@ impl Rule for MessageAcceptLanguageWeightValidity {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Helper to validate a single Accept-Language header value (may contain comma-separated members)
+        // The production the rule is a reading of. A member is a range and at
+        // most one weight; nothing else derives from it.
+        // cite(RFC 9110 § 12.5.4): "Accept-Language = #( language-range [ weight ] )"
+        // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
         let validate_value = |hdr_value: &str| -> Option<Violation> {
+            // A comma split with no regard for quoting, which is right rather
+            // than merely tolerable: nothing in this grammar is a
+            // quoted-string, so there is no quoted comma to protect. Empty list
+            // elements are skipped, which §5.6.1.2 permits a recipient to do.
+            // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
             for member in crate::helpers::headers::parse_list_header(hdr_value) {
                 // Each member: language-range [; params]
                 let mut iter = member.split(';').map(|s| s.trim());
@@ -41,6 +57,11 @@ impl Rule for MessageAcceptLanguageWeightValidity {
                 // tokens and values are tokens-or-quoted-strings validated a
                 // grammar this field does not have, and so called
                 // `en;charset=utf-8` well formed.
+                //
+                // The weight is optional — "can be given" — so its absence is
+                // never a finding. What is a finding is something else in its
+                // place, or two of it.
+                // cite(RFC 9110 § 12.5.4): "Each language-range can be given an associated quality value representing an estimate of the user's preference for the languages specified by that range, as defined in Section 12.4.2."
                 let mut weight_seen = false;
                 for param in iter {
                     // Not skipped as an empty parameter slot: there are no
@@ -56,6 +77,10 @@ impl Rule for MessageAcceptLanguageWeightValidity {
                             ),
                         });
                     }
+                    // Matched without regard to case because §12.4.2 defines
+                    // the parameter that way, and this is the only name the
+                    // field admits.
+                    // cite(RFC 9110 § 12.4.2): "The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content."
                     let mut nv = param.splitn(2, '=').map(|s| s.trim());
                     let name = nv.next().unwrap();
                     let val_opt = nv.next();
@@ -119,12 +144,18 @@ impl Rule for MessageAcceptLanguageWeightValidity {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
-                    message: "Accept-Language header value is not valid UTF-8".into(),
+                    message:
+                        "Accept-Language contains an octet no part of this field's grammar admits"
+                            .into(),
                 });
             }
         }
 
-        // Response (some servers echo Accept-Language; be conservative)
+        // A response carrying Accept-Language is not something §12.5.4
+        // describes, unlike its two siblings. The value is still read, because
+        // a malformed one is malformed wherever it appears and a proxy does see
+        // them echoed — but the finding is about syntax and says nothing about
+        // what the field would mean here.
         if let Some(resp) = &tx.response {
             for hv in resp.headers.get_all("accept-language").iter() {
                 if let Ok(val) = hv.to_str() {
@@ -135,7 +166,9 @@ impl Rule for MessageAcceptLanguageWeightValidity {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
-                        message: "Accept-Language header value is not valid UTF-8".into(),
+                        message:
+                            "Accept-Language contains an octet no part of this field's grammar admits"
+                                .into(),
                     });
                 }
             }
@@ -149,7 +182,7 @@ impl Rule for MessageAcceptLanguageWeightValidity {
     }
 
     fn description(&self) -> &'static str {
-        "The `Accept-Language` header allows clients to specify languages and optional `q` weights that indicate preference. This rule validates that any parameters in `Accept-Language` members use valid `token` names and that `q` parameters are valid quality values in the range 0..1 with up to three decimal places."
+        "Check that an `Accept-Language` header reads as `#( language-range [ weight ] )`: each member a language range, optionally followed by a weight whose value is a `qvalue` — `0` to `1` with at most three digits after the point.\n\n**There is no parameter list in this field.** A range may carry a weight and nothing else, so `en;charset=utf-8` is reported however well formed the pair looks in isolation. The rule used to check that parameter names were tokens and values were tokens or quoted-strings, which is the parameter grammar of a *different* kind of field; its own SpecRef note said it was following \"the same q/parameter validation semantics used across other headers in this project\".\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `en;` and `en;;q=0.5` are separators introducing a weight that is not there. `[ weight ]` is singular, so `en;q=0.5;q=0.8` is two of it. And a weight is optional — `en, fr` is as conforming as `en;q=1, fr;q=0.8`.\n\n**The language range itself is not checked here.** That is `message_language_tag_format_valid`'s subject: it reports an empty range, whitespace inside one, and an over-long subtag, and lets `*` through.\n\n**A response's Accept-Language is read, but the spec does not describe one.** This is the asymmetry worth knowing about: §12.5.1 and §12.5.3 each say what `Accept` and `Accept-Encoding` mean when a server sends them in a response, and §12.5.4 says no such thing — it defines a request field and stops. The value is still checked, because a malformed one is malformed wherever it appears, but the finding is about syntax and claims nothing about meaning.\n\n**Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted, though `weight` spells the text as the literal `\"q=\"`. It can only miss a report, never invent one.\n\n**An octet outside visible US-ASCII is reported** rather than skipped: nothing in this grammar is a quoted-string, so no such octet can be a legal part of the field."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -158,19 +191,25 @@ impl Rule for MessageAcceptLanguageWeightValidity {
                 spec: "RFC 9110",
                 section: Some("12.5.4"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.4",
-                note: "Accept-Language",
+                note: "Accept-Language: `#( language-range [ weight ] )` — the production that says a range may carry a weight and nothing else. Note that, unlike Accept and Accept-Encoding, this section gives the field no meaning in a response",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("12.4.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
-                note: "Quality Values (q)",
+                note: "Quality Values: the `weight` production this field admits, the `qvalue` its value must be, and the case-insensitive parameter name",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 4647",
+                section: Some("2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc4647.html#section-2.1",
+                note: "Basic Language Range: where `language-range` is defined, by reference from RFC 9110. Its syntax is `message_language_tag_format_valid`'s subject, not this rule's",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("5.6.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
-                note: "Parameters (token / quoted-string) The rule follows the same `q`/parameter validation semantics used across other headers in this project (0..1 with up to three decimals for `q`; parameter names must be `token`; parameter values must be `token` or `quoted-string`)",
+                section: Some("5.6.1.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
+                note: "Sender Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore",
             },
         ]
     }
@@ -185,29 +224,39 @@ impl Rule for MessageAcceptLanguageWeightValidity {
             },
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
+                label: Some("(the wildcard range, and a weight is optional)"),
                 snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: *;q=0.5, en;q=0.7",
             },
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;foo=\"a\\\"b\"",
+                label: Some("(RFC 9110 \u{a7}12.5.4's own example)"),
+                snippet:
+                    "GET / HTTP/1.1\nHost: example.com\nAccept-Language: da, en-gb;q=0.8, en;q=0.7",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
+                label: Some("(a qvalue has at most three digits after the point)"),
                 snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;q=1.0000",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet:
-                    "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;badparam=bad value",
+                label: Some("(a range may carry a weight and nothing else)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;badparam=value",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
+                label: Some("(a well-formed parameter the field still has no room for)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;foo=\"a\\\"b\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(no qvalue after the separator)"),
                 snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;q=",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a weight there may be at most one of)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Language: en;q=0.5;q=0.8",
             },
         ]
     }
@@ -373,6 +422,72 @@ mod tests {
     }
 
     #[test]
+    /// Every published snippet is run through the rule, each NonCompliant one
+    /// pinned to the finding it illustrates. One Compliant example here was
+    /// `en;foo="a\"b"` — published as conforming because the quoted-string is
+    /// well formed, when the field has no room for the parameter at all. A
+    /// premise this wrong reaches the docs as readily as it reaches the code.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageAcceptLanguageWeightValidity;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let reasons: [(&str, &str); 5] = [
+            ("en;q=1.0000", "Invalid qvalue"),
+            ("en;badparam=value", "is not a weight"),
+            ("en;foo=\"a\\\"b\"", "is not a weight"),
+            ("en;q=", "Invalid qvalue"),
+            ("en;q=0.5;q=0.8", "More than one weight"),
+        ];
+
+        for ex in rule.examples() {
+            let pairs: Vec<(&str, &str)> = ex
+                .snippet
+                .lines()
+                .filter(|l| !l.contains("HTTP/"))
+                .map(|l| {
+                    let (k, v) = l
+                        .split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"));
+                    (k, v)
+                })
+                .collect();
+            let al = pairs
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case("accept-language"))
+                .map(|(_, v)| *v)
+                .unwrap_or_else(|| panic!("example has no Accept-Language: {:?}", ex.snippet));
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example {al:?}: {found:?}"
+                ),
+                Compliance::NonCompliant => {
+                    let found = found
+                        .unwrap_or_else(|| panic!("rule accepts its NonCompliant example {al:?}"));
+                    let expected = *reasons
+                        .iter()
+                        .find(|(v, _)| *v == al)
+                        .map(|(_, reason)| reason)
+                        .unwrap_or_else(|| {
+                            panic!("NonCompliant example {al:?} has no expected finding here")
+                        });
+                    assert!(
+                        found.message.contains(expected),
+                        "NonCompliant example {al:?} should fail with {expected:?}: {found:?}"
+                    );
+                }
+            }
+        }
+    }
+
     /// `Accept-Language = #( language-range [ weight ] )` leaves no room for a
     /// `foo` parameter, well formed or not. These asserted the opposite: that a
     /// valid quoted-string value made the member acceptable, and that an
