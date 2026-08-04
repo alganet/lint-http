@@ -92,7 +92,37 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
                 return None;
             }
 
-            // Find overlapping tokens between Content-Encoding and Transfer-Encoding
+            // The comparison, and the whole premise of the rule -- which had no
+            // citation of any kind, and a user-facing message pointing at
+            // § 5.3, "Field Order".
+            //
+            // The two fields address different layers, and both specifications
+            // say so in mirrored sentences:
+            // cite(RFC 9112 § 6.1): "Unlike Content-Encoding (Section 8.4.1 of [HTTP]), Transfer-Encoding is a property of the message, not of the representation."
+            // cite(RFC 9110 § 8.4): "Unlike Transfer-Encoding (Section 6.1 of [HTTP/1.1]), the codings listed in Content-Encoding are a characteristic of the representation; the representation is defined in terms of the coded form, and all other metadata about the representation is about the coded form unless otherwise noted in the metadata definition."
+            //
+            // **Nothing forbids naming the same coding at both layers.** It
+            // means the representation was coded and then coded again in
+            // transit, which is well defined rather than ambiguous: the two
+            // namespaces may share a name only where the transformation is
+            // identical, and the compression transfer codings are defined by
+            // the algorithm of the content coding they are named after.
+            // cite(RFC 9112 § 7.3): "Names of transfer codings MUST NOT overlap with names of content codings (Section 8.4.1 of [HTTP]) unless the encoding transformation is identical, as is the case for the compression codings defined in Section 7.2."
+            // cite(RFC 9112 § 7.2): "The following transfer coding names for compression are defined by the same algorithm as their corresponding content coding:"
+            //
+            // § 8.4 goes further and contemplates a coding applied twice,
+            // declining to forbid it and remarking only on how odd it would be.
+            // That sentence is about an encoding inherent in the media type
+            // rather than about Transfer-Encoding, so it does not govern this
+            // check -- but it settles the modal, which is what was in doubt.
+            // cite(RFC 9110 § 8.4): "Such a content coding would only be listed if, for some bizarre reason, it is applied a second time to form the representation."
+            //
+            // So the finding is advisory, and the message now says what is
+            // unusual rather than implying something was broken.
+            //
+            // Content-Encoding is taken at its word -- nothing here decodes a
+            // body -- and § 8.4 is what makes that reading fair.
+            // cite(RFC 9110 § 8.4): "If one or more encodings have been applied to a representation, the sender that applied the encodings MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied."
             let mut overlap: Vec<String> = ce_set
                 .intersection(&te_set)
                 .map(|s| s.to_string())
@@ -127,7 +157,7 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Responses that use representation compression (e.g., `Content-Encoding: gzip`) should not duplicate the same compression coding in `Transfer-Encoding`. `Content-Encoding` signals end-to-end transformations applied to the representation by the origin, while `Transfer-Encoding` describes hop-by-hop transport codings. The rule flags cases where the same compression coding appears in both headers which is likely unintended and confusing."
+        "Flags a message that names the same coding in both `Content-Encoding` and `Transfer-Encoding` — for example `Content-Encoding: gzip` alongside `Transfer-Encoding: gzip, chunked`. Both directions are checked, and the finding names the side it describes.\n\n**This is advisory, and no sentence forbids it.** The two fields address different layers, which both specifications say in mirrored sentences: RFC 9112 §6.1, \"Unlike Content-Encoding …, Transfer-Encoding is a property of the message, not of the representation\"; RFC 9110 §8.4, \"Unlike Transfer-Encoding …, the codings listed in Content-Encoding are a characteristic of the representation\". Naming a coding at both layers means the representation is compressed and then compressed *again* in transit. That is decodable, not malformed — RFC 9112 §7.3 guarantees a transfer coding and a content coding sharing a name are \"identical\" transformations, and RFC 9110 §8.4 contemplates a coding \"applied a second time\" outright, remarking only that it would take \"some bizarre reason\". The finding says the message is almost certainly not what its sender meant; it does not say the message breaks a rule.\n\n**What it does not do.** It makes no claim about the *body*: nothing here decodes anything or checks that the codings were really applied. `Content-Encoding` is taken at its word, which RFC 9110 §8.4 licenses — a sender that applied encodings \"MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied\".\n\n**Parsing.** The two fields are split by their own grammars: `content-coding` is a bare `token`, so every comma separates; `transfer-coding` carries parameters whose values may be quoted-strings, so that split respects quoting. Names are compared case-insensitively, as both specifications define them to be, and values are decoded from raw octets so that one bad byte cannot hide the names beside it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -136,13 +166,37 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
                 spec: "RFC 9110",
                 section: Some("8.4"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
-                note: "Content Coding",
+                note: "Content-Encoding — a property of the representation, and the MUST that makes it a trustworthy record of what was applied. Also contemplates a coding applied a second time, which is why this rule is advisory",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4.1",
+                note: "`content-coding = token` — no parameters, which is why this field's members are split naively",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9112",
                 section: Some("6.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
-                note: "Transfer Codings and `Transfer-Encoding`",
+                note: "Transfer-Encoding — a property of the message, not the representation. The mirror of §8.4's sentence, and the whole basis of the distinction this rule watches",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("7.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.2",
+                note: "The compression transfer codings, defined by the same algorithm as the content coding of the same name",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("7.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.3",
+                note: "Transfer and content coding names may only overlap where the transformation is identical — so a shared name is unambiguous, and coding twice is coherent rather than malformed",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("10.1.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
+                note: "The `transfer-coding` grammar, including the quoted-string a parameter may carry — why that field's split is quote-aware",
             },
         ]
     }
@@ -153,17 +207,27 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip\nTransfer-Encoding: chunked\n\n<compressed-body-chunked>",
+                snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip\nTransfer-Encoding: chunked\n",
             },
             Example {
                 compliance: Compliance::Compliant,
                 label: Some("(transfer-level gzip without Content-Encoding)"),
-                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: gzip, chunked\n\n<gzip-then-chunked-bytes>",
+                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: gzip, chunked\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(different codings at each layer)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Encoding: br\nTransfer-Encoding: gzip, chunked\n",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("(duplicate compression codings)"),
-                snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip\nTransfer-Encoding: gzip, chunked\n\n<body>",
+                label: Some("(the same coding at both layers)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip\nTransfer-Encoding: gzip, chunked\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a request codes its body twice)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Encoding: gzip\nTransfer-Encoding: gzip, chunked\n",
             },
         ]
     }
@@ -263,6 +327,67 @@ mod tests {
             &cfg,
         );
         assert!(v.is_some());
+    }
+
+    /// Every published snippet is run through the rule. The two Compliant ones
+    /// used to end in pseudo-bodies (`<compressed-body-chunked>`), so nothing
+    /// could have parsed them even if something had tried.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageCompressionAndTransferEncodingConsistency;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+
+        for ex in rule.examples() {
+            let mut lines = ex.snippet.lines();
+            let start = lines.next().expect("empty snippet");
+            let is_response = start.starts_with("HTTP/");
+            let pairs: Vec<(&str, &str)> = lines
+                .take_while(|l| !l.trim().is_empty())
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                })
+                .collect();
+
+            let mut tx = if is_response {
+                crate::test_helpers::make_test_transaction_with_response(200, &[])
+            } else {
+                crate::test_helpers::make_test_transaction()
+            };
+            let headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+            if is_response {
+                tx.response.as_mut().unwrap().headers = headers;
+            } else {
+                tx.request.headers = headers;
+            }
+
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            let side = if is_response { "response" } else { "request" };
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example ({side}) {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    let found = found.unwrap_or_else(|| {
+                        panic!(
+                            "rule accepts its NonCompliant example ({side}) {:?}",
+                            ex.snippet
+                        )
+                    });
+                    assert!(
+                        found.message.contains(&format!("of the {side}")),
+                        "example is a {side} but the finding says otherwise: {found:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// An octet outside visible US-ASCII is not a `tchar`, so a name carrying

@@ -2360,6 +2360,24 @@ sources:
     - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
       line: 92
   - label: message_compression_and_transfer_encoding_consistency (5)
+    section: § 8.4
+    snippet: If one or more encodings have been applied to a representation, the sender that applied the encodings MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
+      line: 125
+  - label: message_compression_and_transfer_encoding_consistency (6)
+    section: § 8.4
+    snippet: Such a content coding would only be listed if, for some bizarre reason, it is applied a second time to form the representation.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
+      line: 118
+  - label: message_compression_and_transfer_encoding_consistency (7)
+    section: § 8.4
+    snippet: Unlike Transfer-Encoding (Section 6.1 of [HTTP/1.1]), the codings listed in Content-Encoding are a characteristic of the representation; the representation is defined in terms of the coded form, and all other metadata about the representation is about the coded form unless otherwise noted in the metadata definition.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
+      line: 102
+  - label: message_compression_and_transfer_encoding_consistency (8)
     section: § 8.4.1
     snippet: All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry",
     cited_by:
@@ -3428,6 +3446,12 @@ sources:
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 175
   - label: message_compression_and_transfer_encoding_consistency (2)
+    section: § 6.1
+    snippet: Unlike Content-Encoding (Section 8.4.1 of [HTTP]), Transfer-Encoding is a property of the message, not of the representation.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
+      line: 101
+  - label: message_compression_and_transfer_encoding_consistency (3)
     section: § 7
     snippet: All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3.
     cited_by:
@@ -3441,6 +3465,18 @@ sources:
       line: 292
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 71
+  - label: message_compression_and_transfer_encoding_consistency (4)
+    section: § 7.2
+    snippet: 'The following transfer coding names for compression are defined by the same algorithm as their corresponding content coding:'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
+      line: 111
+  - label: message_compression_and_transfer_encoding_consistency (5)
+    section: § 7.3
+    snippet: Names of transfer codings MUST NOT overlap with names of content codings (Section 8.4.1 of [HTTP]) unless the encoding transformation is identical, as is the case for the compression codings defined in Section 7.2.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
+      line: 110
   - label: message_content_length_vs_transfer_encoding
     section: § 6.2
     snippet: A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field.
