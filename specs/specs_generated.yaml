@@ -1802,7 +1802,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 129
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 188
+      line: 207
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 5.3
     snippet: Since it cannot be combined into a single field value, | recipients ought to handle "Set-Cookie" as a special case while | processing fields.
@@ -1844,7 +1844,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 949
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 201
+      line: 220
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -1862,7 +1862,7 @@ sources:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 99
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 200
+      line: 219
   - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
@@ -2776,7 +2776,7 @@ sources:
     snippet: The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 226
+      line: 245
   - label: message_transfer_coding_iana_registered (2)
     section: § 10.1.4
     snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
@@ -3436,13 +3436,25 @@ sources:
     snippet: 'Transfer-Encoding = #transfer-coding'
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 208
+      line: 227
   - label: message_transfer_coding_iana_registered (2)
+    section: § 7
+    snippet: All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 170
+  - label: message_transfer_coding_iana_registered (3)
     section: § 7.3
     snippet: The "HTTP Transfer Coding Registry" defines the namespace for transfer coding names.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 110
+  - label: message_transfer_coding_iana_registered (4)
+    section: § 7.4
+    snippet: A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 167
   - label: message_transfer_encoding_chunked_final
     section: § 6.1
     snippet: A sender MUST NOT apply the chunked transfer coding more than once to a message body
