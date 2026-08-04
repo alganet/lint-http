@@ -421,7 +421,6 @@ mod tests {
         Ok(())
     }
 
-    #[test]
     /// Every published snippet is run through the rule, each NonCompliant one
     /// pinned to the finding it illustrates. One Compliant example here was
     /// `en;foo="a\"b"` — published as conforming because the quoted-string is
@@ -493,6 +492,7 @@ mod tests {
     /// valid quoted-string value made the member acceptable, and that an
     /// invalid one was the reason to report it. The member is reported either
     /// way, and for the reason that holds for both.
+    #[test]
     fn a_parameter_that_is_not_a_weight_is_reported_however_it_is_written() {
         let rule = MessageAcceptLanguageWeightValidity;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
