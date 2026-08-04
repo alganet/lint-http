@@ -18,6 +18,8 @@ Enforces RFC 9112 §6.1's requirements on the sequence of transfer codings: `chu
 
 **The response exemption, and what it rests on.** A transaction records no connection teardown, so the second alternative is read from `Connection: close`. RFC 9112 §9.6 makes announcing a close a **SHOULD**, not a MUST — so a response that closes silently is still reported here, and that is a known false positive rather than an oversight. It is also, in that state, disregarding §9.6. Narrowing further would mean giving up the response side entirely.
 
+**A response with no body is not judged.** §6.1 permits `Transfer-Encoding` on a response to `HEAD` and on a `304 (Not Modified)`, "neither of which includes a message body", where it indicates what the origin *would have* applied to an unconditional `GET`. All three requirements above speak of a coding applied to content, so none of them engage. The *request's* own field is judged as usual, whatever its method.
+
 **§7.1 does not say `chunked` must be last.** It defines the chunked coding — its grammar, its role in framing, and (at the end) that it takes no parameters. This rule's specifications used to cite §7.1 for the ordering requirement, which lives in §6.1.
 
 **Parsing.** Members are split on commas outside quoted-strings, the coding *name* is taken from in front of any parameters (so `chunked;ext=1` is still `chunked`), names are folded case-insensitively per §7, and values are decoded from raw octets — dropping a field line here would not merely lose a finding, it would silently reorder the sequence being judged. A value whose quoting never closes is declined, because its members cannot be delimited; `message_transfer_coding_iana_registered` is the rule that reports it.
