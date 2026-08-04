@@ -28,28 +28,61 @@ impl Rule for MessageAcceptLanguageWeightValidity {
             for member in crate::helpers::headers::parse_list_header(hdr_value) {
                 // Each member: language-range [; params]
                 let mut iter = member.split(';').map(|s| s.trim());
-                let _primary = iter.next().unwrap(); // primary language-range already validated elsewhere
+                // The language-range itself is `message_language_tag_format_valid`'s
+                // subject, and that deferral has been checked rather than
+                // assumed: it reports an empty range, whitespace inside one, and
+                // an over-long subtag, and it lets `*` through.
+                let _primary = iter.next().unwrap();
 
+                // A language-range may carry a weight. That is the whole of what
+                // may follow it — `#( language-range [ weight ] )` has no
+                // parameter list in it, and `weight` is the fixed shape
+                // `OWS ";" OWS "q=" qvalue`. Checking that parameter names are
+                // tokens and values are tokens-or-quoted-strings validated a
+                // grammar this field does not have, and so called
+                // `en;charset=utf-8` well formed.
+                let mut weight_seen = false;
                 for param in iter {
+                    // Not skipped as an empty parameter slot: there are no
+                    // parameter slots, and `weight` brackets nothing, so a `;`
+                    // with nothing after it introduces a weight that is absent.
                     if param.is_empty() {
-                        continue;
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Accept-Language member '{}' has a ';' with no weight after it",
+                                member
+                            ),
+                        });
                     }
                     let mut nv = param.splitn(2, '=').map(|s| s.trim());
                     let name = nv.next().unwrap();
                     let val_opt = nv.next();
 
-                    if crate::helpers::token::find_invalid_token_char(name).is_some() {
+                    if !name.eq_ignore_ascii_case("q") {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: config.severity,
                             message: format!(
-                                "Invalid parameter name '{}' in Accept-Language member '{}'",
-                                name, member
+                                "'{}' is not a weight, and a weight is the only thing an Accept-Language range may carry (member '{}')",
+                                param, member
                             ),
                         });
                     }
+                    if weight_seen {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "More than one weight in Accept-Language member '{}'",
+                                member
+                            ),
+                        });
+                    }
+                    weight_seen = true;
 
-                    if val_opt.is_none() {
+                    let Some(val) = val_opt else {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: config.severity,
@@ -58,39 +91,18 @@ impl Rule for MessageAcceptLanguageWeightValidity {
                                 name, member
                             ),
                         });
-                    }
-                    let val = val_opt.unwrap();
+                    };
 
-                    if name.eq_ignore_ascii_case("q") {
-                        // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
-                        // cite(RFC 9110 § 12.5.4): "Accept-Language = #( language-range [ weight ] )"
-                        if !crate::helpers::headers::valid_qvalue(val) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "Invalid qvalue '{}' in Accept-Language member '{}'",
-                                    val, member
-                                ),
-                            });
-                        }
-                    } else {
-                        // Other parameter values must be token or quoted-string
-                        if val.starts_with('"') {
-                            if let Err(e) = crate::helpers::headers::validate_quoted_string(val) {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!("Invalid quoted-string parameter value '{}' in Accept-Language: {}", val, e),
-                                });
-                            }
-                        } else if crate::helpers::token::find_invalid_token_char(val).is_some() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!("Invalid parameter value '{}' for '{}' in Accept-Language member '{}'", val, name, member),
-                            });
-                        }
+                    // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
+                    if !crate::helpers::headers::valid_qvalue(val) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Invalid qvalue '{}' in Accept-Language member '{}'",
+                                val, member
+                            ),
+                        });
                     }
                 }
             }
@@ -221,6 +233,21 @@ mod tests {
     // A qvalue may end at the point: `0*3DIGIT` admits no digits at all.
     #[case(Some("en;q=0."), false)]
     #[case(Some("en;param=bad value"), true)]
+    // A language-range may carry a weight and nothing else, so every one of
+    // these is malformed however well formed the pair itself looks.
+    #[case(Some("en;charset=utf-8"), true)]
+    #[case(Some("en;q=0.5;foo=bar"), true)]
+    // `[ weight ]` is singular.
+    #[case(Some("en;q=0.5;q=0.8"), true)]
+    // `weight` brackets nothing, so a `;` introducing nothing is a defect
+    // wherever it sits.
+    #[case(Some("en;"), true)]
+    #[case(Some("en;;q=0.5"), true)]
+    // The RFC's own example, and the forms the grammar does produce.
+    #[case(Some("da, en-gb;q=0.8, en;q=0.7"), false)]
+    #[case(Some("*;q=0"), false)]
+    #[case(Some("en;Q=0.5"), false)]
+    #[case(Some(""), false)]
     fn check_request_cases(
         #[case] al: Option<&str>,
         #[case] expect_violation: bool,
@@ -346,37 +373,34 @@ mod tests {
     }
 
     #[test]
-    fn other_param_quoted_string_valid_and_invalid() {
+    /// `Accept-Language = #( language-range [ weight ] )` leaves no room for a
+    /// `foo` parameter, well formed or not. These asserted the opposite: that a
+    /// valid quoted-string value made the member acceptable, and that an
+    /// invalid one was the reason to report it. The member is reported either
+    /// way, and for the reason that holds for both.
+    fn a_parameter_that_is_not_a_weight_is_reported_however_it_is_written() {
         let rule = MessageAcceptLanguageWeightValidity;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_accept_language_weight_validity",
         ]);
 
-        // valid quoted-string
-        let mut tx1 = crate::test_helpers::make_test_transaction();
-        tx1.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("accept-language", "en;foo=\"ok\"")]);
-        assert!(rule
-            .check_transaction(
-                &tx1,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
-
-        // invalid quoted-string
-        let mut tx2 = crate::test_helpers::make_test_transaction();
-        tx2.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
-            "accept-language",
+        for value in [
+            "en;foo=\"ok\"",
             "en;foo=\"unterminated",
-        )]);
-        assert!(rule
-            .check_transaction(
-                &tx2,
+            "en;foo=\"a\\\"b\"",
+            "en;charset=utf-8",
+        ] {
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.headers =
+                crate::test_helpers::make_headers_from_pairs(&[("accept-language", value)]);
+            let v = rule.check_transaction(
+                &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
-            )
-            .is_some());
+            );
+            let v = v.unwrap_or_else(|| panic!("{value:?} carries something that is not a weight"));
+            assert!(v.message.contains("is not a weight"), "{value:?}: {v:?}");
+        }
     }
 
     #[test]
@@ -466,27 +490,6 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = headers;
 
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn quoted_string_with_escaped_quote_valid() {
-        let rule = MessageAcceptLanguageWeightValidity;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_accept_language_weight_validity",
-        ]);
-
-        let mut tx = crate::test_helpers::make_test_transaction();
-        // quoted-string with escaped quote: "a\"b"
-        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
-            "accept-language",
-            "en;foo=\"a\\\"b\"",
-        )]);
         let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
