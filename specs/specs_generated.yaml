@@ -1762,7 +1762,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1065
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
-      line: 130
+      line: 132
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
       line: 65
   - label: If-None-Match weak comparison
