@@ -112,13 +112,15 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                                 // Not skipped as an empty parameter slot, because
                                 // there are no parameter slots. `weight` brackets
                                 // nothing, so a `;` with nothing after it is a
-                                // separator introducing a weight that is not there.
+                                // separator introducing a weight that is not there
+                                // — whether it sits at the end of the member or
+                                // between two others.
                                 if param.is_empty() {
                                     return Some(Violation {
                                     rule: self.id().into(),
                                     severity: config.severity,
                                     message: format!(
-                                        "Accept-Encoding member '{}' ends in ';' with no weight after it",
+                                        "Accept-Encoding member '{}' has a ';' with no weight after it",
                                         part
                                     ),
                                 });
@@ -223,7 +225,7 @@ impl Rule for MessageAcceptEncodingParameterValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each member a content coding, the literal `identity`, or the literal `*`, optionally followed by a weight.\n\n**The rule's name is a little wrong, and the reason is the point.** `Accept-Encoding` has no parameter list. A coding may carry a `weight` — `OWS \";\" OWS \"q=\" qvalue` — and nothing else, so there is no `name=value` grammar here to be well formed. What this rule checks is that nothing other than a weight appears: `gzip;charset=utf-8` and `gzip;foo=\"a;b\"` are reported, however well formed the pair looks in isolation, because no derivation of this field produces them.\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `gzip;` is a separator introducing a weight that is not there. `[ weight ]` is singular, so `gzip;q=0.5;q=0.8` is two of something there may be at most one of. And `codings` is not optional, so `;q=0.5` is a member with no coding.\n\n**A weight is a MAY**, so its absence is never reported; `gzip, br` is as conforming as `gzip;q=1.0, br;q=0.5`. When present it must be a `qvalue`: `0` to `1` with at most three digits after the point.\n\n**Both directions are read.** A request states what codings a response may use; a response, per §12.5.3, says what the resource was willing to accept — most often in a 415 (Unsupported Media Type), and evaluated the same way.\n\n**An empty field value is not reported.** §12.5.3 gives it a meaning of its own: the user agent wants no content coding at all.\n\n**An octet outside visible US-ASCII is reported** rather than skipped, unlike the neighbouring `Accept` rules. Those decode such a value because `obs-text` is legal inside a quoted-string; there are no quoted-strings here, so no octet `to_str` refuses can be a legal part of this field."
+        "Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each member a content coding, the literal `identity`, or the literal `*`, optionally followed by a weight.\n\n**The rule's name is a little wrong, and the reason is the point.** `Accept-Encoding` has no parameter list. A coding may carry a `weight` — `OWS \";\" OWS \"q=\" qvalue` — and nothing else, so there is no `name=value` grammar here to be well formed. What this rule checks is that nothing other than a weight appears: `gzip;charset=utf-8` and `gzip;foo=\"a;b\"` are reported, however well formed the pair looks in isolation, because no derivation of this field produces them.\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `gzip;` is a separator introducing a weight that is not there. `[ weight ]` is singular, so `gzip;q=0.5;q=0.8` is two of something there may be at most one of. And `codings` is not optional, so `;q=0.5` is a member with no coding.\n\n**A weight is a MAY**, so its absence is never reported; `gzip, br` is as conforming as `gzip;q=1.0, br;q=0.5`. When present it must be a `qvalue`: `0` to `1` with at most three digits after the point.\n\n**Both directions are read.** A request states what codings a response may use; a response, per §12.5.3, says what the resource was willing to accept — most often in a 415 (Unsupported Media Type), and evaluated the same way.\n\n**An empty field value is not reported.** §12.5.3 gives it a meaning of its own: the user agent wants no content coding at all.\n\n**Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted. The production spells the weight as the literal text `\"q=\"` rather than as a parameter with a name and a separator, so there is no room in it for that space at all — but tolerating it never causes a false report, only a missed one.\n\n**An octet outside visible US-ASCII is reported** rather than skipped, unlike the neighbouring `Accept` rules. Those decode such a value because `obs-text` is legal inside a quoted-string; there are no quoted-strings here, so no octet `to_str` refuses can be a legal part of this field."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -510,6 +512,10 @@ mod tests {
     // separator introducing something that is not there.
     #[case(Some("gzip;"), true)]
     #[case(Some("gzip; ;q=0.8"), true)]
+    // The same defect in the middle of a member rather than at its end. The
+    // message used to say the member "ends in ';'", which this one does not.
+    #[case(Some("gzip;;q=0.5"), true)]
+    #[case(Some("gzip;q=0.5;"), true)]
     #[case(Some("gzip;param"), true)]
     #[case(Some("gzip;bad name=1"), true)]
     #[case(Some("gzip;q=1.0000, br;q=1.0"), true)]

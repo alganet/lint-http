@@ -1762,7 +1762,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1065
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
-      line: 169
+      line: 171
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
       line: 65
   - label: If-None-Match weak comparison
@@ -2032,7 +2032,7 @@ sources:
     snippet: The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
-      line: 131
+      line: 133
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 258
   - label: message_accept_encoding_parameter_validity (2)
