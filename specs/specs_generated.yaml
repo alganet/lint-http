@@ -2512,7 +2512,7 @@ sources:
     - file: lint-http-rules/src/rules/message_content_length.rs
       line: 32
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
-      line: 94
+      line: 103
   - label: message_content_location_and_uri_consistency
     section: § 8.7
     snippet: Content-Location = absolute-URI / partial-URI

@@ -91,6 +91,15 @@ impl Rule for MessageRequestBodyLengthAccuracy {
         // alone -- which is the same thing `Content-Length` counts, so the two
         // are comparable as they stand. It is `None` when nothing was captured,
         // and then there is nothing to compare.
+        //
+        // `request_body_over_limit` is deliberately *not* consulted, and that
+        // was checked rather than assumed. It reads like a reason to distrust
+        // the length -- a truncated capture -- but neither producer makes it
+        // one: the streaming path counts every octet that passes and truncates
+        // only the retained prefix, so the total stays exact; the one buffered
+        // path records no body at all when it rejects an over-limit request, so
+        // the length is `None` and this rule has already declined. Skipping on
+        // the flag would lose real findings and prevent none.
         // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
         if let Some(body_len) = req.body_length {
             if declared != body_len as u128 {
