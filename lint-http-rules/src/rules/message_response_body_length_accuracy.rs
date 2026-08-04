@@ -25,83 +25,31 @@ impl Rule for MessageResponseBodyLengthAccuracy {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
-        // If any Content-Length header(s) are present, validate each value and compare
-        use hyper::header::CONTENT_LENGTH;
-        let entries: Vec<_> = resp
-            .headers
-            .get_all(CONTENT_LENGTH)
-            .iter()
-            .map(|v| v.to_owned())
-            .collect();
+        // The whole `Content-Length` grammar used to be transcribed here --
+        // `1*DIGIT`, the u128 ceiling, the multiple-values-differ check, the
+        // non-UTF8 branch -- with message strings byte-identical to
+        // `message_content_length`'s, which owns the field's syntax on both
+        // sides. Two identical findings for one defect, and a copy that had
+        // stopped receiving the owner's fixes: it rejected `Content-Length:
+        // 3, 3`, which § 6.3 makes valid. The request-side twin of this rule
+        // carried the same two problems.
+        //
+        // Nothing is re-quoted. A syntax error leaves no number to compare, so
+        // this rule declines and the syntax rule reports.
         // cite(RFC 9112 § 6.3): "The length of a message body is determined by one of the following (in order of precedence)"
-        if !entries.is_empty() {
-            let mut nums: Vec<u128> = Vec::with_capacity(entries.len());
-            let mut raw_values: Vec<String> = Vec::with_capacity(entries.len());
+        let declared = crate::helpers::headers::validate_content_length(&resp.headers).ok()??;
 
-            for hv in &entries {
-                let s = match hv.to_str() {
-                    Ok(s) => s,
-                    Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: "Invalid Content-Length value (non-UTF8)".into(),
-                        })
-                    }
-                };
-                raw_values.push(s.to_string());
-                let t = s.trim();
-                // Per RFC, Content-Length must be 1*DIGIT
-                if t.is_empty() || !t.chars().all(|c| c.is_ascii_digit()) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!("Invalid Content-Length value: '{}'", s),
-                    });
-                }
-
-                match t.parse::<u128>() {
-                    Ok(n) => nums.push(n),
-                    Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!("Content-Length value too large: '{}'", s),
-                        })
-                    }
-                }
-            }
-
-            // If multiple entries present ensure they are identical
-            if nums.len() > 1 {
-                let first = nums[0];
-                for (i, n) in nums.iter().enumerate().skip(1) {
-                    if *n != first {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!(
-                                "Multiple Content-Length headers with differing values: '{}' vs '{}'",
-                                raw_values[0], raw_values[i]
-                            ),
-                        });
-                    }
-                }
-            }
-
-            // Compare to captured body length when available
-            if let Some(body_len) = resp.body_length {
-                let cl_v = nums[0];
-                if cl_v != body_len as u128 {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!(
-                            "Content-Length ({}) does not match captured body bytes ({})",
-                            cl_v, body_len
-                        ),
-                    });
-                }
+        // Compare to captured body length when available
+        if let Some(body_len) = resp.body_length {
+            if declared != body_len as u128 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "Content-Length ({}) does not match captured body bytes ({})",
+                        declared, body_len
+                    ),
+                });
             }
         }
 
@@ -158,6 +106,7 @@ static REGISTRATION: &dyn crate::rules::Rule = &MessageResponseBodyLengthAccurac
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     #[test]
     fn matching_content_length_and_body_no_violation() {
@@ -201,27 +150,6 @@ mod tests {
     }
 
     #[test]
-    fn invalid_content_length_reports_violation() {
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "abc")]),
-            body_length: Some(3),
-            trailers: None,
-        });
-
-        let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Invalid Content-Length"));
-    }
-
-    #[test]
     fn no_content_length_present_no_violation() {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response = Some(crate::http_transaction::ResponseInfo {
@@ -239,82 +167,6 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none());
-    }
-
-    #[test]
-    fn plus_sign_in_content_length_reports_invalid() {
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "+1")]),
-            body_length: Some(1),
-            trailers: None,
-        });
-
-        let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Invalid Content-Length"));
-    }
-
-    #[test]
-    fn multiple_content_length_headers_conflict_reports_violation() {
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        use hyper::header::HeaderValue;
-        hm.append("content-length", HeaderValue::from_static("10"));
-        hm.append("content-length", HeaderValue::from_static("20"));
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-            body_length: Some(10),
-            trailers: None,
-        });
-
-        let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        assert!(v
-            .unwrap()
-            .message
-            .contains("Multiple Content-Length headers"));
-    }
-
-    #[test]
-    fn non_utf8_content_length_header_is_invalid() -> anyhow::Result<()> {
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        use hyper::header::HeaderValue;
-        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        let bad = HeaderValue::from_bytes(&[0xff])?;
-        hm.insert("content-length", bad);
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-            body_length: Some(3),
-            trailers: None,
-        });
-
-        let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("non-UTF8") || msg.contains("Invalid Content-Length"));
-        Ok(())
     }
 
     #[test]
@@ -358,54 +210,6 @@ mod tests {
     }
 
     #[test]
-    fn empty_content_length_value_reports_invalid() {
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "")]),
-            body_length: Some(0),
-            trailers: None,
-        });
-
-        let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(
-            v.is_some(),
-            "empty Content-Length should be reported as invalid"
-        );
-        assert!(v.unwrap().message.contains("Invalid Content-Length"));
-    }
-
-    #[test]
-    fn content_length_value_too_large_reports_violation() {
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        // a value larger than u128 max will fail to parse
-        let big = "340282366920938463463374607431768211456"; // 2^128
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", big)]),
-            body_length: Some(1),
-            trailers: None,
-        });
-
-        let rule = MessageResponseBodyLengthAccuracy;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some(), "overflowing Content-Length should be reported");
-        let msg = v.unwrap().message;
-        assert!(msg.contains("too large"));
-    }
-
-    #[test]
     fn multiple_identical_content_length_headers_no_violation() {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
@@ -429,6 +233,72 @@ mod tests {
         assert!(
             v.is_none(),
             "identical multiple Content-Length headers should not be a violation"
+        );
+    }
+
+    fn resp_with(
+        status: u16,
+        headers: &[(&str, &str)],
+        body_length: Option<u64>,
+    ) -> crate::http_transaction::HttpTransaction {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(headers),
+            body_length,
+            trailers: None,
+        });
+        tx
+    }
+
+    fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<crate::lint::Violation> {
+        let rule = MessageResponseBodyLengthAccuracy;
+        rule.check_transaction(
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+    }
+
+    /// A malformed value leaves no number to compare, so this rule declines and
+    /// `message_content_length` -- which owns the field's syntax and reports
+    /// these with the same message strings -- makes the report. Six tests here
+    /// used to assert the duplicates.
+    #[rstest]
+    #[case("abc")]
+    #[case("+1")]
+    #[case("")]
+    #[case("340282366920938463463374607431768211456")]
+    fn a_malformed_value_is_left_to_the_rule_that_owns_the_syntax(#[case] cl: &str) {
+        assert!(run(&resp_with(200, &[("content-length", cl)], Some(3))).is_none());
+    }
+
+    #[test]
+    fn values_that_disagree_are_left_to_the_syntax_rule() {
+        use hyper::header::HeaderValue;
+        let mut tx = resp_with(200, &[], Some(10));
+        let mut hm = hyper::HeaderMap::new();
+        hm.append("content-length", HeaderValue::from_static("10"));
+        hm.append("content-length", HeaderValue::from_static("20"));
+        tx.response.as_mut().unwrap().headers = hm;
+        assert!(run(&tx).is_none());
+    }
+
+    /// § 6.3 makes a comma-separated list of equal values one value, and RFC
+    /// 9110 § 8.6 names `Content-Length: 42, 42` as the case it is thinking of.
+    /// The inline copy of the grammar rejected it.
+    #[rstest]
+    #[case("3, 3", Some(3), false)]
+    #[case("3, 3", Some(4), true)]
+    fn a_comma_list_of_equal_values_is_one_value(
+        #[case] cl: &str,
+        #[case] body: Option<u64>,
+        #[case] expect: bool,
+    ) {
+        assert_eq!(
+            run(&resp_with(200, &[("content-length", cl)], body)).is_some(),
+            expect
         );
     }
 
