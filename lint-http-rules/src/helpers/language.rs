@@ -62,7 +62,9 @@ pub fn validate_language_tag(tag: &str) -> Result<(), String> {
     // accept it as both.
     //
     // cite(RFC 4647 § 2.1): "language-range   = (1*8ALPHA *("-" 1*8alphanum)) / "*""
-    // cite(RFC 5646 § 2.1): "language      = 2*3ALPHA"
+    // (The production line is quoted with its trailing comment: without it the
+    // snippet falls one character under apycite's 20-character floor.)
+    // cite(RFC 5646 § 2.1): "language      = 2*3ALPHA            ; shortest ISO 639 code"
     if !s
         .split('-')
         .next()
