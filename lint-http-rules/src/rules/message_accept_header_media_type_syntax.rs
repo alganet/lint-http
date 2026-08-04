@@ -68,6 +68,25 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                     });
                 }
 
+                // No whitespace inside a media-range. The member has already
+                // been trimmed at both ends, so anything left is interior, and
+                // `media-range` admits none: the OWS in these grammars sits
+                // around list elements and around the `;` before a parameter,
+                // never between a type and its subtype. `text /html` used to
+                // pass, because the helper trims each half before returning it
+                // and the space vanished before any check could see it.
+                // cite(RFC 9110 § 5.6.2): "Tokens are short textual identifiers that do not include whitespace or delimiters."
+                if media.contains(char::is_whitespace) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: format!(
+                            "Invalid media-range '{}' in {} header: whitespace inside a media-range",
+                            media, hdr
+                        ),
+                    });
+                }
+
                 // Three shapes, and a bare asterisk is none of them. The
                 // asterisk stands for a whole type or a whole subtype; on its
                 // own it names neither side of a pair the grammar requires.
@@ -202,7 +221,25 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                         });
                     }
                     let v = v.unwrap().trim();
+                    // `token = 1*tchar`, so a name with no characters is not a
+                    // name. Scanning for an invalid character cannot see this:
+                    // an empty string has no invalid character in it, and
+                    // `; =value` passed on exactly that reasoning.
+                    // (`token = 1*tchar` is under apycite's 20-character floor
+                    // on its own; §5.6.2's sentence carries the same point and
+                    // covers the whitespace check above as well.)
                     // cite(RFC 9110 § 5.6.6): "parameter-name  = token"
+                    // cite(RFC 9110 § 5.6.2): "Tokens are short textual identifiers that do not include whitespace or delimiters."
+                    if k.is_empty() {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Empty parameter name in '{}' of {} header: a token is one or more characters",
+                                p, hdr
+                            ),
+                        });
+                    }
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(k) {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -308,7 +345,7 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
     }
 
     fn description(&self) -> &'static str {
-        "Check that an `Accept` header reads as `#( media-range [ weight ] )`: each member a `media-range` — `*/*`, `type/*`, or `type/subtype`, both halves `token` — optionally followed by media type parameters and then a weight. A `q` value must be a `qvalue`: `0` to `1` with at most three digits after the decimal point.\n\n**A bare `*` is reported**, and so is a wildcard type with a concrete subtype (`*/json`). The second of those is a judgement about the prose rather than a reading of the ABNF: `type` is a `token` and `*` is a `tchar`, so `*/json` does derive from `type \"/\" subtype`. But §12.5.1 gives the asterisk exactly two jobs — all media types, or all subtypes of one type — and this is neither, so it names no set a recipient could match against. `message_content_type_well_formed` takes the same position on the same shape in `Content-Type`.\n\n**A parameter after the weight is reported.** `Accept = #( media-range [ weight ] )` puts the weight last and the media-range is what carries the parameters, so `text/html;q=0.5;charset=utf-8` derives from nothing in this grammar. RFC 9110 removed the `accept-ext` production that used to allow it and states the consequence as a SHOULD on senders. Finding the `q` itself is unaffected: it is looked for among all the parameters and its name matched case-insensitively, because §12.5.1 tells recipients to process it regardless of ordering. This rule reports what a sender did; it does not pretend not to understand it.\n\n**Both directions are read.** A request's `Accept` states a preference; a response's, per §12.5.1, says what a subsequent request to the same resource should prefer. Each field line is validated on its own rather than recombined, so an unbalanced quote in one line cannot swallow the members of the next.\n\n**Quoting that never closes is reported here** rather than declined. The rules that consume `Accept` — `message_accept_and_content_type_negotiation` among them — decline to judge a member list they cannot read; this rule is the one that owns a malformed `Accept`, so declining would leave the defect with no reporter.\n\n**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `q =0.5` is accepted. Empty list elements (`text/html, , text/plain`) are skipped, which §5.6.1.2 permits a recipient to do."
+        "Check that an `Accept` header reads as `#( media-range [ weight ] )`: each member a `media-range` — `*/*`, `type/*`, or `type/subtype`, both halves `token` — optionally followed by media type parameters and then a weight. A `q` value must be a `qvalue`: `0` to `1` with at most three digits after the decimal point.\n\n**A bare `*` is reported**, and so is a wildcard type with a concrete subtype (`*/json`). The second of those is a judgement about the prose rather than a reading of the ABNF: `type` is a `token` and `*` is a `tchar`, so `*/json` does derive from `type \"/\" subtype`. But §12.5.1 gives the asterisk exactly two jobs — all media types, or all subtypes of one type — and this is neither, so it names no set a recipient could match against. `message_content_type_well_formed` takes the same position on the same shape in `Content-Type`.\n\n**A parameter after the weight is reported.** `Accept = #( media-range [ weight ] )` puts the weight last and the media-range is what carries the parameters, so `text/html;q=0.5;charset=utf-8` derives from nothing in this grammar. RFC 9110 removed the `accept-ext` production that used to allow it and states the consequence as a SHOULD on senders. Finding the `q` itself is unaffected: it is looked for among all the parameters and its name matched case-insensitively, because §12.5.1 tells recipients to process it regardless of ordering. This rule reports what a sender did; it does not pretend not to understand it.\n\n**Both directions are read.** A request's `Accept` states a preference; a response's, per §12.5.1, says what a subsequent request to the same resource should prefer. Each field line is validated on its own rather than recombined, so an unbalanced quote in one line cannot swallow the members of the next.\n\n**Quoting that never closes is reported here** rather than declined. The rules that consume `Accept` — `message_accept_and_content_type_negotiation` among them — decline to judge a member list they cannot read; this rule is the one that owns a malformed `Accept`, so declining would leave the defect with no reporter.\n\n**Whitespace inside a media-range is reported.** The OWS these grammars allow sits around list elements and around the `;` before a parameter, never between a type and its subtype, so `text /html` is malformed — and used to pass, because the media-type helper trims each half before returning it and the space vanished before any check saw it.\n\n**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `q =0.5` is accepted. Empty list elements (`text/html, , text/plain`) are skipped, which §5.6.1.2 permits a recipient to do."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -458,6 +495,16 @@ mod tests {
     #[case(Some("text/html;charset=utf-8;q=0.5, text/plain;q=1"), false)]
     // The weight closes its own member, not the ones after it.
     #[case(Some("text/html;q=0.5, text/plain;charset=utf-8"), false)]
+    // `token = 1*tchar`: a name with no characters is not a name, and scanning
+    // for an invalid character cannot notice that there are none.
+    #[case(Some("text/html; =value"), true)]
+    // No whitespace inside a media-range. The OWS in these grammars sits around
+    // list elements and around the `;`, never between a type and its subtype.
+    #[case(Some("text /html"), true)]
+    #[case(Some("text/ html"), true)]
+    #[case(Some("*/ *"), true)]
+    // OWS around the member and around the parameter separator is legal.
+    #[case(Some(" text/html , application/json ; q=0.5"), false)]
     #[case(None, false)]
     fn check_accept_request(
         #[case] accept: Option<&str>,

@@ -1960,7 +1960,7 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 155
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 222
+      line: 259
   - label: message_accept_and_content_type_negotiation (9)
     section: § 12.5.1
     snippet: The "Accept" header field can be used by user agents to specify their preferences regarding response media types.
@@ -1976,7 +1976,7 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 144
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 75
+      line: 94
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 244
   - label: message_accept_and_content_type_negotiation (11)
@@ -1992,7 +1992,7 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 143
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 74
+      line: 93
   - label: message_accept_and_content_type_negotiation (13)
     section: § 15.5.7
     snippet: The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent
@@ -2030,13 +2030,13 @@ sources:
     snippet: A sender of qvalue MUST NOT generate more than three digits after the decimal point.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 230
+      line: 267
   - label: message_accept_header_media_type_syntax (2)
     section: § 12.4.2
     snippet: The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 221
+      line: 258
   - label: message_accept_header_media_type_syntax (3)
     section: § 12.5.1
     snippet: Each media-range might be followed by optional applicable media type parameters (e.g., charset), followed by an optional "q" parameter for indicating a relative weight (Section 12.4.2).
@@ -2048,13 +2048,13 @@ sources:
     snippet: Senders using weights SHOULD send "q" last (after all media-range parameters).
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 175
+      line: 194
   - label: message_accept_header_media_type_syntax (5)
     section: § 12.5.1
     snippet: The accept extension grammar (accept-params, accept-ext) has been removed because it had a complicated definition, was not being used in practice, and is more easily deployed through new header fields.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 174
+      line: 193
   - label: message_accept_header_media_type_syntax (6)
     section: § 12.5.1
     snippet: When sent by a server in a response, Accept provides information about which content types are preferred in the content of a subsequent request to the same resource.
@@ -2062,41 +2062,49 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 21
   - label: message_accept_header_media_type_syntax (7)
+    section: § 5.6.2
+    snippet: Tokens are short textual identifiers that do not include whitespace or delimiters.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
+      line: 78
+    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
+      line: 232
+  - label: message_accept_header_media_type_syntax (8)
     section: § 5.6.6
     snippet: parameter       = parameter-name "=" parameter-value
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 190
+      line: 209
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 352
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
       line: 213
-  - label: message_accept_header_media_type_syntax (8)
+  - label: message_accept_header_media_type_syntax (9)
     section: § 5.6.6
     snippet: parameter-name  = token
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 205
+      line: 231
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 311
-  - label: message_accept_header_media_type_syntax (9)
+  - label: message_accept_header_media_type_syntax (10)
     section: § 5.6.6
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 241
+      line: 278
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
       line: 127
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 340
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
       line: 224
-  - label: message_accept_header_media_type_syntax (10)
+  - label: message_accept_header_media_type_syntax (11)
     section: § 8.3.1
     snippet: media-type = type "/" subtype parameters type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 104
+      line: 123
   - label: message_accept_language_weight_validity
     section: § 12.5.4
     snippet: 'Accept-Language = #( language-range [ weight ] )'
