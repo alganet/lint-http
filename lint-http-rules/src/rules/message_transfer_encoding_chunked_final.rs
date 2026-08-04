@@ -23,18 +23,60 @@ impl Rule for MessageTransferEncodingChunkedFinal {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
+        // Collect the coding names in wire order across every field line.
+        //
+        // `None` means the value could not be read as a list at all: quoting
+        // that never closes leaves every later comma inside it, and an order
+        // derived from members that cannot be delimited would be a guess.
+        // Unlike the ordering questions below, that one has an owner --
+        // `message_transfer_coding_iana_registered` reports a malformed
+        // `Transfer-Encoding` -- so declining here loses nothing.
+        // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
+        let collect = |headers: &hyper::HeaderMap| -> Option<Vec<String>> {
             let mut codings: Vec<String> = Vec::new();
-            // cite(RFC 9112 § 6.1): "A sender MUST NOT apply the chunked transfer coding more than once to a message body"
             for hv in headers.get_all(hyper::header::TRANSFER_ENCODING).iter() {
-                let s = match hv.to_str() {
-                    Ok(v) => v,
-                    Err(_) => continue,
-                };
-                for token in crate::helpers::headers::parse_list_header(s) {
-                    codings.push(token.to_ascii_lowercase());
+                // Decoded from the raw octets. `to_str` refuses everything
+                // outside visible US-ASCII, and a single such byte -- legal in
+                // this grammar only inside a `quoted-string` in a parameter
+                // value, which this rule never reads -- used to drop the whole
+                // field line. Dropping a line here does not merely miss a
+                // finding: it silently reorders the sequence this rule exists
+                // to judge, because the codings on that line are the ones
+                // between the lines that remain.
+                let val = String::from_utf8_lossy(hv.as_bytes());
+                if !crate::helpers::headers::quoting_is_balanced(&val) {
+                    return None;
+                }
+                // Quote-aware: a comma inside a transfer-parameter's
+                // quoted-string value is not a list separator.
+                // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
+                for part in crate::helpers::headers::split_commas_respecting_quotes(&val) {
+                    let part = part.trim();
+                    // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+                    if part.is_empty() {
+                        continue;
+                    }
+                    // The name, not the member. The old code pushed the whole
+                    // member, so `chunked;ext=1` never equalled `"chunked"` and
+                    // a parameterised chunked in a non-final position was
+                    // invisible to every check below -- the one place where
+                    // being lax about parameters changes the answer rather than
+                    // just the message. Whether the parameter should be there at
+                    // all is `message_transfer_coding_iana_registered`'s finding.
+                    // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
+                    let name = part.split(';').next().unwrap().trim();
+                    if name.is_empty() {
+                        continue;
+                    }
+                    // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
+                    codings.push(name.to_ascii_lowercase());
                 }
             }
+            Some(codings)
+        };
+
+        let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
+            let codings = collect(headers)?;
 
             if codings.is_empty() {
                 return None;
@@ -215,14 +257,23 @@ mod tests {
         Ok(())
     }
 
+    /// A line carrying an octet outside visible US-ASCII used to be dropped,
+    /// which does not merely lose a finding here -- it removes codings from the
+    /// middle of the sequence whose order is the rule's whole subject. The
+    /// decoded line keeps its place, so `chunked` is still seen not to be last.
     #[test]
-    fn check_non_utf8() -> anyhow::Result<()> {
+    fn a_line_with_a_stray_octet_still_takes_its_place_in_the_sequence() -> anyhow::Result<()> {
         let rule = MessageTransferEncodingChunkedFinal;
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = hyper::HeaderMap::new();
-        // 0xFF is not a valid UTF-8 character
-        let bad_value = HeaderValue::from_bytes(&[0xFF])?;
-        hm.insert(hyper::header::TRANSFER_ENCODING, bad_value);
+        hm.append(
+            hyper::header::TRANSFER_ENCODING,
+            HeaderValue::from_static("chunked"),
+        );
+        hm.append(
+            hyper::header::TRANSFER_ENCODING,
+            HeaderValue::from_bytes(b"\xff")?,
+        );
         tx.request.headers = hm;
 
         let v = rule.check_transaction(
@@ -230,8 +281,70 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_none()); // Rule skips invalid UTF-8 headers
+        assert!(
+            v.is_some(),
+            "the second line was dropped and chunked read as final"
+        );
         Ok(())
+    }
+
+    /// A parameterised `chunked` is still `chunked`. Pushing the whole member
+    /// meant `chunked;ext=1` never matched, so it slipped past the ordering
+    /// check entirely.
+    #[rstest]
+    #[case("chunked;ext=1, gzip")]
+    #[case("chunked ; ext=1, gzip")]
+    #[case("CHUNKED;ext=1, gzip")]
+    fn a_parameterised_chunked_is_still_chunked(#[case] value: &str) {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[(
+            "transfer-encoding",
+            value,
+        )]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some(), "{value:?}: chunked is not final");
+    }
+
+    /// A comma inside a quoted parameter value is not a separator, so it must
+    /// not manufacture a coding that follows `chunked`.
+    #[test]
+    fn a_comma_inside_a_quoted_parameter_value_is_not_a_separator() {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[(
+            "transfer-encoding",
+            "gzip;ext=\"a,b\", chunked",
+        )]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "{v:?}");
+    }
+
+    /// Quoting that never closes leaves the members undelimitable, so no claim
+    /// about their order is available. Declined here; the coding-name rule is
+    /// the one that reports the malformed field.
+    #[test]
+    fn unterminated_quoting_is_declined() {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[(
+            "transfer-encoding",
+            "chunked;ext=\"a, gzip",
+        )]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[test]

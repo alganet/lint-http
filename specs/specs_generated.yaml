@@ -1831,6 +1831,8 @@ sources:
       line: 52
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 143
+    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
+      line: 55
   - label: lint-http-rules/src/helpers/headers.rs (5)
     section: § 5.6.4
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
@@ -1863,6 +1865,8 @@ sources:
       line: 118
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 332
+    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
+      line: 34
   - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
@@ -2789,6 +2793,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 137
+    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
+      line: 52
+  - label: message_transfer_encoding_chunked_final
+    section: § 10.1.4
+    snippet: transfer-coding    = token *( OWS ";" OWS transfer-parameter )
+    cited_by:
+    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
+      line: 66
   - label: message_via_header_syntax_valid
     section: § 7.6.3
     snippet: The "Via" header field indicates the presence of intermediate protocols and recipients
@@ -3459,6 +3471,8 @@ sources:
       line: 208
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 292
+    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
+      line: 71
   - label: message_transfer_coding_iana_registered (4)
     section: § 7.1
     snippet: The chunked coding does not define any parameters.
@@ -3513,12 +3527,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 259
-  - label: message_transfer_encoding_chunked_final
-    section: § 6.1
-    snippet: A sender MUST NOT apply the chunked transfer coding more than once to a message body
-    cited_by:
-    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
-      line: 28
 - label: RFC 9113
   url: https://www.rfc-editor.org/rfc/rfc9113.txt
   type: text/plain
