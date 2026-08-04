@@ -205,30 +205,69 @@ impl Rule for MessageTransferEncodingChunkedFinal {
     }
 
     fn description(&self) -> &'static str {
-        "Ensures that when `Transfer-Encoding` includes the `chunked` transfer coding, it appears as the final transfer coding.\n\nPer RFC 9112 §7.1, the `chunked` transfer-coding must always be the final transfer-coding applied to a message. Intermediate codecs cannot follow `chunked`, because chunked encoding is the format used to delimit the message body.\n\nIf a message includes `Transfer-Encoding: ...` values and any of them is `chunked`, then `chunked` must be the final coding in the sequence. The rule checks all `Transfer-Encoding` header fields and the order of comma-separated codings."
+        "Enforces RFC 9112 §6.1's requirements on the sequence of transfer codings: `chunked` may be applied at most once, and when any other coding is applied `chunked` must come last. Codings are read in wire order across every `Transfer-Encoding` field line.\n\n**Three findings, three sentences.**\n\n- *\"A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed).\"* — `chunked, chunked` is reported as duplication, not as a position problem.\n- *\"If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.\"* — this is unconditional, so a request reading `Transfer-Encoding: gzip` is reported: it applies a coding and never frames the result.\n- *\"If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection.\"* — a **response** therefore has a second way to comply.\n\n**The response exemption, and what it rests on.** A transaction records no connection teardown, so the second alternative is read from `Connection: close`. RFC 9112 §9.6 makes announcing a close a **SHOULD**, not a MUST — so a response that closes silently is still reported here, and that is a known false positive rather than an oversight. It is also, in that state, disregarding §9.6. Narrowing further would mean giving up the response side entirely.\n\n**§7.1 does not say `chunked` must be last.** It defines the chunked coding — its grammar, its role in framing, and (at the end) that it takes no parameters. This rule's specifications used to cite §7.1 for the ordering requirement, which lives in §6.1.\n\n**Parsing.** Members are split on commas outside quoted-strings, the coding *name* is taken from in front of any parameters (so `chunked;ext=1` is still `chunked`), names are folded case-insensitively per §7, and values are decoded from raw octets — dropping a field line here would not merely lose a finding, it would silently reorder the sequence being judged. A value whose quoting never closes is declined, because its members cannot be delimited; `message_transfer_coding_iana_registered` is the rule that reports it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9112",
-            section: Some("7.1"),
-            url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1",
-            note: "Transfer-Encoding",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("6.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
+                note: "Transfer-Encoding — every requirement this rule enforces is here: chunked at most once, and chunked last (unconditionally for requests, or the connection closes for responses)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("9.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-9.6",
+                note: "The 'close' connection option — how a response announces the alternative §6.1 gives it. §9.6 makes announcing a SHOULD, which bounds what this rule can conclude",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("7.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1",
+                note: "Chunked Transfer Coding — what chunked is, and why nothing may follow it. It does NOT contain the ordering requirement this rule's SpecRef used to attribute to it",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("10.1.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
+                note: "The transfer-coding grammar the members are parsed with, including the quoted-string a parameter may carry",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
+            // These were not HTTP messages. One jammed two field lines together
+            // with a blank line between them and no start-line; the other
+            // carried `#` comments, which no HTTP message has. `gendocs`
+            // published both.
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "Transfer-Encoding: gzip, chunked\n\nTransfer-Encoding: chunked",
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nTransfer-Encoding: gzip, chunked\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(response closes the connection instead of chunking)"),
+                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: gzip\nConnection: close\n",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Transfer-Encoding: chunked, gzip\n# chunked must be final\n\n# Multiple header fields where an earlier field contains chunked\n# and later fields contain other codings",
+                label: Some("(request applies gzip and never frames the result)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nTransfer-Encoding: gzip\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(nothing may follow chunked)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nTransfer-Encoding: chunked, gzip\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(chunking an already chunked message)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nTransfer-Encoding: chunked, chunked\n",
             },
         ]
     }
@@ -369,6 +408,79 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none(), "{v:?}");
+    }
+
+    /// Every published snippet is run through the rule, each NonCompliant one
+    /// pinned to the finding it illustrates. The examples this replaces were
+    /// not HTTP messages at all -- no start-line, `#` comments, two field lines
+    /// separated by a blank one -- and nothing had ever tried to parse them.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageTransferEncodingChunkedFinal;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let reasons: [(&str, &str); 3] = [
+            ("gzip", "must apply chunked as the final coding"),
+            ("chunked, gzip", "must be the final coding"),
+            ("chunked, chunked", "must not be applied more than once"),
+        ];
+
+        for ex in rule.examples() {
+            let mut lines = ex.snippet.lines();
+            let start = lines.next().expect("empty snippet");
+            let is_response = start.starts_with("HTTP/");
+            let pairs: Vec<(&str, &str)> = lines
+                .take_while(|l| !l.trim().is_empty())
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                })
+                .collect();
+            let te = pairs
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case("transfer-encoding"))
+                .map(|(_, v)| *v)
+                .unwrap_or_else(|| panic!("example has no Transfer-Encoding: {:?}", ex.snippet));
+
+            let mut tx = if is_response {
+                crate::test_helpers::make_test_transaction_with_response(200, &[])
+            } else {
+                crate::test_helpers::make_test_transaction()
+            };
+            let headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+            if is_response {
+                tx.response.as_mut().unwrap().headers = headers;
+            } else {
+                tx.request.headers = headers;
+            }
+
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example {te:?}: {found:?}"
+                ),
+                Compliance::NonCompliant => {
+                    let found = found
+                        .unwrap_or_else(|| panic!("rule accepts its NonCompliant example {te:?}"));
+                    let expected = *reasons
+                        .iter()
+                        .find(|(v, _)| *v == te)
+                        .map(|(_, reason)| reason)
+                        .unwrap_or_else(|| {
+                            panic!("NonCompliant example {te:?} has no expected finding here")
+                        });
+                    assert!(
+                        found.message.contains(expected),
+                        "NonCompliant example {te:?} should fail with {expected:?}: {found:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// Chunking an already chunked message is its own MUST NOT, and it was the
