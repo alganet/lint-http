@@ -1802,7 +1802,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 129
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 207
+      line: 265
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 5.3
     snippet: Since it cannot be combined into a single field value, | recipients ought to handle "Set-Cookie" as a special case while | processing fields.
@@ -1830,7 +1830,7 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 52
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 124
+      line: 130
   - label: lint-http-rules/src/helpers/headers.rs (5)
     section: § 5.6.4
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
@@ -1844,7 +1844,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 949
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 220
+      line: 278
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -1860,9 +1860,9 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 948
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 99
+      line: 105
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 219
+      line: 277
   - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
@@ -1948,7 +1948,7 @@ sources:
     - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
       line: 143
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 143
+      line: 149
   - label: message_accept_and_content_type_negotiation
     section: § 12.1
     snippet: A user agent cannot rely on proactive negotiation preferences being consistently honored, since the origin server might not implement proactive negotiation for the requested resource or might decide that sending a response that doesn't conform to the user agent's preferences is better than sending a 406 (Not Acceptable) response.
@@ -2773,16 +2773,22 @@ sources:
       line: 185
   - label: message_transfer_coding_iana_registered
     section: § 10.1.4
+    snippet: 'TE                 = #t-codings t-codings          = "trailers" / ( transfer-coding [ weight ] ) transfer-coding    = token *( OWS ";" OWS transfer-parameter ) transfer-parameter = token BWS "=" BWS ( token / quoted-string )'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 221
+  - label: message_transfer_coding_iana_registered (2)
+    section: § 10.1.4
     snippet: The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 245
-  - label: message_transfer_coding_iana_registered (2)
+      line: 303
+  - label: message_transfer_coding_iana_registered (3)
     section: § 10.1.4
     snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 118
+      line: 124
   - label: message_via_header_syntax_valid
     section: § 7.6.3
     snippet: The "Via" header field indicates the presence of intermediate protocols and recipients
@@ -3436,25 +3442,43 @@ sources:
     snippet: 'Transfer-Encoding = #transfer-coding'
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 227
+      line: 285
   - label: message_transfer_coding_iana_registered (2)
     section: § 7
     snippet: All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 170
+      line: 176
   - label: message_transfer_coding_iana_registered (3)
+    section: § 7.2
+    snippet: The compression codings do not define any parameters.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 191
+  - label: message_transfer_coding_iana_registered (4)
+    section: § 7.2
+    snippet: The presence of parameters with any of these compression codings SHOULD be treated as an error.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 192
+  - label: message_transfer_coding_iana_registered (5)
     section: § 7.3
     snippet: The "HTTP Transfer Coding Registry" defines the namespace for transfer coding names.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 110
-  - label: message_transfer_coding_iana_registered (4)
+      line: 116
+  - label: message_transfer_coding_iana_registered (6)
     section: § 7.4
     snippet: A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 167
+      line: 173
+  - label: message_transfer_coding_iana_registered (7)
+    section: § 7.4
+    snippet: When multiple transfer codings are acceptable, the client MAY rank the codings by preference using a case-insensitive "q" parameter (similar to the qvalues used in content negotiation fields; see Section 12.4.2 of [HTTP]).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 222
   - label: message_transfer_encoding_chunked_final
     section: § 6.1
     snippet: A sender MUST NOT apply the chunked transfer coding more than once to a message body

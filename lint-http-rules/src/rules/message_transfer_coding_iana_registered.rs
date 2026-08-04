@@ -58,6 +58,12 @@ fn parse_allowed_config(
     })
 }
 
+/// The compression transfer codings, and the whole of them. RFC 9112 § 7.2
+/// defines these five by reference to the content coding of the same name, and
+/// the two `x-` forms are named there as alternates rather than as a general
+/// licence for an `x-` prefix.
+const COMPRESSION_CODINGS: [&str; 5] = ["compress", "x-compress", "deflate", "gzip", "x-gzip"];
+
 pub struct MessageTransferCodingIanaRegistered;
 
 impl Rule for MessageTransferCodingIanaRegistered {
@@ -177,6 +183,58 @@ impl Rule for MessageTransferCodingIanaRegistered {
                             .into(),
                     });
                 }
+                // § 7.2 defines exactly these five names by reference to the
+                // content codings of the same name, and then says outright what
+                // follows for their parameters. The rule stripped everything
+                // from the first `;` onward and never looked, so
+                // `Transfer-Encoding: gzip;level=9` passed as an ordinary gzip.
+                // cite(RFC 9112 § 7.2): "The compression codings do not define any parameters."
+                // cite(RFC 9112 § 7.2): "The presence of parameters with any of these compression codings SHOULD be treated as an error."
+                //
+                // The list stops there on purpose. `chunked` also defines no
+                // parameters, but § 7.2's sentence is about the compression
+                // codings and no sentence makes a parameter on `chunked` an
+                // error, so `chunked;ext=1` stays unreported -- the divergence
+                // is the specification's, not this rule's. Nor does this reach
+                // a coding the operator added to `allowed`: what its parameters
+                // mean is its own registration's business.
+                if COMPRESSION_CODINGS
+                    .iter()
+                    .any(|c| token.eq_ignore_ascii_case(c))
+                {
+                    for param in crate::helpers::headers::split_semicolons_respecting_quotes(part)
+                        .into_iter()
+                        .skip(1)
+                    {
+                        let param = param.trim();
+                        if param.is_empty() {
+                            continue;
+                        }
+                        // In TE the `q` is the rank, which the grammar puts
+                        // outside `transfer-coding` as a `weight` and § 7.3
+                        // calls a pseudo-parameter -- so it is not one of the
+                        // parameters § 7.2 forbids, and `TE: deflate;q=0.5` is
+                        // exactly the form § 7.4's own example uses. In
+                        // `Transfer-Encoding` there is no weight in the grammar
+                        // at all, so a `q` there is an ordinary parameter and is
+                        // reported like any other.
+                        // cite(RFC 9110 § 10.1.4): "TE                 = #t-codings t-codings          = "trailers" / ( transfer-coding [ weight ] ) transfer-coding    = token *( OWS ";" OWS transfer-parameter ) transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
+                        // cite(RFC 9112 § 7.4): "When multiple transfer codings are acceptable, the client MAY rank the codings by preference using a case-insensitive "q" parameter (similar to the qvalues used in content negotiation fields; see Section 12.4.2 of [HTTP])."
+                        let name = param.split('=').next().unwrap().trim();
+                        if hdr_name.eq_ignore_ascii_case("TE") && name.eq_ignore_ascii_case("q") {
+                            continue;
+                        }
+                        return Some(Violation {
+                            rule: "message_transfer_coding_iana_registered".into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Compression transfer-coding '{}' defines no parameters, but '{}' \
+                                 is present in the {} header",
+                                token, param, hdr_name
+                            ),
+                        });
+                    }
+                }
                 if !allowed.contains(&token.to_ascii_lowercase()) {
                     return Some(Violation {
                         rule: "message_transfer_coding_iana_registered".into(),
@@ -253,7 +311,7 @@ impl Rule for MessageTransferCodingIanaRegistered {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Transfer-Encoding` and `TE` header values to ensure transfer-coding tokens are syntactically valid and are recognised (SHOULD be IANA-registered or explicitly allowed via configuration). The `TE` header's special value `trailers` is accepted.\n\n**Every field line of both fields is read**, since each is a list whose members may be spread across lines — and for `Transfer-Encoding` a second field line is the shape request smuggling arrives in, so reading only the first is the one omission this rule cannot afford. Values are decoded from the raw octets: an octet outside visible US-ASCII is not a `tchar`, so where a coding name belongs it is reported rather than used as a reason to skip the line.\n\n**Members are split on commas that are not inside a quoted-string.** `transfer-parameter = token BWS \"=\" BWS ( token / quoted-string )`, so `chunked;ext=\"a,b\"` is one coding carrying one parameter, not two members. Quoting that never closes leaves the members undelimitable and is reported here rather than passed over, because no other rule reports a malformed `Transfer-Encoding`.\n\n**`chunked` is reported in `TE` and only there.** RFC 9112 §7.4: \"A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients.\" It is a registered coding, so the registry check waves it through; this is the one place where a recognised name is still the wrong name. In `Transfer-Encoding` it is the ordinary case."
+        "Validate `Transfer-Encoding` and `TE` header values to ensure transfer-coding tokens are syntactically valid and are recognised (SHOULD be IANA-registered or explicitly allowed via configuration). The `TE` header's special value `trailers` is accepted.\n\n**Every field line of both fields is read**, since each is a list whose members may be spread across lines — and for `Transfer-Encoding` a second field line is the shape request smuggling arrives in, so reading only the first is the one omission this rule cannot afford. Values are decoded from the raw octets: an octet outside visible US-ASCII is not a `tchar`, so where a coding name belongs it is reported rather than used as a reason to skip the line.\n\n**Members are split on commas that are not inside a quoted-string.** `transfer-parameter = token BWS \"=\" BWS ( token / quoted-string )`, so `chunked;ext=\"a,b\"` is one coding carrying one parameter, not two members. Quoting that never closes leaves the members undelimitable and is reported here rather than passed over, because no other rule reports a malformed `Transfer-Encoding`.\n\n**`chunked` is reported in `TE` and only there.** RFC 9112 §7.4: \"A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients.\" It is a registered coding, so the registry check waves it through; this is the one place where a recognised name is still the wrong name. In `Transfer-Encoding` it is the ordinary case.\n\n**A parameter on a compression coding is reported.** RFC 9112 §7.2 defines `compress`, `x-compress`, `deflate`, `gzip` and `x-gzip`, states that they \"do not define any parameters\", and says their presence \"SHOULD be treated as an error\". The `q` in `TE: deflate;q=0.5` is exempt — the grammar puts the `weight` outside `transfer-coding` and §7.3 calls it a pseudo-parameter — but `Transfer-Encoding` has no weight in its grammar, so a `q` there is an ordinary parameter. This reaches no other coding: `chunked;ext=1` is unreported because §7.2's sentence is about the compression codings and no sentence makes a parameter on `chunked` an error, and a coding you add to `allowed` answers to its own registration."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -293,9 +351,24 @@ impl Rule for MessageTransferCodingIanaRegistered {
                 snippet: "GET / HTTP/1.1\nHost: example.com\nTE: trailers\n",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("(TE ranks a coding; the q is a weight, not a parameter)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nTE: trailers, deflate;q=0.5\n",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: x-custom\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(chunked is always acceptable, so TE cannot name it)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nTE: chunked;q=0.8\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the compression codings define no parameters)"),
+                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: gzip;level=9, chunked\n",
             },
         ]
     }
@@ -509,6 +582,148 @@ mod tests {
         );
     }
 
+    /// Every published snippet is run through the rule, each NonCompliant one
+    /// pinned to the finding it illustrates. Nothing else in the project does
+    /// this, so a `Compliant` example the rule rejects reaches the docs intact
+    /// -- and `gendocs` publishes it.
+    ///
+    /// `make_cfg` and not `make_test_config_with_enabled_rules`: this rule
+    /// requires an `allowed` array, and without one `parse_allowed_config`
+    /// fails, `check_transaction` returns `None` for everything, and the whole
+    /// test passes by declining to run.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageTransferCodingIanaRegistered;
+        let cfg = make_cfg();
+        let reasons: [(&str, &str); 3] = [
+            (
+                "Transfer-Encoding: x-custom",
+                "Unrecognized transfer-coding",
+            ),
+            ("TE: chunked;q=0.8", "must not send the chunked"),
+            (
+                "Transfer-Encoding: gzip;level=9, chunked",
+                "defines no parameters",
+            ),
+        ];
+
+        for ex in rule.examples() {
+            let mut lines = ex.snippet.lines();
+            let start = lines.next().expect("empty snippet");
+            let is_response = start.starts_with("HTTP/");
+            // The header section ends at the first empty line; one example
+            // carries a body after it.
+            let pairs: Vec<(&str, &str)> = lines
+                .take_while(|l| !l.trim().is_empty())
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                })
+                .collect();
+            let subject = pairs
+                .iter()
+                .find(|(k, _)| {
+                    k.eq_ignore_ascii_case("transfer-encoding") || k.eq_ignore_ascii_case("te")
+                })
+                .map(|(k, v)| format!("{k}: {v}"))
+                .unwrap_or_else(|| panic!("example names neither field: {:?}", ex.snippet));
+
+            let mut tx = if is_response {
+                crate::test_helpers::make_test_transaction_with_response(200, &[])
+            } else {
+                crate::test_helpers::make_test_transaction()
+            };
+            let headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+            if is_response {
+                tx.response.as_mut().unwrap().headers = headers;
+            } else {
+                tx.request.headers = headers;
+            }
+
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example {subject:?}: {found:?}"
+                ),
+                Compliance::NonCompliant => {
+                    let found = found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {subject:?}")
+                    });
+                    let expected = *reasons
+                        .iter()
+                        .find(|(v, _)| *v == subject)
+                        .map(|(_, reason)| reason)
+                        .unwrap_or_else(|| {
+                            panic!("NonCompliant example {subject:?} has no expected finding here")
+                        });
+                    assert!(
+                        found.message.contains(expected),
+                        "NonCompliant example {subject:?} should fail with {expected:?}: {found:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// § 7.2's compression codings define no parameters, and the presence of
+    /// one is to be treated as an error. Everything from the first `;` used to
+    /// be discarded unread.
+    #[rstest]
+    #[case("transfer-encoding", "gzip;level=9")]
+    #[case("transfer-encoding", "deflate;foo=\"a,b\"")]
+    #[case("transfer-encoding", "chunked, gzip;x=1")]
+    #[case("transfer-encoding", "GZIP;X=1")]
+    // No `weight` exists in `Transfer-Encoding`'s grammar, so a `q` here is an
+    // ordinary parameter and gets no exemption.
+    #[case("transfer-encoding", "gzip;q=0.5")]
+    #[case("te", "deflate;foo=1")]
+    fn a_parameter_on_a_compression_coding_is_reported(#[case] field: &str, #[case] value: &str) {
+        let rule = MessageTransferCodingIanaRegistered;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(field, value)]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(
+            v.is_some_and(|v| v.message.contains("defines no parameters")),
+            "{field}: {value:?} carries a parameter § 7.2 forbids"
+        );
+    }
+
+    /// The exemptions, each for its own reason: the TE rank is a weight and not
+    /// a transfer-parameter; `chunked` is not one of § 7.2's codings and no
+    /// sentence makes a parameter on it an error; a configured coding's
+    /// parameters belong to whatever defines it.
+    #[rstest]
+    #[case("te", "deflate;q=0.5")]
+    #[case("te", "trailers, deflate;q=0.5")]
+    #[case("transfer-encoding", "chunked;ext=1")]
+    fn parameters_that_are_not_a_finding(#[case] field: &str, #[case] value: &str) {
+        let rule = MessageTransferCodingIanaRegistered;
+        let cfg = make_cfg();
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(field, value)]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none(), "{field}: {value:?}: {v:?}");
+    }
+
     /// `chunked` is registered, and in the default `allowed` list, so the
     /// registry check passes it everywhere. TE is the one field where being
     /// recognized is not enough.
@@ -559,7 +774,9 @@ mod tests {
     /// value and reported a conforming field.
     #[rstest]
     #[case("chunked;ext=\"a,b\"")]
-    #[case("gzip;ext=\"a,b\", chunked")]
+    // `chunked` rather than a compression coding: § 7.2 forbids a parameter on
+    // those, and this case is about the splitter, not about the parameter.
+    #[case("chunked;ext=\"a,b\", deflate")]
     #[case("chunked;ext=\"a\\\",b\"")]
     fn a_comma_inside_a_quoted_parameter_value_is_not_a_separator(#[case] value: &str) {
         let rule = MessageTransferCodingIanaRegistered;

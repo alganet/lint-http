@@ -16,6 +16,8 @@ Validate `Transfer-Encoding` and `TE` header values to ensure transfer-coding to
 
 **`chunked` is reported in `TE` and only there.** RFC 9112 §7.4: "A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients." It is a registered coding, so the registry check waves it through; this is the one place where a recognised name is still the wrong name. In `Transfer-Encoding` it is the ordinary case.
 
+**A parameter on a compression coding is reported.** RFC 9112 §7.2 defines `compress`, `x-compress`, `deflate`, `gzip` and `x-gzip`, states that they "do not define any parameters", and says their presence "SHOULD be treated as an error". The `q` in `TE: deflate;q=0.5` is exempt — the grammar puts the `weight` outside `transfer-coding` and §7.3 calls it a pseudo-parameter — but `Transfer-Encoding` has no weight in its grammar, so a `q` there is an ordinary parameter. This reaches no other coding: `chunked;ext=1` is unreported because §7.2's sentence is about the compression codings and no sentence makes a parameter on `chunked` an error, and a coding you add to `allowed` answers to its own registration.
+
 ## Specifications
 
 - [RFC 9112 §6.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1): Transfer Coding
@@ -50,9 +52,32 @@ Host: example.com
 TE: trailers
 ```
 
+### ✅ Good (TE ranks a coding; the q is a weight, not a parameter)
+
+```http
+GET / HTTP/1.1
+Host: example.com
+TE: trailers, deflate;q=0.5
+```
+
 ### ❌ Bad
 
 ```http
 HTTP/1.1 200 OK
 Transfer-Encoding: x-custom
+```
+
+### ❌ Bad (chunked is always acceptable, so TE cannot name it)
+
+```http
+GET / HTTP/1.1
+Host: example.com
+TE: chunked;q=0.8
+```
+
+### ❌ Bad (the compression codings define no parameters)
+
+```http
+HTTP/1.1 200 OK
+Transfer-Encoding: gzip;level=9, chunked
 ```
