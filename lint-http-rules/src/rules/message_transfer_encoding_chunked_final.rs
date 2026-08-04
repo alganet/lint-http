@@ -199,8 +199,19 @@ impl Rule for MessageTransferEncodingChunkedFinal {
         }
 
         if let Some(resp) = &tx.response {
-            if let Some(v) = check(&resp.headers, false) {
-                return Some(v);
+            // All three of § 6.1's requirements speak of a coding *applied to*
+            // content or to a message body. In these two responses there is no
+            // body for one to have been applied to, and the field means
+            // something else entirely -- what the origin would have done for an
+            // unconditional GET. Judging the sequence for how it frames a body
+            // that does not exist would report an advisory value for failing at
+            // a job it was never doing.
+            // cite(RFC 9112 § 6.1): "Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response (Section 15.4.5 of [HTTP]) to a GET request, neither of which includes a message body, to indicate that the origin server would have applied a transfer coding to the message body if the request had been an unconditional GET."
+            let bodiless = tx.request.method.eq_ignore_ascii_case("HEAD") || resp.status == 304;
+            if !bodiless {
+                if let Some(v) = check(&resp.headers, false) {
+                    return Some(v);
+                }
             }
         }
 
@@ -212,7 +223,7 @@ impl Rule for MessageTransferEncodingChunkedFinal {
     }
 
     fn description(&self) -> &'static str {
-        "Enforces RFC 9112 §6.1's requirements on the sequence of transfer codings: `chunked` may be applied at most once, and when any other coding is applied `chunked` must come last. Codings are read in wire order across every `Transfer-Encoding` field line.\n\n**Three findings, three sentences.**\n\n- *\"A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed).\"* — `chunked, chunked` is reported as duplication, not as a position problem.\n- *\"If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.\"* — this is unconditional, so a request reading `Transfer-Encoding: gzip` is reported: it applies a coding and never frames the result.\n- *\"If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection.\"* — a **response** therefore has a second way to comply.\n\n**The response exemption, and what it rests on.** A transaction records no connection teardown, so the second alternative is read from `Connection: close`. RFC 9112 §9.6 makes announcing a close a **SHOULD**, not a MUST — so a response that closes silently is still reported here, and that is a known false positive rather than an oversight. It is also, in that state, disregarding §9.6. Narrowing further would mean giving up the response side entirely.\n\n**§7.1 does not say `chunked` must be last.** It defines the chunked coding — its grammar, its role in framing, and (at the end) that it takes no parameters. This rule's specifications used to cite §7.1 for the ordering requirement, which lives in §6.1.\n\n**Parsing.** Members are split on commas outside quoted-strings, the coding *name* is taken from in front of any parameters (so `chunked;ext=1` is still `chunked`), names are folded case-insensitively per §7, and values are decoded from raw octets — dropping a field line here would not merely lose a finding, it would silently reorder the sequence being judged. A value whose quoting never closes is declined, because its members cannot be delimited; `message_transfer_coding_iana_registered` is the rule that reports it."
+        "Enforces RFC 9112 §6.1's requirements on the sequence of transfer codings: `chunked` may be applied at most once, and when any other coding is applied `chunked` must come last. Codings are read in wire order across every `Transfer-Encoding` field line.\n\n**Three findings, three sentences.**\n\n- *\"A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed).\"* — `chunked, chunked` is reported as duplication, not as a position problem.\n- *\"If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.\"* — this is unconditional, so a request reading `Transfer-Encoding: gzip` is reported: it applies a coding and never frames the result.\n- *\"If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection.\"* — a **response** therefore has a second way to comply.\n\n**The response exemption, and what it rests on.** A transaction records no connection teardown, so the second alternative is read from `Connection: close`. RFC 9112 §9.6 makes announcing a close a **SHOULD**, not a MUST — so a response that closes silently is still reported here, and that is a known false positive rather than an oversight. It is also, in that state, disregarding §9.6. Narrowing further would mean giving up the response side entirely.\n\n**A response with no body is not judged.** §6.1 permits `Transfer-Encoding` on a response to `HEAD` and on a `304 (Not Modified)`, \"neither of which includes a message body\", where it indicates what the origin *would have* applied to an unconditional `GET`. All three requirements above speak of a coding applied to content, so none of them engage. The *request's* own field is judged as usual, whatever its method.\n\n**§7.1 does not say `chunked` must be last.** It defines the chunked coding — its grammar, its role in framing, and (at the end) that it takes no parameters. This rule's specifications used to cite §7.1 for the ordering requirement, which lives in §6.1.\n\n**Parsing.** Members are split on commas outside quoted-strings, the coding *name* is taken from in front of any parameters (so `chunked;ext=1` is still `chunked`), names are folded case-insensitively per §7, and values are decoded from raw octets — dropping a field line here would not merely lose a finding, it would silently reorder the sequence being judged. A value whose quoting never closes is declined, because its members cannot be delimited; `message_transfer_coding_iana_registered` is the rule that reports it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -515,6 +526,51 @@ mod tests {
             v.is_some_and(|v| v.message.contains("must not be applied more than once")),
             "{value:?} chunks an already chunked message"
         );
+    }
+
+    /// § 6.1 permits `Transfer-Encoding` on a HEAD response and on a 304, where
+    /// it describes what the origin *would have* applied to a body that is not
+    /// there. Every requirement here is about a coding applied to content, so
+    /// none of them engage.
+    #[rstest]
+    #[case("HEAD", 200)]
+    #[case("GET", 304)]
+    fn a_response_with_no_body_is_not_judged_for_framing_one(
+        #[case] method: &str,
+        #[case] status: u16,
+    ) {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            status,
+            &[("transfer-encoding", "chunked, gzip")],
+        );
+        tx.request.method = method.to_string();
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "{method} -> {status}: {v:?}");
+    }
+
+    /// The exemption is the *response's*. A HEAD request that itself carries a
+    /// body-framing coding is judged like any other request.
+    #[test]
+    fn a_head_request_is_still_judged_on_its_own_field() {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let mut tx = crate::test_helpers::make_test_transaction_with_headers(&[(
+            "transfer-encoding",
+            "gzip",
+        )]);
+        tx.request.method = "HEAD".to_string();
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
     }
 
     /// The duplication MUST NOT has no second alternative, so the response's
