@@ -1764,7 +1764,7 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 171
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
-      line: 65
+      line: 96
   - label: If-None-Match weak comparison
     section: § 13.1.2
     snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
@@ -2171,12 +2171,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 123
-  - label: message_accept_language_weight_validity
-    section: § 12.5.4
-    snippet: 'Accept-Language = #( language-range [ weight ] )'
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
-      line: 66
   - label: message_accept_ranges_and_206_consistency
     section: § 15.3.7.1
     snippet: If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range.
