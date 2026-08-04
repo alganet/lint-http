@@ -3427,6 +3427,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 48
+    - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
+      line: 41
   - label: request-target forms
     section: § 3.2
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
@@ -3518,7 +3520,7 @@ sources:
     snippet: The length of a message body is determined by one of the following (in order of precedence)
     cited_by:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
-      line: 36
+      line: 46
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 36
   - label: message_trailer_headers_valid
