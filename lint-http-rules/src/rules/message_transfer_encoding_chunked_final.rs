@@ -75,7 +75,7 @@ impl Rule for MessageTransferEncodingChunkedFinal {
             Some(codings)
         };
 
-        let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
+        let check = |headers: &hyper::HeaderMap, is_request: bool| -> Option<Violation> {
             let codings = collect(headers)?;
 
             if codings.is_empty() {
@@ -96,17 +96,44 @@ impl Rule for MessageTransferEncodingChunkedFinal {
                 }
             }
 
+            // The rule was named for where `chunked` goes when it is present,
+            // and so only ever asked that. § 6.1 states the requirement the
+            // other way round -- it is about what must be there at all -- and
+            // that half went unchecked, so a request reading
+            //
+            //     Transfer-Encoding: gzip
+            //
+            // passed. It applies a transfer coding other than chunked and never
+            // frames the result, which is the case the sentence exists for.
+            // (A test asserted this was fine.)
+            // cite(RFC 9112 § 6.1): "If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed."
+            //
+            // Requests only. The response form of the sentence offers a second
+            // way to satisfy it, handled below.
+            if is_request
+                && codings.iter().any(|c| c != "chunked")
+                && codings.last().map(String::as_str) != Some("chunked")
+            {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "A request that applies any transfer coding other than chunked must apply \
+                         chunked as the final coding: codings found '{}'",
+                        codings.join(", ")
+                    ),
+                });
+            }
+
             None
         };
 
-        // Request
-        if let Some(v) = check(&tx.request.headers) {
+        if let Some(v) = check(&tx.request.headers, true) {
             return Some(v);
         }
 
-        // Response
         if let Some(resp) = &tx.response {
-            if let Some(v) = check(&resp.headers) {
+            if let Some(v) = check(&resp.headers, false) {
                 return Some(v);
             }
         }
@@ -167,7 +194,11 @@ mod tests {
     #[case("compress, chunked, gzip", true)]
     #[case("gzip, chunked, gzip", true)]
     #[case("gzip, chunked, identity", true)]
-    #[case("gzip, compress", false)]
+    // § 6.1: a request applying any coding other than chunked MUST apply
+    // chunked last. This asserted the opposite.
+    #[case("gzip, compress", true)]
+    #[case("gzip", true)]
+    #[case("chunked", false)]
     fn request_transfer_encoding_cases(
         #[case] value: &str,
         #[case] expect_violation: bool,
@@ -236,6 +267,49 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    /// § 6.1's requirement stated the way the sentence states it: not "where
+    /// does chunked go" but "chunked must be there at all". The rule was named
+    /// for the first question and only ever asked that one.
+    #[rstest]
+    #[case("gzip")]
+    #[case("gzip, compress")]
+    #[case("deflate;q=1")]
+    fn a_request_that_never_frames_its_content_is_reported(#[case] value: &str) {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[(
+            "transfer-encoding",
+            value,
+        )]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(
+            v.is_some_and(|v| v.message.contains("must apply chunked as the final coding")),
+            "request {value:?} applies a coding other than chunked and never frames it"
+        );
+    }
+
+    /// The sentence is conditioned on a coding *other than* chunked being
+    /// applied, so a request carrying only chunked does not engage it.
+    #[test]
+    fn a_request_carrying_only_chunked_is_not_reported() {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[(
+            "transfer-encoding",
+            "chunked",
+        )]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[test]
