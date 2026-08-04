@@ -12,6 +12,13 @@ impl Rule for MessageAcceptEncodingParameterValidity {
         "message_accept_encoding_parameter_validity"
     }
 
+    // Both, because both directions carry the field with a meaning: a request
+    // states what codings a response may use, a response what the resource was
+    // willing to accept. The label said `Client` while §12.5.3 defines two
+    // readings and gives them the same syntax.
+    // cite(RFC 9110 § 12.5.3): "When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response."
+    // cite(RFC 9110 § 12.5.3): "When the Accept-Encoding header field is present in a response, it indicates what content codings the resource was willing to accept in the associated request."
+    // cite(RFC 9110 § 12.5.3): "The field value is evaluated the same way as in a request."
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -24,10 +31,22 @@ impl Rule for MessageAcceptEncodingParameterValidity {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
+        // The production the whole rule is a reading of. Two things about it
+        // decide almost every branch below: a member is a coding and at most
+        // one weight, and `codings` has exactly three alternatives.
+        // cite(RFC 9110 § 12.5.3): "Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*""
+        // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
         let check_all = |headers: &hyper::HeaderMap| -> Option<Violation> {
             for hv in headers.get_all("accept-encoding").iter() {
                 if let Ok(val) = hv.to_str() {
-                    // For each comma-separated member
+                    // A comma split with no regard for quoting, which is
+                    // correct here rather than merely tolerable: nothing in
+                    // this field's grammar is a quoted-string, so there is no
+                    // quoted comma for a quote-aware splitter to protect. An
+                    // empty field value yields no members and no finding, which
+                    // is right — §12.5.3 gives that value a meaning of its own.
+                    // cite(RFC 9110 § 12.5.3): "An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response."
+                    // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
                     for part in crate::helpers::headers::parse_list_header(val) {
                         // Split into token and optional params
                         let mut iter =
@@ -41,6 +60,14 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                             // empty string has no invalid character in it, so
                             // `;q=0.5` — a member that is all weight and no coding —
                             // passed on exactly that reasoning.
+                            //
+                            // The asterisk is exempted from the token check
+                            // because it is one of the three alternatives, not a
+                            // coding name; "identity" needs no exemption, being
+                            // a token like any other.
+                            // cite(RFC 9110 § 8.4.1): "content-coding   = token"
+                            // cite(RFC 9110 § 12.5.3): "The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field."
+                            // cite(RFC 9110 § 12.5.3): "An "identity" token is used as a synonym for "no encoding" in order to communicate when no encoding is preferred."
                             if primary != "*" {
                                 if primary.is_empty() {
                                     return Some(Violation {
@@ -74,6 +101,11 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                             // field does not ask, and answered it in the direction
                             // that matters: `gzip;charset=utf-8` was called well
                             // formed, when nothing in the grammar produces it.
+                            //
+                            // The weight is a MAY, so its absence is never a
+                            // finding; what is a finding is anything else in
+                            // its place, or two of it.
+                            // cite(RFC 9110 § 12.5.3): "Each codings value MAY be given an associated quality value (weight) representing the preference for that encoding, as defined in Section 12.4.2."
                             let mut weight_seen = false;
                             for param in iter {
                                 let param = param.trim();
@@ -92,6 +124,11 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                                 });
                                 }
 
+                                // The name is matched without regard to case
+                                // because §12.4.2 defines the parameter that
+                                // way, and this is the only name the field
+                                // admits.
+                                // cite(RFC 9110 § 12.4.2): "The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content."
                                 let mut nv = param.splitn(2, '=').map(|s| s.trim());
                                 let name = nv.next().unwrap();
                                 let val = nv.next();
@@ -181,8 +218,12 @@ impl Rule for MessageAcceptEncodingParameterValidity {
         None
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Accept-Encoding Parameter Validity")
+    }
+
     fn description(&self) -> &'static str {
-        "`Accept-Encoding` members may include parameters such as `q` weights. This rule validates each member's parameters:\n\n- Parameter names must be `token` characters.\n- Parameter values must be a `token` or a `quoted-string`.\n- The special `q` parameter must be a valid qvalue (for example: `0`, `0.5`, `1.0`, `0.123`).\n\nInvalid parameter forms or `q` values are flagged."
+        "Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each member a content coding, the literal `identity`, or the literal `*`, optionally followed by a weight.\n\n**The rule's name is a little wrong, and the reason is the point.** `Accept-Encoding` has no parameter list. A coding may carry a `weight` — `OWS \";\" OWS \"q=\" qvalue` — and nothing else, so there is no `name=value` grammar here to be well formed. What this rule checks is that nothing other than a weight appears: `gzip;charset=utf-8` and `gzip;foo=\"a;b\"` are reported, however well formed the pair looks in isolation, because no derivation of this field produces them.\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `gzip;` is a separator introducing a weight that is not there. `[ weight ]` is singular, so `gzip;q=0.5;q=0.8` is two of something there may be at most one of. And `codings` is not optional, so `;q=0.5` is a member with no coding.\n\n**A weight is a MAY**, so its absence is never reported; `gzip, br` is as conforming as `gzip;q=1.0, br;q=0.5`. When present it must be a `qvalue`: `0` to `1` with at most three digits after the point.\n\n**Both directions are read.** A request states what codings a response may use; a response, per §12.5.3, says what the resource was willing to accept — most often in a 415 (Unsupported Media Type), and evaluated the same way.\n\n**An empty field value is not reported.** §12.5.3 gives it a meaning of its own: the user agent wants no content coding at all.\n\n**An octet outside visible US-ASCII is reported** rather than skipped, unlike the neighbouring `Accept` rules. Those decode such a value because `obs-text` is legal inside a quoted-string; there are no quoted-strings here, so no octet `to_str` refuses can be a legal part of this field."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -191,19 +232,25 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                 spec: "RFC 9110",
                 section: Some("12.5.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3",
-                note: "Accept-Encoding",
+                note: "Accept-Encoding: `#( codings [ weight ] )` — the production that says a coding may carry a weight and nothing else. Also the three `codings` alternatives, the meaning of an empty field value, and the meaning of the field in a response",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("12.4.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
-                note: "Quality Values (q)",
+                note: "Quality Values: the `weight` production this field admits, the `qvalue` its value must be, and the case-insensitive parameter name",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("5.6.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
-                note: "Parameters (token / quoted-string)",
+                section: Some("8.4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4.1",
+                note: "Content Codings: `content-coding = token`, which is what the character check on each coding enforces",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.6.1.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
+                note: "Sender Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore",
             },
         ]
     }
@@ -245,6 +292,26 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                 compliance: Compliance::NonCompliant,
                 label: Some("(missing q value)"),
                 snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;q=",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(an empty value asks for no coding at all)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding:",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a coding may carry a weight and nothing else)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;charset=utf-8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a weight there may be at most one of)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;q=0.5;q=0.8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a separator introducing a weight that is not there)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;",
             },
         ]
     }
@@ -332,6 +399,72 @@ mod tests {
         );
         assert!(v.is_some());
         Ok(())
+    }
+
+    /// Every published snippet is run through the rule, each NonCompliant one
+    /// pinned to the finding it illustrates.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageAcceptEncodingParameterValidity;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let reasons: [(&str, &str); 6] = [
+            ("gzip;q=1.0000", "Invalid qvalue"),
+            ("gzip@;q=0.5", "Invalid token"),
+            ("gzip;q=", "Invalid qvalue"),
+            ("gzip;charset=utf-8", "is not a weight"),
+            ("gzip;q=0.5;q=0.8", "More than one weight"),
+            ("gzip;", "no weight after it"),
+        ];
+
+        for ex in rule.examples() {
+            let pairs: Vec<(&str, &str)> = ex
+                .snippet
+                .lines()
+                .filter(|l| !l.contains("HTTP/"))
+                .map(|l| {
+                    let (k, v) = l
+                        .split_once(':')
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"));
+                    (k, v.trim())
+                })
+                .collect();
+            let ae = pairs
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case("accept-encoding"))
+                .map(|(_, v)| *v)
+                .unwrap_or_else(|| panic!("example has no Accept-Encoding: {:?}", ex.snippet));
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    let found = found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    let expected = *reasons
+                        .iter()
+                        .find(|(v, _)| *v == ae)
+                        .map(|(_, reason)| reason)
+                        .unwrap_or_else(|| {
+                            panic!("NonCompliant example {ae:?} has no expected finding here")
+                        });
+                    assert!(
+                        found.message.contains(expected),
+                        "NonCompliant example {ae:?} should fail with {expected:?}: {found:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// §12.5.3 gives a response's Accept-Encoding a meaning of its own — what

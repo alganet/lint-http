@@ -1762,7 +1762,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1065
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
-      line: 132
+      line: 169
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
       line: 65
   - label: If-None-Match weak comparison
@@ -1789,6 +1789,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 249
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 49
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 51
   - label: lint-http-rules/src/helpers/headers.rs (4)
@@ -2025,6 +2027,76 @@ sources:
       line: 180
     - file: lint-http-rules/src/rules/server_charset_specification.rs
       line: 40
+  - label: message_accept_encoding_parameter_validity
+    section: § 12.4.2
+    snippet: The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 131
+    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
+      line: 258
+  - label: message_accept_encoding_parameter_validity (2)
+    section: § 12.4.2
+    snippet: weight = OWS ";" OWS "q=" qvalue
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 38
+  - label: message_accept_encoding_parameter_validity (3)
+    section: § 12.5.3
+    snippet: 'Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*"'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 37
+  - label: message_accept_encoding_parameter_validity (4)
+    section: § 12.5.3
+    snippet: An "identity" token is used as a synonym for "no encoding" in order to communicate when no encoding is preferred.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 70
+  - label: message_accept_encoding_parameter_validity (5)
+    section: § 12.5.3
+    snippet: An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 48
+  - label: message_accept_encoding_parameter_validity (6)
+    section: § 12.5.3
+    snippet: Each codings value MAY be given an associated quality value (weight) representing the preference for that encoding, as defined in Section 12.4.2.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 108
+  - label: message_accept_encoding_parameter_validity (7)
+    section: § 12.5.3
+    snippet: The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 69
+    - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
+      line: 107
+  - label: message_accept_encoding_parameter_validity (8)
+    section: § 12.5.3
+    snippet: The field value is evaluated the same way as in a request.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 21
+  - label: message_accept_encoding_parameter_validity (9)
+    section: § 12.5.3
+    snippet: When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 19
+  - label: message_accept_encoding_parameter_validity (10)
+    section: § 12.5.3
+    snippet: When the Accept-Encoding header field is present in a response, it indicates what content codings the resource was willing to accept in the associated request.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 20
+  - label: message_accept_encoding_parameter_validity (11)
+    section: § 8.4.1
+    snippet: content-coding   = token
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 68
   - label: message_accept_header_media_type_syntax
     section: § 12.4.2
     snippet: A sender of qvalue MUST NOT generate more than three digits after the decimal point.
@@ -2032,36 +2104,30 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 267
   - label: message_accept_header_media_type_syntax (2)
-    section: § 12.4.2
-    snippet: The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 258
-  - label: message_accept_header_media_type_syntax (3)
     section: § 12.5.1
     snippet: Each media-range might be followed by optional applicable media type parameters (e.g., charset), followed by an optional "q" parameter for indicating a relative weight (Section 12.4.2).
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 37
-  - label: message_accept_header_media_type_syntax (4)
+  - label: message_accept_header_media_type_syntax (3)
     section: § 12.5.1
     snippet: Senders using weights SHOULD send "q" last (after all media-range parameters).
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 194
-  - label: message_accept_header_media_type_syntax (5)
+  - label: message_accept_header_media_type_syntax (4)
     section: § 12.5.1
     snippet: The accept extension grammar (accept-params, accept-ext) has been removed because it had a complicated definition, was not being used in practice, and is more easily deployed through new header fields.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 193
-  - label: message_accept_header_media_type_syntax (6)
+  - label: message_accept_header_media_type_syntax (5)
     section: § 12.5.1
     snippet: When sent by a server in a response, Accept provides information about which content types are preferred in the content of a subsequent request to the same resource.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 21
-  - label: message_accept_header_media_type_syntax (7)
+  - label: message_accept_header_media_type_syntax (6)
     section: § 5.6.2
     snippet: Tokens are short textual identifiers that do not include whitespace or delimiters.
     cited_by:
@@ -2069,7 +2135,7 @@ sources:
       line: 78
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 232
-  - label: message_accept_header_media_type_syntax (8)
+  - label: message_accept_header_media_type_syntax (7)
     section: § 5.6.6
     snippet: parameter       = parameter-name "=" parameter-value
     cited_by:
@@ -2079,7 +2145,7 @@ sources:
       line: 352
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
       line: 213
-  - label: message_accept_header_media_type_syntax (9)
+  - label: message_accept_header_media_type_syntax (8)
     section: § 5.6.6
     snippet: parameter-name  = token
     cited_by:
@@ -2087,7 +2153,7 @@ sources:
       line: 231
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 311
-  - label: message_accept_header_media_type_syntax (10)
+  - label: message_accept_header_media_type_syntax (9)
     section: § 5.6.6
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
@@ -2099,7 +2165,7 @@ sources:
       line: 340
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
       line: 224
-  - label: message_accept_header_media_type_syntax (11)
+  - label: message_accept_header_media_type_syntax (10)
     section: § 8.3.1
     snippet: media-type = type "/" subtype parameters type       = token subtype    = token
     cited_by:
@@ -2313,29 +2379,23 @@ sources:
       line: 108
   - label: message_content_encoding_iana_registered
     section: § 12.5.3
-    snippet: The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
-      line: 107
-  - label: message_content_encoding_iana_registered (2)
-    section: § 12.5.3
     snippet: codings = content-coding / "identity" / "*"
     cited_by:
     - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
       line: 93
-  - label: message_content_encoding_iana_registered (3)
+  - label: message_content_encoding_iana_registered (2)
     section: § 8.4
     snippet: Note that the coding named "identity" is reserved for its special role in Accept-Encoding and thus SHOULD NOT be included.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
       line: 123
-  - label: message_content_encoding_iana_registered (4)
+  - label: message_content_encoding_iana_registered (3)
     section: § 8.4.1
     snippet: All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry",
     cited_by:
     - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
       line: 146
-  - label: message_content_encoding_iana_registered (5)
+  - label: message_content_encoding_iana_registered (4)
     section: § 8.4.1
     snippet: content-coding = token
     cited_by:
