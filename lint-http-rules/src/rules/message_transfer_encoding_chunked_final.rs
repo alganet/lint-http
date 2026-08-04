@@ -75,10 +75,47 @@ impl Rule for MessageTransferEncodingChunkedFinal {
             Some(codings)
         };
 
+        // Whether the message announces that the connection ends with it.
+        // cite(RFC 9110 § 7.6.1): "Connection        = #connection-option connection-option = token"
+        // cite(RFC 9112 § 9.6): "The "close" connection option is defined as a signal that the sender will close this connection after completion of the response."
+        let announces_close = |headers: &hyper::HeaderMap| -> bool {
+            headers.get_all("connection").iter().any(|hv| {
+                let val = String::from_utf8_lossy(hv.as_bytes());
+                // Bound rather than returned directly: the iterator borrows
+                // `val`, and as a tail expression it outlives it. Not a style
+                // choice -- inlining it does not compile.
+                let found = crate::helpers::headers::parse_list_header(&val)
+                    .any(|opt| opt.eq_ignore_ascii_case("close"));
+                found
+            })
+        };
+
         let check = |headers: &hyper::HeaderMap, is_request: bool| -> Option<Violation> {
             let codings = collect(headers)?;
 
             if codings.is_empty() {
+                return None;
+            }
+
+            // § 6.1 gives a response two ways to satisfy the same requirement,
+            // and the rule knew only one of them:
+            // cite(RFC 9112 § 6.1): "If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection."
+            //
+            // So `Transfer-Encoding: chunked, gzip` on a response was reported
+            // as a violation of a requirement the sender may have met the other
+            // way -- and it is coherent: gzip applied *after* chunked means the
+            // message is not chunk-framed on the wire, which is exactly when
+            // closing the connection is the framing.
+            //
+            // The transaction records no connection teardown, so the second
+            // alternative is read from the announcement instead. **That
+            // inference rests on a SHOULD, not a MUST**, and the residue is
+            // stated rather than hidden: a response that closes without saying
+            // so is reported here, wrongly, and is also disregarding § 9.6.
+            // Narrowing further would mean dropping the response side
+            // altogether, which costs more than this tolerance does.
+            // cite(RFC 9112 § 9.6): "A sender SHOULD send a Connection header field (Section 7.6.1 of [HTTP]) containing the "close" connection option when it intends to close a connection."
+            if !is_request && announces_close(headers) {
                 return None;
             }
 
@@ -310,6 +347,69 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none(), "{v:?}");
+    }
+
+    /// A response has a second way to satisfy § 6.1, and announcing the close
+    /// is how it says so. Reporting it anyway was a false statement about a
+    /// conforming message.
+    #[rstest]
+    #[case("chunked, gzip")]
+    #[case("gzip")]
+    fn a_response_that_announces_close_is_not_reported(#[case] te: &str) {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("transfer-encoding", te), ("connection", "close")],
+        );
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "{te:?} with Connection: close: {v:?}");
+    }
+
+    /// The option is a token in a list and is matched as one, not by substring.
+    #[rstest]
+    #[case("keep-alive, close", true)]
+    #[case("CLOSE", true)]
+    #[case("keep-alive", false)]
+    #[case("closed", false)]
+    fn the_close_option_is_matched_as_a_list_token(#[case] connection: &str, #[case] exempt: bool) {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("transfer-encoding", "chunked, gzip"),
+                ("connection", connection),
+            ],
+        );
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(v.is_none(), exempt, "Connection: {connection:?}: {v:?}");
+    }
+
+    /// The exemption is the response's alone. A request has no second
+    /// alternative in § 6.1, so its own `Connection: close` changes nothing.
+    #[test]
+    fn a_request_gets_no_exemption_from_announcing_close() {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[
+            ("transfer-encoding", "gzip"),
+            ("connection", "close"),
+        ]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some(), "the request MUST is unconditional");
     }
 
     #[test]
