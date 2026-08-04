@@ -46,6 +46,32 @@ impl Rule for MessageRequestBodyLengthAccuracy {
         // cite(RFC 9112 § 6.3): "The length of a message body is determined by one of the following (in order of precedence)"
         let declared = crate::helpers::headers::validate_content_length(&req.headers).ok()??;
 
+        // The sentence that licenses this entire rule carries a condition the
+        // rule did not honour. § 6.3's sixth item is what makes a declared
+        // length mean anything about a body -- and it applies only *without*
+        // Transfer-Encoding:
+        // cite(RFC 9112 § 6.3): "If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets."
+        //
+        // When both are present, the number this rule was comparing is one the
+        // specification says to disregard, and the body length comes from
+        // decoding the transfer coding instead:
+        // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
+        // cite(RFC 9112 § 6.3): "If a Transfer-Encoding header field is present and the chunked transfer coding (Section 7.1) is the final encoding, the message body length is determined by reading and decoding the chunked data until the transfer coding indicates the data is complete."
+        //
+        // So `Content-Length: 10` beside `Transfer-Encoding: chunked` and a
+        // three-octet chunked body was reported as an inaccurate length, when
+        // the length was never the operative one. The message is certainly
+        // suspect -- § 6.3 calls it a possible smuggling attempt -- and
+        // `message_content_length_vs_transfer_encoding` is the rule that says
+        // so. This one has nothing left to measure.
+        //
+        // Presence is all that matters here, not what the field contains: the
+        // overriding is unconditional on the transfer coding being valid or
+        // even parseable.
+        if req.headers.contains_key(hyper::header::TRANSFER_ENCODING) {
+            return None;
+        }
+
         // Compare to captured body length when available
         if let Some(body_len) = req.body_length {
             if declared != body_len as u128 {
@@ -269,6 +295,37 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// § 6.3's sixth item -- the sentence that gives a declared length any
+    /// bearing on a body -- applies only *without* Transfer-Encoding. With one
+    /// present, the Transfer-Encoding overrides and the number this rule
+    /// compares is one the specification says to disregard. The message is
+    /// still suspect, and `message_content_length_vs_transfer_encoding` is the
+    /// rule that says so.
+    #[rstest]
+    #[case("chunked")]
+    #[case("gzip, chunked")]
+    // Presence is what overrides, not validity: a transfer coding this rule
+    // could make nothing of still displaces the Content-Length.
+    #[case("nonsense")]
+    #[case("")]
+    fn transfer_encoding_overrides_and_leaves_nothing_to_measure(#[case] te: &str) {
+        let tx = req_with(
+            &[("content-length", "10"), ("transfer-encoding", te)],
+            Some(3),
+        );
+        assert!(
+            run(&tx).is_none(),
+            "Transfer-Encoding: {te:?} overrides the Content-Length"
+        );
+    }
+
+    /// Without one, the comparison is exactly what § 6.3 licenses.
+    #[test]
+    fn without_transfer_encoding_the_comparison_stands() {
+        let tx = req_with(&[("content-length", "10")], Some(3));
+        assert!(run(&tx).is_some_and(|v| v.message.contains("does not match")));
     }
 
     /// A malformed value leaves no number to compare a body against, so this

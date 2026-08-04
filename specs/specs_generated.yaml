@@ -3497,6 +3497,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_content_length_vs_transfer_encoding.rs
       line: 36
+    - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
+      line: 58
   - label: message_content_transfer_encoding_valid
     section: § B.5
     snippet: HTTP does not use the Content-Transfer-Encoding field of MIME.
@@ -3516,6 +3518,18 @@ sources:
     - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
       line: 27
   - label: message_request_body_length_accuracy
+    section: § 6.3
+    snippet: If a Transfer-Encoding header field is present and the chunked transfer coding (Section 7.1) is the final encoding, the message body length is determined by reading and decoding the chunked data until the transfer coding indicates the data is complete.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
+      line: 59
+  - label: message_request_body_length_accuracy (2)
+    section: § 6.3
+    snippet: If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
+      line: 53
+  - label: message_request_body_length_accuracy (3)
     section: § 6.3
     snippet: The length of a message body is determined by one of the following (in order of precedence)
     cited_by:
