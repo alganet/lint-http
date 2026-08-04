@@ -12,6 +12,8 @@ Validate `Transfer-Encoding` and `TE` header values to ensure transfer-coding to
 
 **Every field line of both fields is read**, since each is a list whose members may be spread across lines — and for `Transfer-Encoding` a second field line is the shape request smuggling arrives in, so reading only the first is the one omission this rule cannot afford. Values are decoded from the raw octets: an octet outside visible US-ASCII is not a `tchar`, so where a coding name belongs it is reported rather than used as a reason to skip the line.
 
+**Members are split on commas that are not inside a quoted-string.** `transfer-parameter = token BWS "=" BWS ( token / quoted-string )`, so `chunked;ext="a,b"` is one coding carrying one parameter, not two members. Quoting that never closes leaves the members undelimitable and is reported here rather than passed over, because no other rule reports a malformed `Transfer-Encoding`.
+
 ## Specifications
 
 - [RFC 9112 §6.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1): Transfer Coding

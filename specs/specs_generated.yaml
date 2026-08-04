@@ -1802,7 +1802,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 129
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 127
+      line: 188
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 5.3
     snippet: Since it cannot be combined into a single field value, | recipients ought to handle "Set-Cookie" as a special case while | processing fields.
@@ -1829,6 +1829,8 @@ sources:
       line: 248
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 52
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 124
   - label: lint-http-rules/src/helpers/headers.rs (5)
     section: § 5.6.4
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
@@ -1842,7 +1844,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 949
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 140
+      line: 201
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -1858,7 +1860,9 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 948
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 139
+      line: 99
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 200
   - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
@@ -1942,6 +1946,8 @@ sources:
     - file: lint-http-rules/src/helpers/token.rs
       line: 7
     - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
+      line: 143
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 143
   - label: message_accept_and_content_type_negotiation
     section: § 12.1
@@ -2770,7 +2776,13 @@ sources:
     snippet: The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 165
+      line: 226
+  - label: message_transfer_coding_iana_registered (2)
+    section: § 10.1.4
+    snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
+    cited_by:
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 118
   - label: message_via_header_syntax_valid
     section: § 7.6.3
     snippet: The "Via" header field indicates the presence of intermediate protocols and recipients
@@ -3424,13 +3436,13 @@ sources:
     snippet: 'Transfer-Encoding = #transfer-coding'
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 147
+      line: 208
   - label: message_transfer_coding_iana_registered (2)
     section: § 7.3
     snippet: The "HTTP Transfer Coding Registry" defines the namespace for transfer coding names.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 86
+      line: 110
   - label: message_transfer_encoding_chunked_final
     section: § 6.1
     snippet: A sender MUST NOT apply the chunked transfer coding more than once to a message body
