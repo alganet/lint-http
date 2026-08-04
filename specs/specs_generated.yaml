@@ -2143,6 +2143,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 68
+    - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
+      line: 45
   - label: message_accept_header_media_type_syntax
     section: § 12.4.2
     snippet: A sender of qvalue MUST NOT generate more than three digits after the decimal point.
@@ -2324,15 +2326,41 @@ sources:
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
       line: 211
   - label: message_compression_and_transfer_encoding_consistency
+    section: § 10.1.4
+    snippet: transfer-coding    = token *( OWS ";" OWS transfer-parameter )
+    cited_by:
+    - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
+      line: 69
+    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
+      line: 66
+  - label: message_compression_and_transfer_encoding_consistency (2)
+    section: § 10.1.4
+    snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
+    cited_by:
+    - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
+      line: 70
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 137
+    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
+      line: 52
+  - label: message_compression_and_transfer_encoding_consistency (3)
     section: § 8.4
     snippet: 'Content-Encoding = #content-coding'
     cited_by:
     - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
-      line: 31
+      line: 44
     - file: lint-http-rules/src/rules/message_content_encoding_and_type_consistency.rs
       line: 33
     - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
       line: 92
+  - label: message_compression_and_transfer_encoding_consistency (4)
+    section: § 8.4.1
+    snippet: All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry",
+    cited_by:
+    - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
+      line: 58
+    - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
+      line: 146
   - label: message_conditional_headers_consistency
     section: § 13.1.3
     snippet: A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field
@@ -2448,12 +2476,6 @@ sources:
     - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
       line: 123
   - label: message_content_encoding_iana_registered (3)
-    section: § 8.4.1
-    snippet: All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry",
-    cited_by:
-    - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
-      line: 146
-  - label: message_content_encoding_iana_registered (4)
     section: § 8.4.1
     snippet: content-coding = token
     cited_by:
@@ -2787,21 +2809,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 364
-  - label: message_transfer_coding_iana_registered (3)
-    section: § 10.1.4
-    snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
-    cited_by:
-    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 137
-    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
-      line: 52
   - label: message_transfer_encoding_chunked_final
-    section: § 10.1.4
-    snippet: transfer-coding    = token *( OWS ";" OWS transfer-parameter )
-    cited_by:
-    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
-      line: 66
-  - label: message_transfer_encoding_chunked_final (2)
     section: § 7.6.1
     snippet: 'Connection        = #connection-option connection-option = token'
     cited_by:
@@ -3405,6 +3413,20 @@ sources:
       line: 251
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 30
+  - label: message_compression_and_transfer_encoding_consistency
+    section: § 7
+    snippet: All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
+      line: 75
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 55
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 208
+    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
+      line: 292
+    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
+      line: 71
   - label: message_content_length_vs_transfer_encoding
     section: § 6.2
     snippet: A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field.
@@ -3468,66 +3490,54 @@ sources:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 340
   - label: message_transfer_coding_iana_registered (3)
-    section: § 7
-    snippet: All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 55
-    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 208
-    - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
-      line: 292
-    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
-      line: 71
-  - label: message_transfer_coding_iana_registered (4)
     section: § 7.1
     snippet: The chunked coding does not define any parameters.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 232
-  - label: message_transfer_coding_iana_registered (5)
+  - label: message_transfer_coding_iana_registered (4)
     section: § 7.1
     snippet: Their presence SHOULD be treated as an error.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 233
-  - label: message_transfer_coding_iana_registered (6)
+  - label: message_transfer_coding_iana_registered (5)
     section: § 7.2
     snippet: The compression codings do not define any parameters.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 223
-  - label: message_transfer_coding_iana_registered (7)
+  - label: message_transfer_coding_iana_registered (6)
     section: § 7.2
     snippet: The presence of parameters with any of these compression codings SHOULD be treated as an error.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 224
-  - label: message_transfer_coding_iana_registered (8)
+  - label: message_transfer_coding_iana_registered (7)
     section: § 7.3
     snippet: The "HTTP Transfer Coding Registry" defines the namespace for transfer coding names.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 129
-  - label: message_transfer_coding_iana_registered (9)
+  - label: message_transfer_coding_iana_registered (8)
     section: § 7.4
     snippet: A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 205
-  - label: message_transfer_coding_iana_registered (10)
+  - label: message_transfer_coding_iana_registered (9)
     section: § 7.4
     snippet: If the TE field value is empty or if no TE field is present, the only acceptable transfer coding is chunked.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 363
-  - label: message_transfer_coding_iana_registered (11)
+  - label: message_transfer_coding_iana_registered (10)
     section: § 7.4
     snippet: The keyword "trailers" indicates that the sender will not discard trailer fields, as described in Section 6.5 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 159
-  - label: message_transfer_coding_iana_registered (12)
+  - label: message_transfer_coding_iana_registered (11)
     section: § 7.4
     snippet: When multiple transfer codings are acceptable, the client MAY rank the codings by preference using a case-insensitive "q" parameter (similar to the qvalues used in content negotiation fields; see Section 12.4.2 of [HTTP]).
     cited_by:

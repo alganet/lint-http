@@ -26,31 +26,58 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
         // Only applies to responses
         let resp = tx.response.as_ref()?;
 
-        // Collect tokens from ALL header fields (multiple header fields should be considered)
-        let mut ce_set = std::collections::HashSet::new();
+        // Both fields are lists whose members a sender may spread over several
+        // field lines, and there the resemblance ends: their grammars differ in
+        // a way that decides how each is split.
+        //
+        // Values are decoded from the raw octets rather than read through
+        // `to_str`, which refuses everything outside visible US-ASCII and used
+        // to drop the whole field line. Neither coding name can contain such an
+        // octet -- both are `token` -- so one appearing where a name belongs
+        // simply fails to match anything, which is the right outcome; dropping
+        // the line instead hid every *other* name on it.
+        let decode =
+            |hv: &hyper::header::HeaderValue| String::from_utf8_lossy(hv.as_bytes()).into_owned();
+
+        // `content-coding` is a bare `token` with no parameters, so every comma
+        // is a separator and there is no quoting to respect.
         // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
+        // cite(RFC 9110 § 8.4.1): "content-coding   = token"
+        let mut ce_set = std::collections::HashSet::new();
         for hv in resp.headers.get_all("content-encoding").iter() {
-            if let Ok(s) = hv.to_str() {
-                for part in crate::helpers::headers::parse_list_header(s) {
-                    let token = part.split(';').next().unwrap().trim().to_ascii_lowercase();
-                    if token.is_empty() {
-                        continue;
-                    }
-                    ce_set.insert(token);
+            let s = decode(hv);
+            for part in crate::helpers::headers::parse_list_header(&s) {
+                // Nothing in this field's grammar sits behind a `;`, so this
+                // strips something that cannot legally be there. It is kept as
+                // a deliberate tolerance: a sender writing `gzip;q=1.0` here
+                // has produced one malformed token, and reading the name out of
+                // it keeps this advisory useful on a value that
+                // `message_content_encoding_iana_registered` is already
+                // reporting as malformed. It cannot invent an overlap -- the
+                // text before the `;` is text the sender wrote.
+                // cite(RFC 9110 § 8.4.1): "All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry","
+                let token = part.split(';').next().unwrap().trim().to_ascii_lowercase();
+                if token.is_empty() {
+                    continue;
                 }
+                ce_set.insert(token);
             }
         }
 
+        // `transfer-coding` does carry parameters, and a parameter value may be
+        // a `quoted-string` holding a comma, so this split has to respect them.
+        // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
+        // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
         let mut te_set = std::collections::HashSet::new();
         for hv in resp.headers.get_all("transfer-encoding").iter() {
-            if let Ok(s) = hv.to_str() {
-                for part in crate::helpers::headers::parse_list_header(s) {
-                    let token = part.split(';').next().unwrap().trim().to_ascii_lowercase();
-                    if token.is_empty() {
-                        continue;
-                    }
-                    te_set.insert(token);
+            let s = decode(hv);
+            for part in crate::helpers::headers::split_commas_respecting_quotes(&s) {
+                // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
+                let token = part.split(';').next().unwrap().trim().to_ascii_lowercase();
+                if token.is_empty() {
+                    continue;
                 }
+                te_set.insert(token);
             }
         }
 
@@ -219,27 +246,23 @@ mod tests {
         assert!(v.is_some());
     }
 
+    /// An octet outside visible US-ASCII is not a `tchar`, so a name carrying
+    /// one matches nothing -- which is the right answer on its own account.
+    /// Dropping the whole line, as `to_str` used to make this rule do, also hid
+    /// every other name on it.
     #[test]
-    fn non_utf8_header_values_are_ignored() {
-        use crate::test_helpers::make_test_transaction;
-        let mut tx = make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: hyper::HeaderMap::new(),
-
-            body_length: None,
-            trailers: None,
-        });
-
-        tx.response.as_mut().unwrap().headers.append(
+    fn a_stray_octet_does_not_hide_the_rest_of_the_line() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = hyper::HeaderMap::new();
+        hm.append(
             "content-encoding",
-            HeaderValue::from_bytes(&[0xff]).unwrap(),
+            HeaderValue::from_bytes(b"\xff, gzip").unwrap(),
         );
-        tx.response.as_mut().unwrap().headers.append(
+        hm.append(
             "transfer-encoding",
             HeaderValue::from_static("gzip, chunked"),
         );
+        tx.response.as_mut().unwrap().headers = hm;
 
         let rule = MessageCompressionAndTransferEncodingConsistency;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -250,8 +273,56 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        // Non-UTF8 content-encoding should be ignored and not cause a panic or violation
-        assert!(v.is_none());
+        assert!(
+            v.is_some_and(|v| v.message.contains("gzip")),
+            "the gzip after the stray octet went unread"
+        );
+    }
+
+    /// The undecodable name on its own overlaps with nothing.
+    #[test]
+    fn a_name_that_is_only_a_stray_octet_matches_nothing() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = hyper::HeaderMap::new();
+        hm.append(
+            "content-encoding",
+            HeaderValue::from_bytes(&[0xff]).unwrap(),
+        );
+        hm.append(
+            "transfer-encoding",
+            HeaderValue::from_static("gzip, chunked"),
+        );
+        tx.response.as_mut().unwrap().headers = hm;
+
+        let rule = MessageCompressionAndTransferEncodingConsistency;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_compression_and_transfer_encoding_consistency",
+        ]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none(), "{v:?}");
+    }
+
+    /// A comma inside a transfer-parameter's quoted-string value is not a
+    /// separator, so it must not manufacture a coding name that then appears to
+    /// overlap. `Content-Encoding` needs no such care: its members are bare
+    /// `token`s with no parameters and so no quoting.
+    #[test]
+    fn a_comma_inside_a_quoted_transfer_parameter_is_not_a_separator() {
+        let tx = make_tx_with_headers(Some("br"), Some("chunked;ext=\"a,br,b\""));
+        let rule = MessageCompressionAndTransferEncodingConsistency;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_compression_and_transfer_encoding_consistency",
+        ]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none(), "the `br` is inside a parameter value: {v:?}");
     }
 
     #[test]
