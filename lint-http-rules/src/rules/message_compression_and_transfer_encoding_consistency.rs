@@ -72,6 +72,15 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
 
             // `transfer-coding` does carry parameters, and a parameter value may be
             // a `quoted-string` holding a comma, so this split has to respect them.
+            //
+            // No unbalanced-quote guard, unlike the two sibling rules on these
+            // fields. Quoting that never closes swallows the rest of the value
+            // into one member, and the name this reads off it is still the name
+            // in front of the first `;` -- a name the sender wrote. Later names
+            // are lost, so the only thing at risk is a finding, never a false
+            // one, and this rule reports nothing about the malformed value
+            // anyway. Do not "harmonise" a decline into this loop: it would
+            // trade a missed advisory for nothing.
             // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
             // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
             let mut te_set = std::collections::HashSet::new();
@@ -388,6 +397,36 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Quoting that never closes can only cost this rule a finding, never
+    /// manufacture one: the name in front of the first `;` is still a name the
+    /// sender wrote. Pinned so the sibling rules' decline is not copied in.
+    #[test]
+    fn unterminated_quoting_costs_a_finding_and_invents_none() {
+        let rule = MessageCompressionAndTransferEncodingConsistency;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_compression_and_transfer_encoding_consistency",
+        ]);
+
+        // The `gzip` in front of the stray DQUOTE is still read.
+        let tx = make_tx_with_headers(Some("gzip"), Some("gzip;ext=\"a, chunked"));
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some_and(|v| v.message.contains("gzip")));
+
+        // The `br` swallowed behind the unterminated quote is not, and no
+        // finding is invented in its place.
+        let tx = make_tx_with_headers(Some("br"), Some("gzip;ext=\"a, br"));
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none(), "{v:?}");
     }
 
     /// An octet outside visible US-ASCII is not a `tchar`, so a name carrying
