@@ -2712,7 +2712,7 @@ sources:
     - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
       line: 58
     - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
-      line: 222
+      line: 224
   - label: message_extension_headers_registered (6)
     section: § 5.1
     snippet: Other recipients SHOULD ignore unrecognized header and trailer fields
@@ -3914,7 +3914,7 @@ sources:
     snippet: A request or response containing uppercase characters in field names MUST be treated as malformed
     cited_by:
     - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
-      line: 214
+      line: 216
     - file: lint-http-rules/src/rules/message_header_field_names_token.rs
       line: 130
   - label: message_header_field_names_token
