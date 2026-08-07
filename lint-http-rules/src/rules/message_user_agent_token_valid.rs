@@ -164,8 +164,8 @@ mod tests {
     #[case(Some("Mozilla/5.0 (compatible; Bot/1.0; +http://example.com)"), false)]
     #[case(Some("Agent/1.0 AnotherOne/2.0"), false)]
     // `!` is a `tchar`, so this is two products separated by RWS and it
-    // conforms. It was published as a Bad example for years on the strength of
-    // reading like one.
+    // conforms. It was published as a Bad example on the strength of reading
+    // like one, three lines below this case saying it is not.
     #[case(Some("Bad UA!"), false)]
     #[case(Some("/1.0"), true)]
     #[case(Some("Agent/"), true)]
@@ -510,10 +510,19 @@ mod tests {
 
         let mut saw_a_finding = false;
         for ex in rule.examples() {
-            let pairs: Vec<(&str, &str)> = ex
-                .snippet
-                .lines()
-                .skip(1)
+            let mut lines = ex.snippet.lines();
+            let start = lines.next().expect("an example has a start line");
+            // The rule is request-scoped, so every example is a request and the
+            // headers below go on the request. Were a response snippet ever
+            // added, discarding its status line would file the fields on the
+            // request instead and the guard would pass on a value the rule
+            // never sees.
+            assert!(
+                !start.starts_with("HTTP/"),
+                "a response-shaped example cannot be checked by this guard: {start:?}"
+            );
+
+            let pairs: Vec<(&str, &str)> = lines
                 .filter(|l| !l.trim().is_empty())
                 .map(|l| {
                     l.split_once(": ")
