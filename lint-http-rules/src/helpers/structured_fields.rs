@@ -225,6 +225,18 @@ pub(crate) fn is_number(s: &str) -> bool {
     }
 }
 
+/// Validate an SF Integer specifically -- a § 4.2.4 number with no "." in it.
+///
+/// `is_number` answers for the Integer and the Decimal together because the
+/// algorithm parses both and only decides which it has at the ".". Callers for
+/// whom the two are different things -- a field that defines a member as an
+/// Integer, so a Decimal there is a value of unexpected type -- ask this instead.
+///
+// cite(RFC 9651 § 3.3.2): "Decimals are numbers with an integer and a fractional component."
+pub(crate) fn is_integer(s: &str) -> bool {
+    !s.contains('.') && is_number(s)
+}
+
 /// Validate an SF Token.
 ///
 /// This cannot simply ask `is_tchar`, and the sentence below is why: an SF Token
@@ -264,7 +276,7 @@ pub(crate) fn is_date(s: &str) -> bool {
         return false;
     };
     // cite(RFC 9651 § 4.2.9): "If output_date is a Decimal, fail parsing."
-    !rest.contains('.') && is_number(rest)
+    is_integer(rest)
 }
 
 /// Validate an SF Display String.
@@ -371,13 +383,43 @@ pub(crate) fn sf_field_bytes_invalid(s: &str) -> Option<&'static str> {
     None
 }
 
+/// One § 4.2.2 Dictionary member.
+///
+/// The parameters are not carried, and that is the point rather than an
+/// omission: a member's parameters are not part of its value, so a caller
+/// asking what `u` was set to gets `3` from `u=3` and from `u=3;foo=bar`
+/// alike. `parse_dictionary` has already judged them.
+pub(crate) struct DictMember<'a> {
+    pub(crate) key: &'a str,
+    /// `None` where the member carried no "=", which § 4.2.2 reads as Boolean
+    /// true -- a distinct thing from a member whose value is the Boolean `?1`,
+    /// and only because both spell the same value does the distinction not
+    /// matter to a caller that only wants the value.
+    pub(crate) value: Option<&'a str>,
+}
+
 /// § 4.2.2 -- comma-separated `key` or `key=value` members, each parameterizable.
-pub(crate) fn parse_dictionary(s: &str) -> Option<String> {
+///
+/// The members come back in the order they were written, duplicates included:
+/// § 4.2.2 resolves a repeated key in favour of the last, and a caller that
+/// knows its field is a Dictionary is the only one in a position to say that a
+/// dropped earlier member was meant to do something.
+pub(crate) fn parse_dictionary(s: &str) -> Result<Vec<DictMember<'_>>, String> {
+    // cite(RFC 9651 § 4.2): "Discard any leading SP characters from input_string."
+    let s = s.trim();
+    // An empty field value is an empty Dictionary, not a failure -- the
+    // algorithm's last step says so, and it is why a bare `Priority:` costs
+    // nothing rather than discarding a policy that was never there.
+    // cite(RFC 9651 § 4.2.2): "No structured data has been found; return dictionary (which is empty)."
+    if s.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut members = Vec::new();
     for m in split_commas_outside_quotes(s) {
         let m = m.trim();
         // cite(RFC 9651 § 4.2.2): "If input_string is empty, there is a trailing comma; fail parsing."
         if m.is_empty() {
-            return Some("empty dictionary member".into());
+            return Err("empty dictionary member".into());
         }
         // The key is read first and the "=" has to be the character right after
         // it, which is why the head is isolated before looking for one. Reading
@@ -396,19 +438,20 @@ pub(crate) fn parse_dictionary(s: &str) -> Option<String> {
             None => (head, None),
         };
         if !is_valid_sf_key(key) {
-            return Some(format!("invalid dictionary key '{}'", key));
+            return Err(format!("invalid dictionary key '{}'", key));
         }
         if let Some(value) = value {
             // cite(RFC 9651 § 4.2.2): "Let member be the result of running Parsing an Item or Inner List (Section 4.2.1.1) with input_string."
             if let Some(msg) = parse_member_value(value) {
-                return Some(format!("invalid value for key '{}': {}", key, msg));
+                return Err(format!("invalid value for key '{}': {}", key, msg));
             }
         }
         if let Some(msg) = parse_parameters(&parts[1..]) {
-            return Some(format!("{} on member '{}'", msg, key));
+            return Err(format!("{} on member '{}'", msg, key));
         }
+        members.push(DictMember { key, value });
     }
-    None
+    Ok(members)
 }
 
 /// § 4.2.1 -- a comma-separated sequence of Items or Inner Lists.
