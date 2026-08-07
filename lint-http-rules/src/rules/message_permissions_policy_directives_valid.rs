@@ -206,16 +206,46 @@ fn validate_permissions_policy(s: &str) -> Option<String> {
                     feature_part
                 ));
             }
-        } else if item.eq_ignore_ascii_case("*") || item.eq_ignore_ascii_case("self") {
-            // allowed
+        } else if item == "*" || item == "self" {
+            // § 5.2 names two permitted Tokens, and a Token keeps its case:
+            // RFC 9651 § 4.2.6 consumes each character and appends it to the
+            // output unchanged, and nothing anywhere folds a Token. Compare
+            // § 3.2, which says outright that member *keys* cannot contain
+            // uppercase -- the specification distinguishes the two cases, so
+            // this code should not have folded them together.
+            //
+            // `SELF` is therefore a different Token from `self`, which makes it
+            // a Member Value of "any other form", and § 5.2 says what becomes
+            // of those: the directive is dropped. `eq_ignore_ascii_case` here
+            // called that conforming.
+            // cite(Permissions Policy § 5.2): "The Member Values represent allowlists, and must be one of:"
+            // cite(Permissions Policy § 5.2): "Member Values of any other form will cause the entire Dictionary Member to be ignored by the processing steps."
+            // cite(RFC 9651 § 3.2): "Member keys cannot contain uppercase characters."
         } else {
-            // token-like; ensure token characters are tchars or allowed extras (':', '/', '.', '-', '_')
-            if !is_valid_token_like(item) {
-                return Some(format!(
-                    "member '{}' has invalid token value '{}'",
-                    feature_part, item
-                ));
-            }
+            // Everything else. § 5.2's list of permitted Member Values is
+            // closed -- a String, the Token `*`, the Token `self`, or an Inner
+            // List of those -- so a bare Token that is neither `*` nor `self`
+            // is not a narrower kind of allowlist, it is not an allowlist at
+            // all. This branch used to accept any syntactically well-formed
+            // token, which let `geolocation=camera` and `geolocation=SELF`
+            // through as conforming when a browser drops both.
+            //
+            // Note the asymmetry with Inner List contents just above, which
+            // stay permissive on purpose: § 5.2 says unknown items *inside* a
+            // list are ignored and the Member Value is processed without them,
+            // so an odd entry there costs one origin. An odd value out here
+            // costs the whole directive.
+            // cite(Permissions Policy § 5.2): "Any other items inside of an Inner List will be ignored by the processing steps, and the Member Value will be processed as if they were not present."
+            let shape = if is_valid_token_like(item) {
+                "token"
+            } else {
+                "value"
+            };
+            return Some(format!(
+                "member '{}' has {} '{}', which is not an allowlist: § 5.2 permits a string, \
+                 the token '*', the token 'self', or an inner list of those",
+                feature_part, shape, item
+            ));
         }
 
         // Validate parameters (if any): only 'report-to' is checked to be a quoted-string when present.
@@ -307,6 +337,11 @@ mod tests {
     )]
     #[case(Some("feature=*"), false)]
     #[case(Some("feature=self"), false)]
+    // A Token keeps its case, so these are not the Tokens § 5.2 names; each is
+    // a Member Value "of any other form", and the directive is dropped.
+    #[case(Some("feature=SELF"), true)]
+    #[case(Some("feature=Self"), true)]
+    #[case(Some("feature=(SELF)"), false)]
     // `_` is an ordinary SF key character. This asserted a violation, which
     // was § 5.1's HTML-attribute grammar speaking.
     #[case(Some("bad_feature_name=(self)"), false)]
@@ -549,7 +584,7 @@ mod tests {
             &cfg,
         );
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("invalid token value"));
+        assert!(v.unwrap().message.contains("is not an allowlist"));
     }
 
     #[test]
@@ -769,7 +804,7 @@ mod tests {
     }
 
     #[test]
-    fn token_with_special_chars_is_ok() {
+    fn a_bare_token_that_is_not_star_or_self_is_not_an_allowlist() {
         let rule = MessagePermissionsPolicyDirectivesValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_permissions_policy_directives_valid",
@@ -786,7 +821,9 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_none());
+        // A well-formed Token, and § 5.2's list of Member Values does not
+        // include one. A browser drops the directive; this asserted it was fine.
+        assert!(v.is_some_and(|v| v.message.contains("is not an allowlist")));
     }
 
     #[test]
