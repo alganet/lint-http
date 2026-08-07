@@ -35,10 +35,9 @@ Content-Type: application/json
 Cache-Control: no-store
 ```
 
-### ❌ Bad Response
+### ❌ Bad Response with no Cache-Control field line
 
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json
-# Missing Cache-Control header
 ```

@@ -37,7 +37,7 @@ Authorization: Bearer abc123
 ```http
 GET /resource HTTP/1.1
 Host: example.com
-Authorization: Digest username="Mufasa", realm="test"
+Authorization: Digest username="Mufasa", realm="test", nonce="abc", uri="/resource", response="d41d8cd98f00b204e9800998ecf8427e"
 ```
 
 ### ❌ Bad

@@ -90,7 +90,7 @@ impl Rule for MessageAuthorizationCredentialsPresent {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Digest username=\"Mufasa\", realm=\"test\"",
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/resource\", response=\"d41d8cd98f00b204e9800998ecf8427e\"",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -212,5 +212,95 @@ mod tests {
     fn scope_is_client() {
         let rule = MessageAuthorizationCredentialsPresent;
         assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+    }
+
+    /// The field lines of an example, with its start line dropped — and checked,
+    /// not assumed: this rule is request-scoped, so a response-shaped example
+    /// added later would have its fields filed onto the request, where a guard
+    /// could judge a value the rule never sees.
+    fn published_fields(snippet: &str) -> Vec<(&str, &str)> {
+        let mut lines = snippet.lines();
+        let start = lines.next().expect("an example has a start line");
+        assert!(
+            !start.starts_with("HTTP/"),
+            "a response-shaped example cannot be checked by these guards: {start:?}"
+        );
+        lines
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| {
+                l.split_once(": ")
+                    .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageAuthorizationCredentialsPresent;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+
+        let mut saw_a_finding = false;
+        for ex in rule.examples() {
+            let tx = crate::test_helpers::make_test_transaction_with_headers(&published_fields(
+                ex.snippet,
+            ));
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule reports its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    saw_a_finding = true;
+                }
+            }
+        }
+        assert!(saw_a_finding, "no published example produced a finding");
+    }
+
+    /// This rule reads a credential only as far as "a scheme, then something",
+    /// so every scheme-specific defect in a value it publishes is invisible to
+    /// it. The published Digest credential named two parameters of the five its
+    /// own scheme rule requires, and was labelled `Compliant` in the docs the
+    /// whole time. The scheme owners judge these values now; each declines on a
+    /// value belonging to the other scheme, so both run over every example.
+    #[test]
+    fn published_credentials_satisfy_the_rules_that_own_their_schemes() {
+        use crate::rules::message_bearer_token_format_validity::MessageBearerTokenFormatValidity;
+        use crate::rules::message_digest_auth_validity::MessageDigestAuthValidity;
+        use crate::rules::{Compliance, Rule as _};
+
+        let digest = MessageDigestAuthValidity;
+        let bearer = MessageBearerTokenFormatValidity;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&[digest.id(), bearer.id()]);
+        let history = crate::transaction_history::TransactionHistory::empty();
+
+        for ex in MessageAuthorizationCredentialsPresent.examples() {
+            if ex.compliance != Compliance::Compliant {
+                continue;
+            }
+            let tx = crate::test_helpers::make_test_transaction_with_headers(&published_fields(
+                ex.snippet,
+            ));
+            for owner in [&digest as &dyn crate::rules::Rule, &bearer] {
+                let found = owner.check_transaction(&tx, &history, &cfg);
+                assert!(
+                    found.is_none(),
+                    "a Compliant example publishes a credential {} rejects {:?}: {found:?}",
+                    owner.id(),
+                    ex.snippet
+                );
+            }
+        }
     }
 }
