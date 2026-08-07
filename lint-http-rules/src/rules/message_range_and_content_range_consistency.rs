@@ -296,8 +296,20 @@ impl Rule for MessageRangeAndContentRangeConsistency {
             // The status names the request field it is about, the same way 206's
             // definition does, so a 416 to a request carrying no Range announces
             // the rejection of nothing.
+            //
+            // Unless the range is in the other field. A partial PUT names the
+            // range it is writing in the request's own Content-Range, so a server
+            // answering "that range is not satisfiable" has something to be about
+            // even with no Range field in sight. § 14.5 leaves that whole exchange
+            // to private agreement between the two parties, which means there is
+            // no sentence here to measure it against -- and a rule that reported
+            // it would be supplying one. The 206 side above keeps its finding:
+            // nothing in § 14.5 gives a response to a PUT an enclosed part to
+            // describe, which is the only thing a 206 says.
             // cite(RFC 9110 § 15.5.17): "The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack)."
-            if !has_range_request {
+            // cite(RFC 9110 § 14.5): "Some origin servers support PUT of a partial representation when the user agent sends a Content-Range header field (Section 14.4) in the request, though such support is inconsistent and depends on private agreements with user agents."
+            let request_names_a_range_elsewhere = tx.request.headers.get("content-range").is_some();
+            if !has_range_request && !request_names_a_range_elsewhere {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
@@ -361,7 +373,7 @@ impl Rule for MessageRangeAndContentRangeConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and is reported whatever the response's `Content-Range` says.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `message_content_length`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `client_range_header_syntax_valid`, and leaves this rule knowing less rather than guessing."
+        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and is reported whatever the response's `Content-Range` says.\n\nA 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `message_content_length`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `client_range_header_syntax_valid`, and leaves this rule knowing less rather than guessing."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -622,6 +634,46 @@ mod tests {
             &cfg_with_units(&["bytes"]),
         );
         assert!(v2.is_some());
+    }
+
+    /// A partial PUT names its range in the request's own Content-Range, and
+    /// § 14.5 leaves that exchange to private agreement -- so a 416 answering one
+    /// is not measured against a sentence about the `Range` field. The response's
+    /// Content-Range is still read: that field's meaning in a 416 is stated
+    /// without conditions.
+    #[rstest]
+    fn a_416_answering_a_partial_put_is_not_reported_for_the_missing_range() {
+        let rule = MessageRangeAndContentRangeConsistency;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            416,
+            &[("content-range", "bytes */47022")],
+        );
+        tx.request.method = "PUT".into();
+        tx.request
+            .headers
+            .insert("content-range", "bytes 100-199/*".parse().unwrap());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_units(&["bytes"]),
+        );
+        assert!(v.is_none(), "partial PUT 416 reported: {v:?}");
+
+        // ...and the form of what it did send is still judged.
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            416,
+            &[("content-range", "bytes 100-199/47022")],
+        );
+        tx.request.method = "PUT".into();
+        tx.request
+            .headers
+            .insert("content-range", "bytes 100-199/*".parse().unwrap());
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_units(&["bytes"]),
+        );
+        assert!(v.unwrap().message.contains("'*/complete-length' form"));
     }
 
     /// A 416 answers a Range request. Without one there is no rejected range set
