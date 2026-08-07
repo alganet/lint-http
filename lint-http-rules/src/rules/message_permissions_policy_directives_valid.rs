@@ -27,24 +27,54 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
         // Only inspect responses (server header)
         let resp = tx.response.as_ref()?;
 
+        // Every field line, joined first. The rule used to validate each line on
+        // its own, and a Dictionary is not a per-line structure: § 4.2 makes
+        // combining a MUST and says why, and § 3.2 notes that members may be
+        // spread across lines deliberately. Judging a line alone described a
+        // message nobody sends.
+        // cite(RFC 9651 § 4.2): "When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly."
+        let mut lines: Vec<&str> = Vec::new();
         for hv in resp.headers.get_all("permissions-policy").iter() {
-            // Non-UTF8 value is a violation
-            let s = match hv.to_str() {
-                Ok(v) => v.trim(),
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Permissions-Policy header value is not valid UTF-8".into(),
-                    })
-                }
+            // Not "valid UTF-8", which is what this used to say and is a
+            // different claim: a well-formed multi-byte character fails here
+            // too. Structured Fields are ASCII, and a byte outside it is a
+            // parse failure at step 1, before any of this field's own grammar
+            // is consulted -- so the whole field goes.
+            // cite(RFC 9651 § 4.2): "Convert input_bytes into an ASCII string input_string; if conversion fails, fail parsing."
+            let Ok(v) = hv.to_str() else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Permissions-Policy contains a byte outside ASCII, so the field \
+                              fails Structured Fields parsing and every directive in it is \
+                              discarded"
+                        .into(),
+                });
             };
+            lines.push(v);
+        }
+        if lines.is_empty() {
+            return None;
+        }
+        let joined = lines.join(", ");
+        let s = joined.trim();
 
+        {
+            // An empty value is *not* a parse failure -- § 4.2.2 ends by
+            // returning an empty Dictionary -- so nothing is discarded and the
+            // message no longer implies otherwise. It is still worth saying:
+            // § 3.2 is explicit that an empty Dictionary is spelled by leaving
+            // the field out, so a server sending this one wrote a header that
+            // does nothing.
+            // cite(RFC 9651 § 4.2.2): "No structured data has been found; return dictionary (which is empty)."
+            // cite(RFC 9651 § 3.2): "As with Lists, an empty Dictionary is represented by omitting the entire field."
             if s.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
-                    message: "Permissions-Policy header is empty".into(),
+                    message: "Permissions-Policy is empty, which grants and denies nothing; an \
+                              empty policy is written by omitting the field"
+                        .into(),
                 });
             }
 
@@ -83,7 +113,7 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a `Permissions-Policy` response header carrying something a browser will not enforce. Neither specification calls any of this \"invalid\" — both define **ignore** semantics — so the finding is always that the server wrote a policy that will not take effect, at one of two scopes.\n\n**The whole field, or one directive.** A Structured Fields parse failure discards everything: RFC 9651 §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen that. So one uppercase letter in a member name costs every directive in the header. A value that parses but is not an allowlist costs only its own directive — §5.2, \"Member Values of any other form will cause the entire Dictionary Member to be ignored\". The messages say which.\n\n**Member names are SF keys, not §5.1 feature-identifiers.** The Permissions Policy spec serializes a policy directive twice: §5.1 for the HTML `allow` attribute, where `feature-identifier = 1*( ALPHA / DIGIT / \"-\" )`, and §5.2 for this header, where the value is an `sf-dictionary`. This rule reads the header, so a member name is an SF key: lowercase only, beginning with a letter or `*`, and permitting `_`, `.` and `*`. It used to apply §5.1's production here, which accepted `Geolocation=(self)` and rejected `a_b=(self)`.\n\n**Allowlist values are a closed list.** §5.2 permits a String, the Token `*`, the Token `self`, or an Inner List of those — nothing else. Tokens keep their case, so `SELF` is not `self`. Items *inside* an inner list are deliberately not policed: §5.2 says unknown ones are ignored and the member is processed without them, which costs one origin rather than the directive.\n\n**Unknown feature names are not reported.** §5.2 says a member naming no supported feature is ignored, and RFC 9651 §3.2 says recipients MUST ignore members with unknown keys — so a name this rule does not recognise is not a defect, and there is no allowlist of features here."
+        "Reports a `Permissions-Policy` response header carrying something a browser will not enforce. Neither specification calls any of this \"invalid\" — both define **ignore** semantics — so the finding is always that the server wrote a policy that will not take effect, at one of two scopes.\n\n**The whole field, or one directive.** A Structured Fields parse failure discards everything: RFC 9651 §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen that. So one uppercase letter in a member name costs every directive in the header. A value that parses but is not an allowlist costs only its own directive — §5.2, \"Member Values of any other form will cause the entire Dictionary Member to be ignored\". The messages say which.\n\n**Member names are SF keys, not §5.1 feature-identifiers.** The Permissions Policy spec serializes a policy directive twice: §5.1 for the HTML `allow` attribute, where `feature-identifier = 1*( ALPHA / DIGIT / \"-\" )`, and §5.2 for this header, where the value is an `sf-dictionary`. This rule reads the header, so a member name is an SF key: lowercase only, beginning with a letter or `*`, and permitting `_`, `.` and `*`. It used to apply §5.1's production here, which accepted `Geolocation=(self)` and rejected `a_b=(self)`.\n\n**Allowlist values are a closed list.** §5.2 permits a String, the Token `*`, the Token `self`, or an Inner List of those — nothing else. Tokens keep their case, so `SELF` is not `self`. Items *inside* an inner list are deliberately not policed: §5.2 says unknown ones are ignored and the member is processed without them, which costs one origin rather than the directive.\n\n**Field lines are joined before parsing**, as RFC 9651 §4.2 requires — a Dictionary may have its members spread across lines, so judging a line on its own describes a message nobody sent. A member repeated across the joined value loses all but its last allowlist (§4.2.2), which is not an error and not visible in the header, so it is reported.\n\n**Unknown feature names are not reported.** §5.2 says a member naming no supported feature is ignored, and RFC 9651 §3.2 says recipients MUST ignore members with unknown keys — so a name this rule does not recognise is not a defect, and there is no allowlist of features here."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -163,6 +193,7 @@ fn validate_permissions_policy(s: &str) -> Option<String> {
         );
     }
 
+    let mut seen_keys = std::collections::HashSet::new();
     let members = split_commas_outside_quotes(s);
     for m in members {
         let m = m.trim();
@@ -190,6 +221,22 @@ fn validate_permissions_policy(s: &str) -> Option<String> {
                 "invalid feature identifier '{}': a Dictionary member name is an SF key \
                  (lowercase, starting with a letter or '*'), and a key that is not one fails \
                  parsing -- which discards every directive in the field, not just this one",
+                feature_part
+            ));
+        }
+
+        // A repeated key is not a parse failure and not an error: the parser
+        // keeps the last one and the earlier directive simply stops existing.
+        // That is precisely this rule's subject -- something the server wrote
+        // that will not be enforced -- and it is invisible without being told,
+        // since the header still looks like it says both things. Keys are
+        // compared character for character, which § 4.2.2 says outright and
+        // which the key grammar makes moot anyway.
+        // cite(RFC 9651 § 4.2.2): "Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored."
+        if !seen_keys.insert(feature_part.to_string()) {
+            return Some(format!(
+                "feature '{}' is given more than once; all but the last are ignored, so the \
+                 earlier allowlist has no effect",
                 feature_part
             ));
         }
@@ -1008,10 +1055,76 @@ mod tests {
             &cfg,
         );
         assert!(v.is_some());
-        assert!(v
-            .unwrap()
-            .message
-            .contains("Permissions-Policy header is empty"));
+        assert!(v.unwrap().message.contains("Permissions-Policy is empty"));
+    }
+
+    /// A repeated key is not an error and not a parse failure -- the parser
+    /// keeps the last and the earlier directive stops existing. Invisible
+    /// without being told, since the header still reads as saying both.
+    #[rstest]
+    #[case("geolocation=*, geolocation=()")]
+    #[case("camera=(), geolocation=*, camera=(self)")]
+    fn a_repeated_feature_loses_its_earlier_allowlist(#[case] value: &str) {
+        let rule = MessagePermissionsPolicyDirectivesValid;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("permissions-policy", value)]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(
+            v.is_some_and(|v| v.message.contains("is given more than once")),
+            "{value:?}"
+        );
+    }
+
+    /// Field lines are joined before parsing, as § 4.2 requires, so a Dictionary
+    /// spread across lines is one Dictionary -- including for the duplicate
+    /// check, which per-line validation could never have seen.
+    #[test]
+    fn field_lines_are_joined_before_parsing() {
+        use hyper::header::HeaderValue;
+        let rule = MessagePermissionsPolicyDirectivesValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+
+        let mut ok = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = hyper::HeaderMap::new();
+        hm.append(
+            "permissions-policy",
+            HeaderValue::from_static("geolocation=*"),
+        );
+        hm.append("permissions-policy", HeaderValue::from_static("camera=()"));
+        ok.response.as_mut().unwrap().headers = hm;
+        assert!(rule
+            .check_transaction(
+                &ok,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg
+            )
+            .is_none());
+
+        let mut dup = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = hyper::HeaderMap::new();
+        hm.append(
+            "permissions-policy",
+            HeaderValue::from_static("geolocation=*"),
+        );
+        hm.append(
+            "permissions-policy",
+            HeaderValue::from_static("geolocation=()"),
+        );
+        dup.response.as_mut().unwrap().headers = hm;
+        let v = rule.check_transaction(
+            &dup,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(
+            v.is_some_and(|v| v.message.contains("is given more than once")),
+            "a member repeated across lines is still a repeat"
+        );
     }
 
     #[test]
