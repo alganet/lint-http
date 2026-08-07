@@ -1828,65 +1828,87 @@ sources:
     snippet: All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1.
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 54
+      line: 52
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 81
+      line: 79
   - label: lint-http-rules/src/helpers/content_range.rs (2)
     section: § 14.1
     snippet: Range units are intended to be extensible, as described in Section 16.5.
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 82
+      line: 80
   - label: lint-http-rules/src/helpers/content_range.rs (3)
     section: § 14.1
     snippet: This general notion of a "range unit" is used in the Accept-Ranges (Section 14.3) response header field to advertise support for range requests, the Range (Section 14.2) request header field to delineate the parts of a representation that are requested, and the Content-Range (Section 14.4) header field to describe which part of a representation is being transferred.
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 51
+      line: 49
   - label: lint-http-rules/src/helpers/content_range.rs (4)
     section: § 14.1.1
     snippet: 'The range unit name determines what kinds of range-spec are applicable to its own specifiers.  Hence, the following grammar is generic: each range unit is expected to specify requirements on when int-range, suffix-range, and other-range are allowed.'
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 53
+      line: 51
   - label: ranges-specifier grammar
     section: § 14.1.1
     snippet: ranges-specifier = range-unit "=" range-set
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 52
+      line: 50
   - label: lint-http-rules/src/helpers/content_range.rs (5)
+    section: § 14.1.2
+    snippet: In the byte-range syntax, first-pos, last-pos, and suffix-length are expressed as decimal number of octets.  Since there is no predefined limit to the length of content, recipients MUST anticipate potentially large decimal numerals and prevent parsing errors due to integer conversion overflows.
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_range.rs
+      line: 197
+  - label: lint-http-rules/src/helpers/content_range.rs (6)
     section: § 14.4
     snippet: A Content-Range field value is invalid if it contains a range-resp that has a last-pos value less than its first-pos value, or a complete-length value less than or equal to its last-pos value.
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 138
+      line: 149
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 154
-  - label: lint-http-rules/src/helpers/content_range.rs (6)
+      line: 165
+  - label: Content-Range grammar
+    section: § 14.4
+    snippet: Content-Range = range-unit SP ( range-resp / unsatisfied-range )
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_range.rs
+      line: 97
+  - label: lint-http-rules/src/helpers/content_range.rs (7)
     section: § 14.4
     snippet: complete-length = 1*DIGIT
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 110
-  - label: lint-http-rules/src/helpers/content_range.rs (7)
+      line: 121
+    - file: lint-http-rules/src/helpers/content_range.rs
+      line: 196
+  - label: lint-http-rules/src/helpers/content_range.rs (8)
     section: § 14.4
     snippet: incl-range = first-pos "-" last-pos
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 121
-  - label: lint-http-rules/src/helpers/content_range.rs (8)
+      line: 132
+  - label: lint-http-rules/src/helpers/content_range.rs (9)
     section: § 14.4
     snippet: range-resp = incl-range "/" ( complete-length / "*" )
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 120
-  - label: lint-http-rules/src/helpers/content_range.rs (9)
+      line: 131
+  - label: lint-http-rules/src/helpers/content_range.rs (10)
     section: § 14.4
     snippet: unsatisfied-range = "*/" complete-length
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 103
+      line: 114
+  - label: lint-http-rules/src/helpers/content_range.rs (11)
+    section: § 5.5
+    snippet: A field value does not include leading or trailing whitespace.
+    cited_by:
+    - file: lint-http-rules/src/helpers/content_range.rs
+      line: 98
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 156
   - label: qvalue grammar
     section: § 12.4.2
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
@@ -2054,60 +2076,54 @@ sources:
     - file: lint-http-rules/src/helpers/product.rs
       line: 173
   - label: lint-http-rules/src/helpers/product.rs (4)
-    section: § 5.5
-    snippet: A field value does not include leading or trailing whitespace.
-    cited_by:
-    - file: lint-http-rules/src/helpers/product.rs
-      line: 156
-  - label: lint-http-rules/src/helpers/product.rs (5)
     section: § 5.6.3
     snippet: RWS = 1*( SP / HTAB )
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
       line: 190
-  - label: lint-http-rules/src/helpers/product.rs (6)
+  - label: lint-http-rules/src/helpers/product.rs (5)
     section: § 5.6.3
     snippet: The RWS rule is used when at least one linear whitespace octet is required to separate field tokens.
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
       line: 189
-  - label: lint-http-rules/src/helpers/product.rs (7)
+  - label: lint-http-rules/src/helpers/product.rs (6)
     section: § 5.6.4
     snippet: The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs.
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
       line: 74
-  - label: lint-http-rules/src/helpers/product.rs (8)
+  - label: lint-http-rules/src/helpers/product.rs (7)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
       line: 66
-  - label: lint-http-rules/src/helpers/product.rs (9)
+  - label: lint-http-rules/src/helpers/product.rs (8)
     section: § 5.6.5
     snippet: ctext          = HTAB / SP / %x21-27 / %x2A-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
       line: 48
-  - label: lint-http-rules/src/helpers/product.rs (10)
+  - label: lint-http-rules/src/helpers/product.rs (9)
     section: § A
     snippet: Server = product *( RWS ( product / comment ) )
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
       line: 14
-  - label: lint-http-rules/src/helpers/product.rs (11)
+  - label: lint-http-rules/src/helpers/product.rs (10)
     section: § A
     snippet: User-Agent = product *( RWS ( product / comment ) )
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
       line: 15
-  - label: lint-http-rules/src/helpers/product.rs (12)
+  - label: lint-http-rules/src/helpers/product.rs (11)
     section: § A
     snippet: product = token [ "/" product-version ] product-version = token
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
       line: 114
-  - label: lint-http-rules/src/helpers/product.rs (13)
+  - label: lint-http-rules/src/helpers/product.rs (12)
     section: § A
     snippet: quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )
     cited_by:

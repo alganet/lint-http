@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: ISC
 
-use std::num::ParseIntError;
-
 /// Result of parsing a `Content-Range` header value.
 ///
 /// The `unit` is carried rather than required to be `bytes`. Content-Range's
@@ -86,14 +84,27 @@ pub fn parse_content_range(s: &str) -> Result<ContentRange, String> {
     let unit = unit.to_ascii_lowercase();
     let rest = parts
         .next()
-        .ok_or_else(|| "missing range/spec".to_string())?
-        .trim();
+        .ok_or_else(|| "missing range/spec".to_string())?;
+
+    // The production holds exactly one space, the SP after the range-unit, and
+    // neither alternative after it admits another: no OWS sits beside the "/",
+    // the "-" or the digits. This parser used to trim around every separator it
+    // found, so `bytes 0-499 / 1234` and `bytes  0-499/1234` both parsed -- values
+    // no sender may generate, accepted in silence by the only rule that reads this
+    // field. Trimming the value as a whole stays: leading and trailing whitespace
+    // is not part of a field value at all, which is a different sentence.
+    //
+    // cite(RFC 9110 § 14.4, label: Content-Range grammar): "Content-Range = range-unit SP ( range-resp / unsatisfied-range )"
+    // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
+    if rest.chars().any(|c| c.is_ascii_whitespace()) {
+        return Err(format!("unexpected whitespace in range/spec '{}'", rest));
+    }
 
     let slash_idx = rest
         .find('/')
         .ok_or_else(|| "missing '/' in range/spec".to_string())?;
-    let left = rest[..slash_idx].trim();
-    let right = rest[slash_idx + 1..].trim();
+    let left = &rest[..slash_idx];
+    let right = &rest[slash_idx + 1..];
 
     // The "*" is not a wildcard standing in for the range here -- it is the first
     // character of a two-character literal, which is why nothing but an exact "*"
@@ -122,8 +133,8 @@ pub fn parse_content_range(s: &str) -> Result<ContentRange, String> {
     let dash_idx = left
         .find('-')
         .ok_or_else(|| "missing '-' in byte-range".to_string())?;
-    let first = left[..dash_idx].trim();
-    let last = left[dash_idx + 1..].trim();
+    let first = &left[..dash_idx];
+    let last = &left[dash_idx + 1..];
 
     if first.is_empty() || last.is_empty() {
         return Err("missing first or last byte-pos".into());
@@ -169,8 +180,26 @@ pub fn parse_content_range(s: &str) -> Result<ContentRange, String> {
     })
 }
 
-fn parse_u128(s: &str) -> Result<u128, ParseIntError> {
-    s.parse::<u128>()
+/// The three numeric fields of this header are each `1*DIGIT`, which is digits
+/// and nothing else. Rust's integer parser is more generous than that: it accepts
+/// a leading `+`, so `bytes +0-499/1234` used to parse as the range 0-499 -- a
+/// value outside the grammar, read as though it were inside it.
+///
+/// The `u128` ceiling is a tolerance rather than a quoted requirement, and it is
+/// left in place with its reason: § 14.1.2 tells recipients to anticipate large
+/// numerals and not to fail on integer conversion overflow, which this satisfies
+/// by returning an error instead of wrapping. A position that no recipient can
+/// represent cannot address the octets of any representation either. It takes a
+/// 39-digit numeral to reach, and the same bound is argued the same way in
+/// `validate_content_length`.
+///
+// cite(RFC 9110 § 14.4): "complete-length = 1*DIGIT"
+// cite(RFC 9110 § 14.1.2): "In the byte-range syntax, first-pos, last-pos, and suffix-length are expressed as decimal number of octets.  Since there is no predefined limit to the length of content, recipients MUST anticipate potentially large decimal numerals and prevent parsing errors due to integer conversion overflows."
+fn parse_u128(s: &str) -> Result<u128, String> {
+    if s.is_empty() || !s.chars().all(|c| c.is_ascii_digit()) {
+        return Err(format!("'{}' is not a 1*DIGIT value", s));
+    }
+    s.parse::<u128>().map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -201,9 +230,15 @@ mod tests {
             }
         );
 
-        let v3 = parse_content_range("bytes  0-0 /  *").unwrap();
+        // A value whose only defect is the whitespace around its separators is
+        // still a value no sender may generate. This assertion used to say the
+        // opposite, which is how the leniency stayed.
+        assert!(parse_content_range("bytes  0-0 /  *").is_err());
+
+        // Whitespace *around the field value* is not part of it, so it is trimmed
+        // rather than reported.
         assert_eq!(
-            v3,
+            parse_content_range("  bytes 0-0/*  ").unwrap(),
             ContentRange::Satisfied {
                 unit: "bytes".into(),
                 first: 0,
@@ -211,6 +246,16 @@ mod tests {
                 instance_length: None
             }
         );
+    }
+
+    /// `1*DIGIT` is digits and nothing else; Rust's integer parser also takes a
+    /// leading "+", which would have read `+0-499` as the range 0-499.
+    #[test]
+    fn signed_positions_are_not_digits() {
+        assert!(parse_content_range("bytes +0-499/1234").is_err());
+        assert!(parse_content_range("bytes 0-+499/1234").is_err());
+        assert!(parse_content_range("bytes 0-499/+1234").is_err());
+        assert!(parse_content_range("bytes */+1234").is_err());
     }
 
     #[test]
