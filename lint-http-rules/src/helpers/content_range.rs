@@ -34,6 +34,33 @@ impl ContentRange {
     }
 }
 
+/// Split a `Range` field value into its range unit (lowercased) and the
+/// unparsed range-set, or `None` when the value is not a `ranges-specifier`.
+///
+/// This sits beside the `Content-Range` parser because the two fields name one
+/// construct: § 14.1 defines a single range-unit token and then points it at
+/// three fields, so a caller comparing a request's unit against a response's is
+/// comparing two spellings of the same thing.
+///
+/// The range-set is returned untouched. Which specifiers are legal is decided
+/// per unit, so there is nothing generic to check here; the `bytes` ones belong
+/// to `client_range_header_syntax_valid`. Splitting on the *first* `=` is what
+/// the grammar says and not a shortcut: `range-unit` is a token, which cannot
+/// contain `=`, while an `other-range` may.
+///
+// cite(RFC 9110 § 14.1): "This general notion of a "range unit" is used in the Accept-Ranges (Section 14.3) response header field to advertise support for range requests, the Range (Section 14.2) request header field to delineate the parts of a representation that are requested, and the Content-Range (Section 14.4) header field to describe which part of a representation is being transferred."
+// cite(RFC 9110 § 14.1.1, label: ranges-specifier grammar): "ranges-specifier = range-unit "=" range-set"
+// cite(RFC 9110 § 14.1.1): "The range unit name determines what kinds of range-spec are applicable to its own specifiers.  Hence, the following grammar is generic: each range unit is expected to specify requirements on when int-range, suffix-range, and other-range are allowed."
+// cite(RFC 9110 § 14.1): "All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1."
+pub fn split_ranges_specifier(value: &str) -> Option<(String, &str)> {
+    let (unit, range_set) = value.trim().split_once('=')?;
+    let unit = unit.trim();
+    if unit.is_empty() || crate::helpers::token::find_invalid_token_char(unit).is_some() {
+        return None;
+    }
+    Some((unit.to_ascii_lowercase(), range_set.trim()))
+}
+
 /// Parse a `Content-Range` header value. Returns a `ContentRange` or an error string.
 pub fn parse_content_range(s: &str) -> Result<ContentRange, String> {
     let s = s.trim();
@@ -265,6 +292,31 @@ mod tests {
         assert!(parse_content_range("bytes 0-499/10").is_err());
         // Unknown complete length says nothing about last-pos.
         assert!(parse_content_range("bytes 0-499/*").is_ok());
+    }
+
+    #[test]
+    fn ranges_specifier_splits_at_the_first_equals() {
+        assert_eq!(
+            split_ranges_specifier("bytes=0-499"),
+            Some(("bytes".into(), "0-499"))
+        );
+        assert_eq!(
+            split_ranges_specifier(" BYTES = 0-1, 5-9 "),
+            Some(("bytes".into(), "0-1, 5-9"))
+        );
+        // `other-range` admits "=" (%x3D is inside %x2D-7E); `range-unit` is a
+        // token and cannot, so the first "=" is always the separator.
+        assert_eq!(
+            split_ranges_specifier("pages=a=b"),
+            Some(("pages".into(), "a=b"))
+        );
+    }
+
+    #[test]
+    fn ranges_specifier_rejects_non_specifiers() {
+        assert_eq!(split_ranges_specifier("bytes 0-499"), None);
+        assert_eq!(split_ranges_specifier("=0-499"), None);
+        assert_eq!(split_ranges_specifier("by(tes=0-499"), None);
     }
 
     #[test]
