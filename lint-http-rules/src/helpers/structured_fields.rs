@@ -23,18 +23,65 @@
 //! predicates, called on a value whose bounds the caller has already found, so
 //! where an algorithm says "return output_string" they answer false.
 
+/// Whether the character a scan has reached is outside a quoted-string.
+///
+/// The four scanners below each need this and each used to answer it with a
+/// lone `in_quote` toggle, which gets `"a\",b"` wrong: inside a String a "\"
+/// escapes the character after it, so that DQUOTE does not end the String and
+/// the comma after it is not a separator. Reading it as one cuts a conforming
+/// member in half and reports both halves -- a false finding assembled out of a
+/// correct header. `is_quoted_string` has always known this, which is how the
+/// disagreement stayed invisible: it called the member's value a valid String
+/// while the splitter never handed it the whole value.
+///
+/// Fed bytes rather than characters by three of the four callers, which is safe
+/// in either direction: no byte of a multi-byte UTF-8 character can be DQUOTE
+/// or "\".
+///
+// cite(RFC 9651 § 4.2.5): "If char is a backslash ("\"):"
+// cite(RFC 9651 § 4.2.5): "Let next_char be the result of consuming the first character of input_string."
+#[derive(Default)]
+struct QuoteScan {
+    in_quote: bool,
+    escaped: bool,
+}
+
+impl QuoteScan {
+    fn outside(&mut self, c: char) -> bool {
+        if self.escaped {
+            self.escaped = false;
+            return false;
+        }
+        match c {
+            '\\' if self.in_quote => {
+                self.escaped = true;
+                false
+            }
+            // A DQUOTE is never itself a delimiter, so the answer is false
+            // whichever way it moved the state.
+            // cite(RFC 9651 § 4.2.5): "Else, if char is DQUOTE, return output_string."
+            '"' => {
+                self.in_quote = !self.in_quote;
+                false
+            }
+            _ => !self.in_quote,
+        }
+    }
+}
+
 pub(crate) fn split_commas_outside_quotes(s: &str) -> Vec<&str> {
     let mut parts = Vec::new();
     let mut start = 0usize;
-    let mut in_quote = false;
     let mut paren_depth = 0i32;
-    let bytes = s.as_bytes();
-    for (i, &b) in bytes.iter().enumerate() {
+    let mut scan = QuoteScan::default();
+    for (i, &b) in s.as_bytes().iter().enumerate() {
+        if !scan.outside(b as char) {
+            continue;
+        }
         match b {
-            b'"' => in_quote = !in_quote,
-            b'(' if !in_quote => paren_depth += 1,
-            b')' if !in_quote && paren_depth > 0 => paren_depth -= 1,
-            b',' if !in_quote && paren_depth == 0 => {
+            b'(' => paren_depth += 1,
+            b')' if paren_depth > 0 => paren_depth -= 1,
+            b',' if paren_depth == 0 => {
                 parts.push(s[start..i].trim());
                 start = i + 1;
             }
@@ -48,15 +95,16 @@ pub(crate) fn split_commas_outside_quotes(s: &str) -> Vec<&str> {
 pub(crate) fn split_semicolons_outside_quotes(s: &str) -> Vec<&str> {
     let mut parts = Vec::new();
     let mut start = 0usize;
-    let mut in_quote = false;
     let mut paren_depth = 0i32;
-    let bytes = s.as_bytes();
-    for (i, &b) in bytes.iter().enumerate() {
+    let mut scan = QuoteScan::default();
+    for (i, &b) in s.as_bytes().iter().enumerate() {
+        if !scan.outside(b as char) {
+            continue;
+        }
         match b {
-            b'"' => in_quote = !in_quote,
-            b'(' if !in_quote => paren_depth += 1,
-            b')' if !in_quote && paren_depth > 0 => paren_depth -= 1,
-            b';' if !in_quote && paren_depth == 0 => {
+            b'(' => paren_depth += 1,
+            b')' if paren_depth > 0 => paren_depth -= 1,
+            b';' if paren_depth == 0 => {
                 parts.push(s[start..i].trim());
                 start = i + 1;
             }
@@ -70,21 +118,20 @@ pub(crate) fn split_semicolons_outside_quotes(s: &str) -> Vec<&str> {
 pub(crate) fn split_spaces_outside_quotes(s: &str) -> Vec<&str> {
     let mut parts = Vec::new();
     let mut start = 0usize;
-    let mut in_quote = false;
     let bytes = s.as_bytes();
+    let mut scan = QuoteScan::default();
     for (i, &b) in bytes.iter().enumerate() {
-        match b {
-            b'"' => in_quote = !in_quote,
-            b' ' if !in_quote => {
-                if start <= i {
-                    parts.push(s[start..i].trim());
-                }
-                start = i + 1;
-                while start < bytes.len() && bytes[start] == b' ' {
-                    start += 1;
-                }
+        if !scan.outside(b as char) {
+            continue;
+        }
+        if b == b' ' {
+            if start <= i {
+                parts.push(s[start..i].trim());
             }
-            _ => {}
+            start = i + 1;
+            while start < bytes.len() && bytes[start] == b' ' {
+                start += 1;
+            }
         }
     }
     if start >= bytes.len() {
@@ -102,12 +149,9 @@ pub(crate) fn split_spaces_outside_quotes(s: &str) -> Vec<&str> {
 /// admits and disagree the moment anything else reaches here, and disagreeing
 /// with `split_at` is a panic rather than a wrong answer.
 pub(crate) fn find_char_outside_quotes(s: &str, ch: char) -> Option<usize> {
-    let mut in_quote = false;
+    let mut scan = QuoteScan::default();
     for (i, c) in s.char_indices() {
-        if c == '"' {
-            in_quote = !in_quote;
-        }
-        if c == ch && !in_quote {
+        if scan.outside(c) && c == ch {
             return Some(i);
         }
     }
@@ -594,6 +638,40 @@ pub(crate) fn parse_parameters(parts: &[&str]) -> Option<String> {
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// A DQUOTE that a "\" escaped does not end the String, so no delimiter
+    /// after it separates anything until the real closing DQUOTE arrives.
+    #[rstest]
+    // The value is one String holding `a",b`, so there is one member.
+    #[case(r#"x="a\",b""#, 1)]
+    // `"a\\"` closes after the escaped backslash, so this really is two.
+    #[case(r#"x="a\\",y=1"#, 2)]
+    #[case(r#"x="a,b""#, 1)]
+    #[case("x=1,y=2", 2)]
+    fn commas_survive_an_escaped_dquote(#[case] input: &str, #[case] members: usize) {
+        assert_eq!(
+            split_commas_outside_quotes(input).len(),
+            members,
+            "{input:?} -> {:?}",
+            split_commas_outside_quotes(input)
+        );
+    }
+
+    /// The same defect, seen from the parser that the splitter feeds: this is a
+    /// conforming Dictionary and used to be reported as invalid.
+    #[test]
+    fn an_escaped_dquote_in_a_dictionary_value_parses() {
+        assert!(parse_dictionary(r#"x="a\",b""#).is_ok());
+        assert!(parse_dictionary(r#"x="a";p="b\";c""#).is_ok());
+        assert!(parse_inner_list(r#"("a\" b" "c")"#).is_none());
+    }
+
+    /// A "=" inside a String is not the one that separates key from value.
+    #[test]
+    fn find_char_skips_an_escaped_dquote() {
+        assert_eq!(find_char_outside_quotes(r#""a\"=b""#, '='), None);
+        assert_eq!(find_char_outside_quotes(r#""a\"=b"=c"#, '='), Some(7));
+    }
 
     #[rstest]
     #[case(":cHJldGVuZCB0aGlzIGlzIGJpbmFyeSBjb250ZW50Lg==:", true)]

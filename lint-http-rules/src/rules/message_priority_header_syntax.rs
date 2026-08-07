@@ -423,6 +423,11 @@ mod tests {
     #[case("i=?1", false)]
     #[case("i=?0", false)]
     #[case("u=3;i", false)]
+    // A member's parameters are not part of its value, and RFC 9218 defines
+    // none, so the urgency here is 3 and the parameter is only Structured
+    // Fields' business.
+    #[case("u=3;foo=bar", false)]
+    #[case("u=3;foo=\"a,b\"", false)]
     // An SF Integer may carry leading zeros and a signed zero (§ 3.3.1).
     #[case("u=03", false)]
     #[case("u=-0", false)]
