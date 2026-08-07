@@ -293,8 +293,11 @@ fn validate_structured_field(s: &str) -> Option<String> {
     let as_item = parse_item(s);
     // cite(RFC 9651 § 4.2): "If field_type is "list", let output be the result of running Parsing a List (Section 4.2.1) with input_string."
     let as_list = parse_list(s);
+    // Only whether it parsed is wanted here; the members it yields are for a
+    // caller that knows the field was defined as a Dictionary, which is the
+    // one thing this rule cannot know.
     // cite(RFC 9651 § 4.2): "If field_type is "dictionary", let output be the result of running Parsing a Dictionary (Section 4.2.2) with input_string."
-    let as_dictionary = parse_dictionary(s);
+    let as_dictionary = parse_dictionary(s).err();
 
     // No message from any one of the three means that reading consumed the
     // whole value, and one type accepting it is as much as this rule can ask.
