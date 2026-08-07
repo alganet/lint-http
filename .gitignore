@@ -40,3 +40,12 @@ data/sources/
 # Coverage
 *.profraw
 *.profdata
+
+# Root-level Markdown that is not checked in. Personal working notes live here
+# while a piece of work is in flight; they are deliberately not part of the
+# repository, and listing them by name here would put them in it. Tracked files
+# are unaffected by this pattern, so `README.md` is spelled out only to say so.
+# Without this, `reuse lint` counts those files and the supply-chain gate fails
+# on a clean tree, and `git add -A` sweeps them into a commit.
+/*.md
+!/README.md
