@@ -2582,7 +2582,7 @@ sources:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 56
     - file: lint-http-rules/src/rules/server_content_type_present.rs
-      line: 96
+      line: 102
   - label: message_content_type_well_formed (3)
     section: § 8.3.1
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
@@ -2960,6 +2960,24 @@ sources:
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 41
   - label: server_content_type_present (2)
+    section: § 8.3
+    snippet: A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 101
+  - label: server_content_type_present (3)
+    section: § 8.3
+    snippet: If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 108
+  - label: server_content_type_present (4)
+    section: § 8.3
+    snippet: This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation").
+    cited_by:
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 109
+  - label: server_content_type_present (5)
     section: § 9.3.2
     snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
     cited_by:
