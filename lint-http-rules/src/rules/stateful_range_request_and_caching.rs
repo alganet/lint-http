@@ -62,15 +62,19 @@ impl Rule for StatefulRangeRequestAndCaching {
         // re-request of a stored partial copy and there is no stored response
         // being validated. A resumable upload naming its range in the *request's*
         // `Content-Range` reaches here as a PUT and leaves here.
+        // cite(RFC 9110 § 14.2): "A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.  For this specification, GET is the only method for which range handling is defined."
         if req.method != "GET" {
             return None;
         }
 
+        // cite(RFC 9110 § 14.2): "The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation."
         req.headers.get("range")?;
 
         // The premise. `history` is scoped to this (client, resource) pair by the
         // rule's `ByResource` query, so a 206 anywhere in it is a partial copy of
         // the representation this request is ranging over.
+        // cite(RFC 9111 § 3.3): "A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4."
+        // cite(RFC 9110 § 15.3.7.3): "A client that has received multiple partial responses to GET requests on a target resource MAY combine those responses into a larger continuous range if they share the same strong validator."
         let holds_a_partial_copy = history
             .iter()
             .any(|past| past.response.as_ref().is_some_and(|r| r.status == 206));
@@ -82,6 +86,7 @@ impl Rule for StatefulRangeRequestAndCaching {
         // response that carried any validator at all: that response's metadata is
         // what a stored entry would have been updated to, whether it was the 206,
         // a later 200, or a 304 that freshened it.
+        // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields.  These contain validator metadata sourced from a stored response(s) that has the same URI."
         let mut newest_validators: Option<(Option<String>, Option<String>)> = None;
         for past in history.iter() {
             if let Some(resp) = &past.response {
@@ -100,10 +105,13 @@ impl Rule for StatefulRangeRequestAndCaching {
         // name, and the bullet written for subranges is a MAY — so a date-only
         // stored response leaves the client free to send nothing, and a rule that
         // reported the silence would be inventing the modal.
+        // cite(RFC 9111 § 4.3.1): "SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value."
+        // cite(RFC 9111 § 4.3.1): "MAY send the Last-Modified value (using If-Unmodified-Since or If-Range) if the request is for a subrange, a single stored response is being validated, and that response contains only a Last-Modified value (not an entity tag)."
         let stored_etag = stored_etag?;
 
         // A weak tag names a representation that cannot be recombined with
         // anything, so no phrasing of this request would help.
+        // cite(RFC 9110 § 15.3.7.3): "These ranges can only be safely combined if they all have in common the same strong validator (Section 8.8.1)."
         // cite(RFC 9111 § 3.4): "A cache MAY combine these ranges into a single stored response, and reuse that response to satisfy later requests, if they all share the same strong validator"
         if stored_etag.starts_with("W/") {
             return None;
@@ -124,6 +132,7 @@ impl Rule for StatefulRangeRequestAndCaching {
         // `stateful_cache_validation_chain`'s question, asked there against this
         // same sentence. Reporting here would report a conforming request and
         // double-report a non-conforming one.
+        // cite(RFC 9111 § 4.3.1): "MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated."
         if req.headers.contains_key("if-match") || req.headers.contains_key("if-none-match") {
             return None;
         }
@@ -154,6 +163,7 @@ impl Rule for StatefulRangeRequestAndCaching {
             return None;
         }
 
+        // cite(RFC 9110 § 13.1.5): "A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE."
         if !if_range.chars().take(3).any(|c| c == '"') {
             // Neither a tag nor a date is a syntax defect, and this rule holds no
             // sentence about the shape of the field — only about which validator
@@ -164,6 +174,7 @@ impl Rule for StatefulRangeRequestAndCaching {
 
             // The client was given an entity tag for this representation, so the
             // date is the one validator it was not permitted to choose.
+            // cite(RFC 9110 § 13.1.5): "Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2."
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
@@ -173,6 +184,7 @@ impl Rule for StatefulRangeRequestAndCaching {
             });
         }
 
+        // cite(RFC 9110 § 13.1.5): "Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional."
         if if_range != stored_etag {
             return Some(Violation {
                 rule: self.id().into(),
