@@ -38,6 +38,14 @@ Host: example.com
 User-Agent: MyClient/1.0 (Linux; x64)
 ```
 
+### ✅ Good the value RFC 9110 prints for the field
+
+```http
+GET /api/data HTTP/1.1
+Host: example.com
+User-Agent: CERN-LineMode/2.15 libwww/2.17b3
+```
+
 ### ❌ Bad no User-Agent field line
 
 ```http
