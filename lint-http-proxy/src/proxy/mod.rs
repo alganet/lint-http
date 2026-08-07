@@ -43,7 +43,7 @@ use crate::capture::CaptureWriter;
 use crate::config::Config;
 
 use self::http::handle_request;
-use self::http3::{init_h3_endpoint, run_h3_accept_loop};
+use self::http3::{init_h3_endpoint, run_h3_accept_loop, H3Bind};
 
 /// Body type returned to the client. Streaming upstream responses can error
 /// mid-body (the inner `Incoming` is fallible), so unlike the request side this
@@ -93,8 +93,86 @@ pub(super) struct Shared {
     pub(super) shutdown: CancellationToken,
 }
 
+/// Where the accept loop's socket comes from.
+///
+/// The binary names an address and the proxy binds it. A caller that has
+/// already bound the socket hands the listener over instead: choosing an
+/// ephemeral port with `127.0.0.1:0`, reading the address back and dropping the
+/// listener leaves a window in which anything else can take that port, and the
+/// proxy then either fails to bind or — worse — the caller's traffic reaches
+/// whoever won it. Handing over the listener closes the window, because the
+/// port is never unowned.
+///
+/// All three entry points take `impl Into<ListenOn>`, so an address still
+/// passes unchanged; a caller that wants the guarantee passes its `TcpListener`,
+/// or a `(TcpListener, UdpSocket)` pair when HTTP/3 is configured too.
+pub enum ListenOn {
+    /// Bind this address when the accept loop starts, and — if HTTP/3 is
+    /// configured — the address `general.h3_listen` names.
+    Addr(SocketAddr),
+    /// Accept on sockets the caller has already bound. `h3` decides only which
+    /// socket the QUIC endpoint runs on; whether it runs at all is still
+    /// `general.h3_listen`, and leaving `h3` `None` there binds that address as
+    /// usual.
+    Bound {
+        tcp: std::net::TcpListener,
+        h3: Option<std::net::UdpSocket>,
+    },
+}
+
+impl From<SocketAddr> for ListenOn {
+    fn from(addr: SocketAddr) -> Self {
+        Self::Addr(addr)
+    }
+}
+
+impl From<std::net::TcpListener> for ListenOn {
+    fn from(tcp: std::net::TcpListener) -> Self {
+        Self::Bound { tcp, h3: None }
+    }
+}
+
+impl From<(std::net::TcpListener, std::net::UdpSocket)> for ListenOn {
+    fn from((tcp, h3): (std::net::TcpListener, std::net::UdpSocket)) -> Self {
+        Self::Bound { tcp, h3: Some(h3) }
+    }
+}
+
+/// The TCP half of a [`ListenOn`], once the QUIC half has been taken off it.
+/// Its own type rather than a `ListenOn` with `h3: None`, which would be a field
+/// that means nothing at the one place it is read.
+enum TcpSource {
+    Addr(SocketAddr),
+    Bound(std::net::TcpListener),
+}
+
+impl ListenOn {
+    /// Split into the TCP half and the QUIC socket, if one was handed over. The
+    /// QUIC endpoint is built well before the TCP accept loop, so the two halves
+    /// are wanted at different points.
+    fn split(self) -> (TcpSource, Option<std::net::UdpSocket>) {
+        match self {
+            Self::Addr(addr) => (TcpSource::Addr(addr), None),
+            Self::Bound { tcp, h3 } => (TcpSource::Bound(tcp), h3),
+        }
+    }
+}
+
+impl TcpSource {
+    /// Bind the address, or adopt the listener already bound to it.
+    async fn into_listener(self) -> anyhow::Result<tokio::net::TcpListener> {
+        Ok(match self {
+            Self::Addr(addr) => tokio::net::TcpListener::bind(addr).await?,
+            Self::Bound(tcp) => {
+                tcp.set_nonblocking(true)?;
+                tokio::net::TcpListener::from_std(tcp)?
+            }
+        })
+    }
+}
+
 pub async fn run_proxy(
-    listen: SocketAddr,
+    listen: impl Into<ListenOn>,
     captures: CaptureWriter,
     cfg: Arc<Config>,
 ) -> anyhow::Result<()> {
@@ -109,7 +187,7 @@ pub async fn run_proxy(
             }
         });
     }
-    run_proxy_inner(listen, captures, cfg, None, shutdown).await
+    run_proxy_inner(listen.into(), captures, cfg, None, shutdown).await
 }
 
 /// Testable variant of `run_proxy` that accepts an optional `accept_limit`.
@@ -118,13 +196,13 @@ pub async fn run_proxy(
 /// shutdown sequence still runs (stop accepting, drain handlers, flush
 /// captures) before returning.
 pub async fn run_proxy_with_limit(
-    listen: SocketAddr,
+    listen: impl Into<ListenOn>,
     captures: CaptureWriter,
     cfg: Arc<Config>,
     accept_limit: Option<usize>,
 ) -> anyhow::Result<()> {
     run_proxy_inner(
-        listen,
+        listen.into(),
         captures,
         cfg,
         accept_limit,
@@ -136,21 +214,23 @@ pub async fn run_proxy_with_limit(
 /// Variant that runs until `shutdown` is cancelled (or Ctrl-C is wired by the
 /// caller). Lets shutdown integration tests drive graceful shutdown directly.
 pub async fn run_proxy_with_shutdown(
-    listen: SocketAddr,
+    listen: impl Into<ListenOn>,
     captures: CaptureWriter,
     cfg: Arc<Config>,
     shutdown: CancellationToken,
 ) -> anyhow::Result<()> {
-    run_proxy_inner(listen, captures, cfg, None, shutdown).await
+    run_proxy_inner(listen.into(), captures, cfg, None, shutdown).await
 }
 
 async fn run_proxy_inner(
-    listen: SocketAddr,
+    listen: ListenOn,
     captures: CaptureWriter,
     cfg: Arc<Config>,
     accept_limit: Option<usize>,
     shutdown: CancellationToken,
 ) -> anyhow::Result<()> {
+    let (listen_tcp, listen_h3) = listen.split();
+
     // Load the platform trust store once; the forwarding client and the
     // WebSocket-upgrade path share it.
     let upstream = upstream::Upstream::new(&cfg)?;
@@ -216,7 +296,11 @@ async fn run_proxy_inner(
             .h3_server_name
             .clone()
             .unwrap_or_else(|| "localhost".to_string());
-        let (endpoint, params) = init_h3_endpoint(h3_addr, &server_name, &h3_ca)?;
+        let h3_bind = match listen_h3 {
+            Some(socket) => H3Bind::Bound(socket),
+            None => H3Bind::Addr(h3_addr),
+        };
+        let (endpoint, params) = init_h3_endpoint(h3_bind, &server_name, &h3_ca)?;
         (Some(endpoint), Some(params))
     } else {
         (None, None)
@@ -272,7 +356,10 @@ async fn run_proxy_inner(
 
     // Use a manual TcpListener accept loop to preserve the remote address and
     // avoid relying on the removed `make_service_fn` helper in hyper v1.
-    let listener = tokio::net::TcpListener::bind(listen).await?;
+    let listener = listen_tcp.into_listener().await?;
+    // Read the address back off the socket rather than echoing the request: with
+    // `:0` the requested port is 0 and the bound one is what a client needs.
+    let listen = listener.local_addr()?;
     info!(%listen, "listening");
 
     let executor = TokioExecutor::new();
@@ -441,6 +528,33 @@ mod tests {
         Ok(())
     }
 
+    /// The converse of the test above, and the reason [`ListenOn`] exists: a
+    /// port that is already taken is exactly what a caller handing over its own
+    /// listener cannot hit. The same port, bound by us, is fatal by address and
+    /// fine by listener — so this pins the guarantee rather than the plumbing.
+    #[tokio::test]
+    async fn run_proxy_accepts_a_listener_on_a_port_it_could_not_have_bound() -> anyhow::Result<()>
+    {
+        let l = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let addr = l.local_addr()?;
+
+        let (shared, tmp, cw) =
+            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
+        let (_shared2, tmp2, cw2) =
+            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
+
+        // By address, while we hold the port: the bind fails.
+        assert!(run_proxy(addr, cw, shared.cfg.clone()).await.is_err());
+
+        // By listener — the same port, never released — the accept loop starts
+        // and stops only because it is told to accept nothing.
+        run_proxy_with_limit(l, cw2, shared.cfg.clone(), Some(0)).await?;
+
+        let _ = fs::remove_file(&tmp).await;
+        let _ = fs::remove_file(&tmp2).await;
+        Ok(())
+    }
+
     #[tokio::test]
     async fn run_proxy_capture_seed_load_error_logs_and_returns_error() -> anyhow::Result<()> {
         // Bind a socket first to reserve the port so run_proxy will fail after startup
@@ -491,10 +605,11 @@ mod tests {
     async fn run_proxy_with_limit_accepts_one_connection_and_returns() -> anyhow::Result<()> {
         use tokio::net::TcpStream;
 
-        // pick a free port by binding to :0 then dropping the listener
+        // Pick a free port and keep the listener: dropping it here would leave
+        // the port unowned until the spawned proxy rebinds it, and the tests in
+        // this binary run concurrently.
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
         let addr = l.local_addr()?;
-        drop(l);
 
         let (shared, tmp, cw) =
             make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
@@ -504,7 +619,7 @@ mod tests {
         let cfg_clone = shared.cfg.clone();
         let task =
             tokio::spawn(
-                async move { run_proxy_with_limit(addr, cw_clone, cfg_clone, Some(1)).await },
+                async move { run_proxy_with_limit(l, cw_clone, cfg_clone, Some(1)).await },
             );
 
         // Wait until we can connect (server startup may be slightly delayed)
@@ -540,7 +655,6 @@ mod tests {
 
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
         let addr = l.local_addr()?;
-        drop(l);
 
         let (shared, tmp, cw) =
             make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
@@ -550,7 +664,7 @@ mod tests {
         let cw_clone = cw.clone();
         let shutdown_for_task = shutdown.clone();
         let task = tokio::spawn(async move {
-            run_proxy_with_shutdown(addr, cw_clone, cfg_clone, shutdown_for_task).await
+            run_proxy_with_shutdown(l, cw_clone, cfg_clone, shutdown_for_task).await
         });
 
         // Connect so a handler is live and holding a permit, then let the proxy
@@ -581,10 +695,8 @@ mod tests {
 
     #[tokio::test]
     async fn run_proxy_with_limit_accepts_zero_and_returns_immediately() -> anyhow::Result<()> {
-        // pick a free port
+        // pick a free port, and keep the listener rather than racing to rebind it
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
-        let addr = l.local_addr()?;
-        drop(l);
 
         let (_shared, tmp, cw) =
             make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
@@ -592,7 +704,7 @@ mod tests {
         // accept_limit = 0 should return quickly
         tokio::time::timeout(
             std::time::Duration::from_secs(1),
-            run_proxy_with_limit(addr, cw, _shared.cfg.clone(), Some(0)),
+            run_proxy_with_limit(l, cw, _shared.cfg.clone(), Some(0)),
         )
         .await
         .expect("run_proxy_with_limit did not return within timeout")?;
@@ -605,17 +717,17 @@ mod tests {
     async fn run_proxy_with_limit_accepts_two_connections_and_returns() -> anyhow::Result<()> {
         use tokio::net::TcpStream;
 
-        // pick a free port
+        // pick a free port, and keep the listener rather than racing to rebind it
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
         let addr = l.local_addr()?;
-        drop(l);
 
         let (shared, tmp, cw) =
             make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
 
-        let task = tokio::spawn(async move {
-            run_proxy_with_limit(addr, cw, shared.cfg.clone(), Some(2)).await
-        });
+        let task =
+            tokio::spawn(
+                async move { run_proxy_with_limit(l, cw, shared.cfg.clone(), Some(2)).await },
+            );
 
         // make two connections and keep them open until the server finishes
         let mut streams: Vec<TcpStream> = Vec::new();

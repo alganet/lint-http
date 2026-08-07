@@ -83,7 +83,10 @@ type CapturedHeaders = Arc<Mutex<Option<Vec<(String, String)>>>>;
 
 /// Build a QUIC server endpoint for the in-process H3 origin, using `pki`'s leaf
 /// cert and ALPN `h3`.
-fn h3_server_endpoint(pki: &TestPki, bind: SocketAddr) -> anyhow::Result<quinn::Endpoint> {
+fn h3_server_endpoint(
+    pki: &TestPki,
+    socket: std::net::UdpSocket,
+) -> anyhow::Result<quinn::Endpoint> {
     let mut tls = rustls::ServerConfig::builder()
         .with_no_client_auth()
         .with_single_cert(vec![pki.leaf_cert.clone()], pki.leaf_key.clone_key())?;
@@ -91,7 +94,13 @@ fn h3_server_endpoint(pki: &TestPki, bind: SocketAddr) -> anyhow::Result<quinn::
     let quic = quinn::crypto::rustls::QuicServerConfig::try_from(tls)
         .map_err(|e| anyhow::anyhow!("origin QUIC server config: {e}"))?;
     let server_config = quinn::ServerConfig::with_crypto(Arc::new(quic));
-    Ok(quinn::Endpoint::server(server_config, bind)?)
+    socket.set_nonblocking(true)?;
+    Ok(quinn::Endpoint::new(
+        quinn::EndpointConfig::default(),
+        Some(server_config),
+        socket,
+        Arc::new(quinn::TokioRuntime),
+    )?)
 }
 
 /// Start an in-process HTTP/3 origin that replies `200` `"world"` with an
@@ -99,9 +108,9 @@ fn h3_server_endpoint(pki: &TestPki, bind: SocketAddr) -> anyhow::Result<quinn::
 /// its UDP address, the captured-headers handle, and the accept-loop task.
 fn start_h3_origin(
     pki: &TestPki,
-    bind: SocketAddr,
+    socket: std::net::UdpSocket,
 ) -> anyhow::Result<(SocketAddr, CapturedHeaders, tokio::task::JoinHandle<()>)> {
-    let endpoint = h3_server_endpoint(pki, bind)?;
+    let endpoint = h3_server_endpoint(pki, socket)?;
     let addr = endpoint.local_addr()?;
 
     let captured: CapturedHeaders = Arc::new(Mutex::new(None));
@@ -232,7 +241,7 @@ async fn upstream_h3_forwards_with_capture_parity_and_strips_connection_field() 
         std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
-    let (origin_addr, captured, origin_handle) = start_h3_origin(&pki, "127.0.0.1:0".parse()?)?;
+    let (origin_addr, captured, origin_handle) = start_h3_origin(&pki, udp_any()?)?;
     let origin_authority = origin_addr.to_string();
 
     let mut cfg = Config::default();
@@ -419,12 +428,9 @@ async fn upstream_h3_non_idempotent_not_retried_after_midflight_failure() -> any
         std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
-    // Reserve a port that both the UDP (H3) origin and the TCP (H1) origin bind.
-    let reserved = std::net::UdpSocket::bind("127.0.0.1:0")?;
-    let port = reserved.local_addr()?.port();
-    drop(reserved);
-    let authority = format!("127.0.0.1:{port}");
-    let bind: SocketAddr = authority.parse()?;
+    // One port, both transports, both sockets already bound.
+    let (udp, tcp_std) = bind_origin_pair()?;
+    let authority = format!("127.0.0.1:{}", udp.local_addr()?.port());
 
     // H3 origin: completes the handshake, reads one request, then drops the
     // connection without responding — a mid-flight failure for the proxy.
@@ -435,7 +441,13 @@ async fn upstream_h3_non_idempotent_not_retried_after_midflight_failure() -> any
     let quic = quinn::crypto::rustls::QuicServerConfig::try_from(tls)
         .map_err(|e| anyhow::anyhow!("origin QUIC server config: {e}"))?;
     let server_config = quinn::ServerConfig::with_crypto(Arc::new(quic));
-    let h3_endpoint = quinn::Endpoint::server(server_config, bind)?;
+    udp.set_nonblocking(true)?;
+    let h3_endpoint = quinn::Endpoint::new(
+        quinn::EndpointConfig::default(),
+        Some(server_config),
+        udp,
+        Arc::new(quinn::TokioRuntime),
+    )?;
     let h3_origin = tokio::spawn(async move {
         while let Some(incoming) = h3_endpoint.accept().await {
             tokio::spawn(async move {
@@ -458,7 +470,8 @@ async fn upstream_h3_non_idempotent_not_retried_after_midflight_failure() -> any
     // proxy (incorrectly) fell back.
     let h1_hits = Arc::new(AtomicUsize::new(0));
     let h1_hits_srv = h1_hits.clone();
-    let tcp = tokio::net::TcpListener::bind(bind).await?;
+    tcp_std.set_nonblocking(true)?;
+    let tcp = tokio::net::TcpListener::from_std(tcp_std)?;
     let h1_origin = tokio::spawn(async move {
         while let Ok((mut sock, _)) = tcp.accept().await {
             h1_hits_srv.fetch_add(1, Ordering::SeqCst);
@@ -506,9 +519,9 @@ async fn upstream_h3_non_idempotent_not_retried_after_midflight_failure() -> any
 /// connection). Binds `bind` (UDP) and returns its accept-loop handle.
 fn start_h3_origin_silent(
     pki: &TestPki,
-    bind: SocketAddr,
+    socket: std::net::UdpSocket,
 ) -> anyhow::Result<tokio::task::JoinHandle<()>> {
-    let endpoint = h3_server_endpoint(pki, bind)?;
+    let endpoint = h3_server_endpoint(pki, socket)?;
     let handle = tokio::spawn(async move {
         while let Some(incoming) = endpoint.accept().await {
             tokio::spawn(async move {
@@ -547,16 +560,16 @@ async fn upstream_h3_slow_origin_idempotent_get_falls_back_to_h1() -> anyhow::Re
         std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
-    let port = reserve_udp_port()?;
-    let authority = format!("127.0.0.1:{port}");
-    let bind: SocketAddr = authority.parse()?;
+    let (udp, tcp_std) = bind_origin_pair()?;
+    let authority = format!("127.0.0.1:{}", udp.local_addr()?.port());
 
-    let h3_origin = start_h3_origin_silent(&pki, bind)?;
+    let h3_origin = start_h3_origin_silent(&pki, udp)?;
 
     // H1 origin on the same TCP port: proves the fall-back landed.
     let h1_hits = Arc::new(AtomicUsize::new(0));
     let h1_hits_srv = h1_hits.clone();
-    let tcp = tokio::net::TcpListener::bind(bind).await?;
+    tcp_std.set_nonblocking(true)?;
+    let tcp = tokio::net::TcpListener::from_std(tcp_std)?;
     let h1_origin = tokio::spawn(async move {
         while let Ok((mut sock, _)) = tcp.accept().await {
             h1_hits_srv.fetch_add(1, Ordering::SeqCst);
@@ -618,15 +631,15 @@ async fn upstream_h3_slow_origin_non_idempotent_post_502s() -> anyhow::Result<()
         std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
-    let port = reserve_udp_port()?;
-    let authority = format!("127.0.0.1:{port}");
-    let bind: SocketAddr = authority.parse()?;
+    let (udp, tcp_std) = bind_origin_pair()?;
+    let authority = format!("127.0.0.1:{}", udp.local_addr()?.port());
 
-    let h3_origin = start_h3_origin_silent(&pki, bind)?;
+    let h3_origin = start_h3_origin_silent(&pki, udp)?;
 
     let h1_hits = Arc::new(AtomicUsize::new(0));
     let h1_hits_srv = h1_hits.clone();
-    let tcp = tokio::net::TcpListener::bind(bind).await?;
+    tcp_std.set_nonblocking(true)?;
+    let tcp = tokio::net::TcpListener::from_std(tcp_std)?;
     let h1_origin = tokio::spawn(async move {
         while let Ok((mut sock, _)) = tcp.accept().await {
             h1_hits_srv.fetch_add(1, Ordering::SeqCst);
@@ -673,9 +686,9 @@ async fn upstream_h3_slow_origin_non_idempotent_post_502s() -> anyhow::Result<()
 /// responds (and resets the request stream) before the upload is drained.
 fn start_h3_origin_early_response(
     pki: &TestPki,
-    bind: SocketAddr,
+    socket: std::net::UdpSocket,
 ) -> anyhow::Result<(SocketAddr, tokio::task::JoinHandle<()>)> {
-    let endpoint = h3_server_endpoint(pki, bind)?;
+    let endpoint = h3_server_endpoint(pki, socket)?;
     let addr = endpoint.local_addr()?;
     let handle = tokio::spawn(async move {
         while let Some(incoming) = endpoint.accept().await {
@@ -714,8 +727,7 @@ async fn upstream_h3_origin_early_response_is_delivered_and_captured() -> anyhow
         std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
-    let (origin_addr, origin_handle) =
-        start_h3_origin_early_response(&pki, "127.0.0.1:0".parse()?)?;
+    let (origin_addr, origin_handle) = start_h3_origin_early_response(&pki, udp_any()?)?;
     let authority = origin_addr.to_string();
 
     let mut cfg = Config::default();
@@ -760,8 +772,7 @@ async fn upstream_h3_early_response_to_large_upload_commits_without_hanging() ->
         std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
-    let (origin_addr, origin_handle) =
-        start_h3_origin_early_response(&pki, "127.0.0.1:0".parse()?)?;
+    let (origin_addr, origin_handle) = start_h3_origin_early_response(&pki, udp_any()?)?;
     let authority = origin_addr.to_string();
 
     let mut cfg = Config::default();
@@ -794,12 +805,31 @@ async fn upstream_h3_early_response_to_large_upload_commits_without_hanging() ->
     Ok(())
 }
 
-/// Reserve an ephemeral UDP port, then release it so a caller can bind it.
-fn reserve_udp_port() -> anyhow::Result<u16> {
-    let s = std::net::UdpSocket::bind("127.0.0.1:0")?;
-    let port = s.local_addr()?.port();
-    drop(s);
-    Ok(port)
+/// A UDP socket on an ephemeral port, for an origin whose port nothing needs to
+/// know in advance — it reads the address back off the endpoint.
+fn udp_any() -> anyhow::Result<std::net::UdpSocket> {
+    Ok(std::net::UdpSocket::bind("127.0.0.1:0")?)
+}
+
+/// Bind a UDP socket and a TCP listener on one ephemeral port and hand both back
+/// still bound.
+///
+/// Three tests below run an H3 origin and an H1 origin at a single authority, so
+/// they need one port free in both namespaces. Choosing a number, releasing it
+/// and binding again leaves a window in which another test — in this binary, or
+/// in another one cargo is running beside it — takes the port; the origin then
+/// fails to bind, and the test reads that as the proxy misbehaving. Nothing is
+/// released here. The retry is for the other half of the question: a free UDP
+/// port says nothing about its TCP twin.
+fn bind_origin_pair() -> anyhow::Result<(std::net::UdpSocket, std::net::TcpListener)> {
+    for _ in 0..64 {
+        let udp = std::net::UdpSocket::bind("127.0.0.1:0")?;
+        let port = udp.local_addr()?.port();
+        if let Ok(tcp) = std::net::TcpListener::bind(("127.0.0.1", port)) {
+            return Ok((udp, tcp));
+        }
+    }
+    anyhow::bail!("no ephemeral port was free on both UDP and TCP in 64 tries")
 }
 
 #[tokio::test]
@@ -814,10 +844,11 @@ async fn upstream_h3_discovered_via_alt_svc_is_used_on_next_request() -> anyhow:
         std::env::temp_dir().join(format!("lint_disc_ca_{}.pem", uuid::Uuid::new_v4()));
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
-    // The advertised H3 endpoint (serves "world" over H3), bound to a known port.
-    let port_e = reserve_udp_port()?;
-    let (_e_addr, _captured, e_handle) =
-        start_h3_origin(&pki, format!("127.0.0.1:{port_e}").parse()?)?;
+    // The advertised H3 endpoint (serves "world" over H3). Its port is read back
+    // off the bound endpoint rather than reserved in advance, so nothing can take
+    // it in between.
+    let (e_addr, _captured, e_handle) = start_h3_origin(&pki, udp_any()?)?;
+    let port_e = e_addr.port();
 
     // The H1 origin advertises `h3=":port_e"` (same host, the H3 port).
     let mock = MockServer::start().await;
@@ -893,9 +924,8 @@ async fn upstream_h3_discovered_endpoint_with_wrong_cert_is_not_used() -> anyhow
         std::env::temp_dir().join(format!("lint_disc_badca_{}.pem", uuid::Uuid::new_v4()));
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
-    let port_e = reserve_udp_port()?;
-    let (_e_addr, e_captured, e_handle) =
-        start_h3_origin(&pki, format!("127.0.0.1:{port_e}").parse()?)?;
+    let (e_addr, e_captured, e_handle) = start_h3_origin(&pki, udp_any()?)?;
+    let port_e = e_addr.port();
 
     let mock = MockServer::start().await;
     Mock::given(wiremock::matchers::method("GET"))
@@ -946,9 +976,9 @@ async fn upstream_h3_discovered_endpoint_with_wrong_cert_is_not_used() -> anyhow
 /// reuses one connection across requests.
 fn start_h3_origin_counting(
     pki: &TestPki,
-    bind: SocketAddr,
+    socket: std::net::UdpSocket,
 ) -> anyhow::Result<(SocketAddr, Arc<AtomicUsize>, tokio::task::JoinHandle<()>)> {
-    let endpoint = h3_server_endpoint(pki, bind)?;
+    let endpoint = h3_server_endpoint(pki, socket)?;
     let addr = endpoint.local_addr()?;
     let conns = Arc::new(AtomicUsize::new(0));
     let conns_loop = conns.clone();
@@ -983,9 +1013,9 @@ fn start_h3_origin_counting(
 /// a reused pooled connection is refused and the proxy must retry on a fresh one.
 fn start_h3_origin_goaway(
     pki: &TestPki,
-    bind: SocketAddr,
+    socket: std::net::UdpSocket,
 ) -> anyhow::Result<(SocketAddr, Arc<AtomicUsize>, tokio::task::JoinHandle<()>)> {
-    let endpoint = h3_server_endpoint(pki, bind)?;
+    let endpoint = h3_server_endpoint(pki, socket)?;
     let addr = endpoint.local_addr()?;
     let conns = Arc::new(AtomicUsize::new(0));
     let conns_loop = conns.clone();
@@ -1025,8 +1055,7 @@ async fn upstream_h3_pool_reuses_one_connection_across_requests() -> anyhow::Res
         std::env::temp_dir().join(format!("lint_pool_ca_{}.pem", uuid::Uuid::new_v4()));
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
-    let (origin_addr, conns, origin_handle) =
-        start_h3_origin_counting(&pki, "127.0.0.1:0".parse()?)?;
+    let (origin_addr, conns, origin_handle) = start_h3_origin_counting(&pki, udp_any()?)?;
     let authority = origin_addr.to_string();
 
     let mut cfg = Config::default();
@@ -1063,7 +1092,7 @@ async fn upstream_h3_goaway_refused_request_is_retried_on_fresh_connection() -> 
         std::env::temp_dir().join(format!("lint_goaway_ca_{}.pem", uuid::Uuid::new_v4()));
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
-    let (origin_addr, conns, origin_handle) = start_h3_origin_goaway(&pki, "127.0.0.1:0".parse()?)?;
+    let (origin_addr, conns, origin_handle) = start_h3_origin_goaway(&pki, udp_any()?)?;
     let authority = origin_addr.to_string();
 
     let mut cfg = Config::default();
