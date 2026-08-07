@@ -4309,9 +4309,9 @@ sources:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
       line: 43
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 88
+      line: 92
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 225
+      line: 269
   - label: message_permissions_policy_directives_valid (4)
     section: § 4.2
     snippet: If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed.
@@ -4319,7 +4319,7 @@ sources:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
       line: 91
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 113
+      line: 117
   - label: message_permissions_policy_directives_valid (5)
     section: § 4.2
     snippet: When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly.
@@ -4327,7 +4327,9 @@ sources:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
       line: 35
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 74
+      line: 57
+    - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
+      line: 78
   - label: message_permissions_policy_directives_valid (6)
     section: § 4.2.2
     snippet: No structured data has been found; return dictionary (which is empty).
@@ -4335,7 +4337,7 @@ sources:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
       line: 69
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 252
+      line: 296
   - label: message_permissions_policy_directives_valid (7)
     section: § 4.2.2
     snippet: Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored.
@@ -4349,156 +4351,156 @@ sources:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
       line: 378
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 439
+      line: 483
   - label: message_structured_headers_validity
     snippet: This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 154
+      line: 162
   - label: message_structured_headers_validity (2)
     section: § 3.1.2
     snippet: The keys are unique within the scope of the Parameters they occur within, and the values are bare items (i.e., they themselves cannot be parameterized; see Section 3.3).
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 424
+      line: 468
   - label: message_structured_headers_validity (3)
     section: § 4.2
     snippet: Discard any leading SP characters from input_string.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 244
+      line: 288
   - label: message_structured_headers_validity (4)
     section: § 4.2
     snippet: Given an array of bytes as input_bytes that represent the chosen field's field-value (which is empty if that field is not present) and field_type (one of "dictionary", "list", or "item"), return the parsed field value.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 223
+      line: 267
   - label: message_structured_headers_validity (5)
     section: § 4.2
     snippet: If field_type is "dictionary", let output be the result of running Parsing a Dictionary (Section 4.2.2) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 261
+      line: 305
   - label: message_structured_headers_validity (6)
     section: § 4.2
     snippet: If field_type is "item", let output be the result of running Parsing an Item (Section 4.2.3) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 257
+      line: 301
   - label: message_structured_headers_validity (7)
     section: § 4.2
     snippet: If field_type is "list", let output be the result of running Parsing a List (Section 4.2.1) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 259
+      line: 303
   - label: message_structured_headers_validity (8)
     section: § 4.2
     snippet: The parsing algorithms for both types allow tab characters, since these might be used to combine field lines by some implementations.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 234
+      line: 278
   - label: message_structured_headers_validity (9)
     section: § 4.2.1
     snippet: Append the result of running Parsing an Item or Inner List (Section 4.2.1.1) with input_string to members.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 292
+      line: 336
   - label: message_structured_headers_validity (10)
     section: § 4.2.1
     snippet: If input_string is empty, there is a trailing comma; fail parsing.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 288
+      line: 332
   - label: message_structured_headers_validity (11)
     section: § 4.2.1
     snippet: No structured data has been found; return members (which is empty).
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 251
+      line: 295
   - label: message_structured_headers_validity (12)
     section: § 4.2.1.1
     snippet: If the first character of input_string is "(", return the result of running Parsing an Inner List (Section 4.2.1.2) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 348
+      line: 392
   - label: message_structured_headers_validity (13)
     section: § 4.2.1.2
     snippet: Discard any leading SP characters from input_string.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 382
+      line: 426
   - label: message_structured_headers_validity (14)
     section: § 4.2.1.2
     snippet: Let item be the result of running Parsing an Item (Section 4.2.3) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 395
+      line: 439
   - label: message_structured_headers_validity (15)
     section: § 4.2.1.2
     snippet: The end of the Inner List was not found; fail parsing.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 364
+      line: 408
   - label: message_structured_headers_validity (16)
     section: § 4.2.2
     snippet: If input_string is empty, there is a trailing comma; fail parsing.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 304
+      line: 348
   - label: message_structured_headers_validity (17)
     section: § 4.2.2
     snippet: 'If the first character of input_string is "=":'
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 315
+      line: 359
   - label: message_structured_headers_validity (18)
     section: § 4.2.2
     snippet: Let member be the result of running Parsing an Item or Inner List (Section 4.2.1.1) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 328
+      line: 372
   - label: message_structured_headers_validity (19)
     section: § 4.2.2
     snippet: Let this_key be the result of running Parsing a Key (Section 4.2.3.3) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 312
+      line: 356
   - label: message_structured_headers_validity (20)
     section: § 4.2.2
     snippet: Let value be Boolean true.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 321
+      line: 365
   - label: message_structured_headers_validity (21)
     section: § 4.2.3
     snippet: Let bare_item be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 410
+      line: 454
   - label: message_structured_headers_validity (22)
     section: § 4.2.3
     snippet: Let parameters be the result of running Parsing Parameters (Section 4.2.3.2) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 414
+      line: 458
   - label: message_structured_headers_validity (23)
     section: § 4.2.3.2
     snippet: Discard any leading SP characters from input_string.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 374
+      line: 418
   - label: message_structured_headers_validity (24)
     section: § 4.2.3.2
     snippet: Let param_key be the result of running Parsing a Key (Section 4.2.3.3) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 435
+      line: 479
   - label: message_structured_headers_validity (25)
     section: § 4.2.3.2
     snippet: Let param_value be Boolean true.
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 446
+      line: 490
   - label: message_sunset_and_deprecation_consistency
     section: § 3.3.7
     snippet: their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@".
