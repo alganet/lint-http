@@ -295,18 +295,21 @@ pub(crate) fn is_display_string(s: &str) -> bool {
             if i + 2 >= bytes.len() {
                 return false;
             }
-            let octet_hex = &rest[i + 1..i + 3];
-            // cite(RFC 9651 § 4.2.10): "If octet_hex contains characters outside the range %x30-39 or %x61-66 (i.e., it is not in 0-9 or lowercase a-f), fail parsing."
-            if !octet_hex
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-            {
-                return false;
+            // Read as bytes, never as a `&str` slice: the two positions after a
+            // "%" are only known to be ASCII once they have been checked, and
+            // slicing `rest` at an offset inside a multi-byte character panics
+            // rather than answering false.
+            let mut octet = 0u8;
+            for &b in &bytes[i + 1..i + 3] {
+                // cite(RFC 9651 § 4.2.10): "If octet_hex contains characters outside the range %x30-39 or %x61-66 (i.e., it is not in 0-9 or lowercase a-f), fail parsing."
+                let nibble = match b {
+                    b'0'..=b'9' => b - b'0',
+                    b'a'..=b'f' => b - b'a' + 10,
+                    _ => return false,
+                };
+                octet = (octet << 4) | nibble;
             }
-            match u8::from_str_radix(octet_hex, 16) {
-                Ok(octet) => decoded.push(octet),
-                Err(_) => return false,
-            }
+            decoded.push(octet);
             i += 3;
             continue;
         }
@@ -408,6 +411,10 @@ mod tests {
     #[case("%\"%c\"", false)]
     #[case("\"plain\"", false)]
     #[case("%\"a\"b\"", false)]
+    // A "%" whose next two bytes straddle a multi-byte character: answered,
+    // not panicked on.
+    #[case("%\"%a\u{e9}\"", false)]
+    #[case("%\"%\u{e9}\"", false)]
     fn display_string(#[case] input: &str, #[case] valid: bool) {
         assert_eq!(is_display_string(input), valid, "{input:?}");
     }
