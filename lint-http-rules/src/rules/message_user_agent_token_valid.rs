@@ -37,6 +37,18 @@ impl Rule for MessageUserAgentTokenValid {
         // readings of the same sentence.
         // cite(RFC 9110 § 10.1.5): "The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts."
         //
+        // What §10.1.5 asks of a product identifier beyond its grammar, it asks
+        // about intent, and the octets do not carry that: whether a token is
+        // "advertising or other nonessential information", whether the string
+        // after the slash is a version, whether the detail is "needlessly"
+        // fine-grained. The first of the three is a MUST NOT and is undecidable
+        // all the same, so none of them is approximated here with a length
+        // limit or a vocabulary -- the rule enforces the production and says in
+        // its description that the rest is out of reach.
+        // cite(RFC 9110 § 10.1.5): "A sender SHOULD limit generated product identifiers to what is necessary to identify the product; a sender MUST NOT generate advertising or other nonessential information within the product identifier."
+        // cite(RFC 9110 § 10.1.5): "A sender SHOULD NOT generate information in product-version that is not a version identifier"
+        // cite(RFC 9110 § 10.1.5): "A user agent SHOULD NOT generate a User-Agent header field containing needlessly fine-grained detail and SHOULD limit the addition of subproducts by third parties."
+        //
         // The request trailer section is deliberately not walked. §10.1.5 puts
         // the field in a request and says nothing about trailers, which makes a
         // `User-Agent` trailer a violation of the sentence below rather than a
@@ -69,16 +81,24 @@ impl Rule for MessageUserAgentTokenValid {
     }
 
     fn description(&self) -> &'static str {
-        "`User-Agent` header values SHOULD be syntactically valid `product` tokens as defined by HTTP (token [\"/\" token]) and MAY include parenthesized comments. This rule validates product tokens and their optional version tokens, and flags invalid characters, empty tokens, or malformed comments."
+        "Validate a `User-Agent` request header against `User-Agent = product *( RWS ( product / comment ) )`. Each product is a `token` with an optional `/`-separated version token; parenthesized comments may nest and may hold a `quoted-pair`, but a comment can only follow a product, so a value that opens with one — or holds nothing else — does not match the grammar. Required whitespace between elements is enforced, and `obs-text` is accepted inside a comment, where `ctext` allows it, and nowhere else. What §10.1.5 asks beyond the grammar — that a product identifier carry no advertising or other nonessential information, and no needlessly fine-grained detail — is a question about intent that the octets cannot answer, and is not checked."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("10.1.5"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
-            note: "`User-Agent` header field and `product` syntax (token [\"/\" product-version])",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("10.1.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
+                note: "`User-Agent = product *( RWS ( product / comment ) )`, a request context field; `product = token [\"/\" product-version]` is defined here once and `Server` shares it. The section's further requirements — no advertising or nonessential information in a product identifier, no needlessly fine-grained detail — are about intent and are not decidable from a field value",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.6.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5",
+                note: "`comment = \"(\" *( ctext / quoted-pair / comment ) \")\"` — comments nest, and `ctext` admits `obs-text` but not the parentheses or the backslash",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -431,38 +451,23 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
-        if let Some(violation) = v {
-            assert!(violation.message.contains("Invalid User-Agent header"));
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn user_agent_unbalanced_comment_reports_violation() -> anyhow::Result<()> {
-        // moved from helper tests: ensure unbalanced parenthesized comment in User-Agent is reported
-        let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_user_agent_token_valid",
-        ]);
-
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent (incomplete")]);
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+        let violation = v.expect("an unterminated comment does not match the grammar");
+        assert!(
+            violation
+                .message
+                .contains("unterminated parenthesized comment"),
+            "{}",
+            violation.message
         );
-        assert!(v.is_some());
         Ok(())
     }
 
+    /// §5.6.4 gives the backslash its meaning inside a `quoted-string` or a
+    /// `comment` and nowhere else, so outside one it is an ordinary octet that
+    /// is not a `tchar` — and it does not open a comment on the way past. The
+    /// finding names the product token, not an unbalanced parenthesis.
     #[test]
     fn user_agent_escaped_parentheses_do_not_become_comments() -> anyhow::Result<()> {
-        // Escaped parentheses should not be treated as comment delimiters; they will be preserved
-        // by strip_comments and then validated for token characters by the rule.
         let rule = MessageUserAgentTokenValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_user_agent_token_valid",
@@ -477,15 +482,14 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        // Parentheses are not allowed in token syntax, so we expect a violation, but the parser should
-        // not treat them as comment delimiters (i.e., no parse error about unmatched comment).
-        assert!(v.is_some());
-        if let Some(violation) = v {
-            assert!(
-                violation.message.contains("contains invalid character")
-                    || violation.message.contains("Invalid User-Agent header")
-            );
-        }
+        let violation = v.expect("a backslash is not a tchar");
+        assert!(
+            violation
+                .message
+                .contains("product token contains invalid character: '\\'"),
+            "{}",
+            violation.message
+        );
         Ok(())
     }
 

@@ -8,11 +8,12 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-`User-Agent` header values SHOULD be syntactically valid `product` tokens as defined by HTTP (token ["/" token]) and MAY include parenthesized comments. This rule validates product tokens and their optional version tokens, and flags invalid characters, empty tokens, or malformed comments.
+Validate a `User-Agent` request header against `User-Agent = product *( RWS ( product / comment ) )`. Each product is a `token` with an optional `/`-separated version token; parenthesized comments may nest and may hold a `quoted-pair`, but a comment can only follow a product, so a value that opens with one — or holds nothing else — does not match the grammar. Required whitespace between elements is enforced, and `obs-text` is accepted inside a comment, where `ctext` allows it, and nowhere else. What §10.1.5 asks beyond the grammar — that a product identifier carry no advertising or other nonessential information, and no needlessly fine-grained detail — is a question about intent that the octets cannot answer, and is not checked.
 
 ## Specifications
 
-- [RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5): `User-Agent` header field and `product` syntax (token ["/" product-version])
+- [RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5): `User-Agent = product *( RWS ( product / comment ) )`, a request context field; `product = token ["/" product-version]` is defined here once and `Server` shares it. The section's further requirements — no advertising or nonessential information in a product identifier, no needlessly fine-grained detail — are about intent and are not decidable from a field value
+- [RFC 9110 §5.6.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5): `comment = "(" *( ctext / quoted-pair / comment ) ")"` — comments nest, and `ctext` admits `obs-text` but not the parentheses or the backslash
 
 ## Configuration
 
