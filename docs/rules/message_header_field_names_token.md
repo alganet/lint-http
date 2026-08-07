@@ -12,6 +12,8 @@ This rule validates that **field names** conform to the `token` grammar. Field n
 
 The rule flags field names that contain characters outside the allowed `tchar` set (letters, digits, and the following characters: ``! # $ % & ' * + - . ^ _ ` | ~``). One grammar governs every field section, so the request and response header sections are checked and so are their trailer sections when the message framing carried one.
 
+An HTTP/1.1 field name that is not a `token` is rejected by the message parser before the linter sees it, so this check has teeth on HTTP/2 and HTTP/3: their field-name encodings can convey a `"`, which the `token` grammar does not allow, and RFC 9113 §8.2.1 asks a recipient to validate the name against RFC 9110 §5.1 and treat a message carrying a prohibited character as malformed.
+
 ## Specifications
 
 - [RFC 9110 §5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1): Field Names
@@ -34,10 +36,14 @@ Content-Type: text/plain
 X-Custom-Header: v
 ```
 
-### ❌ Bad
+### ❌ Bad HTTP/2 or HTTP/3, where the field-name encoding conveys a DQUOTE
 
 ```http
-Bad Header: v
-X@Bad: v
-header:with:colon: v
+x"bad: v
+```
+
+### ❌ Bad Trailer section, governed by the same grammar
+
+```http
+x"checksum: abc123
 ```
