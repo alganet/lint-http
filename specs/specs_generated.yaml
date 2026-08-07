@@ -2680,31 +2680,51 @@ sources:
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 30
   - label: message_extension_headers_registered
+    section: § 16.3
+    snippet: Most fields are designed with the expectation that a recipient can safely ignore (but forward downstream) any field not recognized
+    cited_by:
+    - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
+      line: 203
+  - label: message_extension_headers_registered (2)
     section: § 16.3.2.1
     snippet: Field names ought not be prefixed with "X-"
     cited_by:
     - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
-      line: 158
-  - label: message_extension_headers_registered (2)
+      line: 165
+  - label: message_extension_headers_registered (3)
     section: § 5
     snippet: Fields are sent and received within the header and trailer sections of messages
     cited_by:
     - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
-      line: 72
+      line: 79
     - file: lint-http-rules/src/rules/message_header_field_names_token.rs
       line: 18
-  - label: message_extension_headers_registered (3)
+  - label: message_extension_headers_registered (4)
+    section: § 5.1
+    snippet: A proxy MUST forward unrecognized header fields unless the field name is listed in the Connection header field
+    cited_by:
+    - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
+      line: 201
+  - label: message_extension_headers_registered (5)
     section: § 5.1
     snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"
     cited_by:
     - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
-      line: 206
-  - label: message_extension_headers_registered (4)
+      line: 58
+    - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
+      line: 222
+  - label: message_extension_headers_registered (6)
+    section: § 5.1
+    snippet: Other recipients SHOULD ignore unrecognized header and trailer fields
+    cited_by:
+    - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
+      line: 202
+  - label: message_extension_headers_registered (7)
     section: § 6.5
     snippet: Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields"
     cited_by:
     - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
-      line: 94
+      line: 101
     - file: lint-http-rules/src/rules/message_header_field_names_token.rs
       line: 35
   - label: message_from_header_email_syntax
@@ -3894,7 +3914,7 @@ sources:
     snippet: A request or response containing uppercase characters in field names MUST be treated as malformed
     cited_by:
     - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
-      line: 198
+      line: 214
     - file: lint-http-rules/src/rules/message_header_field_names_token.rs
       line: 130
   - label: message_header_field_names_token

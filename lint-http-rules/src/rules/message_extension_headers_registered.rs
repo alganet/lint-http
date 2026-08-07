@@ -40,6 +40,9 @@ fn parse_allowed_config(
         anyhow::anyhow!("'allowed' must be an array of strings (e.g., ['host','content-type'])")
     })?;
 
+    // No sentence forbids an empty array. It is refused because the rule it
+    // configures would then report the first field of every message, which reads as
+    // a broken linter rather than as a deployment that accepts nothing.
     if arr.is_empty() {
         return Err(anyhow::anyhow!("'allowed' array cannot be empty"));
     }
@@ -49,6 +52,10 @@ fn parse_allowed_config(
         let s = item.as_str().ok_or_else(|| {
             anyhow::anyhow!("'allowed' array item at index {} must be a string", i)
         })?;
+        // What the array lists is field names, and a field name means the same thing
+        // however it is spelled, so the configured spelling is folded here -- once per
+        // array rather than once per field of every message.
+        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
         out.push(s.to_ascii_lowercase());
     }
 
@@ -185,6 +192,15 @@ impl Rule for MessageExtensionHeadersRegistered {
 
 /// Walk one field section, reporting the first field name the deployment has not
 /// listed.
+//
+// The report is a deployment-policy signal and not a conformance verdict, which is
+// as much as the licensing sentence's `ought to` will carry. The paragraph it sits
+// in settles the rest: an unrecognized field is something HTTP expects to travel
+// through and be ignored, so a name absent from the array is worth a look and is
+// never a claim that the sender got something wrong.
+// cite(RFC 9110 § 5.1): "A proxy MUST forward unrecognized header fields unless the field name is listed in the Connection header field"
+// cite(RFC 9110 § 5.1): "Other recipients SHOULD ignore unrecognized header and trailer fields"
+// cite(RFC 9110 § 16.3): "Most fields are designed with the expectation that a recipient can safely ignore (but forward downstream) any field not recognized"
 fn check_section(
     section: &str,
     fields: &hyper::HeaderMap,
