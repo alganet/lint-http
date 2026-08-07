@@ -122,13 +122,17 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
 
         let advertised = read_advertisement(resp);
 
-        // Advice, and the two sentences that keep it advice. The field is worth
+        // Advice, and the sentences that keep it advice. The field is worth
         // sending -- it is what a client restarting this transfer would read --
-        // and no sentence asks for it, which is what the finding says.
+        // and no sentence asks for it, which is what the finding says. The
+        // quotation that settles it is the last one: §15.3.7 does say which
+        // fields a 206 MUST carry, names six of them, and `Accept-Ranges` is
+        // not among them.
         //
         // cite(RFC 9110 § 14): "Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability."
         // cite(RFC 9110 § 14.3): "A client MAY generate range requests regardless of having received an Accept-Ranges field.  The information only provides advice for the sake of improving performance and reducing unnecessary network transfers."
         // cite(RFC 9110 § 14.3): "to indicate that it supports byte range requests for that target resource, thereby encouraging its use by the client for future partial requests on the same request path."
+        // cite(RFC 9110 § 15.3.7): "A server that generates a 206 response MUST generate the following header fields, in addition to those required in the subsections below, if the field would have been sent in a 200 (OK) response to the same request: Date, Cache-Control, ETag, Expires, Content-Location, and Vary."
         if !advertised.present {
             return Some(Violation {
                 rule: self.id().into(),
@@ -193,7 +197,7 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
     }
 
     fn description(&self) -> &'static str {
-        "Advice about one field, and one contradiction. `Accept-Ranges` tells a client which range units a resource supports, and a 206 (Partial Content) response is proof that it supports at least one — so what the two say together is worth reading, even though almost none of it is required.\n\n**No `Accept-Ranges` on a 206** is reported as advice rather than as a violation. RFC 9110 §14.3 says a client \"MAY generate range requests regardless of having received an Accept-Ranges field\" and that the field \"only provides advice for the sake of improving performance and reducing unnecessary network transfers\"; §14 makes range requests an OPTIONAL feature of HTTP altogether. A server that omits the field is conforming, and this rule used to describe it as a SHOULD that no sentence supports.\n\n**`Accept-Ranges: none` on a 206** is the contradiction. The permission to send `none` is granted to \"a server that does not support any kind of range request for the target resource\", and a 206 is that server successfully fulfilling one. The range unit `none` is reserved for saying that, so it is reported when it travels beside a real unit as well as when it stands alone.\n\n**A `Content-Range` unit the field does not advertise** sits on the same advisory footing as the first finding: a 206 is sent when the request's range unit is supported for the target resource (§14.2), so an advertisement that leaves that unit out is incomplete advice, not a violation.\n\n**The trailer section counts.** §14.3 permits `Accept-Ranges` in a trailer section — the rule reads both sections, so a response that advertises after its content is not reported for advertising nothing.\n\n**Not this rule's findings.** Whether the value is a well-formed list of range units belongs to `server_accept_ranges_values_valid`; whether a 206 carries a `Content-Range` at all, and whether that value parses, belong to `message_range_and_content_range_consistency`. Where a field line cannot be read as range units — an octet outside US-ASCII, a character `token` excludes, a list with no elements — this rule declines rather than reporting the field a second time, and stays quiet about a unit it may not have seen. A value it cannot read is still counted as present: the message on the wire carries the field."
+        "Advice about one field, and one contradiction. `Accept-Ranges` tells a client which range units a resource supports, and a 206 (Partial Content) response is proof that it supports at least one — so what the two say together is worth reading, even though almost none of it is required.\n\n**No `Accept-Ranges` on a 206** is reported as advice rather than as a violation. RFC 9110 §14.3 says a client \"MAY generate range requests regardless of having received an Accept-Ranges field\" and that the field \"only provides advice for the sake of improving performance and reducing unnecessary network transfers\"; §14 makes range requests an OPTIONAL feature of HTTP altogether. A server that omits the field is conforming, and this rule used to describe it as a SHOULD that no sentence supports. §15.3.7 does list the header fields a 206 MUST carry — Date, Cache-Control, ETag, Expires, Content-Location and Vary — and `Accept-Ranges` is not one of them.\n\n**`Accept-Ranges: none` on a 206** is the contradiction. The permission to send `none` is granted to \"a server that does not support any kind of range request for the target resource\", and a 206 is that server successfully fulfilling one. The range unit `none` is reserved for saying that, so it is reported when it travels beside a real unit as well as when it stands alone.\n\n**A `Content-Range` unit the field does not advertise** sits on the same advisory footing as the first finding: a 206 is sent when the request's range unit is supported for the target resource (§14.2), so an advertisement that leaves that unit out is incomplete advice, not a violation.\n\n**The trailer section counts.** §14.3 permits `Accept-Ranges` in a trailer section — the rule reads both sections, so a response that advertises after its content is not reported for advertising nothing.\n\n**Not this rule's findings.** Whether the value is a well-formed list of range units belongs to `server_accept_ranges_values_valid`; whether a 206 carries a `Content-Range` at all, and whether that value parses, belong to `message_range_and_content_range_consistency`. Where a field line cannot be read as range units — an octet outside US-ASCII, a character `token` excludes, a list with no elements — this rule declines rather than reporting the field a second time, and stays quiet about a unit it may not have seen. A value it cannot read is still counted as present: the message on the wire carries the field."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -409,6 +413,7 @@ mod tests {
     #[case::every_line_unreadable(&[("accept-ranges", &[0xff][..]), ("accept-ranges", &[0xfe][..])][..])]
     #[case::not_a_token(&[("accept-ranges", b"x@bad".as_slice())][..])]
     #[case::no_elements(&[("accept-ranges", b",".as_slice())][..])]
+    #[case::empty_value(&[("accept-ranges", b"".as_slice())][..])]
     fn a_value_this_rule_cannot_read_is_left_to_the_rule_that_owns_it(
         #[case] fields: &[(&str, &[u8])],
     ) {
@@ -574,6 +579,14 @@ mod tests {
             table.remove("severity");
         }
         assert!(crate::rules::validate_rules(&cfg).is_err());
+    }
+
+    /// Two mechanisms keep this rule off a request — the scope enum, which is
+    /// what the engine dispatches on, and the `?` on the response — and the enum
+    /// alone has never meant anything to a rule that is handed a transaction.
+    #[test]
+    fn a_transaction_with_no_response_is_not_read() {
+        assert!(judge(&crate::test_helpers::make_test_transaction()).is_none());
     }
 
     #[test]
