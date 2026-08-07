@@ -25,7 +25,7 @@ A 206 or a 416 whose request carried no `Range` at all contradicts the status co
 - [RFC 9110 §15.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7): 206 Partial Content: single-part 206 responses MUST include a `Content-Range` header describing the enclosed range
 - [RFC 9110 §15.3.7.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7.2): 206 Partial Content, multiple parts: the parts carry the `Content-Range` fields and the header section MUST NOT carry one; a request for a single range MUST NOT be answered with a multipart response
 - [RFC 9110 §14.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.4): Content-Range: syntax of `Content-Range` and the semantics for satisfied and unsatisfiable ranges
-- [RFC 9110 §15.5.17](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.17): 416 Range Not Satisfiable: server SHOULD include `Content-Range: bytes */<complete-length>` in 416 responses
+- [RFC 9110 §15.5.17](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.17): 416 Range Not Satisfiable: the status code is the rejection of the ranges in the request's `Range` field; a server answering a *byte*-range request SHOULD include `Content-Range: bytes */<complete-length>`
 
 ## Configuration
 
@@ -37,6 +37,10 @@ severity = "warn"
 # against Content-Length. Units are an extensible token set (RFC 9110 14.1); a
 # Content-Range naming a unit not listed here is still parsed and structurally
 # validated, but its length is not compared to Content-Length.
+# Only "bytes" is licensed by the specification: RFC 9110 14.1.2 defines its
+# positions as inclusive, zero-based octet offsets, which is what makes
+# last - first + 1 an octet count. Adding another unit here is you asserting
+# the same of it.
 units = ["bytes"]
 ```
 
@@ -80,9 +84,43 @@ Content-Range: bytes 0-1/10
 # 206 must not be sent if the request did not include a Range header
 ```
 
+### ✅ Good (multiple parts: each body part carries its own Content-Range)
+
 ```http
+GET /resource HTTP/1.1
+Host: example.com
+Range: bytes=500-999,7000-7999
+
+HTTP/1.1 206 Partial Content
+Content-Type: multipart/byteranges; boundary=THIS_STRING_SEPARATES
+Content-Length: 1741
+
+...the parts, each with its own Content-Range...
+```
+
+### ❌ Bad — a multipart 206 must not carry Content-Range in its header section
+
+```http
+GET /resource HTTP/1.1
+Host: example.com
+Range: bytes=500-999,7000-7999
+
+HTTP/1.1 206 Partial Content
+Content-Type: multipart/byteranges; boundary=THIS_STRING_SEPARATES
+Content-Range: bytes 500-999/8000
+
+...the parts...
+```
+
+### ❌ Bad — 416 uses the "*/complete-length" unsatisfied-range form
+
+```http
+GET /resource HTTP/1.1
+Host: example.com
+Range: bytes=99999-
+
 HTTP/1.1 416 Range Not Satisfiable
 Content-Range: bytes 0-1/10
 
-# 416 must use a "*/length" unsatisfied-range form
+# the form above describes an enclosed range, and a 416 encloses none
 ```

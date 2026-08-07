@@ -53,6 +53,7 @@ fn parse_units_config(
             .ok_or_else(|| anyhow::anyhow!("'units' array item at index {} must be a string", i))?;
         // Unit names are case-insensitive, so the configured names are folded once
         // here and compared against an already-folded parse result.
+        // cite(RFC 9110 § 14.1): "All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1."
         out.push(s.to_ascii_lowercase());
     }
 
@@ -91,8 +92,16 @@ impl Rule for MessageRangeAndContentRangeConsistency {
         "message_range_and_content_range_consistency"
     }
 
+    /// Every finding here is about a response: the field this rule is named for
+    /// is meaningful in exactly two status codes, and a status code is something
+    /// only a response has. The request's `Range` is read as *context* for those
+    /// findings, never judged — its syntax belongs to
+    /// `client_range_header_syntax_valid`. `Server` says that in the one place
+    /// the engine reads, and costs nothing: it only skips transactions with no
+    /// response, which the first line of the check already returned `None` for.
+    // cite(RFC 9110 § 14.4): "The Content-Range header field has no meaning for status codes that do not explicitly describe its semantic.  For this specification, only the 206 (Partial Content) and 416 (Range Not Satisfiable) status codes describe a meaning for Content-Range."
     fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
+        crate::rules::RuleScope::Server
     }
 
     fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
@@ -188,7 +197,7 @@ impl Rule for MessageRangeAndContentRangeConsistency {
             }
 
             // Single part: the field is required, and this is the sentence the
-            // rule has been reporting all along -- with its first six words gone.
+            // rule has been reporting all along -- with its opening condition gone.
             // cite(RFC 9110 § 15.3.7.1): "If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range."
             let cr = match cr {
                 Some(v) => v,
@@ -213,6 +222,15 @@ impl Rule for MessageRangeAndContentRangeConsistency {
                     // is not a violation we are declining to report -- it is an equation we
                     // have no basis to write down.
                     //
+                    // The first sentence is where the equation comes from, and it is
+                    // stated of one unit: for `bytes` the positions are octet offsets,
+                    // inclusive and zero-based, so a range spans `last - first + 1` of
+                    // them. Nothing says that of any other unit, and a configured one
+                    // is the operator asserting it rather than the spec. The second is
+                    // the specification stopping at the same place for its own reason:
+                    // where a recipient does not understand the unit, it is told not to
+                    // act on the value.
+                    // cite(RFC 9110 § 14.1.2): "The first-pos value in a bytes int-range gives the offset of the first byte in a range.  The last-pos value gives the offset of the last byte in the range; that is, the byte positions specified are inclusive.  Byte offsets start at zero."
                     // cite(RFC 9110 § 14.4): "If a 206 (Partial Content) response contains a Content-Range header field with a range unit (Section 14.1) that the recipient does not understand, the recipient MUST NOT attempt to recombine it with a stored representation."
                     if !config.units.iter().any(|u| u == unit) {
                         return None;
@@ -251,10 +269,16 @@ impl Rule for MessageRangeAndContentRangeConsistency {
                     }
                 }
                 Ok(crate::helpers::content_range::ContentRange::Unsatisfiable { .. }) => {
+                    // In a 206 the field says which part of the representation is
+                    // enclosed; the unsatisfied-range form says only how long the
+                    // whole thing is, which is what a 416 has to say and a 206
+                    // never does. The message used to call this form
+                    // `byte-range-resp-spec`, RFC 7233's name for a production
+                    // RFC 9110 splits into `range-resp` and `unsatisfied-range`.
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
-                        message: "206 response must not use '*' byte-range-resp-spec (use 416 for unsatisfiable ranges)".into(),
+                        message: "206 response uses the unsatisfied-range form ('*/complete-length'), which describes no enclosed range (that form belongs in a 416)".into(),
                     });
                 }
                 Err(e) => {
@@ -364,7 +388,7 @@ impl Rule for MessageRangeAndContentRangeConsistency {
                 spec: "RFC 9110",
                 section: Some("15.5.17"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.17",
-                note: "416 Range Not Satisfiable: server SHOULD include `Content-Range: bytes */<complete-length>` in 416 responses",
+                note: "416 Range Not Satisfiable: the status code is the rejection of the ranges in the request's `Range` field; a server answering a *byte*-range request SHOULD include `Content-Range: bytes */<complete-length>`",
             },
         ]
     }
@@ -388,9 +412,19 @@ impl Rule for MessageRangeAndContentRangeConsistency {
                 snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 206 Partial Content\nContent-Range: bytes 0-1/10\n\n# 206 must not be sent if the request did not include a Range header",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("(multiple parts: each body part carries its own Content-Range)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=500-999,7000-7999\n\nHTTP/1.1 206 Partial Content\nContent-Type: multipart/byteranges; boundary=THIS_STRING_SEPARATES\nContent-Length: 1741\n\n...the parts, each with its own Content-Range...",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 416 Range Not Satisfiable\nContent-Range: bytes 0-1/10\n\n# 416 must use a \"*/length\" unsatisfied-range form",
+                label: Some("— a multipart 206 must not carry Content-Range in its header section"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=500-999,7000-7999\n\nHTTP/1.1 206 Partial Content\nContent-Type: multipart/byteranges; boundary=THIS_STRING_SEPARATES\nContent-Range: bytes 500-999/8000\n\n...the parts...",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— 416 uses the \"*/complete-length\" unsatisfied-range form"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=99999-\n\nHTTP/1.1 416 Range Not Satisfiable\nContent-Range: bytes 0-1/10\n\n# the form above describes an enclosed range, and a 416 encloses none",
             },
         ]
     }
@@ -623,7 +657,7 @@ mod tests {
             &cfg_with_units(&["bytes"]),
         );
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("must not use '*'"));
+        assert!(v.unwrap().message.contains("unsatisfied-range form"));
     }
 
     /// A Content-Length that does not parse leaves no number to compare against
@@ -687,10 +721,144 @@ mod tests {
         assert!(v.is_none(), "conforming Content-Length reported: {v:?}");
     }
 
+    /// An example here is a whole transaction: a request block, a blank line,
+    /// then a response block. Both blocks go through this one function, and each
+    /// is checked to be the shape it claims -- a request block whose first line
+    /// is a status line, or field lines that are not field lines, would put an
+    /// example's headers where the rule cannot see them, and a `NonCompliant`
+    /// example would then satisfy the guard below by being invisible to it.
+    fn transaction_from_example(snippet: &str) -> crate::http_transaction::HttpTransaction {
+        fn field_lines<'a>(lines: impl Iterator<Item = &'a str>) -> Vec<(&'a str, &'a str)> {
+            lines
+                .filter(|l| !l.trim().is_empty() && !l.starts_with('#') && !l.starts_with("..."))
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a field line: {l:?}"))
+                })
+                .collect()
+        }
+
+        let mut blocks = snippet.split("\n\n");
+        let request_block = blocks.next().expect("an example has a request block");
+        let mut request_lines = request_block.lines();
+        let request_line = request_lines
+            .next()
+            .expect("a request block has a start line");
+        assert!(
+            !request_line.starts_with("HTTP/"),
+            "response-shaped request block: {request_line:?}"
+        );
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&field_lines(request_lines));
+
+        let response_block = blocks.next().expect("an example has a response block");
+        let mut response_lines = response_block.lines();
+        let status_line = response_lines
+            .next()
+            .expect("a response block has a status line");
+        assert!(
+            status_line.starts_with("HTTP/"),
+            "not a status line: {status_line:?}"
+        );
+        let status: u16 = status_line
+            .split(' ')
+            .nth(1)
+            .unwrap_or_else(|| panic!("no status code in {status_line:?}"))
+            .parse()
+            .unwrap_or_else(|e| panic!("bad status code in {status_line:?}: {e}"));
+
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&field_lines(response_lines)),
+            body_length: None,
+            trailers: None,
+        });
+        tx
+    }
+
+    /// Nothing runs a rule's published examples through the rule, so a
+    /// `Compliant` example it rejects (or a `NonCompliant` one it accepts) ships
+    /// to the docs unnoticed.
     #[test]
-    fn scope_is_both() {
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
         let rule = MessageRangeAndContentRangeConsistency;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        let cfg = cfg_with_units(&["bytes"]);
+
+        let mut saw_a_finding = false;
+        for ex in rule.examples() {
+            let tx = transaction_from_example(ex.snippet);
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule reports its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    saw_a_finding = true;
+                }
+            }
+        }
+        assert!(saw_a_finding, "no published example produced a finding");
+    }
+
+    /// The examples publish two field values this rule does not own: a
+    /// `Content-Type` with a boundary parameter, and a `Content-Length`. A rule
+    /// cannot see a defect in a value it never judges, so the owners are asked.
+    #[test]
+    fn published_values_satisfy_the_rules_that_own_them() {
+        use crate::rules::message_content_length::MessageContentLength;
+        use crate::rules::message_multipart_boundary_syntax::MessageMultipartBoundarySyntax;
+        use crate::rules::{Compliance, Rule as _};
+
+        for ex in MessageRangeAndContentRangeConsistency.examples() {
+            if ex.compliance != Compliance::Compliant {
+                continue;
+            }
+            let tx = transaction_from_example(ex.snippet);
+            let history = crate::transaction_history::TransactionHistory::empty();
+
+            let boundary = MessageMultipartBoundarySyntax;
+            let found = boundary.check_transaction(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[boundary.id()]),
+            );
+            assert!(
+                found.is_none(),
+                "a Compliant example publishes a media type its owner rejects {:?}: {found:?}",
+                ex.snippet
+            );
+
+            let length = MessageContentLength;
+            let found = length.check_transaction(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[length.id()]),
+            );
+            assert!(
+                found.is_none(),
+                "a Compliant example publishes a length its owner rejects {:?}: {found:?}",
+                ex.snippet
+            );
+        }
+    }
+
+    #[test]
+    fn scope_is_server_because_every_finding_is_about_a_response() {
+        let rule = MessageRangeAndContentRangeConsistency;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
     }
 
     #[test]
