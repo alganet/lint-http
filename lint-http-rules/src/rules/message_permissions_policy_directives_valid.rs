@@ -351,7 +351,18 @@ fn validate_permissions_policy(s: &str) -> Option<String> {
                 let (pn, pv) = p.split_at(eqpos);
                 let pn = pn.trim();
                 let pv = pv[1..].trim();
-                if pn.eq_ignore_ascii_case("report-to") {
+                // Checked before the name is compared to anything, and for
+                // every parameter rather than for all but one. A key cannot
+                // hold an uppercase letter, so `Report-To` is not a differently
+                // spelled `report-to`; it is a member the whole field dies on.
+                // cite(RFC 9651 § 4.2.3.3): "If the first character of input_string is not lcalpha or "*", fail parsing."
+                if !is_valid_sf_key(pn) {
+                    return Some(format!(
+                        "invalid parameter '{}' for feature '{}'",
+                        pn, feature_part
+                    ));
+                }
+                if pn == "report-to" {
                     if !is_quoted_string(pv) {
                         return Some(format!(
                             "parameter 'report-to' for '{}' must be a quoted-string",
@@ -359,10 +370,13 @@ fn validate_permissions_policy(s: &str) -> Option<String> {
                         ));
                     }
                 } else {
-                    // other parameters are allowed but must at least be valid token or quoted-string
-                    if !(is_valid_sf_key(pn)
-                        && (is_valid_token_like(pv) || is_quoted_string(pv) || is_number(pv)))
-                    {
+                    // Any bare Item, not the three that used to be listed here.
+                    // A byte sequence, a Boolean, a Date and a Display String
+                    // are all parameter values, and § 5.2 says nothing about
+                    // parameters other than `report-to` -- so the only question
+                    // left at this site is the Structured Fields one.
+                    // cite(RFC 9651 § 4.2.3.2): "Let param_value be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string."
+                    if !is_bare_item(pv) {
                         return Some(format!(
                             "invalid parameter '{}' for feature '{}'",
                             pn, feature_part
@@ -801,6 +815,25 @@ mod tests {
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("invalid parameter 'foo'"));
+    }
+
+    #[rstest]
+    #[case("geolocation=(self);h=:YWJj:")]
+    #[case("geolocation=(self);on=?1")]
+    #[case("geolocation=(self);since=@1659578233")]
+    #[case("geolocation=(self);label=%\"caf%c3%a9\"")]
+    fn any_bare_item_is_a_parameter_value(#[case] value: &str) {
+        let v = validate_permissions_policy(value);
+        assert!(v.is_none(), "unexpected finding for {:?}: {:?}", value, v);
+    }
+
+    #[rstest]
+    fn an_uppercase_parameter_key_is_not_report_to() {
+        // A key cannot hold an uppercase letter, so this is a parse failure
+        // rather than a misspelled `report-to` whose value needs checking.
+        let v = validate_permissions_policy("geolocation=(self);Report-To=\"endpoint\"")
+            .expect("should report");
+        assert!(v.contains("invalid parameter 'Report-To'"), "{v}");
     }
 
     #[test]

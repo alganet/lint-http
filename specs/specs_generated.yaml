@@ -335,7 +335,7 @@ sources:
     snippet: The Member Names must be Tokens.
     cited_by:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
-      line: 409
+      line: 423
   - label: message_permissions_policy_directives_valid (5)
     section: § 5.2
     snippet: 'The Member Values represent allowlists, and must be one of:'
@@ -4160,6 +4160,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 181
+    - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
+      line: 358
   - label: lint-http-rules/src/helpers/structured_fields.rs (12)
     section: § 4.2.3.3
     snippet: If the first character of input_string is not one of lcalpha, DIGIT, "_", "-", ".", or "*", return output_string.
@@ -4299,7 +4301,7 @@ sources:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
       line: 316
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
-      line: 410
+      line: 424
   - label: message_permissions_policy_directives_valid (3)
     section: § 4.2
     snippet: Convert input_bytes into an ASCII string input_string; if conversion fails, fail parsing.
@@ -4340,6 +4342,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
       line: 235
+  - label: message_permissions_policy_directives_valid (8)
+    section: § 4.2.3.2
+    snippet: Let param_value be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
+      line: 378
+    - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
+      line: 439
   - label: message_structured_headers_validity
     snippet: This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,
     cited_by:
@@ -4489,12 +4499,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
       line: 446
-  - label: message_structured_headers_validity (26)
-    section: § 4.2.3.2
-    snippet: Let param_value be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_structured_headers_validity.rs
-      line: 439
   - label: message_sunset_and_deprecation_consistency
     section: § 3.3.7
     snippet: their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@".
