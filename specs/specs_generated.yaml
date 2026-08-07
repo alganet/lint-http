@@ -2972,47 +2972,83 @@ sources:
     - file: lint-http-rules/src/rules/message_multipart_content_type_and_body_consistency.rs
       line: 208
   - label: message_range_and_content_range_consistency
+    section: § 14.1.2
+    snippet: If the representation data has a content coding applied, each byte range is calculated with respect to the encoded sequence of bytes, not the sequence of underlying bytes that would be obtained after decoding.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
+      line: 228
+  - label: message_range_and_content_range_consistency (2)
+    section: § 14.4
+    snippet: 'A server generating a 416 (Range Not Satisfiable) response to a byte-range request SHOULD send a Content-Range header field with an unsatisfied-range value, as in the following example:'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
+      line: 295
+  - label: message_range_and_content_range_consistency (3)
     section: § 14.4
     snippet: If a 206 (Partial Content) response contains a Content-Range header field with a range unit (Section 14.1) that the recipient does not understand, the recipient MUST NOT attempt to recombine it with a stored representation.
     cited_by:
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 216
-  - label: message_range_and_content_range_consistency (2)
+  - label: message_range_and_content_range_consistency (4)
     section: § 14.4
     snippet: The "Content-Range" header field is sent in a single part 206 (Partial Content) response to indicate the partial range of the selected representation enclosed as the message content, sent in each part of a multipart 206 response to indicate the range enclosed within each body part (Section 14.6), and sent in 416 (Range Not Satisfiable) responses to provide information about the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 139
-  - label: message_range_and_content_range_consistency (3)
+  - label: message_range_and_content_range_consistency (5)
+    section: § 14.4
+    snippet: The complete-length in a 416 response indicates the current length of the selected representation.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
+      line: 317
+  - label: message_range_and_content_range_consistency (6)
+    section: § 15.3.7
+    snippet: A Content-Length header field present in a 206 response indicates the number of octets in the content of this message, which is usually not the complete length of the selected representation.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
+      line: 227
+  - label: message_range_and_content_range_consistency (7)
     section: § 15.3.7
     snippet: The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 127
-  - label: message_range_and_content_range_consistency (4)
+  - label: message_range_and_content_range_consistency (8)
     section: § 15.3.7.2
     snippet: A server MUST NOT generate a multipart response to a request for a single range, since a client that does not request multiple parts might not support multipart responses.
     cited_by:
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 168
-  - label: message_range_and_content_range_consistency (5)
+  - label: message_range_and_content_range_consistency (9)
     section: § 15.3.7.2
     snippet: If multiple parts are being transferred, the server generating the 206 response MUST generate "multipart/byteranges" content, as defined in Section 14.6, and a Content-Type header field containing the "multipart/byteranges" media type and its required boundary parameter.
     cited_by:
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 150
-  - label: message_range_and_content_range_consistency (6)
+  - label: message_range_and_content_range_consistency (10)
     section: § 15.3.7.2
     snippet: To avoid confusion with single-part responses, a server MUST NOT generate a Content-Range header field in the HTTP header section of a multiple part response (this field will be sent in each part instead).
     cited_by:
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 152
-  - label: message_range_and_content_range_consistency (7)
+  - label: message_range_and_content_range_consistency (11)
     section: § 15.3.7.2
     snippet: Within the header area of each body part in the multipart content, the server MUST generate a Content-Range header field corresponding to the range being enclosed in that body part.
     cited_by:
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 186
+  - label: message_range_and_content_range_consistency (12)
+    section: § 15.5.17
+    snippet: A server that generates a 416 response to a byte-range request SHOULD generate a Content-Range header field specifying the current length of the selected representation (Section 14.4).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
+      line: 294
+  - label: message_range_and_content_range_consistency (13)
+    section: § 15.5.17
+    snippet: The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
+      line: 275
   - label: message_referer_uri_valid
     section: § 10.1.3
     snippet: The "Referer" [sic] header field allows the user agent to specify a URI reference for the resource from which the target URI was obtained

@@ -218,11 +218,25 @@ impl Rule for MessageRangeAndContentRangeConsistency {
                         return None;
                     }
 
-                    // If Content-Length is present, it must equal last-first+1
-                    if let Some(cl) =
-                        crate::helpers::headers::get_header_str(&resp.headers, "content-length")
-                    {
-                        if let Ok(cl_v) = cl.trim().parse::<u128>() {
+                    // What makes the comparison mean anything: in a 206 the
+                    // Content-Length counts the octets of *this* message's content,
+                    // which for a single part is the enclosed range. A content
+                    // coding does not put the two numbers on different scales --
+                    // byte ranges are calculated over the encoded octets, which are
+                    // the ones being counted here.
+                    // cite(RFC 9110 § 15.3.7): "A Content-Length header field present in a 206 response indicates the number of octets in the content of this message, which is usually not the complete length of the selected representation."
+                    // cite(RFC 9110 § 14.1.2): "If the representation data has a content coding applied, each byte range is calculated with respect to the encoded sequence of bytes, not the sequence of underlying bytes that would be obtained after decoding."
+                    //
+                    // The value is read through the field's owner rather than
+                    // re-parsed here. The private copy this replaces had already
+                    // diverged from it: `parse::<u128>()` on the whole value
+                    // rejected `Content-Length: 500, 500`, which § 6.3 makes valid,
+                    // and its "Invalid Content-Length value" finding duplicated
+                    // `message_content_length`'s word for word. A value that does
+                    // not parse leaves nothing to compare, so this rule declines
+                    // and its owner reports.
+                    match crate::helpers::headers::validate_content_length(&resp.headers) {
+                        Ok(Some(cl_v)) => {
                             let expected = (last - first) + 1;
                             if cl_v != expected {
                                 return Some(Violation {
@@ -231,13 +245,9 @@ impl Rule for MessageRangeAndContentRangeConsistency {
                                     message: format!("Content-Length ({}) does not match Content-Range length ({})", cl_v, expected),
                                 });
                             }
-                        } else {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!("Invalid Content-Length value: {}", cl),
-                            });
                         }
+                        Ok(None) => {}
+                        Err(_) => return None,
                     }
                 }
                 Ok(crate::helpers::content_range::ContentRange::Unsatisfiable { .. }) => {
@@ -259,15 +269,38 @@ impl Rule for MessageRangeAndContentRangeConsistency {
 
         // 416 Range Not Satisfiable rules
         if status == 416 {
-            // 416 MUST include a Content-Range with "*" response and instance-length
-            let cr = crate::helpers::headers::get_header_str(&resp.headers, "content-range");
-            if cr.is_none() {
+            // The status names the request field it is about, the same way 206's
+            // definition does, so a 416 to a request carrying no Range announces
+            // the rejection of nothing.
+            // cite(RFC 9110 § 15.5.17): "The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack)."
+            if !has_range_request {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
-                    message: "416 Range Not Satisfiable response missing Content-Range header"
-                        .into(),
+                    message:
+                        "416 Range Not Satisfiable response sent to a request with no Range header"
+                            .into(),
                 });
+            }
+
+            let cr = crate::helpers::headers::get_header_str(&resp.headers, "content-range");
+            if cr.is_none() {
+                // Both sentences asking for the field say SHOULD, and both say it
+                // of a *byte*-range request only. For any other unit nothing asks
+                // for a Content-Range here, so its absence is not a finding this
+                // rule can make -- what a `pages` range set makes unsatisfiable,
+                // and what a server ought to say about it, is the unit's business.
+                // The rule used to require the field of every 416.
+                // cite(RFC 9110 § 15.5.17): "A server that generates a 416 response to a byte-range request SHOULD generate a Content-Range header field specifying the current length of the selected representation (Section 14.4)."
+                // cite(RFC 9110 § 14.4): "A server generating a 416 (Range Not Satisfiable) response to a byte-range request SHOULD send a Content-Range header field with an unsatisfied-range value, as in the following example:"
+                if requested.as_ref().is_some_and(|(unit, _)| unit == "bytes") {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "416 Range Not Satisfiable response to a byte-range request should include a Content-Range header (bytes */<complete-length>)".into(),
+                    });
+                }
+                return None;
             }
             let cr = cr.unwrap();
             match crate::helpers::content_range::parse_content_range(cr) {
@@ -275,11 +308,19 @@ impl Rule for MessageRangeAndContentRangeConsistency {
                     // ok
                 }
                 Ok(crate::helpers::content_range::ContentRange::Satisfied { .. }) => {
+                    // A 416 encloses no part of the representation, so the only
+                    // thing its Content-Range has to say is how long the
+                    // representation currently is -- which is the unsatisfied-range
+                    // form and nothing else. This is checked whatever the unit,
+                    // because it is about a field the server chose to send rather
+                    // than about one the spec asked it for.
+                    // cite(RFC 9110 § 14.4): "The complete-length in a 416 response indicates the current length of the selected representation."
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
-                        message: "416 response must use '*' byte-range-resp-spec in Content-Range"
-                            .into(),
+                        message:
+                            "416 response should use the '*/complete-length' form in Content-Range"
+                                .into(),
                     });
                 }
                 Err(e) => {
@@ -296,7 +337,7 @@ impl Rule for MessageRangeAndContentRangeConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) must include an unsatisfiable `Content-Range` (`bytes */<length>`).\n\nA 206 whose request carried no `Range` at all contradicts the status code's own definition, and is reported whatever its `Content-Range` says.\n\n**Not this rule's finding:** a `Range` value that is not a `ranges-specifier` belongs to `client_range_header_syntax_valid`, and leaves this rule knowing less rather than guessing."
+        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and is reported whatever the response's `Content-Range` says.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `message_content_length`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `client_range_header_syntax_valid`, and leaves this rule knowing less rather than guessing."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -486,38 +527,84 @@ mod tests {
         assert!(v.unwrap().message.contains("Content-Length"));
     }
 
+    /// A 416 to a byte-range request. Every case here carries the `Range` the
+    /// status code is about -- without it the request that provoked the 416 does
+    /// not exist, and each of these would be reported for that instead, which is
+    /// what the fixtures used to do while asserting something else.
+    fn tx_416(
+        range: &str,
+        resp_headers: &[(&str, &str)],
+    ) -> crate::http_transaction::HttpTransaction {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(416, resp_headers);
+        tx.request.headers.insert("range", range.parse().unwrap());
+        tx
+    }
+
     #[rstest]
     fn test_416_requires_unsatisfiable_content_range() {
-        let tx_ok = crate::test_helpers::make_test_transaction_with_response(
-            416,
-            &[("content-range", "bytes */1234")],
-        );
         let rule = MessageRangeAndContentRangeConsistency;
         let v = rule.check_transaction(
-            &tx_ok,
+            &tx_416("bytes=0-499", &[("content-range", "bytes */1234")]),
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
         );
-        assert!(v.is_none());
+        assert!(v.is_none(), "conforming 416 reported: {:?}", v);
 
-        let tx_bad = crate::test_helpers::make_test_transaction_with_response(
-            416,
-            &[("content-range", "bytes 0-0/1234")],
-        );
         let v2 = rule.check_transaction(
-            &tx_bad,
+            &tx_416("bytes=0-499", &[("content-range", "bytes 0-0/1234")]),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_units(&["bytes"]),
+        );
+        assert!(v2.unwrap().message.contains("'*/complete-length' form"));
+
+        let v3 = rule.check_transaction(
+            &tx_416("bytes=0-499", &[]),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_units(&["bytes"]),
+        );
+        assert!(v3
+            .unwrap()
+            .message
+            .contains("should include a Content-Range"));
+    }
+
+    /// The SHOULD that asks for a Content-Range on a 416 is stated for a
+    /// byte-range request, so a 416 to `pages=1-2` is not measured against it.
+    #[rstest]
+    fn missing_content_range_on_a_non_byte_range_416_is_not_reported() {
+        let rule = MessageRangeAndContentRangeConsistency;
+        let v = rule.check_transaction(
+            &tx_416("pages=1-2", &[]),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_units(&["bytes"]),
+        );
+        assert!(v.is_none(), "unlicensed 416 finding: {:?}", v);
+
+        // ...but a form the status cannot mean is still reported, because the
+        // server chose to send that field.
+        let v2 = rule.check_transaction(
+            &tx_416("pages=1-2", &[("content-range", "pages 1-2/9")]),
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
         );
         assert!(v2.is_some());
+    }
 
-        let tx_missing = crate::test_helpers::make_test_transaction_with_response(416, &[]);
-        let v3 = rule.check_transaction(
-            &tx_missing,
+    /// A 416 answers a Range request. Without one there is no rejected range set
+    /// for the status code to be about.
+    #[rstest]
+    fn a_416_without_a_request_range_is_reported() {
+        let rule = MessageRangeAndContentRangeConsistency;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            416,
+            &[("content-range", "bytes */1234")],
+        );
+        let v = rule.check_transaction(
+            &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
         );
-        assert!(v3.is_some());
+        assert!(v.unwrap().message.contains("no Range header"));
     }
 
     #[rstest]
@@ -539,8 +626,11 @@ mod tests {
         assert!(v.unwrap().message.contains("must not use '*'"));
     }
 
+    /// A Content-Length that does not parse leaves no number to compare against
+    /// the range, and the field's syntax belongs to `message_content_length`.
+    /// This rule used to report it too, in the owner's own words.
     #[rstest]
-    fn test_206_with_non_numeric_content_length_reports_violation() {
+    fn malformed_content_length_is_left_to_its_owner() {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(
             206,
             &[("content-range", "bytes 0-1/10"), ("content-length", "abc")],
@@ -554,8 +644,47 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Invalid Content-Length"));
+        assert!(
+            v.is_none(),
+            "reported a field this rule does not own: {v:?}"
+        );
+
+        let owner = crate::rules::message_content_length::MessageContentLength;
+        let found = owner.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[crate::rules::Rule::id(
+                &owner,
+            )]),
+        );
+        assert!(
+            found.is_some(),
+            "the owner must report what this rule declines"
+        );
+    }
+
+    /// `Content-Length: 500, 500` is one value, 500, by § 6.3. The private
+    /// `parse::<u128>()` this rule used to run rejected it -- a conforming 206
+    /// reported twice, once for a length that was never wrong.
+    #[rstest]
+    fn comma_list_content_length_is_read_as_its_single_value() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            206,
+            &[
+                ("content-range", "bytes 0-499/1234"),
+                ("content-length", "500, 500"),
+            ],
+        );
+        tx.request
+            .headers
+            .insert("range", "bytes=0-499".parse().unwrap());
+        let rule = MessageRangeAndContentRangeConsistency;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_units(&["bytes"]),
+        );
+        assert!(v.is_none(), "conforming Content-Length reported: {v:?}");
     }
 
     #[test]
