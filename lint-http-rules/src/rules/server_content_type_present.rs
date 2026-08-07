@@ -37,29 +37,39 @@ impl Rule for ServerContentTypePresent {
             return None;
         }
 
-        // If response likely contains a body, require Content-Type.
-        let has_nonzero_content_length =
-            crate::helpers::headers::get_header_str(&resp.headers, "content-length")
-                .and_then(|s| s.parse::<usize>().ok())
-                .map(|n| n > 0)
-                .unwrap_or(false);
-
-        let has_transfer_encoding = resp.headers.contains_key("transfer-encoding");
-
-        // There is likely a body if any of the following holds:
-        // - non-zero Content-Length
-        // - Transfer-Encoding is present
-        // - 2xx status and neither Content-Length nor Transfer-Encoding is present
-        let likely_has_body = has_nonzero_content_length
-            || has_transfer_encoding
-            || ((200..300).contains(&status) && !resp.headers.contains_key("content-length"));
+        // The requirement is conditioned on the message *containing content*,
+        // and the transaction records how many octets arrived. The rule
+        // inferred it from header fields instead, and one of the three
+        // inferences asserted a body from the *absence* of information: a 2xx
+        // with no Content-Length was taken to have one. That is backwards --
+        // § 6.3's last item says a response that declares no length is
+        // delimited by the connection closing, which says nothing about
+        // whether any octets arrive, and over HTTP/2 or HTTP/3 an ordinary
+        // empty 200 carries no Content-Length at all. Every such response was
+        // reported.
+        // cite(RFC 9112 § 6.3): "Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection."
+        //
+        // So the observation wins where there is one. `body_length` is `None`
+        // only on the paths that never captured a body, and there the header
+        // evidence is all there is -- but only the two signals that *assert*
+        // content, never the absence of one.
+        let has_content = match resp.body_length {
+            Some(n) => n > 0,
+            None => {
+                let declared = crate::helpers::headers::validate_content_length(&resp.headers)
+                    .ok()
+                    .flatten();
+                declared.is_some_and(|n| n > 0)
+                    || resp.headers.contains_key(hyper::header::TRANSFER_ENCODING)
+            }
+        };
 
         // cite(RFC 9110 § 8.3): "Content-Type = media-type"
-        if likely_has_body {
+        if has_content {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
-                message: "Response likely has body but is missing Content-Type header".into(),
+                message: "Response contains content but no Content-Type header".into(),
             });
         }
 
@@ -121,17 +131,19 @@ mod tests {
 
     #[rstest]
     #[case(200, vec![("content-type", "text/html")], false, None)]
-    #[case(200, vec![], true, Some("Response likely has body but is missing Content-Type header"))]
+    // No captured body on any of these, so the header evidence is all there
+    // is. The bare 200 no longer counts as content: nothing asserts one.
+    #[case(200, vec![], false, None)]
     #[case(204, vec![], false, None)]
     #[case(100, vec![], false, None)]
     #[case(101, vec![], false, None)]
     #[case(304, vec![], false, None)]
     #[case(200, vec![("content-length", "0")], false, None)]
-    #[case(200, vec![("content-length", "10")], true, Some("Response likely has body but is missing Content-Type header"))]
+    #[case(200, vec![("content-length", "10")], true, Some("Response contains content but no Content-Type header"))]
     #[case(404, vec![("content-type", "text/html")], false, None)]
-    #[case(404, vec![("content-length", "10")], true, Some("Response likely has body but is missing Content-Type header"))]
-    #[case(500, vec![("transfer-encoding", "chunked")], true, Some("Response likely has body but is missing Content-Type header"))]
-    #[case(200, vec![("transfer-encoding", "chunked")], true, Some("Response likely has body but is missing Content-Type header"))]
+    #[case(404, vec![("content-length", "10")], true, Some("Response contains content but no Content-Type header"))]
+    #[case(500, vec![("transfer-encoding", "chunked")], true, Some("Response contains content but no Content-Type header"))]
+    #[case(200, vec![("transfer-encoding", "chunked")], true, Some("Response contains content but no Content-Type header"))]
     fn check_response_cases(
         #[case] status: u16,
         #[case] header_pairs: Vec<(&str, &str)>,
@@ -166,6 +178,80 @@ mod tests {
             assert!(violation.is_none());
         }
         Ok(())
+    }
+
+    fn resp(
+        status: u16,
+        headers: &[(&str, &str)],
+        body_length: Option<u64>,
+    ) -> crate::http_transaction::HttpTransaction {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(headers),
+            body_length,
+            trailers: None,
+        });
+        tx
+    }
+
+    fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<crate::lint::Violation> {
+        let rule = ServerContentTypePresent;
+        rule.check_transaction(
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+    }
+
+    /// Where the octets were counted, the count decides. The rule used to infer
+    /// a body from header fields even when it had the answer.
+    #[rstest]
+    #[case(Some(0), false)]
+    #[case(Some(7), true)]
+    fn the_observed_body_decides(#[case] body_length: Option<u64>, #[case] expect: bool) {
+        assert_eq!(run(&resp(200, &[], body_length)).is_some(), expect);
+    }
+
+    /// A 2xx without Content-Length was taken to have a body, which asserts
+    /// content from the absence of information -- and is what an ordinary empty
+    /// HTTP/2 response looks like.
+    #[rstest]
+    #[case(200)]
+    #[case(201)]
+    #[case(299)]
+    fn a_2xx_without_framing_headers_is_not_evidence_of_content(#[case] status: u16) {
+        assert!(
+            run(&resp(status, &[], Some(0))).is_none(),
+            "an empty {status} declares no length and carries nothing"
+        );
+    }
+
+    /// With no observation, the two positive signals still stand.
+    #[rstest]
+    #[case(vec![("content-length", "10")], true)]
+    #[case(vec![("transfer-encoding", "chunked")], true)]
+    #[case(vec![("content-length", "0")], false)]
+    #[case(vec![], false)]
+    fn without_an_observation_only_positive_evidence_counts(
+        #[case] headers: Vec<(&str, &str)>,
+        #[case] expect: bool,
+    ) {
+        assert_eq!(run(&resp(200, &headers, None)).is_some(), expect);
+    }
+
+    /// The Content-Length read goes through the shared validator, so a
+    /// malformed one is nobody's evidence and § 6.3's comma list is one value.
+    #[rstest]
+    #[case("abc", false)]
+    #[case("10, 10", true)]
+    #[case("0, 0", false)]
+    fn the_declared_length_is_read_by_the_shared_validator(#[case] cl: &str, #[case] expect: bool) {
+        assert_eq!(
+            run(&resp(200, &[("content-length", cl)], None)).is_some(),
+            expect
+        );
     }
 
     #[test]
