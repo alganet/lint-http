@@ -4129,7 +4129,7 @@ sources:
     snippet: If octet_hex contains characters outside the range %x30-39 or %x61-66 (i.e., it is not in 0-9 or lowercase a-f), fail parsing.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 299
+      line: 304
   - label: lint-http-rules/src/helpers/structured_fields.rs (7)
     section: § 4.2.10
     snippet: If the first two characters of input_string are not "%" followed by DQUOTE, fail parsing.
@@ -4147,13 +4147,13 @@ sources:
     snippet: Let unicode_sequence be the result of decoding byte_array as a UTF-8 string (Section 3 of [UTF8]).
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 314
+      line: 317
   - label: lint-http-rules/src/helpers/structured_fields.rs (10)
     section: § 4.2.3.1
     snippet: Otherwise, the item type is unrecognized; fail parsing.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 331
+      line: 334
   - label: lint-http-rules/src/helpers/structured_fields.rs (11)
     section: § 4.2.3.3
     snippet: If the first character of input_string is not lcalpha or "*", fail parsing.
@@ -4269,13 +4269,13 @@ sources:
     snippet: If the first character of input_string is not "?", fail parsing.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 343
+      line: 346
   - label: lint-http-rules/src/helpers/structured_fields.rs (30)
     section: § 4.2.8
     snippet: No value has matched; fail parsing.
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
-      line: 344
+      line: 347
   - label: lint-http-rules/src/helpers/structured_fields.rs (31)
     section: § 4.2.9
     snippet: If output_date is a Decimal, fail parsing.
