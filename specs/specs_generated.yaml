@@ -2016,13 +2016,13 @@ sources:
     snippet: RWS = 1*( SP / HTAB )
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
-      line: 185
+      line: 190
   - label: lint-http-rules/src/helpers/product.rs (6)
     section: § 5.6.3
     snippet: The RWS rule is used when at least one linear whitespace octet is required to separate field tokens.
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
-      line: 184
+      line: 189
   - label: lint-http-rules/src/helpers/product.rs (7)
     section: § 5.6.4
     snippet: The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs.

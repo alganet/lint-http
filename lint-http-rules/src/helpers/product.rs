@@ -117,10 +117,10 @@ fn scan_product(v: &[u8], start: usize) -> Result<(usize, bool), String> {
         i += 1;
     }
     if i == start {
-        return Err(format!(
-            "expected a product identifier, found {}",
-            describe(v[start])
-        ));
+        return Err(match v.get(start) {
+            None => "expected a product identifier, found end of value".into(),
+            Some(&b) => format!("expected a product identifier, found {}", describe(b)),
+        });
     }
 
     if i < v.len() && v[i] == b'/' {
@@ -175,25 +175,29 @@ pub fn validate_product_list(value: &[u8]) -> Result<(), String> {
     if !is_tchar_byte(v[0]) {
         return Err("value does not begin with a product identifier".into());
     }
-    let (mut i, mut had_version) = scan_product(v, 0)?;
+    let (mut i, mut previous) = match scan_product(v, 0)? {
+        (end, true) => (end, "product version"),
+        (end, false) => (end, "product token"),
+    };
 
     while i < v.len() {
         // Every element after the first is introduced by whitespace, so the
-        // octet that stopped the previous product is a syntax error and not the
-        // start of the next element.
+        // octet that stopped the previous element is an error either way -- but
+        // which error depends on the octet. One that could open an element is a
+        // missing separator; one that could not was never a separator question
+        // and belongs to the element it interrupted.
         // cite(RFC 9110 § 5.6.3): "The RWS rule is used when at least one linear whitespace octet is required to separate field tokens."
         // cite(RFC 9110 § 5.6.3): "RWS = 1*( SP / HTAB )"
         if v[i] != b' ' && v[i] != b'\t' {
-            let half = if had_version {
-                "product version"
+            return Err(if v[i] == b'(' {
+                format!("missing required whitespace before a comment, after the {previous}")
+            } else if is_tchar_byte(v[i]) {
+                format!(
+                    "missing required whitespace before a product identifier, after the {previous}"
+                )
             } else {
-                "product token"
-            };
-            return Err(format!(
-                "{} contains invalid character: {}",
-                half,
-                describe(v[i])
-            ));
+                format!("{previous} contains invalid character: {}", describe(v[i]))
+            });
         }
         while i < v.len() && (v[i] == b' ' || v[i] == b'\t') {
             i += 1;
@@ -204,11 +208,15 @@ pub fn validate_product_list(value: &[u8]) -> Result<(), String> {
 
         if v[i] == b'(' {
             i = scan_comment(v, i)?;
-            had_version = false;
+            previous = "comment";
         } else {
-            let (next, version) = scan_product(v, i)?;
-            i = next;
-            had_version = version;
+            let (end, version) = scan_product(v, i)?;
+            i = end;
+            previous = if version {
+                "product version"
+            } else {
+                "product token"
+            };
         }
     }
 
@@ -248,7 +256,18 @@ mod tests {
     #[case("Agent  /1.0", "expected a product identifier, found '/'")]
     #[case("Bad (unbalanced", "unterminated parenthesized comment")]
     #[case("Bad )extra", "expected a product identifier, found ')'")]
-    #[case("nginx/1.0(Ubuntu)", "product version contains invalid character: '('")]
+    #[case(
+        "nginx/1.0(Ubuntu)",
+        "missing required whitespace before a comment, after the product version"
+    )]
+    #[case(
+        "nginx(Ubuntu)",
+        "missing required whitespace before a comment, after the product token"
+    )]
+    #[case(
+        "nginx/1.0 (Ubuntu)mod_x/2",
+        "missing required whitespace before a product identifier, after the comment"
+    )]
     #[case("Agent\\(1.0\\)", "product token contains invalid character: '\\'")]
     fn rejects_non_conforming_values(#[case] v: &str, #[case] expected: &str) {
         let err = validate_product_list(v.as_bytes()).expect_err(v);
