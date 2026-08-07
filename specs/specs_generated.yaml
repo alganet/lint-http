@@ -3798,7 +3798,7 @@ sources:
     snippet: A cache MAY combine these ranges into a single stored response, and reuse that response to satisfy later requests, if they all share the same strong validator
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 85
+      line: 107
   - label: stateful_s_max_age_enforcement
     section: § 5.2.2.10
     snippet: The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field.
