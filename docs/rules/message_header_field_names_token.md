@@ -8,9 +8,9 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-This rule validates that **header field-names** conform to the `token` grammar. Field-names containing control characters, spaces, or other separator characters are invalid and can indicate protocol violations or injection attempts.
+This rule validates that **field names** conform to the `token` grammar. Field names containing control characters, spaces, or other separator characters are invalid and can indicate protocol violations or injection attempts.
 
-The rule flags header names that contain characters outside the allowed `tchar` set (letters, digits, and the following characters: ``! # $ % & ' * + - . ^ _ ` | ~``).
+The rule flags field names that contain characters outside the allowed `tchar` set (letters, digits, and the following characters: ``! # $ % & ' * + - . ^ _ ` | ~``). One grammar governs every field section, so the request and response header sections are checked and so are their trailer sections when the message framing carried one.
 
 ## Specifications
 
