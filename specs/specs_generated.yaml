@@ -1693,6 +1693,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_user_agent_present.rs
       line: 28
+    - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
+      line: 23
   - label: lint-http-core/src/http_date.rs
     section: § 5.6.7
     snippet: A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats.
@@ -1992,7 +1994,7 @@ sources:
     - file: lint-http-rules/src/helpers/product.rs
       line: 174
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
-      line: 30
+      line: 38
   - label: lint-http-rules/src/helpers/product.rs (2)
     section: § 10.2.4
     snippet: Each product identifier consists of a name and optional version, as defined in Section 10.1.5.
@@ -2422,7 +2424,7 @@ sources:
     - file: lint-http-rules/src/rules/message_server_header_product_valid.rs
       line: 50
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
-      line: 34
+      line: 58
   - label: message_charset_iana_registered (2)
     section: § 8.3
     snippet: 'The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics.'
@@ -3011,12 +3013,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_server_header_product_valid.rs
       line: 45
+    - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
+      line: 53
   - label: message_server_header_product_valid (3)
     section: § 6.5.1
     snippet: A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers.
     cited_by:
     - file: lint-http-rules/src/rules/message_server_header_product_valid.rs
       line: 36
+    - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
+      line: 44
   - label: message_te_header_constraints
     section: § 10.1.4
     snippet: The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections.

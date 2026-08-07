@@ -13,7 +13,15 @@ impl Rule for MessageUserAgentTokenValid {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
+        // `User-Agent` is defined for requests only -- it lives under §10.1,
+        // "Request Context Fields", and the field's own first sentence says
+        // whose request it describes. A response carrying one is not this
+        // rule's subject: there is no sentence giving the field a meaning in
+        // that direction, so there is nothing for a grammar finding to mean.
+        // This is the mirror of the argument `Server` carries next door, where
+        // the same production is response-only.
+        // cite(RFC 9110 § 10.1.5): "The "User-Agent" header field contains information about the user agent originating the request"
+        crate::rules::RuleScope::Client
     }
 
     fn check_transaction(
@@ -28,32 +36,32 @@ impl Rule for MessageUserAgentTokenValid {
         // in the shared helper so the two fields cannot be validated by two
         // readings of the same sentence.
         // cite(RFC 9110 § 10.1.5): "The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts."
-        let check_value = |hv: &hyper::header::HeaderValue| -> Option<Violation> {
+        //
+        // The request trailer section is deliberately not walked. §10.1.5 puts
+        // the field in a request and says nothing about trailers, which makes a
+        // `User-Agent` trailer a violation of the sentence below rather than a
+        // value for this rule to grammar-check; the trailer rules own it.
+        // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
+        //
+        // Each field line is parsed on its own, and deliberately not joined
+        // first. No alternative of `User-Agent` is a comma-separated list, so
+        // the recombination the note in §5.5 assumes does not apply here and the
+        // comma a recipient would insert is not a `tchar` -- joining would turn
+        // a second field line into a grammar finding, which blames the wrong
+        // sentence. The second line is a violation of §5.3 as a whole message,
+        // which no rule in the tree currently owns.
+        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers)"
+        for hv in tx.request.headers.get_all("user-agent").iter() {
             // The raw octets, not `to_str()`: `ctext` admits `obs-text`, so a
-            // conforming value need not be visible US-ASCII.
+            // conforming value need not be visible US-ASCII and the decode would
+            // reject the field before the grammar could accept it.
             // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-            crate::helpers::product::validate_product_list(hv.as_bytes())
-                .err()
-                .map(|e| Violation {
+            if let Err(e) = crate::helpers::product::validate_product_list(hv.as_bytes()) {
+                return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
                     message: format!("Invalid User-Agent header: {}", e),
-                })
-        };
-
-        // Check request User-Agent headers
-        for hv in tx.request.headers.get_all("user-agent").iter() {
-            if let Some(v) = check_value(hv) {
-                return Some(v);
-            }
-        }
-
-        // Be conservative: also validate User-Agent in responses if present
-        if let Some(resp) = &tx.response {
-            for hv in resp.headers.get_all("user-agent").iter() {
-                if let Some(v) = check_value(hv) {
-                    return Some(v);
-                }
+                });
             }
         }
 
@@ -204,8 +212,11 @@ mod tests {
         Ok(())
     }
 
+    /// An `obs-text` octet is reported for where it sits, not for failing to
+    /// decode: `ctext` admits %x80-FF and `tchar` does not, so the finding has
+    /// to name the production, not the encoding.
     #[test]
-    fn non_utf8_header_value_is_reported() -> anyhow::Result<()> {
+    fn obs_text_outside_a_comment_is_reported_as_a_grammar_fault() -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_user_agent_token_valid",
@@ -221,80 +232,65 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn response_user_agent_is_validated() -> anyhow::Result<()> {
-        let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_user_agent_token_valid",
-        ]);
-
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.response.as_mut().unwrap().headers =
-            crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Bad/UA!")]);
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+        let violation = v.expect("0xFF is not a tchar");
+        assert!(
+            violation
+                .message
+                .contains("does not begin with a product identifier"),
+            "{}",
+            violation.message
         );
-        assert!(v.is_none());
         Ok(())
     }
 
+    /// The same octet inside a comment is `ctext`, and the value conforms.
     #[test]
-    fn response_multiple_user_agent_fields_are_checked() -> anyhow::Result<()> {
+    fn obs_text_inside_a_comment_is_accepted() -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_user_agent_token_valid",
         ]);
 
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let mut hm = crate::test_helpers::make_headers_from_pairs(&[("user-agent", "curl/7.68.0")]);
-        hm.append("user-agent", HeaderValue::from_static("Bad@UA/1.0"));
-        tx.response.as_mut().unwrap().headers = hm;
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn response_non_utf8_header_value_is_reported() -> anyhow::Result<()> {
-        let rule = MessageUserAgentTokenValid;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_user_agent_token_valid",
-        ]);
-
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        hm.insert("user-agent", HeaderValue::from_bytes(b"\xff").unwrap());
-        tx.response.as_mut().unwrap().headers = hm;
+        hm.insert(
+            "user-agent",
+            HeaderValue::from_bytes(b"Mozilla/5.0 (U\xdcnix)").unwrap(),
+        );
+        tx.request.headers = hm;
 
         let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
-        if let Some(violation) = v {
-            // 0xFF is `obs-text`, which `ctext` admits and `tchar` does not, so
-            // the octet is reported for sitting outside a comment rather than
-            // for failing to decode.
-            assert!(
-                violation
-                    .message
-                    .contains("does not begin with a product identifier"),
-                "{}",
-                violation.message
+        assert!(v.is_none(), "{v:?}");
+        Ok(())
+    }
+
+    /// `User-Agent` is a request context field, so a response carrying one is
+    /// not this rule's subject however malformed the value is. The request in
+    /// this transaction is deliberately left without the field, so the only
+    /// thing that could produce a finding is the response.
+    #[test]
+    fn a_response_user_agent_is_not_this_rules_subject() -> anyhow::Result<()> {
+        let rule = MessageUserAgentTokenValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
+
+        for value in ["/1.0", "(compatible)", "Bad@UA/1.0"] {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+            tx.response.as_mut().unwrap().headers =
+                crate::test_helpers::make_headers_from_pairs(&[("user-agent", value)]);
+
+            let v = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
             );
+            assert!(v.is_none(), "{value}: {v:?}");
         }
         Ok(())
     }
@@ -474,7 +470,7 @@ mod tests {
     fn message_and_id() {
         let rule = MessageUserAgentTokenValid;
         assert_eq!(rule.id(), "message_user_agent_token_valid");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
     }
 
     #[test]
