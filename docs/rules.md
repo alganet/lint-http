@@ -25,7 +25,7 @@ Generated index of every rule in the catalogue. Each entry links to the per-rule
 - [client_request_uri_percent_encoding_valid](rules/client_request_uri_percent_encoding_valid.md) — This rule checks that percent-encodings (pct-encodings) in the request-target are well-formed: each `%` must be followed by exactly two hexadecimal digits. Malformed percent-encodings can lead to ambiguous URIs or incorrect parsing by intermediaries.
 - [client_request_version_method_validity](rules/client_request_version_method_validity.md) — Clients SHOULD use request methods whose semantics align with the message
 - [client_sec_websocket_headers_consistency](rules/client_sec_websocket_headers_consistency.md) — For `GET` requests with `Upgrade: websocket`, validate that the WebSocket client handshake request includes required headers and well-formed values:
-- [client_user_agent_present](rules/client_user_agent_present.md) — This rule checks if the client sends a `User-Agent` header in the request.
+- [client_user_agent_present](rules/client_user_agent_present.md) — Report a request that carries no `User-Agent` header field. RFC 9110 §10.1.5 makes sending one a `SHOULD`, in each request, and it asks it of a *user agent* — which in that specification is any client program that initiates a request, so a command-line tool or a firmware update script is inside the requirement and not only a browser.
 
 ## Server Rules
 
