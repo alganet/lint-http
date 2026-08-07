@@ -72,13 +72,17 @@ async fn start_proxy_with_h3(
     cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
 
     // Find free ports for TCP and UDP
+    // Keep the listener and hand it to the proxy below: dropping it here would
+    // leave the port unowned until `run_proxy` rebinds it, and another test in
+    // this binary can take it in that gap.
     let tcp_listener = std::net::TcpListener::bind("127.0.0.1:0")?;
     let tcp_addr = tcp_listener.local_addr()?;
-    drop(tcp_listener);
 
+    // Keep this one too, and hand it over below. `h3_listen` still decides that
+    // HTTP/3 runs; the socket decides which port it runs on, and a port released
+    // here is one another test can take before the QUIC endpoint binds it.
     let udp_socket = std::net::UdpSocket::bind("127.0.0.1:0")?;
     let h3_addr = udp_socket.local_addr()?;
-    drop(udp_socket);
 
     cfg.general.h3_listen = Some(h3_addr.to_string());
 
@@ -93,7 +97,9 @@ async fn start_proxy_with_h3(
     let cfg = Arc::new(cfg);
     let cfg2 = cfg.clone();
     let handle = tokio::spawn(async move {
-        let _ = lint_http::proxy::run_proxy(tcp_addr, cw, cfg2).await;
+        if let Err(e) = lint_http::proxy::run_proxy((tcp_listener, udp_socket), cw, cfg2).await {
+            eprintln!("run_proxy on {tcp_addr} exited: {e:#}");
+        }
     });
 
     // Wait for TCP listener

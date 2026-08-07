@@ -40,11 +40,20 @@ const QUIC_MAX_IDLE_TIMEOUT_MS: u64 = 30_000;
 const QUIC_STREAM_RECEIVE_WINDOW: u64 = 1_048_576; // 1 MiB
 const QUIC_RECEIVE_WINDOW: u64 = 4_194_304; // 4 MiB
 
-/// Create a QUIC endpoint bound to `addr` with a TLS certificate for
-/// `server_name`.  This performs all fallible initialization (cert generation,
-/// socket bind) synchronously so errors propagate to the caller.
+/// Where the QUIC endpoint's socket comes from — the same question
+/// [`super::ListenOn`] asks for TCP, and the same answer: a port chosen and
+/// released is a port anything else can take before this binds it.
+pub(super) enum H3Bind {
+    Addr(SocketAddr),
+    Bound(std::net::UdpSocket),
+}
+
+/// Create a QUIC endpoint on `bind` with a TLS certificate for `server_name`.
+/// This performs all fallible initialization (cert generation, and the socket
+/// bind when `bind` names an address) synchronously so errors propagate to the
+/// caller.
 pub(super) fn init_h3_endpoint(
-    addr: SocketAddr,
+    bind: H3Bind,
     server_name: &str,
     ca: &CertificateAuthority,
 ) -> anyhow::Result<(
@@ -88,7 +97,20 @@ pub(super) fn init_h3_endpoint(
 
     let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(quic_server_config));
     server_config.transport_config(Arc::new(transport));
-    let endpoint = quinn::Endpoint::server(server_config, addr)?;
+    // `Endpoint::server` is the `Endpoint::new` below with
+    // `EndpointConfig::default()` and a socket it binds itself.
+    let endpoint = match bind {
+        H3Bind::Addr(addr) => quinn::Endpoint::server(server_config, addr)?,
+        H3Bind::Bound(socket) => {
+            socket.set_nonblocking(true)?;
+            quinn::Endpoint::new(
+                quinn::EndpointConfig::default(),
+                Some(server_config),
+                socket,
+                Arc::new(quinn::TokioRuntime),
+            )?
+        }
+    };
 
     let params = crate::protocol_event::QuicTransportParameters {
         initial_max_streams_bidi: Some(QUIC_MAX_CONCURRENT_BIDI_STREAMS),
@@ -99,6 +121,10 @@ pub(super) fn init_h3_endpoint(
         initial_max_stream_data_uni: Some(QUIC_STREAM_RECEIVE_WINDOW),
     };
 
+    // Read the address back off the endpoint rather than echoing what was asked
+    // for: with `:0` the requested port is 0 and the bound one is what a client
+    // needs, and a handed-over socket was never named by an address at all.
+    let addr = endpoint.local_addr()?;
     info!(%addr, "HTTP/3 (QUIC) listening");
     Ok((endpoint, params))
 }

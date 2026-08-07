@@ -40,15 +40,25 @@ pub async fn start_run_proxy_and_wait(
         .to_string();
     let cw = CaptureWriter::new(p.clone(), false).await?;
 
-    // Choose a free port by binding then dropping
+    // Choose a free port, and hand the listener itself to the proxy. Reading the
+    // address back and dropping the listener would leave the port unowned until
+    // `run_proxy` rebinds it, and the tests in a binary run concurrently: another
+    // one can take it in that gap. Then this proxy fails to bind and this test's
+    // traffic reaches *that* proxy, which is configured for something else — a
+    // 502 for a request that should have been relayed, or captures that never
+    // arrive because they were written to the other test's file.
     let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
     let addr = listener.local_addr()?;
-    drop(listener);
 
     let cfg = Arc::new(cfg);
     let cfg_for_spawn = cfg.clone();
     let handle = tokio::spawn(async move {
-        let _ = run_proxy(addr, cw, cfg_for_spawn).await;
+        // Say why the proxy stopped. Swallowing this turns any startup failure
+        // into the wait loop's generic timeout below, which names the symptom
+        // and not the cause.
+        if let Err(e) = run_proxy(listener, cw, cfg_for_spawn).await {
+            eprintln!("run_proxy on {addr} exited: {e:#}");
+        }
     });
 
     // Wait for server to accept connections
