@@ -13,6 +13,9 @@ impl Rule for MessageHeaderFieldNamesToken {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
+        // The grammar is stated for fields, with no clause naming a direction or a
+        // section, so every field the transaction carries is in scope.
+        // cite(RFC 9110 § 5): "Fields are sent and received within the header and trailer sections of messages"
         crate::rules::RuleScope::Both
     }
 
@@ -23,19 +26,20 @@ impl Rule for MessageHeaderFieldNamesToken {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // token characters per RFC token (tchar) - use shared helper
-        // Check request headers
-        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
+
         if let Some(v) = check_section("request header section", &tx.request.headers, &config) {
             return Some(v);
         }
+        // A trailer field name is a field name, so the same grammar reaches it. The
+        // section is `None` unless the framing carried one.
+        // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
         if let Some(trailers) = &tx.request.trailers {
             if let Some(v) = check_section("request trailer section", trailers, &config) {
                 return Some(v);
             }
         }
 
-        // Check response headers if present
+        // A transaction the upstream never answered has no response half to read.
         if let Some(resp) = &tx.response {
             if let Some(v) = check_section("response header section", &resp.headers, &config) {
                 return Some(v);
@@ -55,12 +59,38 @@ impl Rule for MessageHeaderFieldNamesToken {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("5.1"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1",
-            note: "Field Names",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1",
+                note: "Field Names (field-name = token)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.6.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+                note: "Tokens (the tchar set the production expands to)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("6.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5",
+                note: "Trailer Fields",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9113",
+                section: Some("8.2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.1",
+                note: "Field Validity (HTTP/2 recipients validate names against §5.1)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9114",
+                section: Some("4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2",
+                note: "HTTP Fields (HTTP/3 defers field-name properties to §5.1)",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -92,6 +122,12 @@ fn check_section(
     config: &crate::rules::RuleConfig,
 ) -> Option<Violation> {
     for (k, _v) in fields.iter() {
+        // The one check a § 5.1 validator still owes -- that the name is not
+        // uppercase -- is not observable from this representation, and so is enforced
+        // nowhere in this rule: the HTTP/1 parser folds case on the way in, and the
+        // HTTP/2 and HTTP/3 decoders reject an uppercase name outright, so `as_str()`
+        // has already been made lowercase by the time any rule reads it.
+        // cite(RFC 9114 § 4.2): "A request or response containing uppercase characters in field names MUST be treated as malformed"
         if let Some(v) = check_header_name(section, k.as_str(), config) {
             return Some(v);
         }
@@ -100,12 +136,23 @@ fn check_section(
 }
 
 // Extracted helper to make the message/violation formatting testable without needing
-// to construct invalid `HeaderName` values (which hyper often rejects).
+// to construct a `HeaderName` the HTTP/1 parser would reject.
+//
+// The check has teeth on the HTTP/2 and HTTP/3 legs. Their minimal field-name
+// validation prohibits control characters, SP, uppercase and COLON, which leaves
+// DQUOTE to the RFC 9110 § 5.1 check both specs ask a recipient to also perform.
+// cite(RFC 9113 § 8.2.1): "HTTP/2 implementations SHOULD validate field names and values according to their definitions in Sections 5.1 and 5.5 of [HTTP], respectively, and treat messages that contain prohibited characters as malformed"
+// cite(RFC 9114 § 4.2): "Properties of HTTP field names and values are discussed in more detail in Section 5.1 of [HTTP]"
 fn check_header_name(
     section: &str,
     name: &str,
     config: &crate::rules::RuleConfig,
 ) -> Option<Violation> {
+    // The production is defined in § 5.1; the quote is the collected grammar's copy,
+    // where it sits beside a neighbour rather than alone between two paragraphs, so
+    // there is enough of it to stand as evidence. The `tchar` set it expands to is
+    // transcribed once, in the shared helper, and read from there.
+    // cite(RFC 9110 § A): "field-name = token field-value = *field-content"
     if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
         return Some(Violation {
             rule: MessageHeaderFieldNamesToken.id().into(),

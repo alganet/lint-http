@@ -16,7 +16,11 @@ An HTTP/1.1 field name that is not a `token` is rejected by the message parser b
 
 ## Specifications
 
-- [RFC 9110 §5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1): Field Names
+- [RFC 9110 §5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1): Field Names (field-name = token)
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens (the tchar set the production expands to)
+- [RFC 9110 §6.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5): Trailer Fields
+- [RFC 9113 §8.2.1](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.1): Field Validity (HTTP/2 recipients validate names against §5.1)
+- [RFC 9114 §4.2](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2): HTTP Fields (HTTP/3 defers field-name properties to §5.1)
 
 ## Configuration
 

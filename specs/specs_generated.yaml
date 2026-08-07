@@ -2685,14 +2685,30 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
       line: 87
-    - file: lint-http-rules/src/rules/message_header_field_names_token.rs
-      line: 28
   - label: message_from_header_email_syntax
     section: § 10.1.2
     snippet: The "From" header field contains an Internet email address for a human user who controls the requesting user agent.
     cited_by:
     - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
       line: 29
+  - label: message_header_field_names_token
+    section: § 5
+    snippet: Fields are sent and received within the header and trailer sections of messages
+    cited_by:
+    - file: lint-http-rules/src/rules/message_header_field_names_token.rs
+      line: 18
+  - label: message_header_field_names_token (2)
+    section: § 6.5
+    snippet: Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields"
+    cited_by:
+    - file: lint-http-rules/src/rules/message_header_field_names_token.rs
+      line: 35
+  - label: message_header_field_names_token (3)
+    section: § A
+    snippet: field-name = token field-value = *field-content
+    cited_by:
+    - file: lint-http-rules/src/rules/message_header_field_names_token.rs
+      line: 155
   - label: message_http3_pseudo_headers_validity
     section: § 15
     snippet: All valid status codes are within the range of 100 to 599, inclusive.
@@ -3811,6 +3827,12 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc9113.txt
   type: text/plain
   fragments:
+  - label: message_header_field_names_token
+    section: § 8.2.1
+    snippet: HTTP/2 implementations SHOULD validate field names and values according to their definitions in Sections 5.1 and 5.5 of [HTTP], respectively, and treat messages that contain prohibited characters as malformed
+    cited_by:
+    - file: lint-http-rules/src/rules/message_header_field_names_token.rs
+      line: 144
   - label: message_http2_pseudo_headers_validity
     section: § 8.3
     snippet: All pseudo-header fields MUST appear in a field block before all regular field lines.
@@ -3857,6 +3879,18 @@ sources:
       line: 128
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
       line: 36
+  - label: message_header_field_names_token
+    section: § 4.2
+    snippet: A request or response containing uppercase characters in field names MUST be treated as malformed
+    cited_by:
+    - file: lint-http-rules/src/rules/message_header_field_names_token.rs
+      line: 130
+  - label: message_header_field_names_token (2)
+    section: § 4.2
+    snippet: Properties of HTTP field names and values are discussed in more detail in Section 5.1 of [HTTP]
+    cited_by:
+    - file: lint-http-rules/src/rules/message_header_field_names_token.rs
+      line: 145
   - label: message_http3_host_authority_consistency
     section: § 4.3.1
     snippet: If both fields are present, they MUST contain the same value.
