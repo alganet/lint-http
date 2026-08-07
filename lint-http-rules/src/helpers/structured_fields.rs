@@ -95,9 +95,15 @@ pub(crate) fn split_spaces_outside_quotes(s: &str) -> Vec<&str> {
     parts
 }
 
+/// Byte offset of the first `ch` outside a quoted-string, or `None`.
+///
+/// `char_indices`, not `chars().enumerate()`: every caller feeds the answer to
+/// `split_at`, which counts bytes. The two agree on the ASCII that § 4.2 step 1
+/// admits and disagree the moment anything else reaches here, and disagreeing
+/// with `split_at` is a panic rather than a wrong answer.
 pub(crate) fn find_char_outside_quotes(s: &str, ch: char) -> Option<usize> {
     let mut in_quote = false;
-    for (i, c) in s.chars().enumerate() {
+    for (i, c) in s.char_indices() {
         if c == '"' {
             in_quote = !in_quote;
         }
@@ -244,6 +250,102 @@ pub(crate) fn is_valid_token_like(v: &str) -> bool {
     true
 }
 
+/// Validate an SF Date.
+///
+/// A Date is an Integer with a leading "@" and no fractional part, so the
+/// bound on its magnitude is § 4.2.4's, which `is_number` already carries.
+/// § 3.3.7's "all days in years 1 to 9999" is a floor under what a parser must
+/// accept, not a range to enforce -- fifteen digits reach well past it.
+///
+// cite(RFC 9651 § 3.3.7): "Dates have a data model that is similar to Integers, representing a (possibly negative) delta in seconds from 1970-01-01T00:00:00Z, excluding leap seconds."
+pub(crate) fn is_date(s: &str) -> bool {
+    // cite(RFC 9651 § 4.2.9): "If the first character of input_string is not "@", fail parsing."
+    let Some(rest) = s.strip_prefix('@') else {
+        return false;
+    };
+    // cite(RFC 9651 § 4.2.9): "If output_date is a Decimal, fail parsing."
+    !rest.contains('.') && is_number(rest)
+}
+
+/// Validate an SF Display String.
+///
+/// Percent-encoding is the escape here, where a String uses "\", and the two
+/// are not interchangeable: a "\" is an ordinary character in a Display String
+/// and a bare DQUOTE ends one. The bytes are decoded rather than merely
+/// counted because the last step is a UTF-8 check on what they spell, and
+/// `%c3` alone is well-formed percent-encoding of an ill-formed sequence.
+///
+// cite(RFC 9651 § 3.3.8): "In textual HTTP fields, Display Strings are represented in a manner similar to Strings, except that non-ASCII characters are percent-encoded; there is a leading "%" to distinguish them from Strings."
+pub(crate) fn is_display_string(s: &str) -> bool {
+    // cite(RFC 9651 § 4.2.10): "If the first two characters of input_string are not "%" followed by DQUOTE, fail parsing."
+    let Some(rest) = s.strip_prefix("%\"") else {
+        return false;
+    };
+    let bytes = rest.as_bytes();
+    let mut decoded: Vec<u8> = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        // cite(RFC 9651 § 4.2.10): "If char is in the range %x00-1f or %x7f-ff (i.e., it is not in VCHAR or SP), fail parsing."
+        if !(0x20..=0x7e).contains(&c) {
+            return false;
+        }
+        if c == b'%' {
+            // cite(RFC 9651 § 4.2.10): "Let octet_hex be the result of consuming two characters from input_string."
+            if i + 2 >= bytes.len() {
+                return false;
+            }
+            let octet_hex = &rest[i + 1..i + 3];
+            // cite(RFC 9651 § 4.2.10): "If octet_hex contains characters outside the range %x30-39 or %x61-66 (i.e., it is not in 0-9 or lowercase a-f), fail parsing."
+            if !octet_hex
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            {
+                return false;
+            }
+            match u8::from_str_radix(octet_hex, 16) {
+                Ok(octet) => decoded.push(octet),
+                Err(_) => return false,
+            }
+            i += 3;
+            continue;
+        }
+        if c == b'"' {
+            // cite(RFC 9651 § 4.2.10): "Let unicode_sequence be the result of decoding byte_array as a UTF-8 string (Section 3 of [UTF8])."
+            return i == bytes.len() - 1 && std::str::from_utf8(&decoded).is_ok();
+        }
+        decoded.push(c);
+        i += 1;
+    }
+    false
+}
+
+/// Validate a bare Item -- any of the seven types § 4.2.3.1 dispatches on.
+///
+/// The algorithm chooses by first character and the seven leading characters
+/// are disjoint, so asking each predicate in turn answers the same question
+/// the dispatch does. What it buys is that a caller cannot enumerate six of
+/// them: every place a bare Item is admitted -- a parameter value, an Item's
+/// head, an Inner List member -- names this one function.
+///
+// cite(RFC 9651 § 4.2.3.1): "Otherwise, the item type is unrecognized; fail parsing."
+pub(crate) fn is_bare_item(s: &str) -> bool {
+    is_number(s)
+        || is_quoted_string(s)
+        || is_valid_token_like(s)
+        || is_byte_sequence(s)
+        || is_boolean(s)
+        || is_date(s)
+        || is_display_string(s)
+}
+
+/// Validate an SF Boolean.
+// cite(RFC 9651 § 4.2.8): "If the first character of input_string is not "?", fail parsing."
+// cite(RFC 9651 § 4.2.8): "No value has matched; fail parsing."
+pub(crate) fn is_boolean(s: &str) -> bool {
+    s == "?1" || s == "?0"
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -283,5 +385,44 @@ mod tests {
     #[case("\"a\"b\"", false)]
     fn quoted_string(#[case] input: &str, #[case] valid: bool) {
         assert_eq!(is_quoted_string(input), valid, "{input:?}");
+    }
+
+    #[rstest]
+    #[case("@1659578233", true)]
+    #[case("@-62135596800", true)]
+    #[case("@0", true)]
+    #[case("@1659578233.5", false)]
+    #[case("@", false)]
+    #[case("1659578233", false)]
+    fn date(#[case] input: &str, #[case] valid: bool) {
+        assert_eq!(is_date(input), valid, "{input:?}");
+    }
+
+    #[rstest]
+    #[case("%\"This is intended for display to %c3%bcsers.\"", true)]
+    #[case("%\"\"", true)]
+    #[case("%\"a\\b\"", true)]
+    #[case("%\"unterminated", false)]
+    #[case("%\"%C3%BC\"", false)]
+    #[case("%\"%c3\"", false)]
+    #[case("%\"%c\"", false)]
+    #[case("\"plain\"", false)]
+    #[case("%\"a\"b\"", false)]
+    fn display_string(#[case] input: &str, #[case] valid: bool) {
+        assert_eq!(is_display_string(input), valid, "{input:?}");
+    }
+
+    #[rstest]
+    #[case("42", true)]
+    #[case("\"s\"", true)]
+    #[case("tok", true)]
+    #[case(":YWJj:", true)]
+    #[case("?1", true)]
+    #[case("@1659578233", true)]
+    #[case("%\"x\"", true)]
+    #[case("(a b)", false)]
+    #[case("", false)]
+    fn bare_item(#[case] input: &str, #[case] valid: bool) {
+        assert_eq!(is_bare_item(input), valid, "{input:?}");
     }
 }
