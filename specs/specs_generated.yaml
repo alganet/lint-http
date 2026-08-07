@@ -1569,19 +1569,25 @@ sources:
       line: 46
   - label: client_accept_encoding_present (4)
     section: § 12.5.3
+    snippet: If the representation has no content coding, then it is acceptable by default unless specifically excluded by the Accept-Encoding header field stating either "identity;q=0" or "*;q=0" without a more specific entry for "identity".
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
+      line: 103
+  - label: client_accept_encoding_present (5)
+    section: § 12.5.3
     snippet: When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response.
     cited_by:
     - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
       line: 45
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 19
-  - label: client_accept_encoding_present (5)
+  - label: client_accept_encoding_present (6)
     section: § 9.3.6
     snippet: Any 2xx (Successful) response indicates that the sender (and all inbound proxies) will switch to tunnel mode immediately after the response header section; data received after that header section is from the server identified by the request target.
     cited_by:
     - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
       line: 33
-  - label: client_accept_encoding_present (6)
+  - label: client_accept_encoding_present (7)
     section: § 9.3.6
     snippet: The CONNECT method requests that the recipient establish a tunnel to the destination origin server identified by the request target and, if successful, thereafter restrict its behavior to blind forwarding of data, in both directions, until the tunnel is closed.
     cited_by:
