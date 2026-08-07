@@ -21,7 +21,7 @@ fn parse_allowed_config(
 
     let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
         anyhow::anyhow!(
-            "rule '{}' requires configuration and a named 'allowed' array listing acceptable header field-names. Example in config_example.toml",
+            "rule '{}' requires configuration and a named 'allowed' array listing the field names this deployment expects, in header and trailer sections alike. Example in config_example.toml",
             rule_id
         )
     })?;
@@ -31,7 +31,7 @@ fn parse_allowed_config(
 
     let allowed_val = table.get("allowed").ok_or_else(|| {
         anyhow::anyhow!(
-            "Rule '{}' requires an 'allowed' array listing allowed header field-names (e.g., ['host','content-type','x-custom'])",
+            "Rule '{}' requires an 'allowed' array listing the field names this deployment expects (e.g., ['host','content-type','acme-request-id'])",
             rule_id
         )
     })?;
@@ -206,7 +206,9 @@ fn check_section(
     fields: &hyper::HeaderMap,
     config: &ExtensionHeadersConfig,
 ) -> Option<Violation> {
-    for (name, _value) in fields.iter() {
+    // `keys()` rather than `iter()`: what is being judged is the name, and a field
+    // repeated across lines is one name that would otherwise be judged once per line.
+    for name in fields.keys() {
         // `as_str()` is already lowercase whatever the wire spelling was -- the HTTP/1
         // parser folds case on the way in and the HTTP/2 and HTTP/3 decoders reject an
         // uppercase name outright -- so the configured side, folded once at parse time,
@@ -462,6 +464,10 @@ mod tests {
         Ok(())
     }
 
+    /// What this pins is where the folding happens, which is not in the rule: the
+    /// configured spelling is folded at parse time and `HeaderName` has folded the
+    /// wire spelling before any rule sees it. Both halves have to hold for a
+    /// deployment to be able to write `X-Custom` in its config and mean it.
     #[test]
     fn header_name_matching_is_case_insensitive() -> anyhow::Result<()> {
         let rule = MessageExtensionHeadersRegistered;
