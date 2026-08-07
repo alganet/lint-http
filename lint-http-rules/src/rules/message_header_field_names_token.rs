@@ -51,7 +51,7 @@ impl Rule for MessageHeaderFieldNamesToken {
     }
 
     fn description(&self) -> &'static str {
-        "This rule validates that **field names** conform to the `token` grammar. Field names containing control characters, spaces, or other separator characters are invalid and can indicate protocol violations or injection attempts.\n\nThe rule flags field names that contain characters outside the allowed `tchar` set (letters, digits, and the following characters: ``! # $ % & ' * + - . ^ _ ` | ~``). One grammar governs every field section, so the request and response header sections are checked and so are their trailer sections when the message framing carried one."
+        "This rule validates that **field names** conform to the `token` grammar. Field names containing control characters, spaces, or other separator characters are invalid and can indicate protocol violations or injection attempts.\n\nThe rule flags field names that contain characters outside the allowed `tchar` set (letters, digits, and the following characters: ``! # $ % & ' * + - . ^ _ ` | ~``). One grammar governs every field section, so the request and response header sections are checked and so are their trailer sections when the message framing carried one.\n\nAn HTTP/1.1 field name that is not a `token` is rejected by the message parser before the linter sees it, so this check has teeth on HTTP/2 and HTTP/3: their field-name encodings can convey a `\"`, which the `token` grammar does not allow, and RFC 9113 §8.2.1 asks a recipient to validate the name against RFC 9110 §5.1 and treat a message carrying a prohibited character as malformed."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -73,8 +73,13 @@ impl Rule for MessageHeaderFieldNamesToken {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Bad Header: v\nX@Bad: v\nheader:with:colon: v",
+                label: Some("HTTP/2 or HTTP/3, where the field-name encoding conveys a DQUOTE"),
+                snippet: "x\"bad: v",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Trailer section, governed by the same grammar"),
+                snippet: "x\"checksum: abc123",
             },
         ]
     }
@@ -275,6 +280,67 @@ mod tests {
             v.message
         );
         assert!(v.message.contains("x\"bad"));
+    }
+
+    /// A NonCompliant snippet the rule cannot flag documents a detection that
+    /// does not exist, and a field name neither constructor accepts is a snippet
+    /// no message can carry. `from_bytes` folds case the way an HTTP/1 parser
+    /// does; `from_lowercase` is the HTTP/2 and HTTP/3 path.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageHeaderFieldNamesToken;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+
+        let mut saw_a_finding = false;
+        for ex in rule.examples() {
+            let mut section = hyper::HeaderMap::new();
+            for line in ex.snippet.lines().filter(|l| !l.trim().is_empty()) {
+                let (raw, value) = line
+                    .split_once(": ")
+                    .unwrap_or_else(|| panic!("not a field line: {line:?}"));
+                let name = HeaderName::from_bytes(raw.as_bytes())
+                    .or_else(|_| HeaderName::from_lowercase(raw.to_ascii_lowercase().as_bytes()))
+                    .unwrap_or_else(|_| {
+                        panic!(
+                            "no HTTP version can carry the field name {raw:?}, \
+                             so no message can carry this example"
+                        )
+                    });
+                section.append(
+                    name,
+                    HeaderValue::from_str(value).expect("valid field value"),
+                );
+            }
+
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            if ex.label.is_some_and(|l| l.starts_with("Trailer section")) {
+                tx.response.as_mut().unwrap().trailers = Some(section);
+            } else {
+                tx.response.as_mut().unwrap().headers = section;
+            }
+
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    saw_a_finding = true;
+                }
+            }
+        }
+        assert!(saw_a_finding, "the guard never produced a finding");
     }
 
     #[test]
