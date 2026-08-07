@@ -84,8 +84,8 @@ impl Rule for ServerCacheControlPresent {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("Response"),
-                snippet: "HTTP/1.1 200 OK\nContent-Type: application/json\n# Missing Cache-Control header",
+                label: Some("Response with no Cache-Control field line"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: application/json",
             },
         ]
     }
@@ -140,5 +140,59 @@ mod tests {
     fn scope_is_server() {
         let rule = ServerCacheControlPresent;
         assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+    }
+
+    /// Each example is a response, and the guard says so rather than assuming
+    /// it: the start line supplies the status the rule gates on, so a
+    /// request-shaped example would be judged against a status it never
+    /// declared. The `NonCompliant` example used to carry `# Missing
+    /// Cache-Control header` as a third line — published in the docs inside an
+    /// `http` block as though a comment were a field line, and reaching no
+    /// parser that could say otherwise.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = ServerCacheControlPresent;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+
+        let mut saw_a_finding = false;
+        for ex in rule.examples() {
+            let mut lines = ex.snippet.lines();
+            let start = lines.next().expect("an example has a start line");
+            let status: u16 = start
+                .split_whitespace()
+                .nth(1)
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| panic!("not a status line: {start:?}"));
+            let pairs: Vec<(&str, &str)> = lines
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                })
+                .collect();
+
+            let tx = crate::test_helpers::make_test_transaction_with_response(status, &pairs);
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule reports its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    saw_a_finding = true;
+                }
+            }
+        }
+        assert!(saw_a_finding, "no published example produced a finding");
     }
 }
