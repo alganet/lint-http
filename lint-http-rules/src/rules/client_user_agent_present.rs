@@ -102,6 +102,11 @@ impl Rule for ClientUserAgentPresent {
                 snippet: "GET /api/data HTTP/1.1\nHost: example.com\nUser-Agent: MyClient/1.0 (Linux; x64)",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some("the value RFC 9110 prints for the field"),
+                snippet: "GET /api/data HTTP/1.1\nHost: example.com\nUser-Agent: CERN-LineMode/2.15 libwww/2.17b3",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("no User-Agent field line"),
                 snippet: "GET /api/data HTTP/1.1\nHost: example.com\nAccept: application/json",
@@ -187,5 +192,94 @@ mod tests {
             found.is_some(),
             "the grammar owner must report what this rule declines"
         );
+    }
+
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = ClientUserAgentPresent;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+
+        let mut saw_a_finding = false;
+        for ex in rule.examples() {
+            let mut lines = ex.snippet.lines();
+            let start = lines.next().expect("an example has a start line");
+            // Every example here is a request, and the fields below the start
+            // line are filed onto the request for that reason. A response-shaped
+            // example added later would have its status line discarded and its
+            // fields put where this rule cannot see them — which would let a
+            // NonCompliant example pass the guard by being invisible to it.
+            assert!(
+                !start.starts_with("HTTP/"),
+                "a response-shaped example cannot be checked by this guard: {start:?}"
+            );
+
+            let pairs: Vec<(&str, &str)> = lines
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                })
+                .collect();
+
+            let tx = crate::test_helpers::make_test_transaction_with_headers(&pairs);
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule reports its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    saw_a_finding = true;
+                }
+            }
+        }
+        assert!(saw_a_finding, "no published example produced a finding");
+    }
+
+    /// A presence-only rule cannot catch a bad value in its own example: every
+    /// value it publishes is invisible to it beyond being there at all. So the
+    /// published values are judged by the rule that owns the grammar.
+    #[test]
+    fn published_values_satisfy_the_rule_that_owns_the_grammar() {
+        use crate::rules::message_user_agent_token_valid::MessageUserAgentTokenValid;
+        use crate::rules::{Compliance, Rule as _};
+
+        let grammar = MessageUserAgentTokenValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[grammar.id()]);
+
+        for ex in ClientUserAgentPresent.examples() {
+            if ex.compliance != Compliance::Compliant {
+                continue;
+            }
+            let pairs: Vec<(&str, &str)> = ex
+                .snippet
+                .lines()
+                .skip(1)
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| l.split_once(": ").expect("a header line"))
+                .collect();
+
+            let tx = crate::test_helpers::make_test_transaction_with_headers(&pairs);
+            let found = grammar.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            assert!(
+                found.is_none(),
+                "a Compliant example publishes a value the grammar rejects {:?}: {found:?}",
+                ex.snippet
+            );
+        }
     }
 }
