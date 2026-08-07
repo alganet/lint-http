@@ -497,7 +497,12 @@ severity = "warn"
 [rules.message_structured_headers_validity]
 enabled = true
 severity = "warn"
-headers = ["Priority", "Permissions-Policy"]
+# Fields the HTTP Field Name Registry gives a Structured Type and that no other
+# rule here owns. This rule cannot know which type a field was defined as, so it
+# accepts a value that parses as any of the three; where a field has its own
+# rule -- Priority, Permissions-Policy -- that rule knows the type and reports
+# more precisely, and listing it here only doubles the finding.
+headers = ["Accept-CH", "Cache-Status", "CDN-Cache-Control", "Proxy-Status"]
 
 [rules.message_permissions_policy_directives_valid]
 enabled = true

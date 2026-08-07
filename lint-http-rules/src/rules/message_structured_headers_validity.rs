@@ -38,7 +38,7 @@ fn parse_headers_config(
 
     let arr = headers_val.as_array().ok_or_else(|| {
         anyhow::anyhow!(
-            "'headers' must be an array of strings (e.g., ['Priority','Permissions-Policy'])"
+            "'headers' must be an array of strings (e.g., ['Cache-Status','Proxy-Status'])"
         )
     })?;
 
@@ -51,6 +51,10 @@ fn parse_headers_config(
         let s = item.as_str().ok_or_else(|| {
             anyhow::anyhow!("'headers' array item at index {} must be a string", i)
         })?;
+        // Folded once here so the lookups below are exact. The same sentence
+        // that makes a parser gather every line of a field says how it decides
+        // which lines belong to it.
+        // cite(RFC 9651 § 4.2): "When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly."
         out.push(s.to_ascii_lowercase());
     }
 
@@ -135,6 +139,10 @@ impl Rule for MessageStructuredHeadersValidity {
         "message_structured_headers_validity"
     }
 
+    /// Both directions. Structured Fields is a way of writing a field value,
+    /// not a property of requests or of responses, and the configured names are
+    /// whatever the operator listed -- several registered Structured types are
+    /// defined for one direction and several for both.
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -153,6 +161,10 @@ impl Rule for MessageStructuredHeadersValidity {
         let config = parse_headers_config(cfg, self.id()).ok()?;
         // cite(RFC 9651): "This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,"
         for hdr in &config.headers {
+            // The two sections are joined separately, never across the pair: the
+            // sentence cited on `check_section` gathers the lines "in the same
+            // section", so a request's field and a response's field of the same
+            // name are two field values, not one.
             if let Some(v) = self.check_section(&tx.request.headers, hdr, "request", &config) {
                 return Some(v);
             }
@@ -167,22 +179,34 @@ impl Rule for MessageStructuredHeadersValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Validate that specified header fields are valid RFC 9651 Structured Field values (Item, List, or Dictionary). This rule checks for syntactic correctness (tokens, quoted-strings, numbers, booleans, byte-sequences, and simple parameters) and reports malformed header values. It is intentionally conservative and focuses on common syntactic errors."
+        "Reports a configured header field whose value fails RFC 9651 Structured Fields parsing. The finding is not that a member is malformed but that the **whole field is gone**: §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen it. One uppercase letter in a Dictionary key costs every other member of the field.\n\n**All three types are tried, because there is no way to know which one applies.** §4.2's algorithm takes a `field_type` — Dictionary, List or Item — and nothing on the wire carries it; the `headers` option names bare field names. So a value passes if any of the three parses it, which means `Priority: \"u\"` is accepted here: it is a perfectly good String Item, just not the Dictionary that field was defined as. When all three fail, the message says what each reading complained about, since telling a Dictionary it is an invalid Item tells it nothing. Point this rule at fields that have no rule of their own — one that knows the type will always say more.\n\n**Every field line is joined first**, as §4.2 requires. A List or Dictionary is a structure over the whole field and its members may be split across lines on purpose; a line judged alone can fail in ways the field does not, and a defect spread across two lines is invisible in either.\n\n**All seven bare-item types**, including the Date (`@1659578233`) and Display String (`%\"caf%c3%a9\"`) that RFC 9651 added over RFC 8941 — §2.4 is explicit that a parser implementing 9651 also parses everything an 8941 one does. A parameter value is any of them.\n\n**Not reported:** an empty field value, which §4.2.1 and §4.2.2 both parse into an empty structure rather than failing; and a duplicate Dictionary key, which §4.2.2 resolves silently in favour of the last one — a defect worth reporting, but only by a rule that knows the field is a Dictionary."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9651",
-                section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc9651.html",
-                note: "Structured Field Values for HTTP",
+                section: Some("4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2",
+                note: "Parsing — the algorithm this rule runs, the field_type it needs and does not have, the MUST to join field lines, and the discard rule that makes a failure cost the whole field",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9651",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3",
-                note: "Items, Lists, Dictionaries",
+                section: Some("3.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3",
+                note: "The bare item types, including the Date and Display String added over RFC 8941",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9651",
+                section: Some("2.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-2.4",
+                note: "Why a 9651 parser must accept the two new types: it parses everything an 8941 parser does, and more",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9651",
+                section: Some("5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-5",
+                note: "The registry's \"Structured Type\" column — where the field_type this rule lacks is published, for the fields that have one",
             },
         ]
     }
@@ -192,13 +216,33 @@ impl Rule for MessageStructuredHeadersValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Priority: u=3, i\nPermissions-Policy: interest-cohort=()\nAccept-Patch: application/json-patch+json\nContent-Digest: sha-256=:BASE64=",
+                label: Some("a List, a Dictionary and their parameters"),
+                snippet: "HTTP/1.1 200 OK\nCache-Status: ExampleCache; hit; ttl=376\nCDN-Cache-Control: max-age=60, stale-while-revalidate=30\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("the two types RFC 9651 added to RFC 8941"),
+                snippet: "HTTP/1.1 200 OK\nProxy-Status: revdns; received-at=@1659578233\nCache-Status: ExampleCache; fwd=stale; detail=%\"caf%c3%a9\"\n",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Priority: u=INVALID  # invalid token (structured field tokens cannot start with uppercase)\nPermissions-Policy: bad(token)  # invalid token characters: '(' and ')'\nAccept-Patch: \"unterminated  # unbalanced quoted-string\nContent-Digest: sha-256=:???=  # invalid byte-sequence",
+                label: Some("an uppercase Dictionary key discards every directive beside it"),
+                snippet: "HTTP/1.1 200 OK\nCDN-Cache-Control: Max-Age=60, stale-while-revalidate=30\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("a trailing comma leaves a member with nothing in it"),
+                snippet: "HTTP/1.1 200 OK\nAccept-CH: Sec-CH-UA-Platform, Sec-CH-UA-Model,\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("a quoted-string with no closing DQUOTE"),
+                snippet: "HTTP/1.1 200 OK\nCache-Status: ExampleCache; key=\"unterminated\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("a Byte Sequence needs the second colon"),
+                snippet: "HTTP/1.1 200 OK\nProxy-Status: revdns; digest=:YWJj\n",
             },
         ]
     }
@@ -955,6 +999,73 @@ mod tests {
     fn empty_dictionary_value_is_rejected() {
         let v = validate_structured_field("a=");
         assert!(v.is_some());
+    }
+
+    /// Nothing runs a rule's own `examples()` through it, so a Compliant one it
+    /// rejects ships to the docs unchallenged. This rule published
+    /// `Content-Digest: sha-256=:BASE64=` as compliant -- a Byte Sequence
+    /// missing its closing colon, which the rule reports -- and three of the
+    /// four non-compliant lines were non-compliant because of the `#` comment
+    /// explaining why, which is part of the field value.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageStructuredHeadersValidity;
+        let cfg = make_cfg_with_headers(&[
+            "accept-ch",
+            "cache-status",
+            "cdn-cache-control",
+            "proxy-status",
+        ]);
+
+        let mut saw_a_finding = false;
+        for ex in rule.examples() {
+            assert!(
+                !ex.snippet.contains('#'),
+                "example carries a comment no HTTP message has: {:?}",
+                ex.snippet
+            );
+            let pairs: Vec<(&str, &str)> = ex
+                .snippet
+                .lines()
+                .skip(1)
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                })
+                .collect();
+
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().unwrap().headers =
+                crate::test_helpers::make_headers_from_pairs(&pairs);
+
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    let found = found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    assert!(
+                        found.message.contains("fails Structured Fields"),
+                        "{found:?}"
+                    );
+                    saw_a_finding = true;
+                }
+            }
+        }
+        // The guard is only green because it ran: a config that fails to parse
+        // makes every check_transaction here return None and proves nothing.
+        assert!(saw_a_finding, "no example produced a finding");
     }
 
     #[rstest]
