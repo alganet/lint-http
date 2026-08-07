@@ -21,7 +21,18 @@ use crate::rules::Rule;
 /// one thing no sentence supplies. The capture cannot tell a cache from a user
 /// agent that simply asked for another range. What it can see is that this client
 /// was sent a 206 for this resource and is ranging over it again, which is the
-/// situation RFC 9111 §3.3 and RFC 9110 §15.3.7.3 describe.
+/// situation RFC 9111 §3.3 and RFC 9110 §15.3.7.3 describe. §4.3.1 is addressed
+/// to caches, so a media player fetching consecutive ranges and storing none of
+/// them is measured against a sentence written for something else. That is the
+/// rule's standing false-positive class and the description says so.
+///
+/// The second limit is the cache key. `ByResource` is keyed on the URI, so a
+/// client holding two negotiated variants of one resource — one with an entity
+/// tag, one without — has both in a single history, and the tag from the wrong
+/// variant can be the newest thing in it. §4.3.1 is explicit that the validators
+/// a cache sends come from the responses sharing a cache key, and nothing in the
+/// capture reconstructs that key. `stateful_cache_validation_chain` walks history
+/// under the same limit.
 ///
 /// The validator the client holds is the one from the **most recent** response
 /// carrying any, not from the most recent 206: a later 200 replaces the stored
@@ -62,7 +73,12 @@ impl Rule for StatefulRangeRequestAndCaching {
         // re-request of a stored partial copy and there is no stored response
         // being validated. A resumable upload naming its range in the *request's*
         // `Content-Range` reaches here as a PUT and leaves here.
+        //
+        // The comparison is case-sensitive on purpose, and most of this crate's
+        // method tests are not: `get` is not the GET method, it is an
+        // unrecognized one — which the same sentence sends down the same path.
         // cite(RFC 9110 § 14.2): "A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.  For this specification, GET is the only method for which range handling is defined."
+        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
         if req.method != "GET" {
             return None;
         }
@@ -86,7 +102,11 @@ impl Rule for StatefulRangeRequestAndCaching {
         // response that carried any validator at all: that response's metadata is
         // what a stored entry would have been updated to, whether it was the 206,
         // a later 200, or a 304 that freshened it.
+        // "The same URI" is what this walk implements; the cache key it narrows to
+        // is what the walk cannot see, and the second sentence is here so that the
+        // approximation is on the record next to the code making it.
         // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields.  These contain validator metadata sourced from a stored response(s) that has the same URI."
+        // cite(RFC 9111 § 4.3.1): "Typically, this will include only the stored response(s) that has the same cache key, although a cache is allowed to validate a response that it cannot choose with the request header fields it is sending"
         let mut newest_validators: Option<(Option<String>, Option<String>)> = None;
         for past in history.iter() {
             if let Some(resp) = &past.response {
@@ -190,7 +210,7 @@ impl Rule for StatefulRangeRequestAndCaching {
                 rule: self.id().into(),
                 severity: config.severity,
                 message: format!(
-                    "If-Range entity tag {if_range} is not {stored_etag}, the tag most recently provided for this representation; the server will ignore Range and send the whole representation"
+                    "If-Range entity tag {if_range} is not {stored_etag}, the tag most recently provided for this representation; a server still holding that tag will ignore Range and send the whole representation"
                 ),
             });
         }
@@ -199,7 +219,7 @@ impl Rule for StatefulRangeRequestAndCaching {
     }
 
     fn description(&self) -> &'static str {
-        "A client that has been given a 206 (Partial Content) response holds a fragment of a representation, and the fragments can only be combined if they share the same strong validator.  When the stored response provided an entity tag, a cache validating it has to send that tag back — RFC 9111 §4.3.1 makes it a MUST, and names three fields that satisfy it: `If-Match`, `If-None-Match` or `If-Range`.\n\nThis rule tracks earlier transactions for the same client and resource.  After a 206, it reports a later `Range` request that carries none of those three fields, an `If-Range` holding a tag other than the one most recently provided for the resource, and an `If-Range` holding a date when an entity tag was provided (RFC 9110 §13.1.5 forbids the date in that case).  The validator compared against is the one from the most recent response carrying any, since a later 200 or 304 replaces what the client stores.\n\nWhere the stored response carried only a `Last-Modified` date the rule is silent: §4.3.1 asks for that date with a SHOULD that excludes subrange requests and a MAY that covers them, and neither makes its absence a defect.  Weak entity tags are skipped, because `If-Range` may not carry one and ranges sharing only a weak validator cannot be combined at all."
+        "A client that has been given a 206 (Partial Content) response holds a fragment of a representation, and the fragments can only be combined if they share the same strong validator.  When the stored response provided an entity tag, a cache validating it has to send that tag back — RFC 9111 §4.3.1 makes it a MUST, and names three fields that satisfy it: `If-Match`, `If-None-Match` or `If-Range`.\n\nThis rule tracks earlier transactions for the same client and resource.  After a 206, it reports a later `Range` request that carries none of those three fields, an `If-Range` holding a tag other than the one most recently provided for the resource, and an `If-Range` holding a date when an entity tag was provided (RFC 9110 §13.1.5 forbids the date in that case).  The validator compared against is the one from the most recent response carrying any, since a later 200 or 304 replaces what the client stores.\n\nWhere the stored response carried only a `Last-Modified` date the rule is silent: §4.3.1 asks for that date with a SHOULD that excludes subrange requests and a MAY that covers them, and neither makes its absence a defect.  Weak entity tags are skipped, because `If-Range` may not carry one and ranges sharing only a weak validator cannot be combined at all.\n\n**What it assumes.** §4.3.1 is addressed to caches, and no field on the wire says whether a client is one.  A user agent that fetches consecutive ranges and stores nothing — a media player, a download manager streaming to disk — is under no obligation to send any of these fields, and this rule will report it. Two negotiated variants of one resource share a history here as well, since the query is keyed on the URI and not on the cache key §4.3.1 narrows to.  Turn the rule off for traffic that is not caching."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
