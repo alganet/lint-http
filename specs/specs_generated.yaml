@@ -1625,6 +1625,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
       line: 51
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 112
   - label: client_cache_respect
     section: § 13.1.2
     snippet: When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request
@@ -1831,6 +1833,8 @@ sources:
       line: 52
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 79
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 73
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 56
   - label: lint-http-rules/src/helpers/content_range.rs (2)
@@ -1839,12 +1843,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 80
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 67
   - label: lint-http-rules/src/helpers/content_range.rs (3)
     section: § 14.1
     snippet: This general notion of a "range unit" is used in the Accept-Ranges (Section 14.3) response header field to advertise support for range requests, the Range (Section 14.2) request header field to delineate the parts of a representation that are requested, and the Content-Range (Section 14.4) header field to describe which part of a representation is being transferred.
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 49
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 167
   - label: lint-http-rules/src/helpers/content_range.rs (4)
     section: § 14.1.1
     snippet: 'The range unit name determines what kinds of range-spec are applicable to its own specifiers.  Hence, the following grammar is generic: each range unit is expected to specify requirements on when int-range, suffix-range, and other-range are allowed.'
@@ -1963,6 +1971,8 @@ sources:
       line: 61
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 52
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 61
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 178
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
@@ -2428,13 +2438,69 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
       line: 22
   - label: message_accept_ranges_and_206_consistency
-    section: § 15.3.7.1
-    snippet: If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range.
+    section: § 14
+    snippet: Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
-      line: 42
+      line: 129
+  - label: message_accept_ranges_and_206_consistency (2)
+    section: § 14.2
+    snippet: If all of the preconditions are true, the server supports the Range header field for the target resource, the received Range field-value contains a valid ranges-specifier with a range-unit supported for that target resource, and that ranges-specifier is satisfiable with respect to the selected representation, the server SHOULD send a 206 (Partial Content) response with content containing one or more partial representations that correspond to the satisfiable range-spec(s) requested.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 180
+  - label: message_accept_ranges_and_206_consistency (3)
+    section: § 14.3
+    snippet: A client MAY generate range requests regardless of having received an Accept-Ranges field.  The information only provides advice for the sake of improving performance and reducing unnecessary network transfers.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 130
+  - label: message_accept_ranges_and_206_consistency (4)
+    section: § 14.3
+    snippet: A server that does not support any kind of range request for the target resource MAY send
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 145
+  - label: Accept-Ranges grammar
+    section: § 14.3
+    snippet: Accept-Ranges     = acceptable-ranges acceptable-ranges = 1#range-unit
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 54
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 35
+  - label: message_accept_ranges_and_206_consistency (5)
+    section: § 14.3
+    snippet: The Accept-Ranges field MAY be sent in a trailer section, but is preferred to be sent as a header field because the information is particularly useful for restarting large information transfers that have failed in mid-content (before the trailer section is received).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 41
+  - label: message_accept_ranges_and_206_consistency (6)
+    section: § 14.3
+    snippet: to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 146
+  - label: message_accept_ranges_and_206_consistency (7)
+    section: § 14.3
+    snippet: to indicate that it supports byte range requests for that target resource, thereby encouraging its use by the client for future partial requests on the same request path.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 131
+  - label: message_accept_ranges_and_206_consistency (8)
+    section: § 15.3.7
+    snippet: The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 118
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
-      line: 201
+      line: 136
+  - label: message_accept_ranges_and_206_consistency (9)
+    section: § 5.6.1.2
+    snippet: In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 81
   - label: message_allow_header_method_tokens
     section: § 10.2.1
     snippet: The "Allow" header field lists the set of methods advertised as supported by the target resource.
@@ -3044,11 +3110,11 @@ sources:
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 245
   - label: message_range_and_content_range_consistency (10)
-    section: § 15.3.7
-    snippet: The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation.
+    section: § 15.3.7.1
+    snippet: If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range.
     cited_by:
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
-      line: 136
+      line: 201
   - label: message_range_and_content_range_consistency (11)
     section: § 15.3.7.2
     snippet: A server MUST NOT generate a multipart response to a request for a single range, since a client that does not request multiple parts might not support multipart responses.
@@ -3275,12 +3341,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 30
-  - label: server_accept_ranges_values_valid
-    section: § 14.3
-    snippet: Accept-Ranges     = acceptable-ranges acceptable-ranges = 1#range-unit
-    cited_by:
-    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
-      line: 35
   - label: server_authentication_challenge_validity
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
