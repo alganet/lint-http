@@ -1552,7 +1552,29 @@ sources:
     snippet: 'Accept-Encoding = #( codings [ weight ] )'
     cited_by:
     - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
-      line: 29
+      line: 33
+  - label: client_accept_encoding_present (2)
+    section: § 12.5.3
+    snippet: An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
+      line: 39
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 48
+  - label: client_accept_encoding_present (3)
+    section: § 12.5.3
+    snippet: If no Accept-Encoding header field is in the request, any content coding is considered acceptable by the user agent.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
+      line: 32
+  - label: client_accept_encoding_present (4)
+    section: § 12.5.3
+    snippet: When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
+      line: 31
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 19
   - label: client_accept_ranges_on_partial_content
     section: § 14.3
     snippet: The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource.
@@ -1827,6 +1849,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 248
+    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
+      line: 47
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 52
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
@@ -2101,17 +2125,11 @@ sources:
       line: 70
   - label: message_accept_encoding_parameter_validity (5)
     section: § 12.5.3
-    snippet: An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
-      line: 48
-  - label: message_accept_encoding_parameter_validity (6)
-    section: § 12.5.3
     snippet: Each codings value MAY be given an associated quality value (weight) representing the preference for that encoding, as defined in Section 12.4.2.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 108
-  - label: message_accept_encoding_parameter_validity (7)
+  - label: message_accept_encoding_parameter_validity (6)
     section: § 12.5.3
     snippet: The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field.
     cited_by:
@@ -2119,25 +2137,19 @@ sources:
       line: 69
     - file: lint-http-rules/src/rules/message_content_encoding_iana_registered.rs
       line: 107
-  - label: message_accept_encoding_parameter_validity (8)
+  - label: message_accept_encoding_parameter_validity (7)
     section: § 12.5.3
     snippet: The field value is evaluated the same way as in a request.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 21
-  - label: message_accept_encoding_parameter_validity (9)
-    section: § 12.5.3
-    snippet: When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
-      line: 19
-  - label: message_accept_encoding_parameter_validity (10)
+  - label: message_accept_encoding_parameter_validity (8)
     section: § 12.5.3
     snippet: When the Accept-Encoding header field is present in a response, it indicates what content codings the resource was willing to accept in the associated request.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 20
-  - label: message_accept_encoding_parameter_validity (11)
+  - label: message_accept_encoding_parameter_validity (9)
     section: § 8.4.1
     snippet: content-coding   = token
     cited_by:
