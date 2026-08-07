@@ -2514,7 +2514,7 @@ sources:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 103
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 119
+      line: 140
   - label: message_content_location_and_uri_consistency
     section: § 8.7
     snippet: Content-Location = absolute-URI / partial-URI
@@ -2782,7 +2782,7 @@ sources:
     snippet: As a result, a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect.
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 108
+      line: 129
   - label: message_response_body_length_accuracy (4)
     section: § 9.3.2
     snippet: The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.
@@ -3512,7 +3512,7 @@ sources:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 75
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 99
+      line: 120
   - label: message_content_length_vs_transfer_encoding (2)
     section: § 6.3
     snippet: An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding
@@ -3528,7 +3528,7 @@ sources:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 58
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 94
+      line: 115
   - label: message_content_transfer_encoding_valid
     section: § B.5
     snippet: HTTP does not use the Content-Transfer-Encoding field of MIME.
@@ -3554,7 +3554,7 @@ sources:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 86
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 109
+      line: 130
   - label: message_request_body_length_accuracy (2)
     section: § 6.2
     snippet: When a message does not have a Transfer-Encoding header field, a Content-Length header field (Section 8.6 of [HTTP]) can provide the anticipated size, as a decimal number of octets, for potential content.
@@ -3574,7 +3574,7 @@ sources:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 53
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 95
+      line: 116
   - label: message_request_body_length_accuracy (5)
     section: § 6.3
     snippet: If the sender closes the connection or the recipient times out before the indicated number of octets are received, the recipient MUST consider the message to be incomplete and close the connection.
@@ -3594,13 +3594,13 @@ sources:
     snippet: A client MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message.
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 84
+      line: 105
   - label: message_response_body_length_accuracy (2)
     section: § 6.3
     snippet: Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields.
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 83
+      line: 104
   - label: message_response_body_length_accuracy (3)
     section: § 6.3
     snippet: Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section.
@@ -3612,7 +3612,7 @@ sources:
     snippet: Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection.
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 114
+      line: 135
   - label: message_trailer_headers_valid
     section: § 7.1.2
     snippet: trailer-section   = *( field-line CRLF )
