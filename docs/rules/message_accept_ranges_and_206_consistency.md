@@ -8,12 +8,24 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-When a server returns a 206 (Partial Content) response it indicates that the request was satisfied by returning a range of the representation. Servers SHOULD advertise support for range requests using the `Accept-Ranges` header; an `Accept-Ranges: none` value contradicts a 206 response and is invalid in that context. This rule warns when a 206 response does not advertise supported range units, or when the advertised units contradict the `Content-Range` header.
+Advice about one field, and one contradiction. `Accept-Ranges` tells a client which range units a resource supports, and a 206 (Partial Content) response is proof that it supports at least one — so what the two say together is worth reading, even though almost none of it is required.
+
+**No `Accept-Ranges` on a 206** is reported as advice rather than as a violation. RFC 9110 §14.3 says a client "MAY generate range requests regardless of having received an Accept-Ranges field" and that the field "only provides advice for the sake of improving performance and reducing unnecessary network transfers"; §14 makes range requests an OPTIONAL feature of HTTP altogether. A server that omits the field is conforming, and this rule used to describe it as a SHOULD that no sentence supports.
+
+**`Accept-Ranges: none` on a 206** is the contradiction. The permission to send `none` is granted to "a server that does not support any kind of range request for the target resource", and a 206 is that server successfully fulfilling one. The range unit `none` is reserved for saying that, so it is reported when it travels beside a real unit as well as when it stands alone.
+
+**A `Content-Range` unit the field does not advertise** sits on the same advisory footing as the first finding: a 206 is sent when the request's range unit is supported for the target resource (§14.2), so an advertisement that leaves that unit out is incomplete advice, not a violation.
+
+**The trailer section counts.** §14.3 permits `Accept-Ranges` in a trailer section — the rule reads both sections, so a response that advertises after its content is not reported for advertising nothing.
+
+**Not this rule's findings.** Whether the value is a well-formed list of range units belongs to `server_accept_ranges_values_valid`; whether a 206 carries a `Content-Range` at all, and whether that value parses, belong to `message_range_and_content_range_consistency`. Where a field line cannot be read as range units — an octet outside US-ASCII, a character `token` excludes, a list with no elements — this rule declines rather than reporting the field a second time, and stays quiet about a unit it may not have seen. A value it cannot read is still counted as present: the message on the wire carries the field.
 
 ## Specifications
 
-- [RFC 9110 §15.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7): `206 Partial Content`: a single-part 206 MUST include a `Content-Range`. RFC 7233 §4.1 defined it; RFC 9110 obsoleted RFC 7233
-- [RFC 9110 §14.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3): `Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`
+- [RFC 9110 §14.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3): `Accept-Ranges`: `1#range-unit`, advertising which units a resource supports, or `none`. Sending it is not required — the section says so twice — and it MAY be sent in a trailer section
+- [RFC 9110 §15.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7): `206 Partial Content`: the server successfully fulfilling a range request, which is what makes `Accept-Ranges: none` in the same response a contradiction
+- [RFC 9110 §14.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2): `Range`: a 206 is the answer when the request's range unit is supported for the target resource, so the `Content-Range` unit is a unit the server supports
+- [RFC 9110 §14.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1): Range units: `range-unit = token`, one construct shared by `Accept-Ranges`, `Range` and `Content-Range`, and case-insensitive — which is why both sides of the comparison are folded
 
 ## Configuration
 
@@ -33,15 +45,15 @@ Content-Range: bytes 0-499/1234
 Accept-Ranges: bytes
 ```
 
-### ✅ Good (Accept-Ranges may include multiple supported units)
+### ✅ Good — unit names are case-insensitive
 
 ```http
 HTTP/1.1 206 Partial Content
 Content-Range: bytes 0-499/1234
-Accept-Ranges: bytes, other-unit
+Accept-Ranges: BYTES
 ```
 
-### ✅ Good — multiple header fields combined
+### ✅ Good — one list split across two field lines
 
 ```http
 HTTP/1.1 206 Partial Content
@@ -50,7 +62,7 @@ Accept-Ranges: pages
 Accept-Ranges: bytes
 ```
 
-### ❌ Bad — Accept-Ranges explicitly says none
+### ❌ Bad — `none` contradicts the 206 that fulfilled a range request
 
 ```http
 HTTP/1.1 206 Partial Content
@@ -58,14 +70,14 @@ Content-Range: bytes 0-499/1234
 Accept-Ranges: none
 ```
 
-### ❌ Bad — Accept-Ranges missing (should advertise support)
+### ❌ Bad — advice: no field to resume from
 
 ```http
 HTTP/1.1 206 Partial Content
 Content-Range: bytes 0-499/1234
 ```
 
-### ❌ Bad — Content-Range unit not advertised
+### ❌ Bad — advice: the unit served is not among those advertised
 
 ```http
 HTTP/1.1 206 Partial Content

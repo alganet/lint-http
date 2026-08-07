@@ -7,6 +7,87 @@ use crate::rules::Rule;
 
 pub struct MessageAcceptRangesAnd206Consistency;
 
+/// What a response says about range support, read from every `Accept-Ranges`
+/// field line it carries.
+struct Advertisement {
+    /// A field line named `Accept-Ranges` was there, whatever it held. This is
+    /// the only thing the "advertises nothing" finding may rest on: a value the
+    /// rule cannot read is still a value on the wire, and announcing its absence
+    /// would be a claim about the message that is simply false.
+    present: bool,
+    /// Every field line read as a list of range units. False once one of them
+    /// held something that is not one -- an octet outside US-ASCII, a character
+    /// `token` excludes, or no element at all -- in which case `units` is a
+    /// lower bound on what the response said and nothing may be concluded from
+    /// a unit's absence from it.
+    complete: bool,
+    /// The advertised units, lowercased.
+    units: Vec<String>,
+}
+
+/// Read `Accept-Ranges` out of both of the response's field sections.
+///
+/// The field is defined for the trailer section as well as the header section,
+/// which is the whole reason this is a function rather than one loop: a response
+/// that advertises its units after the content is advertising them, and reading
+/// only the header section reports it for saying nothing.
+fn read_advertisement(resp: &crate::http_transaction::ResponseInfo) -> Advertisement {
+    let mut advertised = Advertisement {
+        present: false,
+        complete: true,
+        units: Vec::new(),
+    };
+
+    // cite(RFC 9110 § 14.3): "The Accept-Ranges field MAY be sent in a trailer section, but is preferred to be sent as a header field because the information is particularly useful for restarting large information transfers that have failed in mid-content (before the trailer section is received)."
+    for section in [Some(&resp.headers), resp.trailers.as_ref()]
+        .into_iter()
+        .flatten()
+    {
+        for hv in section.get_all("accept-ranges").iter() {
+            advertised.present = true;
+
+            // `to_str` rejects every octet outside visible US-ASCII, which is
+            // wider than this field's production allows in the first place, so
+            // the failure is never a false alarm here -- but it is also not this
+            // rule's finding to report.
+            //
+            // cite(RFC 9110 § 14.3, label: Accept-Ranges grammar): "Accept-Ranges     = acceptable-ranges acceptable-ranges = 1#range-unit"
+            let Ok(value) = hv.to_str() else {
+                advertised.complete = false;
+                continue;
+            };
+
+            let mut saw_a_unit = false;
+            // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+            for token in crate::helpers::headers::parse_list_header(value) {
+                // A range unit is a token and nothing narrower: the set is open
+                // by design, so a name this rule has never heard of is a name it
+                // has to carry rather than reject.
+                //
+                // cite(RFC 9110 § 14.1): "Range units are intended to be extensible, as described in Section 16.5."
+                if crate::helpers::token::find_invalid_token_char(token).is_some() {
+                    advertised.complete = false;
+                    continue;
+                }
+                saw_a_unit = true;
+                // cite(RFC 9110 § 14.1): "All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1."
+                advertised.units.push(token.to_ascii_lowercase());
+            }
+
+            // A list whose elements are all empty is a list of no range units,
+            // and the production asks for at least one. `server_accept_ranges_values_valid`
+            // owns that; here it only means the line advertised nothing.
+            //
+            // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production"
+            if !saw_a_unit {
+                advertised.complete = false;
+            }
+        }
+    }
+
+    advertised
+}
+
 impl Rule for MessageAcceptRangesAnd206Consistency {
     fn id(&self) -> &'static str {
         "message_accept_ranges_and_206_consistency"
@@ -23,94 +104,123 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+
+        // `Accept-Ranges` is a response field, which is the sentence behind
+        // reading one side only -- not the scope enum, which in this engine only
+        // decides when the rule is dispatched.
+        //
+        // cite(RFC 9110 § 14.3): "The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource."
         let resp = tx.response.as_ref()?;
 
+        // Everything below reads the 206 as evidence about the resource, so no
+        // other status has anything to contradict.
+        //
+        // cite(RFC 9110 § 15.3.7): "The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation."
         if resp.status != 206 {
             return None;
         }
 
-        // If Accept-Ranges is present, ensure it indicates support (not 'none') and includes
-        // the unit used in Content-Range (when present). Iterate all header fields and combine
-        // their advertised units; non-UTF8 fields are ignored.
-        let mut saw_units: Vec<String> = Vec::new();
-        let mut any_accept_ranges_present = false;
+        let advertised = read_advertisement(resp);
 
-        for hv in resp.headers.get_all("accept-ranges").iter() {
-            if let Ok(s) = hv.to_str() {
-                any_accept_ranges_present = true;
-                for token in crate::helpers::headers::parse_list_header(s) {
-                    // cite(RFC 9110 § 15.3.7.1): "If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range."
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!("Invalid token '{}' in Accept-Ranges header", c),
-                        });
-                    }
-                    saw_units.push(token.to_ascii_lowercase());
-                }
-            }
+        // Advice, and the two sentences that keep it advice. The field is worth
+        // sending -- it is what a client restarting this transfer would read --
+        // and no sentence asks for it, which is what the finding says.
+        //
+        // cite(RFC 9110 § 14): "Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability."
+        // cite(RFC 9110 § 14.3): "A client MAY generate range requests regardless of having received an Accept-Ranges field.  The information only provides advice for the sake of improving performance and reducing unnecessary network transfers."
+        // cite(RFC 9110 § 14.3): "to indicate that it supports byte range requests for that target resource, thereby encouraging its use by the client for future partial requests on the same request path."
+        if !advertised.present {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: "206 Partial Content response carries no Accept-Ranges field, so a client resuming this transfer has nothing telling it which range units the resource supports (advice: nothing requires the field)".into(),
+            });
         }
 
-        if any_accept_ranges_present {
-            // 'none' must not be present when server returned a 206
-            if saw_units.iter().any(|t| t == "none") {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: "Accept-Ranges indicates no range support ('none') while response is 206 Partial Content".into(),
-                });
-            }
+        // The permission to send `none` belongs to a server that supports no kind
+        // of range request for the target resource; a 206 is that same server
+        // fulfilling one. `none` is reserved for saying that and nothing else, so
+        // it is reported beside a real unit too.
+        //
+        // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
+        // cite(RFC 9110 § 14.3): "to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose."
+        if advertised.units.iter().any(|u| u == "none") {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: "Accept-Ranges: none says this resource supports no kind of range request, in the very response that fulfilled one (206 Partial Content)".into(),
+            });
+        }
 
-            // If Content-Range present and ASCII-valid, ensure its unit is advertised in Accept-Ranges
-            if let Some(hv) = resp
-                .headers
-                .get_all("content-range")
-                .iter()
-                .find(|h| h.to_str().is_ok())
-            {
-                if let Ok(cr) = hv.to_str() {
-                    if let Some(unit) = cr.split_whitespace().next() {
-                        let unit_l = unit.to_ascii_lowercase();
-                        if !saw_units.iter().any(|u| u == &unit_l) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!("Content-Range uses unit '{}' but Accept-Ranges does not advertise it", unit),
-                            });
-                        }
-                    }
-                }
-            }
-
+        // A unit that could not be read may be the one the Content-Range names,
+        // so there is nothing to conclude from a mismatch below.
+        if !advertised.complete {
             return None;
         }
 
-        // No ASCII-valid Accept-Ranges header present — recommend advertising support for ranges when returning 206
-        Some(Violation {
-            rule: self.id().into(),
-            severity: config.severity,
-            message: "206 Partial Content response should include an Accept-Ranges header indicating supported range units (e.g., 'bytes')".into(),
-        })
+        // The field's syntax, and whether a 206 carries it at all, belong to
+        // `message_range_and_content_range_consistency`; what is wanted here is
+        // one construct out of it, the range unit, parsed by the code that owns
+        // the production rather than by a second reading of it. A value this
+        // rule cannot parse is that rule's finding, reported there.
+        //
+        // cite(RFC 9110 § 14.1): "This general notion of a "range unit" is used in the Accept-Ranges (Section 14.3) response header field to advertise support for range requests, the Range (Section 14.2) request header field to delineate the parts of a representation that are requested, and the Content-Range (Section 14.4) header field to describe which part of a representation is being transferred."
+        let content_range =
+            crate::helpers::headers::get_header_str(&resp.headers, "content-range")?;
+        let content_range =
+            crate::helpers::content_range::parse_content_range(content_range).ok()?;
+        let unit = content_range.unit();
+
+        // What makes the omission worth reporting: the 206 is the answer a server
+        // sends when the request's unit is one it supports for this resource, so
+        // the response is evidence about a unit its own advice leaves out. Also
+        // advice -- the sentence below is about which status to send, and says
+        // nothing about which units the field lists.
+        //
+        // cite(RFC 9110 § 14.2): "If all of the preconditions are true, the server supports the Range header field for the target resource, the received Range field-value contains a valid ranges-specifier with a range-unit supported for that target resource, and that ranges-specifier is satisfiable with respect to the selected representation, the server SHOULD send a 206 (Partial Content) response with content containing one or more partial representations that correspond to the satisfiable range-spec(s) requested."
+        if !advertised.units.iter().any(|u| u == unit) {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: format!(
+                    "Content-Range describes a range in '{}', a unit this response's Accept-Ranges does not advertise (advice: nothing requires the two to agree)",
+                    unit
+                ),
+            });
+        }
+
+        None
     }
 
     fn description(&self) -> &'static str {
-        "When a server returns a 206 (Partial Content) response it indicates that the request was satisfied by returning a range of the representation. Servers SHOULD advertise support for range requests using the `Accept-Ranges` header; an `Accept-Ranges: none` value contradicts a 206 response and is invalid in that context. This rule warns when a 206 response does not advertise supported range units, or when the advertised units contradict the `Content-Range` header."
+        "Advice about one field, and one contradiction. `Accept-Ranges` tells a client which range units a resource supports, and a 206 (Partial Content) response is proof that it supports at least one — so what the two say together is worth reading, even though almost none of it is required.\n\n**No `Accept-Ranges` on a 206** is reported as advice rather than as a violation. RFC 9110 §14.3 says a client \"MAY generate range requests regardless of having received an Accept-Ranges field\" and that the field \"only provides advice for the sake of improving performance and reducing unnecessary network transfers\"; §14 makes range requests an OPTIONAL feature of HTTP altogether. A server that omits the field is conforming, and this rule used to describe it as a SHOULD that no sentence supports.\n\n**`Accept-Ranges: none` on a 206** is the contradiction. The permission to send `none` is granted to \"a server that does not support any kind of range request for the target resource\", and a 206 is that server successfully fulfilling one. The range unit `none` is reserved for saying that, so it is reported when it travels beside a real unit as well as when it stands alone.\n\n**A `Content-Range` unit the field does not advertise** sits on the same advisory footing as the first finding: a 206 is sent when the request's range unit is supported for the target resource (§14.2), so an advertisement that leaves that unit out is incomplete advice, not a violation.\n\n**The trailer section counts.** §14.3 permits `Accept-Ranges` in a trailer section — the rule reads both sections, so a response that advertises after its content is not reported for advertising nothing.\n\n**Not this rule's findings.** Whether the value is a well-formed list of range units belongs to `server_accept_ranges_values_valid`; whether a 206 carries a `Content-Range` at all, and whether that value parses, belong to `message_range_and_content_range_consistency`. Where a field line cannot be read as range units — an octet outside US-ASCII, a character `token` excludes, a list with no elements — this rule declines rather than reporting the field a second time, and stays quiet about a unit it may not have seen. A value it cannot read is still counted as present: the message on the wire carries the field."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("15.3.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
-                note: "`206 Partial Content`: a single-part 206 MUST include a `Content-Range`. RFC 7233 §4.1 defined it; RFC 9110 obsoleted RFC 7233",
+                section: Some("14.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3",
+                note: "`Accept-Ranges`: `1#range-unit`, advertising which units a resource supports, or `none`. Sending it is not required — the section says so twice — and it MAY be sent in a trailer section",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("14.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3",
-                note: "`Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`",
+                section: Some("15.3.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
+                note: "`206 Partial Content`: the server successfully fulfilling a range request, which is what makes `Accept-Ranges: none` in the same response a contradiction",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("14.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
+                note: "`Range`: a 206 is the answer when the request's range unit is supported for the target resource, so the `Content-Range` unit is a unit the server supports",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("14.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1",
+                note: "Range units: `range-unit = token`, one construct shared by `Accept-Ranges`, `Range` and `Content-Range`, and case-insensitive — which is why both sides of the comparison are folded",
             },
         ]
     }
@@ -125,27 +235,27 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
             },
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("(Accept-Ranges may include multiple supported units)"),
-                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: bytes, other-unit",
+                label: Some("— unit names are case-insensitive"),
+                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: BYTES",
             },
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("— multiple header fields combined"),
+                label: Some("— one list split across two field lines"),
                 snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: pages\nAccept-Ranges: bytes",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("— Accept-Ranges explicitly says none"),
+                label: Some("— `none` contradicts the 206 that fulfilled a range request"),
                 snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: none",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("— Accept-Ranges missing (should advertise support)"),
+                label: Some("— advice: no field to resume from"),
                 snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("— Content-Range unit not advertised"),
+                label: Some("— advice: the unit served is not among those advertised"),
                 snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: pages",
             },
         ]
@@ -159,268 +269,291 @@ static REGISTRATION: &dyn crate::rules::Rule = &MessageAcceptRangesAnd206Consist
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hyper::header::{HeaderName, HeaderValue};
     use rstest::rstest;
 
-    #[rstest]
-    #[case(Some((200, None)), false)]
-    #[case(Some((206, Some(("bytes", "bytes")))), false)]
-    #[case(Some((206, Some(("bytes", "none")))), true)]
-    #[case(Some((206, None)), true)]
-    #[case(Some((206, Some(("bytes", "pages")))), true)]
-    fn check_accept_ranges_and_206_cases(
-        #[case] input: Option<(u16, Option<(&str, &str)>)>,
-        #[case] expect_violation: bool,
-    ) -> anyhow::Result<()> {
-        // input: (status, Option<(content-range-unit, accept-ranges-value)>)
-        let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+    fn config() -> crate::config::Config {
+        crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_accept_ranges_and_206_consistency",
-        ]);
-
-        let tx = match input {
-            Some((status, maybe)) => {
-                let tx = match maybe {
-                    Some((cr_unit, ar_val)) => {
-                        crate::test_helpers::make_test_transaction_with_response(
-                            status,
-                            &[
-                                ("content-range", &format!("{} 0-0/1", cr_unit)),
-                                ("accept-ranges", ar_val),
-                            ],
-                        )
-                    }
-                    None => crate::test_helpers::make_test_transaction_with_response(status, &[]),
-                };
-                tx
-            }
-            None => crate::test_helpers::make_test_transaction(),
-        };
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        if expect_violation {
-            assert!(v.is_some(), "expected violation for input={:?}", input);
-        } else {
-            assert!(
-                v.is_none(),
-                "unexpected violation for input={:?}: {:?}",
-                input,
-                v
-            );
-        }
-        Ok(())
+        ])
     }
 
-    #[test]
-    fn accept_ranges_case_insensitive_and_multiple_values_are_accepted() -> anyhow::Result<()> {
-        let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_accept_ranges_and_206_consistency",
-        ]);
+    /// Every fixture is built here. The rule reads two field sections and treats
+    /// a field line it cannot decode differently from one that is absent, so a
+    /// constructor that can only express a header section of valid US-ASCII
+    /// cannot state what half of these tests are about.
+    fn response(
+        status: u16,
+        headers: &[(&str, &[u8])],
+        trailers: &[(&str, &[u8])],
+    ) -> crate::http_transaction::HttpTransaction {
+        fn section(pairs: &[(&str, &[u8])]) -> hyper::HeaderMap {
+            let mut hm = hyper::HeaderMap::new();
+            for (name, value) in pairs {
+                hm.append(
+                    name.parse::<HeaderName>().expect("a field name"),
+                    HeaderValue::from_bytes(value).expect("a field value"),
+                );
+            }
+            hm
+        }
 
-        // uppercase Accept-Ranges matches lowercase Content-Range
-        let tx1 = crate::test_helpers::make_test_transaction_with_response(
-            206,
-            &[("content-range", "bytes 0-0/1"), ("accept-ranges", "BYTES")],
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status,
+            version: "HTTP/1.1".into(),
+            headers: section(headers),
+            body_length: None,
+            trailers: (!trailers.is_empty()).then(|| section(trailers)),
+        });
+        tx
+    }
+
+    fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+        MessageAcceptRangesAnd206Consistency.check_transaction(
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config(),
+        )
+    }
+
+    #[rstest]
+    #[case::not_a_206(200, &[][..], false)]
+    #[case::advertised(206, &[("content-range", b"bytes 0-0/1".as_slice()), ("accept-ranges", b"bytes".as_slice())][..], false)]
+    #[case::none(206, &[("content-range", b"bytes 0-0/1".as_slice()), ("accept-ranges", b"none".as_slice())][..], true)]
+    #[case::nothing_advertised(206, &[][..], true)]
+    #[case::unit_not_advertised(206, &[("content-range", b"bytes 0-0/1".as_slice()), ("accept-ranges", b"pages".as_slice())][..], true)]
+    fn check_accept_ranges_and_206_cases(
+        #[case] status: u16,
+        #[case] headers: &[(&str, &[u8])],
+        #[case] expect_violation: bool,
+    ) {
+        let found = judge(&response(status, headers, &[]));
+        assert_eq!(
+            found.is_some(),
+            expect_violation,
+            "status={status} headers={headers:?} gave {found:?}"
         );
-        assert!(rule
-            .check_transaction(
-                &tx1,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
+    }
 
-        // multiple values include the used unit
-        let tx2 = crate::test_helpers::make_test_transaction_with_response(
+    /// § 14.1 says range unit names are case-insensitive, so the fold is the
+    /// spec's and not a tolerance this rule chose.
+    #[test]
+    fn unit_names_are_compared_case_insensitively() {
+        let tx = response(
             206,
             &[
-                ("content-range", "bytes 0-0/1"),
-                ("accept-ranges", "pages, bytes"),
+                ("content-range", b"bytes 0-0/1".as_slice()),
+                ("accept-ranges", b"BYTES".as_slice()),
             ],
+            &[],
         );
-        assert!(rule
-            .check_transaction(
-                &tx2,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
-
-        Ok(())
+        assert!(judge(&tx).is_none());
     }
 
     #[test]
-    fn invalid_token_in_accept_ranges_is_reported() {
-        let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_accept_ranges_and_206_consistency",
-        ]);
-
-        let tx = crate::test_helpers::make_test_transaction_with_response(
+    fn one_list_may_be_split_across_field_lines() {
+        let tx = response(
             206,
-            [("accept-ranges", "x@bad")].as_slice(),
+            &[
+                ("content-range", b"bytes 0-0/1".as_slice()),
+                ("accept-ranges", b"pages".as_slice()),
+                ("accept-ranges", b"bytes".as_slice()),
+            ],
+            &[],
         );
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("Invalid token"));
+        assert!(judge(&tx).is_none());
     }
 
     #[test]
-    fn multiple_accept_ranges_fields_are_combined_and_checked() -> anyhow::Result<()> {
-        let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_accept_ranges_and_206_consistency",
-        ]);
-
-        // Two separate header fields that together advertise the needed unit
-        use hyper::header::HeaderValue;
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(206, &[]);
-        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        hm.append("content-range", HeaderValue::from_static("bytes 0-0/1"));
-        hm.append("accept-ranges", HeaderValue::from_static("pages"));
-        hm.append("accept-ranges", HeaderValue::from_static("bytes"));
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 206,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-            body_length: None,
-            trailers: None,
-        });
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+    fn none_is_reported_wherever_in_the_list_it_sits() {
+        let tx = response(
+            206,
+            &[
+                ("content-range", b"bytes 0-0/1".as_slice()),
+                ("accept-ranges", b"bytes".as_slice()),
+                ("accept-ranges", b"none".as_slice()),
+            ],
+            &[],
         );
-        assert!(v.is_none());
-        Ok(())
+        assert!(judge(&tx).is_some());
+    }
+
+    /// § 14.3 permits the field in a trailer section. A response that advertises
+    /// there is advertising, and used to be reported for carrying no field at all.
+    #[test]
+    fn a_trailer_section_advertises() {
+        let tx = response(
+            206,
+            &[("content-range", b"bytes 0-0/1".as_slice())],
+            &[("accept-ranges", b"bytes".as_slice())],
+        );
+        assert!(judge(&tx).is_none());
     }
 
     #[test]
-    fn accept_ranges_none_in_any_field_reports_violation() -> anyhow::Result<()> {
-        let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_accept_ranges_and_206_consistency",
-        ]);
-
-        use hyper::header::HeaderValue;
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(206, &[]);
-        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        hm.append("content-range", HeaderValue::from_static("bytes 0-0/1"));
-        hm.append("accept-ranges", HeaderValue::from_static("bytes"));
-        hm.append("accept-ranges", HeaderValue::from_static("none"));
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 206,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-            body_length: None,
-            trailers: None,
-        });
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+    fn none_in_a_trailer_section_contradicts_the_206_too() {
+        let tx = response(
+            206,
+            &[("content-range", b"bytes 0-0/1".as_slice())],
+            &[("accept-ranges", b"none".as_slice())],
         );
-        assert!(v.is_some());
-        Ok(())
+        assert!(judge(&tx).is_some());
     }
 
-    #[test]
-    fn multiple_accept_ranges_fields_invalid_token_reports_violation() -> anyhow::Result<()> {
-        let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_accept_ranges_and_206_consistency",
-        ]);
-
-        use hyper::header::HeaderValue;
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(206, &[]);
-        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        hm.append("accept-ranges", HeaderValue::from_static("bytes"));
-        hm.append("accept-ranges", HeaderValue::from_static("x@bad"));
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 206,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-            body_length: None,
-            trailers: None,
-        });
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_some());
-        Ok(())
+    /// A field line the rule cannot decode is still a field line. The finding it
+    /// used to produce -- "carries no Accept-Ranges field" -- was false about the
+    /// message on the wire, and two tests asserted it.
+    #[rstest]
+    #[case::not_ascii(&[("accept-ranges", &[0xff][..])][..])]
+    #[case::every_line_unreadable(&[("accept-ranges", &[0xff][..]), ("accept-ranges", &[0xfe][..])][..])]
+    #[case::not_a_token(&[("accept-ranges", b"x@bad".as_slice())][..])]
+    #[case::no_elements(&[("accept-ranges", b",".as_slice())][..])]
+    fn a_value_this_rule_cannot_read_is_left_to_the_rule_that_owns_it(
+        #[case] fields: &[(&str, &[u8])],
+    ) {
+        let mut headers = vec![("content-range", b"bytes 0-0/1".as_slice())];
+        headers.extend_from_slice(fields);
+        assert!(judge(&response(206, &headers, &[])).is_none());
     }
 
+    /// The unreadable line may have been the one naming the unit, so the
+    /// mismatch finding has nothing to rest on.
     #[test]
-    fn all_accept_ranges_fields_non_utf8_treated_as_missing() -> anyhow::Result<()> {
-        let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_accept_ranges_and_206_consistency",
-        ]);
-
-        use hyper::header::HeaderValue;
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(206, &[]);
-        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        hm.append("accept-ranges", HeaderValue::from_bytes(&[0xff])?);
-        hm.append("accept-ranges", HeaderValue::from_bytes(&[0xfe])?);
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 206,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-            body_length: None,
-            trailers: None,
-        });
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+    fn an_unreadable_line_silences_the_unit_comparison() {
+        let tx = response(
+            206,
+            &[
+                ("content-range", b"bytes 0-0/1".as_slice()),
+                ("accept-ranges", b"pages".as_slice()),
+                ("accept-ranges", &[0xff][..]),
+            ],
+            &[],
         );
-        assert!(v.is_some());
-        Ok(())
+        assert!(judge(&tx).is_none());
     }
 
+    /// ... but a `none` that *was* read still says what it says.
     #[test]
-    fn non_utf8_accept_ranges_treated_as_missing() -> anyhow::Result<()> {
-        let rule = MessageAcceptRangesAnd206Consistency;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_accept_ranges_and_206_consistency",
-        ]);
-
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(206, &[]);
-        use hyper::header::HeaderValue;
-        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        hm.append("accept-ranges", HeaderValue::from_bytes(&[0xff])?);
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 206,
-            version: "HTTP/1.1".into(),
-            headers: hm,
-            body_length: None,
-            trailers: None,
-        });
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+    fn an_unreadable_line_does_not_silence_none() {
+        let tx = response(
+            206,
+            &[
+                ("content-range", b"bytes 0-0/1".as_slice()),
+                ("accept-ranges", b"none".as_slice()),
+                ("accept-ranges", &[0xff][..]),
+            ],
+            &[],
         );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("should include an Accept-Ranges") || msg.contains("Accept-Ranges"));
-        Ok(())
+        assert!(judge(&tx).is_some());
+    }
+
+    /// Whether a 206 carries a `Content-Range`, and whether it parses, belongs to
+    /// `message_range_and_content_range_consistency`. This rule wants one
+    /// construct out of a value it can trust.
+    #[rstest]
+    #[case::absent(None)]
+    #[case::malformed(Some(b"bytes 5-3/10".as_slice()))]
+    #[case::two_spaces(Some(b"bytes  0-499/1234".as_slice()))]
+    #[case::not_ascii(Some(&[0xff][..]))]
+    fn a_content_range_its_owner_reports_is_not_read_here(#[case] value: Option<&[u8]>) {
+        let mut headers = vec![("accept-ranges", b"pages".as_slice())];
+        if let Some(value) = value {
+            headers.push(("content-range", value));
+        }
+        assert!(judge(&response(206, &headers, &[])).is_none());
+    }
+
+    /// The multipart form of a 206 carries no `Content-Range` in its header
+    /// section at all, so there is no unit here to compare.
+    #[test]
+    fn a_multipart_206_advertising_something_else_is_not_reported() {
+        let tx = response(
+            206,
+            &[
+                (
+                    "content-type",
+                    b"multipart/byteranges; boundary=THIS_STRING_SEPARATES".as_slice(),
+                ),
+                ("accept-ranges", b"pages".as_slice()),
+            ],
+            &[],
+        );
+        assert!(judge(&tx).is_none());
+    }
+
+    /// Nothing else runs a rule's published examples through it, and every
+    /// example here is a response whose two fields are read together.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+
+        let mut saw_a_finding = false;
+        for ex in MessageAcceptRangesAnd206Consistency.examples() {
+            let mut lines = ex.snippet.lines();
+            let status_line = lines.next().expect("a response has a status line");
+            let status: u16 = status_line
+                .strip_prefix("HTTP/1.1 ")
+                .and_then(|rest| rest.split(' ').next())
+                .and_then(|code| code.parse().ok())
+                .unwrap_or_else(|| panic!("not a status line: {status_line:?}"));
+            let fields: Vec<(&str, &[u8])> = lines
+                .map(|line| {
+                    let (name, value) = line
+                        .split_once(": ")
+                        .unwrap_or_else(|| panic!("not a field line: {line:?}"));
+                    (name, value.as_bytes())
+                })
+                .collect();
+
+            let found = judge(&response(status, &fields, &[]));
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule reports its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    assert!(
+                        found.is_some(),
+                        "rule accepts its NonCompliant example {:?}",
+                        ex.snippet
+                    );
+                    saw_a_finding = true;
+                }
+            }
+        }
+        assert!(saw_a_finding, "the guard ran without exercising a finding");
+    }
+
+    /// This rule reads a range unit and nothing else, so every published value
+    /// goes past the code that owns its syntax.
+    #[test]
+    fn published_examples_hold_values_their_owners_accept() {
+        use crate::rules::Rule as _;
+
+        for ex in MessageAcceptRangesAnd206Consistency.examples() {
+            for line in ex.snippet.lines() {
+                let Some((name, value)) = line.split_once(": ") else {
+                    continue;
+                };
+                match name.to_ascii_lowercase().as_str() {
+                    "content-range" => assert!(
+                        crate::helpers::content_range::parse_content_range(value).is_ok(),
+                        "Content-Range {value:?} does not parse"
+                    ),
+                    "accept-ranges" => {
+                        for token in crate::helpers::headers::parse_list_header(value) {
+                            assert!(
+                                crate::helpers::token::find_invalid_token_char(token).is_none(),
+                                "Accept-Ranges holds {token:?}, which is not a token"
+                            );
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
 
     #[test]
@@ -432,8 +565,22 @@ mod tests {
     }
 
     #[test]
+    fn validate_rules_missing_severity_errors() {
+        let mut cfg = config();
+        if let Some(toml::Value::Table(table)) = cfg
+            .rules
+            .get_mut("message_accept_ranges_and_206_consistency")
+        {
+            table.remove("severity");
+        }
+        assert!(crate::rules::validate_rules(&cfg).is_err());
+    }
+
+    #[test]
     fn scope_is_server() {
-        let rule = MessageAcceptRangesAnd206Consistency;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+        assert_eq!(
+            MessageAcceptRangesAnd206Consistency.scope(),
+            crate::rules::RuleScope::Server
+        );
     }
 }
