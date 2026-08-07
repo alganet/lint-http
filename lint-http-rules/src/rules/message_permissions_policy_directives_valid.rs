@@ -48,12 +48,33 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
                 });
             }
 
+            // Neither specification says "invalid" about any of this, and the
+            // wrapper used to. Both define *ignore* semantics, at two different
+            // scopes, and which one applies is the thing a reader needs:
+            //
+            //  - A Structured Fields parse failure -- a member name with an
+            //    uppercase letter, an unterminated inner list, a control
+            //    character -- takes the whole field with it. RFC 9651 is
+            //    deliberately absolute about this, and forbids field
+            //    specifications from softening it, so the cost of one stray
+            //    capital is every directive in the header.
+            //    cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
+            //
+            //  - A value that parses but is not an allowlist costs one
+            //    directive; the rest of the policy is still enforced.
+            //    cite(Permissions Policy § 5.2): "Member Values of any other form will cause the entire Dictionary Member to be ignored by the processing steps."
+            //
+            // Either way the finding is that something the server wrote will
+            // not be enforced, which is what the message says now.
             // cite(Permissions Policy): "The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client."
             if let Some(msg) = validate_permissions_policy(s) {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
-                    message: format!("Invalid Permissions-Policy header: {}", msg),
+                    message: format!(
+                        "Permissions-Policy will not be enforced as written: {}",
+                        msg
+                    ),
                 });
             }
         }
@@ -62,7 +83,7 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Permissions-Policy` HTTP response header directives for correct feature identifiers and member value forms. The header must be a structured-field dictionary (RFC 9651) and each directive must map a feature identifier (alphanumerics and hyphens) to an allowlist value (token `*`, token `self`, a `\"string\"`, or an inner-list `( ... )`). The optional `report-to` parameter (on the member value) must be a quoted-string when present."
+        "Reports a `Permissions-Policy` response header carrying something a browser will not enforce. Neither specification calls any of this \"invalid\" — both define **ignore** semantics — so the finding is always that the server wrote a policy that will not take effect, at one of two scopes.\n\n**The whole field, or one directive.** A Structured Fields parse failure discards everything: RFC 9651 §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen that. So one uppercase letter in a member name costs every directive in the header. A value that parses but is not an allowlist costs only its own directive — §5.2, \"Member Values of any other form will cause the entire Dictionary Member to be ignored\". The messages say which.\n\n**Member names are SF keys, not §5.1 feature-identifiers.** The Permissions Policy spec serializes a policy directive twice: §5.1 for the HTML `allow` attribute, where `feature-identifier = 1*( ALPHA / DIGIT / \"-\" )`, and §5.2 for this header, where the value is an `sf-dictionary`. This rule reads the header, so a member name is an SF key: lowercase only, beginning with a letter or `*`, and permitting `_`, `.` and `*`. It used to apply §5.1's production here, which accepted `Geolocation=(self)` and rejected `a_b=(self)`.\n\n**Allowlist values are a closed list.** §5.2 permits a String, the Token `*`, the Token `self`, or an Inner List of those — nothing else. Tokens keep their case, so `SELF` is not `self`. Items *inside* an inner list are deliberately not policed: §5.2 says unknown ones are ignored and the member is processed without them, which costs one origin rather than the directive.\n\n**Unknown feature names are not reported.** §5.2 says a member naming no supported feature is ignored, and RFC 9651 §3.2 says recipients MUST ignore members with unknown keys — so a name this rule does not recognise is not a defect, and there is no allowlist of features here."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -70,14 +91,20 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
             crate::rules::SpecRef {
                 spec: "Permissions Policy",
                 section: None,
-                url: "https://w3c.github.io/webappsec-permissions-policy/#permissions-policy-http-header-field",
-                note: "Permissions-Policy HTTP header (directive syntax and serialization). No section: an editor's draft renumbers — this reference said §5.2, the header field is now §6.1",
+                url: "https://w3c.github.io/webappsec-permissions-policy/#structured-header-serialization",
+                note: "§5.2 Structured header serialization — the production this rule enforces. Not §5.1, which is the HTML attribute and has a different feature-identifier grammar. No section number: an editor's draft renumbers",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9651",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3",
-                note: "Structured Field Values for HTTP, §3–§5 (Items, Lists, Dictionaries)",
+                section: Some("3.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.2",
+                note: "Dictionaries — member keys cannot contain uppercase, unknown members MUST be ignored, and members may be split across field lines",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9651",
+                section: Some("4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2",
+                note: "Parsing — a failure discards the entire field value, which is why a malformed member name is not a local problem",
             },
         ]
     }
@@ -88,22 +115,32 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self \"https://example.com\"), fullscreen=(), payment=(\"https://pay.example\") ; report-to=\"endpoint\"",
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self \"https://example.com\"), fullscreen=(), payment=(\"https://pay.example\");report-to=\"endpoint\"\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(underscores and dots are ordinary SF key characters)"),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: ch-ua_full.version=*\n",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation ;  # missing '=value' -> invalid",
+                label: Some("(uppercase in a member name discards the whole field)"),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: Geolocation=(self), camera=()\n",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: bad_name=(self)  # invalid feature identifier (underscore)",
+                label: Some("(a bare token is not an allowlist)"),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=SELF\n",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self);report-to=endpoint  # report-to must be a quoted-string",
+                label: Some("(a bare member name has no allowlist at all)"),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(report-to must be a String)"),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self);report-to=endpoint\n",
             },
         ]
     }
@@ -119,7 +156,11 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
 fn validate_permissions_policy(s: &str) -> Option<String> {
     // Reject control characters
     if s.bytes().any(|b| (b < 0x20 && b != b'\t') || b == 0x7f) {
-        return Some("contains control characters".into());
+        return Some(
+            "contains control characters, so the field fails Structured Fields parsing and \
+             every directive in it is discarded"
+                .into(),
+        );
     }
 
     let members = split_commas_outside_quotes(s);
@@ -145,7 +186,12 @@ fn validate_permissions_policy(s: &str) -> Option<String> {
         }
 
         if !is_valid_feature_identifier(feature_part) {
-            return Some(format!("invalid feature identifier '{}'", feature_part));
+            return Some(format!(
+                "invalid feature identifier '{}': a Dictionary member name is an SF key \
+                 (lowercase, starting with a letter or '*'), and a key that is not one fails \
+                 parsing -- which discards every directive in the field, not just this one",
+                feature_part
+            ));
         }
 
         // value_part may contain parameters separated by ';' outside quotes
@@ -327,6 +373,63 @@ static REGISTRATION: &dyn crate::rules::Rule = &MessagePermissionsPolicyDirectiv
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// Every published snippet is run through the rule. The old set carried
+    /// `#` comments inside the header value -- no HTTP message has one, and
+    /// they were part of the value being validated, so two of them were
+    /// non-compliant partly because of the annotation explaining why.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessagePermissionsPolicyDirectivesValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+
+        for ex in rule.examples() {
+            let pairs: Vec<(&str, &str)> = ex
+                .snippet
+                .lines()
+                .skip(1)
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| {
+                    let (k, v) = l
+                        .split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"));
+                    (k, v)
+                })
+                .collect();
+            assert!(
+                !ex.snippet.contains('#'),
+                "example carries a comment no HTTP message has: {:?}",
+                ex.snippet
+            );
+
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().unwrap().headers =
+                crate::test_helpers::make_headers_from_pairs(&pairs);
+
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    let found = found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    assert!(
+                        found.message.contains("will not be enforced as written"),
+                        "{found:?}"
+                    );
+                }
+            }
+        }
+    }
 
     #[rstest]
     #[case(Some("geolocation=(self \"https://example.com\")"), false)]

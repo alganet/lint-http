@@ -315,31 +315,33 @@ sources:
     snippet: The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client.
     cited_by:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
-      line: 51
+      line: 69
   - label: message_permissions_policy_directives_valid (2)
     section: § 5.2
     snippet: Any other items inside of an Inner List will be ignored by the processing steps, and the Member Value will be processed as if they were not present.
     cited_by:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
-      line: 238
+      line: 284
   - label: message_permissions_policy_directives_valid (3)
     section: § 5.2
     snippet: Member Values of any other form will cause the entire Dictionary Member to be ignored by the processing steps.
     cited_by:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
-      line: 222
+      line: 65
+    - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
+      line: 268
   - label: message_permissions_policy_directives_valid (4)
     section: § 5.2
     snippet: The Member Names must be Tokens.
     cited_by:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
-      line: 316
+      line: 362
   - label: message_permissions_policy_directives_valid (5)
     section: § 5.2
     snippet: 'The Member Values represent allowlists, and must be one of:'
     cited_by:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
-      line: 221
+      line: 267
 - label: draft-ietf-httpbis-rfc6265bis
   url: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
   type: text/html
@@ -4217,9 +4219,15 @@ sources:
     snippet: Member keys cannot contain uppercase characters.
     cited_by:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
-      line: 223
+      line: 269
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
-      line: 317
+      line: 363
+  - label: message_permissions_policy_directives_valid (2)
+    section: § 4.2
+    snippet: If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
+      line: 61
   - label: message_structured_headers_validity
     snippet: This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,
     cited_by:
