@@ -1689,12 +1689,34 @@ sources:
       line: 26
   - label: client_user_agent_present
     section: § 10.1.5
+    snippet: A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_user_agent_present.rs
+      line: 40
+  - label: client_user_agent_present (2)
+    section: § 10.1.5
     snippet: The "User-Agent" header field contains information about the user agent originating the request
     cited_by:
     - file: lint-http-rules/src/rules/client_user_agent_present.rs
-      line: 28
+      line: 22
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
       line: 23
+  - label: client_user_agent_present (3)
+    section: § 3.5
+    snippet: The term "user agent" refers to any of the various client programs that initiate a request.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_user_agent_present.rs
+      line: 23
+  - label: client_user_agent_present (4)
+    section: § 6.5.1
+    snippet: A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_user_agent_present.rs
+      line: 46
+    - file: lint-http-rules/src/rules/message_server_header_product_valid.rs
+      line: 36
+    - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
+      line: 56
   - label: lint-http-core/src/http_date.rs
     section: § 5.6.7
     snippet: A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats.
@@ -1993,6 +2015,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
       line: 174
+    - file: lint-http-rules/src/rules/client_user_agent_present.rs
+      line: 53
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
       line: 38
   - label: lint-http-rules/src/helpers/product.rs (2)
@@ -3015,14 +3039,6 @@ sources:
       line: 45
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
       line: 65
-  - label: message_server_header_product_valid (3)
-    section: § 6.5.1
-    snippet: A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_server_header_product_valid.rs
-      line: 36
-    - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
-      line: 56
   - label: message_te_header_constraints
     section: § 10.1.4
     snippet: The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections.

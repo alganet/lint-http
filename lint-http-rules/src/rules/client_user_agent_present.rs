@@ -13,6 +13,14 @@ impl Rule for ClientUserAgentPresent {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
+        // The field describes the originator of a request, so a response has no
+        // occasion to carry one. The sentence that asks for it asks a *user
+        // agent*, and in this specification that is any client program at all --
+        // a command-line tool and a firmware update script are inside the
+        // requirement exactly as a browser is, which is the first thing an
+        // operator asks when an API client is reported.
+        // cite(RFC 9110 § 10.1.5): "The "User-Agent" header field contains information about the user agent originating the request"
+        // cite(RFC 9110 § 3.5): "The term "user agent" refers to any of the various client programs that initiate a request."
         crate::rules::RuleScope::Client
     }
 
@@ -23,9 +31,26 @@ impl Rule for ClientUserAgentPresent {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Nothing requires a `User-Agent`. What the field is *for* is the reason to send
-        // one, and that is what this cites — the rule is advice, not a rule of the protocol.
-        // cite(RFC 9110 § 10.1.5): "The "User-Agent" header field contains information about the user agent originating the request"
+        // A sentence does ask for the field, and it is a SHOULD -- but it ends
+        // in a condition about the sender's configuration, and a request that
+        // omits the field because it was told to is byte-for-byte a request that
+        // omits it. The exception is therefore not decidable here, and it is not
+        // approximated either: the finding is reported for both, and the
+        // description tells the operator which two cases it cannot separate.
+        // cite(RFC 9110 § 10.1.5): "A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so."
+        //
+        // Only the header section answers that sentence. A `User-Agent` arriving
+        // in `tx.request.trailers` would be a violation of the sentence below --
+        // §10.1.5 nowhere permits the field in trailers -- rather than a way to
+        // satisfy this one, so the trailer section is deliberately not consulted.
+        // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
+        //
+        // Presence is the whole question. A field line that is present and empty
+        // is not a missing field; it is a field that fails the production below,
+        // and `message_user_agent_token_valid` -- which owns that grammar and
+        // ships enabled -- reports it as one. Answering "missing" here would name
+        // the wrong defect and report one field twice.
+        // cite(RFC 9110 § 10.1.5): "The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts."
         if !tx.request.headers.contains_key("user-agent") {
             Some(Violation {
                 rule: self.id().into(),
@@ -42,16 +67,30 @@ impl Rule for ClientUserAgentPresent {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if the client sends a `User-Agent` header in the request.\n\nWhile not strictly mandatory for all HTTP requests, the `User-Agent` header is highly recommended for identifying the client software, version, and operating system. It helps servers tailor responses and administrators debug issues."
+        "Report a request that carries no `User-Agent` header field. RFC 9110 §10.1.5 makes sending one a `SHOULD`, in each request, and it asks it of a *user agent* — which in that specification is any client program that initiates a request, so a command-line tool or a firmware update script is inside the requirement and not only a browser.\n\nThe requirement ends in an exception: *unless specifically configured not to do so*. That condition is a property of the client's configuration, and a request that omits the field on purpose is indistinguishable from one that omits it by oversight, so both are reported. A deployment that suppresses the field deliberately — §17.13 describes what a `User-Agent` can contribute to identifying a specific device — is conforming, and should turn this rule off rather than read the finding as a defect.\n\nOnly the header section is examined. A `User-Agent` field line that is present but empty is not reported here: it is a field that fails the field's own grammar, and `message_user_agent_token_valid` owns and reports that."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("10.1.5"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
-            note: "User-Agent header",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("10.1.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
+                note: "`A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.` The exception is a fact about the sender's configuration rather than about the request, so a conforming suppression and a plain omission are the same absence here and both are reported",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("3.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-3.5",
+                note: "a user agent is any client program that initiates a request — browsers, spiders, command-line tools, appliances, firmware update scripts — so the requirement is not a browser requirement",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("17.13"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-17.13",
+                note: "why a client is configured not to send the field: a `User-Agent` can hold enough detail to identify a specific device, and reducing that fingerprint is a deliberate choice this rule cannot see",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -59,12 +98,12 @@ impl Rule for ClientUserAgentPresent {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("Request"),
+                label: Some("a product identifier, with a comment after it"),
                 snippet: "GET /api/data HTTP/1.1\nHost: example.com\nUser-Agent: MyClient/1.0 (Linux; x64)",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("Request"),
+                label: Some("no User-Agent field line"),
                 snippet: "GET /api/data HTTP/1.1\nHost: example.com\nAccept: application/json",
             },
         ]
@@ -113,5 +152,40 @@ mod tests {
     fn scope_is_client() {
         let rule = ClientUserAgentPresent;
         assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+    }
+
+    /// The decline recorded at the check: an empty field line is present, so it
+    /// is not this rule's finding — and it is not silence either, because the
+    /// rule that owns the grammar reports it. Both halves are asserted, since
+    /// the first is only defensible while the second holds.
+    #[test]
+    fn an_empty_field_line_is_left_to_the_rule_that_owns_the_grammar() {
+        use crate::rules::message_user_agent_token_valid::MessageUserAgentTokenValid;
+
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[("user-agent", "")]);
+        let history = crate::transaction_history::TransactionHistory::empty();
+
+        let presence = ClientUserAgentPresent;
+        assert!(
+            presence
+                .check_transaction(
+                    &tx,
+                    &history,
+                    &crate::test_helpers::make_test_config_with_enabled_rules(&[presence.id()]),
+                )
+                .is_none(),
+            "an empty field line is present, not missing"
+        );
+
+        let grammar = MessageUserAgentTokenValid;
+        let found = grammar.check_transaction(
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[grammar.id()]),
+        );
+        assert!(
+            found.is_some(),
+            "the grammar owner must report what this rule declines"
+        );
     }
 }
