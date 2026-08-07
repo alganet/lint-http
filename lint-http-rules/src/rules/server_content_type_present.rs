@@ -93,7 +93,20 @@ impl Rule for ServerContentTypePresent {
             }
         };
 
+        // The requirement, at last quoted. It is a **SHOULD**, and it carries
+        // an exception the rule cannot evaluate: a sender that does not know
+        // the media type is excused. Nothing on the wire distinguishes "did not
+        // know" from "did not bother", so this reports both, and the
+        // description says so rather than implying a MUST.
+        // cite(RFC 9110 § 8.3): "A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender."
         // cite(RFC 9110 § 8.3): "Content-Type = media-type"
+        //
+        // Omitting it is not a framing error, and § 8.3 gives the recipient two
+        // ways to proceed -- which is exactly why this is worth reporting
+        // rather than shrugging at. The second of those ways is content
+        // sniffing, and § 8.3 spends a paragraph on what it costs:
+        // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
+        // cite(RFC 9110 § 8.3): "This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation")."
         if has_content {
             return Some(Violation {
                 rule: self.id().into(),
@@ -110,7 +123,7 @@ impl Rule for ServerContentTypePresent {
     }
 
     fn description(&self) -> &'static str {
-        "This rule ensures that responses which likely contain a body include a `Content-Type` header. This helps downstream components and user agents interpret the response bytes correctly.\n\nThe rule considers a response to likely have a body when any of:\n- `Content-Length` is present and > 0\n- `Transfer-Encoding` is present\n- Response status is 2xx and neither `Content-Length` nor `Transfer-Encoding` is present"
+        "Reports a response that carries content without a `Content-Type` describing it.\n\n**This is a SHOULD, and it has a stated exception.** RFC 9110 §8.3: \"A sender that generates a message containing content SHOULD generate a Content-Type header field in that message *unless the intended media type of the enclosed representation is unknown to the sender*.\" Nothing on the wire separates a sender that did not know from one that did not bother, so both are reported — the finding is that the recipient was left to guess, not that a rule was broken.\n\n**Why the guess matters.** §8.3 gives a recipient two ways to proceed without the field: assume `application/octet-stream`, or examine the data. The second is content sniffing, and §8.3 spends a paragraph on it — it \"risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., \\\"privilege escalation\\\")\".\n\n**Content, not headers.** The condition is that the message *contains content*, so the recorded body length decides it wherever one was captured. Only where nothing was captured does the rule fall back to header evidence, and then only to signals that assert content — a non-zero `Content-Length` or a `Transfer-Encoding`. A 2xx that merely omits `Content-Length` is not evidence of a body; that is what an empty HTTP/2 response looks like.\n\n**Responses with nothing to describe are skipped**: `1xx`, `204`, `304` (RFC 9112 §6.3), `205` (RFC 9110 §15.3.6's MUST NOT), any response to `HEAD` (§9.3.2), and a `2xx` to `CONNECT`, whose trailing octets are a tunnel rather than content. Whether a HEAD response should still carry the `Content-Type` a `GET` would have sent is §9.3.2's same-header-fields SHOULD, which `semantic_head_response_headers_match_get` checks against the actual `GET`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -119,13 +132,25 @@ impl Rule for ServerContentTypePresent {
                 spec: "RFC 9110",
                 section: Some("8.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-                note: "Content-Type header",
+                note: "Content-Type — the SHOULD, the exception that excuses a sender who does not know the type, the recipient's two fallbacks, and what sniffing costs",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9112",
-                section: Some("6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6",
-                note: "Message body length rules",
+                section: Some("6.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
+                note: "Message body length — item 1 for the statuses and HEAD responses that carry no content, item 2 for CONNECT tunnels, item 8 for why a missing Content-Length is not evidence of a body",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.3.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.6",
+                note: "205 Reset Content — bodiless by its own MUST NOT, and absent from §6.3's list",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.3.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
+                note: "HEAD — no content is sent, so this rule's condition is never met; the same-header-fields SHOULD is another rule's subject",
             },
         ]
     }
@@ -135,14 +160,23 @@ impl Rule for ServerContentTypePresent {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("Response"),
-                snippet:
-                    "HTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8\nContent-Length: 123",
+                label: None,
+                snippet: "GET /page HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8\nContent-Length: 3\n\nabc",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(no content, so nothing to describe)"),
+                snippet: "GET /thing HTTP/1.1\n\nHTTP/1.1 204 No Content\n\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a HEAD response sends no content)"),
+                snippet: "HEAD /large.iso HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 1048576\n\n",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("Response"),
-                snippet: "HTTP/1.1 200 OK\nContent-Length: 123\n# Missing Content-Type",
+                label: Some("(the recipient is left to sniff)"),
+                snippet: "GET /page HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 3\n\nabc",
             },
         ]
     }
@@ -232,6 +266,65 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// Every published snippet is run through the rule. The old pair could not
+    /// have been: one carried a `# Missing Content-Type` comment, which no HTTP
+    /// message has, and neither showed a request — yet the request method
+    /// decides two of the exemptions.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = ServerContentTypePresent;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+
+        for ex in rule.examples() {
+            let (req_part, resp_part) = ex
+                .snippet
+                .split_once("\n\n")
+                .unwrap_or_else(|| panic!("no request/response split: {:?}", ex.snippet));
+            let method = req_part.split_whitespace().next().expect("no method");
+            let (head, body) = resp_part
+                .split_once("\n\n")
+                .unwrap_or_else(|| panic!("no header/body split: {resp_part:?}"));
+            let mut lines = head.lines();
+            let status: u16 = lines
+                .next()
+                .and_then(|l| l.split_whitespace().nth(1).map(str::to_string))
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| panic!("no status: {head:?}"));
+            let pairs: Vec<(&str, &str)> = lines
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                })
+                .collect();
+
+            let mut tx = resp(status, &pairs, Some(body.len() as u64));
+            tx.request.method = method.to_string();
+
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    let found = found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    assert!(
+                        found.message.contains("no Content-Type header"),
+                        "{found:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// Responses that carry no content cannot be missing a field that describes
