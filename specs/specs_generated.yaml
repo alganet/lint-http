@@ -316,6 +316,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
       line: 51
+  - label: message_permissions_policy_directives_valid (2)
+    section: § 5.2
+    snippet: The Member Names must be Tokens.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
+      line: 286
 - label: draft-ietf-httpbis-rfc6265bis
   url: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
   type: text/html
@@ -4188,6 +4194,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 142
+  - label: message_permissions_policy_directives_valid
+    section: § 3.2
+    snippet: Member keys cannot contain uppercase characters.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
+      line: 287
   - label: message_structured_headers_validity
     snippet: This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,
     cited_by:

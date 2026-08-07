@@ -112,7 +112,7 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
 // Minimal validator focused on semantics required by the Permissions Policy spec:
 // - top-level value must be a dictionary (comma-separated members)
 // - each member must be FeatureIdentifier = MemberValue
-// - feature identifier: 1*(ALPHA / DIGIT / "-")
+// - member name: an SF key (§ 5.2), not § 5.1's HTML-attribute feature-identifier
 // - MemberValue: token '*', token 'self', string, or inner-list '(...)'
 // - MemberValue may have parameters after it; only parameter name 'report-to' is validated to be a quoted-string
 // Conservative: relies on liberal parsing of inner-list contents; primary goal is to catch common mistakes
@@ -264,11 +264,29 @@ fn validate_permissions_policy(s: &str) -> Option<String> {
 // have been moved to `crate::helpers::structured_fields` and are imported at
 // the top of this file. The feature-specific helpers remain here.
 
+/// Whether a Dictionary member name is one this field can carry.
+///
+/// This used to be `1*( ALPHA / DIGIT / "-" )`, transcribed from the Permissions
+/// Policy spec's **§ 5.1**, which is the *HTML attribute* serialization. The
+/// header is § 5.2, where a directive is a Structured Fields Dictionary and a
+/// member name is an SF key -- a different production with different characters
+/// on both sides of the difference.
+///
+/// `ALPHA` includes uppercase, so the old check accepted `Geolocation=(self)`.
+/// An SF key cannot contain uppercase, and the consequence is not a shrug: the
+/// Dictionary fails to parse, and a failed parse discards **the entire field**,
+/// so every other directive beside it stops being enforced. It also rejected
+/// `_`, `.` and `*`, which are ordinary SF key characters, and accepted a
+/// leading digit, which an SF key may not start with.
+///
+/// The rule already knew all of this -- it validates *parameter* names with
+/// `is_valid_sf_key`, and has tests pinning that uppercase is rejected there and
+/// that `.`/`_`/`*` are accepted. Member names simply never got the same
+/// treatment.
+// cite(Permissions Policy § 5.2): "The Member Names must be Tokens."
+// cite(RFC 9651 § 3.2): "Member keys cannot contain uppercase characters."
 fn is_valid_feature_identifier(s: &str) -> bool {
-    if s.is_empty() {
-        return false;
-    }
-    s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+    is_valid_sf_key(s)
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -289,7 +307,14 @@ mod tests {
     )]
     #[case(Some("feature=*"), false)]
     #[case(Some("feature=self"), false)]
-    #[case(Some("bad_feature_name=(self)"), true)]
+    // `_` is an ordinary SF key character. This asserted a violation, which
+    // was § 5.1's HTML-attribute grammar speaking.
+    #[case(Some("bad_feature_name=(self)"), false)]
+    #[case(Some("a.b=(self)"), false)]
+    #[case(Some("*=(self)"), false)]
+    // Uppercase cannot appear in an SF key, and the Dictionary fails to parse.
+    #[case(Some("Geolocation=(self)"), true)]
+    #[case(Some("geoLocation=(self)"), true)]
     #[case(Some("geolocation"), true)]
     #[case(Some("geolocation=(self);report-to=endpoint"), true)]
     #[case(Some("geolocation=?1"), true)]
@@ -807,24 +832,23 @@ mod tests {
         assert!(v.unwrap().message.contains("invalid parameter 'Foo'"));
     }
 
+    /// An SF key must begin with lowercase alpha or `*`, so a leading digit is
+    /// not a valid member name. This asserted the opposite -- `ALPHA / DIGIT`
+    /// is § 5.1's HTML-attribute production, not the header's.
     #[test]
-    fn feature_starting_with_digit_is_accepted() {
-        // feature identifiers may start with a digit per our conservative validation
+    fn feature_starting_with_digit_is_rejected() {
         let rule = MessagePermissionsPolicyDirectivesValid;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "message_permissions_policy_directives_valid",
-        ]);
-
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.response.as_mut().unwrap().headers =
-            crate::test_helpers::make_headers_from_pairs(&[("permissions-policy", "1geo=(self)")]);
-
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "permissions-policy",
+            "1feature=(self)",
+        )]);
         let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_none());
+        assert!(v.is_some());
     }
 
     #[test]
