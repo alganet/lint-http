@@ -32,22 +32,58 @@ Host: example.org
 User-Agent: curl/7.68.0
 ```
 
+### ✅ Good the example RFC 9110 prints for the field
+
+```http
+GET / HTTP/1.1
+Host: example.org
+User-Agent: CERN-LineMode/2.15 libwww/2.17b3
+```
+
+### ✅ Good comments following a product
+
 ```http
 GET / HTTP/1.1
 Host: example.org
 User-Agent: Mozilla/5.0 (compatible; Bot/1.0; +http://example.com)
 ```
 
-### ❌ Bad
-
-```http
-GET / HTTP/1.1
-Host: example.org
-User-Agent: Bad UA!
-```
+### ❌ Bad no leading product identifier
 
 ```http
 GET / HTTP/1.1
 Host: example.org
 User-Agent: /1.0
+```
+
+### ❌ Bad a comment before the first product
+
+```http
+GET / HTTP/1.1
+Host: example.org
+User-Agent: (compatible; Bot/1.0) Mozilla/5.0
+```
+
+### ❌ Bad illegal character in the product token
+
+```http
+GET / HTTP/1.1
+Host: example.org
+User-Agent: Bad@UA/1.0
+```
+
+### ❌ Bad no whitespace between the product and the comment
+
+```http
+GET / HTTP/1.1
+Host: example.org
+User-Agent: Mozilla/5.0(Windows)
+```
+
+### ❌ Bad unterminated comment
+
+```http
+GET / HTTP/1.1
+Host: example.org
+User-Agent: Mozilla/5.0 (unbalanced comment
 ```

@@ -91,18 +91,38 @@ impl Rule for MessageUserAgentTokenValid {
             },
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
+                label: Some("the example RFC 9110 prints for the field"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: CERN-LineMode/2.15 libwww/2.17b3",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("comments following a product"),
                 snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Mozilla/5.0 (compatible; Bot/1.0; +http://example.com)",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Bad UA!",
+                label: Some("no leading product identifier"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: /1.0",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: /1.0",
+                label: Some("a comment before the first product"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: (compatible; Bot/1.0) Mozilla/5.0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("illegal character in the product token"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Bad@UA/1.0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("no whitespace between the product and the comment"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Mozilla/5.0(Windows)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("unterminated comment"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Mozilla/5.0 (unbalanced comment",
             },
         ]
     }
@@ -123,6 +143,9 @@ mod tests {
     #[case(Some("gzip"), false)]
     #[case(Some("Mozilla/5.0 (compatible; Bot/1.0; +http://example.com)"), false)]
     #[case(Some("Agent/1.0 AnotherOne/2.0"), false)]
+    // `!` is a `tchar`, so this is two products separated by RWS and it
+    // conforms. It was published as a Bad example for years on the strength of
+    // reading like one.
     #[case(Some("Bad UA!"), false)]
     #[case(Some("/1.0"), true)]
     #[case(Some("Agent/"), true)]
@@ -471,6 +494,52 @@ mod tests {
         let rule = MessageUserAgentTokenValid;
         assert_eq!(rule.id(), "message_user_agent_token_valid");
         assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+    }
+
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageUserAgentTokenValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_user_agent_token_valid",
+        ]);
+
+        let mut saw_a_finding = false;
+        for ex in rule.examples() {
+            let pairs: Vec<(&str, &str)> = ex
+                .snippet
+                .lines()
+                .skip(1)
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+                })
+                .collect();
+
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule rejects its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    saw_a_finding = true;
+                }
+            }
+        }
+        assert!(saw_a_finding, "no published example produced a finding");
     }
 
     #[test]
