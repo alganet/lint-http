@@ -74,6 +74,27 @@ impl Rule for MessageResponseBodyLengthAccuracy {
         let bodiless_status =
             (100..200).contains(&resp.status) || resp.status == 204 || resp.status == 304;
         if head_request || bodiless_status {
+            // Item 1 does still say something checkable about these, and
+            // exempting them from the comparison would have thrown it away: not
+            // that the declared length is wrong, but that there must be *no
+            // body at all*. Nothing else looks at the captured octets for these
+            // statuses -- `server_no_body_for_1xx_204_304` reads the header
+            // fields that advertise a body, not the body -- so if this rule
+            // simply returned here, a 204 that answered with content would go
+            // unreported by everything.
+            if resp.body_length.is_some_and(|n| n > 0) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "A {} response to {} cannot contain a message body, but {} body \
+                         octets were received",
+                        resp.status,
+                        tx.request.method,
+                        resp.body_length.unwrap_or(0)
+                    ),
+                });
+            }
             return None;
         }
 
@@ -134,7 +155,7 @@ impl Rule for MessageResponseBodyLengthAccuracy {
     }
 
     fn description(&self) -> &'static str {
-        "Checks that a response's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that value the framing — \"necessary for determining where the data (and message) ends\" — and RFC 9110 §8.6 says why a proxy in particular must care: \"a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect\". A length that disagrees with the framing is how response splitting reaches the next hop.\n\n**RFC 9112 §6.3 lists eight ways a body length is determined, in precedence order, and this rule is item 6.** The items above it are the reason most of what follows is an exemption rather than a check:\n\n- *Item 1* — a response to `HEAD`, and any `1xx`, `204` or `304`, ends at the blank line \"regardless of the header fields present\". Its `Content-Length` describes a body that was deliberately not sent: §8.6 requires, in a MUST, that a HEAD response's value equal what a `GET` would have returned, and a 304's equal what a `200` would have. Comparing either against zero captured octets reports a conforming response, so these are not measured here. Whether the value matches what a GET *would* have returned needs two transactions; `semantic_head_response_headers_match_get` has them.\n- *Item 2* — a `2xx` to `CONNECT` becomes a tunnel, and a client \"MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message\".\n- *Item 3* — when `Transfer-Encoding` is also present it overrides, so the declared length is disregarded. Carrying both is its own MUST NOT (§6.2) and `message_content_length_vs_transfer_encoding` reports it.\n- *Item 8* — a response with no declared length is close-delimited; there is nothing to compare.\n\n**Syntax belongs to another rule.** A value that is not `1*DIGIT`, or whose field lines disagree, leaves no number to compare, so this rule declines and `message_content_length` reports it. That rule also implements §6.3's allowance for `Content-Length: 42, 42` — a comma list of equal values is one value, not a malformed field.\n\n**What the comparison is against.** The recorded length counts octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts. Where no body was captured, nothing is claimed."
+        "Checks that a response's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that value the framing — \"necessary for determining where the data (and message) ends\" — and RFC 9110 §8.6 says why a proxy in particular must care: \"a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect\". A length that disagrees with the framing is how response splitting reaches the next hop.\n\n**RFC 9112 §6.3 lists eight ways a body length is determined, in precedence order, and this rule is item 6.** The items above it are the reason most of what follows is an exemption rather than a check:\n\n- *Item 1* — a response to `HEAD`, and any `1xx`, `204` or `304`, ends at the blank line \"regardless of the header fields present\". Its `Content-Length` describes a body that was deliberately not sent: §8.6 requires, in a MUST, that a HEAD response's value equal what a `GET` would have returned, and a 304's equal what a `200` would have. Comparing either against zero captured octets reports a conforming response, so these are not measured here. Whether the value matches what a GET *would* have returned needs two transactions; `semantic_head_response_headers_match_get` has them. What item 1 *does* say about these is checkable and is checked: there must be no body at all, so a `204` that answered with content is reported for the body's existence rather than for any mismatch. Nothing else looks — the rule covering these statuses reads the header fields that advertise a body, not the body.\n- *Item 2* — a `2xx` to `CONNECT` becomes a tunnel, and a client \"MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message\".\n- *Item 3* — when `Transfer-Encoding` is also present it overrides, so the declared length is disregarded. Carrying both is its own MUST NOT (§6.2) and `message_content_length_vs_transfer_encoding` reports it.\n- *Item 8* — a response with no declared length is close-delimited; there is nothing to compare.\n\n**Syntax belongs to another rule.** A value that is not `1*DIGIT`, or whose field lines disagree, leaves no number to compare, so this rule declines and `message_content_length` reports it. That rule also implements §6.3's allowance for `Content-Length: 42, 42` — a comma list of equal values is one value, not a malformed field.\n\n**What the comparison is against.** The recorded length counts octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts. Where no body was captured, nothing is claimed."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -464,6 +485,37 @@ mod tests {
             run(&tx).is_none(),
             "{method} -> {status} with Content-Length: {cl} declares a body it did not send"
         );
+    }
+
+    /// Item 1 still says something checkable about these: not that the declared
+    /// length is wrong, but that there must be no body at all. Exempting them
+    /// from the comparison without this would have let a 204 that answered with
+    /// content go unreported by every rule -- the sibling that covers these
+    /// statuses reads the header fields advertising a body, not the body.
+    #[rstest]
+    #[case("HEAD", 200)]
+    #[case("GET", 204)]
+    #[case("GET", 304)]
+    #[case("GET", 100)]
+    fn a_bodiless_response_that_sent_octets_is_reported(#[case] method: &str, #[case] status: u16) {
+        let mut tx = resp_with(status, &[("content-length", "1024")], Some(7));
+        tx.request.method = method.to_string();
+        assert!(
+            run(&tx).is_some_and(|v| v.message.contains("cannot contain a message body")),
+            "{method} -> {status} sent 7 octets"
+        );
+    }
+
+    /// The finding is the body's existence, not its size. A 304 whose captured
+    /// octets happen to equal its declared length is still a 304 with a body,
+    /// and the message says so rather than reporting a match.
+    #[test]
+    fn the_finding_is_the_body_not_the_mismatch() {
+        let mut tx = resp_with(304, &[("content-length", "7")], Some(7));
+        tx.request.method = "GET".into();
+        let v = run(&tx).expect("a 304 with 7 body octets has a body");
+        assert!(v.message.contains("cannot contain a message body"), "{v:?}");
+        assert!(!v.message.contains("does not match"), "{v:?}");
     }
 
     /// § 6.3 item 2: the octets after a tunnelling 2xx are not content, and the
