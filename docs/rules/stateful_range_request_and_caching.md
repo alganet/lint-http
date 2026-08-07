@@ -14,6 +14,8 @@ This rule tracks earlier transactions for the same client and resource.  After a
 
 Where the stored response carried only a `Last-Modified` date the rule is silent: §4.3.1 asks for that date with a SHOULD that excludes subrange requests and a MAY that covers them, and neither makes its absence a defect.  Weak entity tags are skipped, because `If-Range` may not carry one and ranges sharing only a weak validator cannot be combined at all.
 
+**What it assumes.** §4.3.1 is addressed to caches, and no field on the wire says whether a client is one.  A user agent that fetches consecutive ranges and stores nothing — a media player, a download manager streaming to disk — is under no obligation to send any of these fields, and this rule will report it. Two negotiated variants of one resource share a history here as well, since the query is keyed on the URI and not on the cache key §4.3.1 narrows to.  Turn the rule off for traffic that is not caching.
+
 ## Specifications
 
 - [RFC 9111 §4.3.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1): The requirement, and it is a MUST: send the stored response's entity tags, using `If-Match`, `If-None-Match` **or** `If-Range`. The `Last-Modified` bullets are a SHOULD that excludes subranges and a MAY that covers them

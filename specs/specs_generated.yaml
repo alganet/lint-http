@@ -3492,43 +3492,49 @@ sources:
     snippet: A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 166
+      line: 186
   - label: stateful_range_request_and_caching (2)
     section: § 13.1.5
     snippet: Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 187
+      line: 207
   - label: stateful_range_request_and_caching (3)
     section: § 13.1.5
     snippet: Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 177
+      line: 197
   - label: stateful_range_request_and_caching (4)
     section: § 14.2
     snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.  For this specification, GET is the only method for which range handling is defined.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 65
+      line: 80
   - label: stateful_range_request_and_caching (5)
     section: § 14.2
     snippet: The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 70
+      line: 86
   - label: stateful_range_request_and_caching (6)
     section: § 15.3.7.3
     snippet: A client that has received multiple partial responses to GET requests on a target resource MAY combine those responses into a larger continuous range if they share the same strong validator.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 77
+      line: 93
   - label: stateful_range_request_and_caching (7)
     section: § 15.3.7.3
     snippet: These ranges can only be safely combined if they all have in common the same strong validator (Section 8.8.1).
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 114
+      line: 134
+  - label: stateful_range_request_and_caching (8)
+    section: § 9.1
+    snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
+      line: 81
 - label: RFC 9111
   url: https://www.rfc-editor.org/rfc/rfc9111.txt
   type: text/plain
@@ -3748,7 +3754,7 @@ sources:
     - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
       line: 92
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 135
+      line: 155
   - label: stateful_cache_validation_chain (3)
     section: § 4.3.1
     snippet: SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value.
@@ -3756,7 +3762,7 @@ sources:
     - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
       line: 98
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 108
+      line: 128
   - label: stateful_immutable_cache_never_stale
     section: § 5.2
     snippet: Cache directives are identified by a token, to be compared case-insensitively
@@ -3844,22 +3850,28 @@ sources:
     snippet: A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 76
+      line: 92
   - label: stateful_range_request_and_caching (2)
     section: § 3.4
     snippet: A cache MAY combine these ranges into a single stored response, and reuse that response to satisfy later requests, if they all share the same strong validator
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 115
+      line: 135
   - label: stateful_range_request_and_caching (3)
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields.  These contain validator metadata sourced from a stored response(s) that has the same URI.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 89
+      line: 108
   - label: stateful_range_request_and_caching (4)
     section: § 4.3.1
     snippet: MAY send the Last-Modified value (using If-Unmodified-Since or If-Range) if the request is for a subrange, a single stored response is being validated, and that response contains only a Last-Modified value (not an entity tag).
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
+      line: 129
+  - label: stateful_range_request_and_caching (5)
+    section: § 4.3.1
+    snippet: Typically, this will include only the stored response(s) that has the same cache key, although a cache is allowed to validate a response that it cannot choose with the request header fields it is sending
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
       line: 109
