@@ -67,6 +67,9 @@ impl Rule for MessageExtensionHeadersRegistered {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
+        // The sentence that asks for registration is about field names, and names no
+        // direction and no section, so every field the transaction carries is in scope.
+        // cite(RFC 9110 § 5): "Fields are sent and received within the header and trailer sections of messages"
         crate::rules::RuleScope::Both
     }
 
@@ -82,35 +85,28 @@ impl Rule for MessageExtensionHeadersRegistered {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = parse_allowed_config(cfg, self.id()).ok()?;
-        // Helper to check headers map against allowed set
-        let check_map = |headers: &hyper::HeaderMap| -> Option<Violation> {
-            // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
-            for (name, _val) in headers.iter() {
-                let nm = name.as_str().to_ascii_lowercase();
-                if !config.allowed.contains(&nm) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!(
-                            "Header field-name '{}' is not in allowed list for '{}'. Consider adding it to the rule's 'allowed' list or registering it with IANA",
-                            name.as_str(),
-                            self.id()
-                        ),
-                    });
-                }
-            }
-            None
-        };
 
-        // Check request headers
-        if let Some(v) = check_map(&tx.request.headers) {
+        if let Some(v) = check_section("request header section", &tx.request.headers, &config) {
             return Some(v);
         }
-
-        // Check response headers
-        if let Some(resp) = &tx.response {
-            if let Some(v) = check_map(&resp.headers) {
+        // A trailer field name is a field name, so the allowlist reaches it on the same
+        // terms. The section is `None` unless the framing carried one.
+        // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
+        if let Some(trailers) = &tx.request.trailers {
+            if let Some(v) = check_section("request trailer section", trailers, &config) {
                 return Some(v);
+            }
+        }
+
+        // A transaction the upstream never answered has no response half to read.
+        if let Some(resp) = &tx.response {
+            if let Some(v) = check_section("response header section", &resp.headers, &config) {
+                return Some(v);
+            }
+            if let Some(trailers) = &resp.trailers {
+                if let Some(v) = check_section("response trailer section", trailers, &config) {
+                    return Some(v);
+                }
             }
         }
 
@@ -153,6 +149,41 @@ impl Rule for MessageExtensionHeadersRegistered {
             },
         ]
     }
+}
+
+/// Walk one field section, reporting the first field name the deployment has not
+/// listed.
+fn check_section(
+    section: &str,
+    fields: &hyper::HeaderMap,
+    config: &ExtensionHeadersConfig,
+) -> Option<Violation> {
+    for (name, _value) in fields.iter() {
+        // `as_str()` is already lowercase whatever the wire spelling was -- the HTTP/1
+        // parser folds case on the way in and the HTTP/2 and HTTP/3 decoders reject an
+        // uppercase name outright -- so the configured side, folded once at parse time,
+        // is the only one that needs folding.
+        // cite(RFC 9114 § 4.2): "A request or response containing uppercase characters in field names MUST be treated as malformed"
+        if config
+            .allowed
+            .iter()
+            .any(|allowed| allowed == name.as_str())
+        {
+            continue;
+        }
+        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
+        return Some(Violation {
+            rule: MessageExtensionHeadersRegistered.id().into(),
+            severity: config.severity,
+            message: format!(
+                "Header field-name '{}' in the {} is not in allowed list for '{}'. Consider adding it to the rule's 'allowed' list or registering it with IANA",
+                name.as_str(),
+                section,
+                MessageExtensionHeadersRegistered.id()
+            ),
+        });
+    }
+    None
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -437,6 +468,62 @@ mod tests {
 
         let parsed = parse_allowed_config(&cfg, "message_extension_headers_registered")?;
         assert!(parsed.allowed.contains(&"x-custom".to_string()));
+        Ok(())
+    }
+
+    /// The allowlist reaches every section a transaction can carry, and the
+    /// violation says which one it came from -- it could stay silent about that
+    /// while only two of the four were walked.
+    #[rstest]
+    #[case("request trailer section")]
+    #[case("response trailer section")]
+    fn unlisted_trailer_field_name_is_reported(#[case] section: &str) -> anyhow::Result<()> {
+        let rule = MessageExtensionHeadersRegistered;
+        let cfg = make_cfg_with_allowed(vec!["host", "user-agent"]);
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let trailers = crate::test_helpers::make_headers_from_pairs(&[("checksum", "abc123")]);
+        if section.starts_with("request") {
+            tx.request.trailers = Some(trailers);
+        } else {
+            tx.response.as_mut().unwrap().trailers = Some(trailers);
+        }
+
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .expect("a trailer field name the deployment did not list must be reported");
+        assert!(v.message.contains("checksum"));
+        assert!(
+            v.message.contains(section),
+            "violation should name the section it came from, got: {}",
+            v.message
+        );
+        Ok(())
+    }
+
+    /// A listed name is listed wherever it appears; the trailer walks are not a
+    /// second, stricter allowlist.
+    #[test]
+    fn listed_trailer_field_name_is_accepted() -> anyhow::Result<()> {
+        let rule = MessageExtensionHeadersRegistered;
+        let cfg = make_cfg_with_allowed(vec!["host", "user-agent", "checksum"]);
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().trailers = Some(
+            crate::test_helpers::make_headers_from_pairs(&[("checksum", "abc123")]),
+        );
+
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .is_none());
         Ok(())
     }
 
