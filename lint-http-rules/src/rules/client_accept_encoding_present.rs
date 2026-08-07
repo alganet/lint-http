@@ -92,6 +92,15 @@ impl Rule for ClientAcceptEncodingPresent {
             });
         }
 
+        // Anything that lists a coding stops here, including the values that
+        // refuse everything by *weight* rather than by omission. § 12.5.3's
+        // second rule makes `*;q=0` -- or `identity;q=0` without a more
+        // specific entry -- exclude even the unencoded representation, which is
+        // a stronger refusal than an empty field. It is deliberately not
+        // reported: that is a judgement about acceptability computed from
+        // qvalues, not about whether a preference was expressed, and this rule
+        // is the latter. Recorded so the omission reads as a decision.
+        // cite(RFC 9110 § 12.5.3): "If the representation has no content coding, then it is acceptable by default unless specifically excluded by the Accept-Encoding header field stating either "identity;q=0" or "*;q=0" without a more specific entry for "identity"."
         None
     }
 
@@ -263,6 +272,20 @@ mod tests {
                 "{headers:?} should mention {fragment:?}"
             ),
         }
+    }
+
+    /// A value that refuses everything by weight still lists a coding, and this
+    /// rule is about whether a preference was expressed, not about computing
+    /// acceptability from qvalues. Pinned so the silence reads as a decision.
+    #[rstest]
+    #[case("*;q=0")]
+    #[case("identity;q=0")]
+    #[case("gzip;q=0")]
+    fn a_refusal_by_weight_is_still_a_stated_preference(#[case] value: &str) {
+        assert!(
+            run(&req(&[("accept-encoding", value)])).is_none(),
+            "{value:?}"
+        );
     }
 
     /// A CONNECT asks for a tunnel, not a representation, so there is nothing
