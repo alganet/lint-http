@@ -790,9 +790,17 @@ enabled = true
 severity = "warn"
 
 [rules.message_extension_headers_registered]
-enabled = true
+# The 'allowed' array is this rule's only authority: it is not the IANA field
+# name registry, so every field name the deployment expects has to be listed
+# here, including the ones RFC 9110 itself defines. No such list is
+# deployment-independent, so the example below is an illustration and the rule
+# ships disabled -- turned on against this array it would report ordinary
+# traffic, since Date, Content-Length and Connection are not in it either.
+# Name a private field for its use and without an "X-" prefix (RFC 9110
+# 16.3.2.1).
+enabled = false
 severity = "warn"
-allowed = ["host", "content-type", "user-agent", "accept", "x-custom"]
+allowed = ["host", "user-agent", "accept", "content-type", "acme-request-id"]
 
 [rules.message_transfer_encoding_chunked_final]
 enabled = true

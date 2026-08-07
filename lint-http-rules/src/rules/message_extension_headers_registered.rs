@@ -114,7 +114,7 @@ impl Rule for MessageExtensionHeadersRegistered {
     }
 
     fn description(&self) -> &'static str {
-        "Non-standard or extension header field-names (i.e., those not registered in the IANA HTTP Field Name registry) SHOULD be explicitly allowed by configuration to avoid accidental custom headers, typos, and interoperability issues. This rule flags header field-names that are not present in the rule's `allowed` list."
+        "Reports field names this deployment has not listed in the rule's `allowed` array. All four field sections a transaction can carry are walked — the request and response header sections, and their trailer sections when the message framing carried one — and names are compared case-insensitively, which is what RFC 9110 §5.1 says a field name is.\n\n**The `allowed` array is the rule's only authority.** It does not consult the IANA HTTP Field Name Registry: a permanently registered field is reported exactly like a typo when the array omits it, and registering a name with IANA changes nothing about what this rule says. Neither is a finding a protocol error. RFC 9110 §5.1 asks only that field names \"ought to be\" registered — weaker than SHOULD — and the same paragraph requires a proxy to forward unrecognized header fields and tells other recipients they SHOULD ignore them. A finding means \"this deployment did not expect this field\", which is worth a look for typos, forgotten debug headers and injected fields, and is not a claim that the sender did anything wrong.\n\nBecause the array has to name every field the deployment sees, no useful list is deployment-independent and `config_example.toml` ships the rule disabled with an illustrative one. For a private field prefer a short name scoped to its use and no `X-` prefix: RFC 9110 §16.3.2.1 says field names ought not be prefixed with `X-`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -123,29 +123,61 @@ impl Rule for MessageExtensionHeadersRegistered {
                 spec: "RFC 9110",
                 section: Some("5.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1",
-                note: "Field names",
+                note: "Field Names (case-insensitive, and registration is an \"ought to\"; the same paragraph makes a proxy forward what it does not recognize)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("6.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5",
+                note: "Trailer Fields (a trailer field name is a field name, so the array reaches it)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("16.3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.3.1",
+                note: "Field Name Registry (what registration is; this rule does not consult it)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("16.3.2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.3.2.1",
+                note: "Considerations for New Field Names (no \"X-\" prefix)",
             },
             crate::rules::SpecRef {
                 spec: "IANA HTTP Field Name Registry",
                 section: None,
                 url: "https://www.iana.org/assignments/http-fields/http-fields.xhtml",
-                note: "IANA HTTP Field Name Registry",
+                note: "The registry § 5.1 points at, for deciding what belongs in the array",
             },
         ]
     }
 
+    // Judged against the `allowed` array `config_example.toml` ships, so the
+    // snippets mean what a reader with the documented configuration would see.
+    // The private field is named without a prefix the spec advises against.
+    // cite(RFC 9110 § 16.3.2.1): "Field names ought not be prefixed with "X-""
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "Host: example.com\nContent-Type: text/plain\nX-Custom: 1",
+                snippet: "Host: example.com\nAccept: text/plain\nAcme-Request-Id: 7c1f2b",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "X-Custome: 1   # typo or unregistered header not allowed\nX-Unknown: 2   # unregistered header not in allowed list",
+                label: Some("A typo is a field name of its own"),
+                snippet: "Host: example.com\nAcme-Request-Idd: 7c1f2b",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Registered with IANA and still reported: the array does not name it"),
+                snippet: "Host: example.com\nContent-Language: en",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Trailer section, walked on the same terms"),
+                snippet: "Acme-Checksum: 9f2a",
             },
         ]
     }
@@ -176,7 +208,7 @@ fn check_section(
             rule: MessageExtensionHeadersRegistered.id().into(),
             severity: config.severity,
             message: format!(
-                "Header field-name '{}' in the {} is not in allowed list for '{}'. Consider adding it to the rule's 'allowed' list or registering it with IANA",
+                "Field name '{}' in the {} is not in the 'allowed' list for '{}'. That list is the rule's only authority: add the name to it if this deployment expects the field",
                 name.as_str(),
                 section,
                 MessageExtensionHeadersRegistered.id()
@@ -525,6 +557,74 @@ mod tests {
             )
             .is_none());
         Ok(())
+    }
+
+    /// Every published snippet is run through the rule, against the array
+    /// `config_example.toml` ships -- the docs print that block right beside the
+    /// examples, so it is the configuration a reader judges them with, and a
+    /// config built by `make_test_config_with_enabled_rules` would carry no
+    /// `allowed` key at all and make this guard pass by never running.
+    ///
+    /// The shipped block says `enabled = false`; the engine is what honours that,
+    /// so a direct `check_transaction` still exercises the rule.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageExtensionHeadersRegistered;
+        let toml_src = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
+        )
+        .expect("config_example.toml must be readable");
+        let cfg: crate::config::Config =
+            toml::from_str(&toml_src).expect("config_example.toml must parse");
+
+        let mut saw_a_finding = false;
+        for ex in rule.examples() {
+            assert!(
+                !ex.snippet.contains('#'),
+                "example carries a comment no HTTP message has: {:?}",
+                ex.snippet
+            );
+            let pairs: Vec<(&str, &str)> = ex
+                .snippet
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| {
+                    l.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a field line: {l:?}"))
+                })
+                .collect();
+            let section = crate::test_helpers::make_headers_from_pairs(&pairs);
+
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            if ex.label.is_some_and(|l| l.starts_with("Trailer section")) {
+                tx.response.as_mut().unwrap().trailers = Some(section);
+            } else {
+                tx.request.headers = section;
+            }
+
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule reports its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    assert!(
+                        found.is_some(),
+                        "rule accepts its NonCompliant example {:?}",
+                        ex.snippet
+                    );
+                    saw_a_finding = true;
+                }
+            }
+        }
+        assert!(saw_a_finding, "no example produced a finding");
     }
 
     #[test]

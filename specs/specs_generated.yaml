@@ -2680,6 +2680,12 @@ sources:
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 30
   - label: message_extension_headers_registered
+    section: § 16.3.2.1
+    snippet: Field names ought not be prefixed with "X-"
+    cited_by:
+    - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
+      line: 158
+  - label: message_extension_headers_registered (2)
     section: § 5
     snippet: Fields are sent and received within the header and trailer sections of messages
     cited_by:
@@ -2687,13 +2693,13 @@ sources:
       line: 72
     - file: lint-http-rules/src/rules/message_header_field_names_token.rs
       line: 18
-  - label: message_extension_headers_registered (2)
+  - label: message_extension_headers_registered (3)
     section: § 5.1
     snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"
     cited_by:
     - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
-      line: 174
-  - label: message_extension_headers_registered (3)
+      line: 206
+  - label: message_extension_headers_registered (4)
     section: § 6.5
     snippet: Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields"
     cited_by:
@@ -3888,7 +3894,7 @@ sources:
     snippet: A request or response containing uppercase characters in field names MUST be treated as malformed
     cited_by:
     - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
-      line: 166
+      line: 198
     - file: lint-http-rules/src/rules/message_header_field_names_token.rs
       line: 130
   - label: message_header_field_names_token
