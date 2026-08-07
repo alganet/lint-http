@@ -23,91 +23,27 @@ impl Rule for MessageUserAgentTokenValid {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        let check_value = |hdr: &str, val: &str| -> Option<Violation> {
-            // Strip comments (e.g., parentheses) before token parsing
-            let no_comments = match crate::helpers::headers::strip_comments(val) {
-                Ok(s) => s,
-                Err(e) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!("Invalid {} header: {}", hdr, e),
-                    })
-                }
-            };
-
-            // cite(RFC 9110 § 10.1.5): "The "User-Agent" header field contains information about the user agent originating the request"
-            if no_comments.trim().is_empty() {
-                return Some(Violation {
+        // `User-Agent` and `Server` are one production, and RFC 9110 defines
+        // `product` once — under this field — for both. The grammar walk lives
+        // in the shared helper so the two fields cannot be validated by two
+        // readings of the same sentence.
+        // cite(RFC 9110 § 10.1.5): "The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts."
+        let check_value = |hv: &hyper::header::HeaderValue| -> Option<Violation> {
+            // The raw octets, not `to_str()`: `ctext` admits `obs-text`, so a
+            // conforming value need not be visible US-ASCII.
+            // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+            crate::helpers::product::validate_product_list(hv.as_bytes())
+                .err()
+                .map(|e| Violation {
                     rule: self.id().into(),
                     severity: config.severity,
-                    message: format!("{} header is empty or contains only comments", hdr),
-                });
-            }
-
-            for part in no_comments.split_whitespace() {
-                // product = token ["/" token]
-                let mut pieces = part.splitn(2, '/');
-                let prod = pieces.next().unwrap();
-                if prod.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!("{} header contains empty product token", hdr),
-                    });
-                }
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(prod) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!(
-                            "{} product token contains invalid character: '{}'",
-                            hdr, c
-                        ),
-                    });
-                }
-                if let Some(ver) = pieces.next() {
-                    if ver.is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!("{} product contains empty version", hdr),
-                        });
-                    }
-                    if ver.contains('/') {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!("{} product version contains unexpected '/'", hdr),
-                        });
-                    }
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(ver) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!(
-                                "{} product version contains invalid character: '{}'",
-                                hdr, c
-                            ),
-                        });
-                    }
-                }
-            }
-
-            None
+                    message: format!("Invalid User-Agent header: {}", e),
+                })
         };
 
         // Check request User-Agent headers
         for hv in tx.request.headers.get_all("user-agent").iter() {
-            if hv.to_str().is_err() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: "User-Agent header contains non-UTF8 value".into(),
-                });
-            }
-            let s = hv.to_str().unwrap();
-            if let Some(v) = check_value("User-Agent", s) {
+            if let Some(v) = check_value(hv) {
                 return Some(v);
             }
         }
@@ -115,15 +51,7 @@ impl Rule for MessageUserAgentTokenValid {
         // Be conservative: also validate User-Agent in responses if present
         if let Some(resp) = &tx.response {
             for hv in resp.headers.get_all("user-agent").iter() {
-                if hv.to_str().is_err() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "User-Agent header contains non-UTF8 value".into(),
-                    });
-                }
-                let s = hv.to_str().unwrap();
-                if let Some(v) = check_value("User-Agent", s) {
+                if let Some(v) = check_value(hv) {
                     return Some(v);
                 }
             }
@@ -357,13 +285,24 @@ mod tests {
         );
         assert!(v.is_some());
         if let Some(violation) = v {
-            assert!(violation.message.contains("non-UTF8"));
+            // 0xFF is `obs-text`, which `ctext` admits and `tchar` does not, so
+            // the octet is reported for sitting outside a comment rather than
+            // for failing to decode.
+            assert!(
+                violation
+                    .message
+                    .contains("does not begin with a product identifier"),
+                "{}",
+                violation.message
+            );
         }
         Ok(())
     }
 
+    /// RWS separates elements, and what follows it has to be a product or a
+    /// comment; a `/` there begins neither.
     #[test]
-    fn empty_product_token_from_whitespace_is_reported() -> anyhow::Result<()> {
+    fn a_slash_where_an_element_is_due_is_reported() -> anyhow::Result<()> {
         let rule = MessageUserAgentTokenValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_user_agent_token_valid",
@@ -380,7 +319,13 @@ mod tests {
         );
         assert!(v.is_some());
         if let Some(violation) = v {
-            assert!(violation.message.contains("empty product token"));
+            assert!(
+                violation
+                    .message
+                    .contains("expected a product identifier, found '/'"),
+                "{}",
+                violation.message
+            );
         }
         Ok(())
     }
@@ -441,10 +386,11 @@ mod tests {
         assert!(v.is_some());
         if let Some(violation) = v {
             assert!(
-                violation.message.contains("contains only comments")
-                    || violation
-                        .message
-                        .contains("empty or contains only comments")
+                violation
+                    .message
+                    .contains("does not begin with a product identifier"),
+                "{}",
+                violation.message
             );
         }
         Ok(())

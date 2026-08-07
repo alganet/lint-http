@@ -17,17 +17,17 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1482
+      line: 1404
   - label: lint-http-rules/src/helpers/headers.rs (2)
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1477
+      line: 1399
   - label: lint-http-rules/src/helpers/headers.rs (3)
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1476
+      line: 1398
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -751,25 +751,25 @@ sources:
     snippet: 'Normally, a mailbox is composed of two parts: (1) an optional display name that indicates the name of the recipient (which can be a person or a system) that could be displayed to the user of a mail application, and (2) an addr-spec address enclosed in angle brackets'
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1226
+      line: 1148
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.4
     snippet: There is an alternate simple form of a mailbox where the addr-spec address appears alone, without the recipient's name or the angle brackets.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1239
+      line: 1161
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.4.1
     snippet: An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1257
+      line: 1179
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.4.1
     snippet: The locally interpreted string is either a quoted-string or a dot-atom.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1260
+      line: 1182
 - label: RFC 5646
   url: https://www.rfc-editor.org/rfc/rfc5646.txt
   type: text/plain
@@ -1025,7 +1025,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1478
+      line: 1400
     - file: lint-http-rules/src/helpers/uri.rs
       line: 145
   - label: lint-http-rules/src/helpers/uri.rs
@@ -1432,25 +1432,25 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1156
+      line: 1078
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1097
+      line: 1019
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1135
+      line: 1057
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1128
+      line: 1050
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
@@ -1693,8 +1693,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_user_agent_present.rs
       line: 28
-    - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
-      line: 39
   - label: lint-http-core/src/http_date.rs
     section: § 5.6.7
     snippet: A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats.
@@ -1850,7 +1848,7 @@ sources:
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1065
+      line: 987
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 171
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
@@ -1906,13 +1904,13 @@ sources:
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1018
+      line: 940
   - label: lint-http-rules/src/helpers/headers.rs (6)
     section: § 5.6.4
     snippet: qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 949
+      line: 871
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 333
   - label: lint-http-rules/src/helpers/headers.rs (7)
@@ -1920,15 +1918,15 @@ sources:
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 928
+      line: 850
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 966
+      line: 888
   - label: lint-http-rules/src/helpers/headers.rs (8)
     section: § 5.6.4
     snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 948
+      line: 870
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 118
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
@@ -1936,40 +1934,28 @@ sources:
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 34
   - label: lint-http-rules/src/helpers/headers.rs (9)
-    section: § 5.6.5
-    snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
-    cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 755
-  - label: lint-http-rules/src/helpers/headers.rs (10)
-    section: § 5.6.5
-    snippet: ctext          = HTAB / SP / %x21-27 / %x2A-5B / %x5D-7E / obs-text
-    cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 756
-  - label: lint-http-rules/src/helpers/headers.rs (11)
     section: § 5.6.6
     snippet: Parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1431
+      line: 1353
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 156
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
       line: 121
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
       line: 218
-  - label: lint-http-rules/src/helpers/headers.rs (12)
+  - label: lint-http-rules/src/helpers/headers.rs (10)
     section: § 5.6.6
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1421
+      line: 1343
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 296
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
       line: 203
-  - label: lint-http-rules/src/helpers/headers.rs (13)
+  - label: lint-http-rules/src/helpers/headers.rs (11)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
     cited_by:
@@ -1980,7 +1966,7 @@ sources:
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1380
+      line: 1302
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
@@ -1992,13 +1978,93 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1339
-  - label: lint-http-rules/src/helpers/headers.rs (14)
+      line: 1261
+  - label: lint-http-rules/src/helpers/headers.rs (12)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 333
+  - label: lint-http-rules/src/helpers/product.rs
+    section: § 10.1.5
+    snippet: The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts.
+    cited_by:
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 174
+    - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
+      line: 30
+  - label: lint-http-rules/src/helpers/product.rs (2)
+    section: § 10.2.4
+    snippet: Each product identifier consists of a name and optional version, as defined in Section 10.1.5.
+    cited_by:
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 16
+  - label: lint-http-rules/src/helpers/product.rs (3)
+    section: § 10.2.4
+    snippet: The Server header field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the origin server software and its significant subproducts.
+    cited_by:
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 173
+  - label: lint-http-rules/src/helpers/product.rs (4)
+    section: § 5.5
+    snippet: A field value does not include leading or trailing whitespace.
+    cited_by:
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 156
+  - label: lint-http-rules/src/helpers/product.rs (5)
+    section: § 5.6.3
+    snippet: RWS = 1*( SP / HTAB )
+    cited_by:
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 185
+  - label: lint-http-rules/src/helpers/product.rs (6)
+    section: § 5.6.3
+    snippet: The RWS rule is used when at least one linear whitespace octet is required to separate field tokens.
+    cited_by:
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 184
+  - label: lint-http-rules/src/helpers/product.rs (7)
+    section: § 5.6.4
+    snippet: The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs.
+    cited_by:
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 74
+  - label: lint-http-rules/src/helpers/product.rs (8)
+    section: § 5.6.5
+    snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
+    cited_by:
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 66
+  - label: lint-http-rules/src/helpers/product.rs (9)
+    section: § 5.6.5
+    snippet: ctext          = HTAB / SP / %x21-27 / %x2A-5B / %x5D-7E / obs-text
+    cited_by:
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 48
+  - label: lint-http-rules/src/helpers/product.rs (10)
+    section: § A
+    snippet: Server = product *( RWS ( product / comment ) )
+    cited_by:
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 14
+  - label: lint-http-rules/src/helpers/product.rs (11)
+    section: § A
+    snippet: User-Agent = product *( RWS ( product / comment ) )
+    cited_by:
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 15
+  - label: lint-http-rules/src/helpers/product.rs (12)
+    section: § A
+    snippet: product = token [ "/" product-version ] product-version = token
+    cited_by:
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 114
+  - label: lint-http-rules/src/helpers/product.rs (13)
+    section: § A
+    snippet: quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )
+    cited_by:
+    - file: lint-http-rules/src/helpers/product.rs
+      line: 75
   - label: 3xx redirection class
     section: § 15.4
     snippet: The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request.
@@ -2353,6 +2419,10 @@ sources:
       line: 49
     - file: lint-http-rules/src/rules/message_multipart_content_type_and_body_consistency.rs
       line: 66
+    - file: lint-http-rules/src/rules/message_server_header_product_valid.rs
+      line: 50
+    - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
+      line: 34
   - label: message_charset_iana_registered (2)
     section: § 8.3
     snippet: 'The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics.'
@@ -2931,10 +3001,22 @@ sources:
       line: 49
   - label: message_server_header_product_valid
     section: § 10.2.4
-    snippet: The "Server" header field contains information about the software used by the origin server to handle the request
+    snippet: An origin server MAY generate a Server header field in its responses.
     cited_by:
     - file: lint-http-rules/src/rules/message_server_header_product_valid.rs
-      line: 39
+      line: 19
+  - label: message_server_header_product_valid (2)
+    section: § 5.3
+    snippet: a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers)
+    cited_by:
+    - file: lint-http-rules/src/rules/message_server_header_product_valid.rs
+      line: 45
+  - label: message_server_header_product_valid (3)
+    section: § 6.5.1
+    snippet: A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_server_header_product_valid.rs
+      line: 36
   - label: message_te_header_constraints
     section: § 10.1.4
     snippet: The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections.
