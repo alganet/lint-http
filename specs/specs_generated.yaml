@@ -2582,7 +2582,7 @@ sources:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 56
     - file: lint-http-rules/src/rules/server_content_type_present.rs
-      line: 57
+      line: 67
   - label: message_content_type_well_formed (3)
     section: § 8.3.1
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
@@ -3613,6 +3613,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 135
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 50
   - label: message_trailer_headers_valid
     section: § 7.1.2
     snippet: trailer-section   = *( field-line CRLF )
