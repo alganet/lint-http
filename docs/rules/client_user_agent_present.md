@@ -18,7 +18,7 @@ Only the header section is examined. A `User-Agent` field line that is present b
 
 - [RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5): `A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.` The exception is a fact about the sender's configuration rather than about the request, so a conforming suppression and a plain omission are the same absence here and both are reported
 - [RFC 9110 §3.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-3.5): a user agent is any client program that initiates a request — browsers, spiders, command-line tools, appliances, firmware update scripts — so the requirement is not a browser requirement
-- [RFC 9110 §17.13](https://www.rfc-editor.org/rfc/rfc9110.html#section-17.13): why a client is configured not to send the field: a `User-Agent` can hold enough detail to identify a specific device, and reducing that fingerprint is a deliberate choice this rule cannot see
+- [RFC 9110 §17.13](https://www.rfc-editor.org/rfc/rfc9110.html#section-17.13): why a client is configured not to send the field: a `User-Agent` might carry enough information to identify a specific device, usually combined with other characteristics, and reducing that fingerprint is a deliberate choice this rule cannot see
 
 ## Configuration
 

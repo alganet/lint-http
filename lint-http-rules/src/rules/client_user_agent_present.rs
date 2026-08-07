@@ -88,7 +88,7 @@ impl Rule for ClientUserAgentPresent {
                 spec: "RFC 9110",
                 section: Some("17.13"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-17.13",
-                note: "why a client is configured not to send the field: a `User-Agent` can hold enough detail to identify a specific device, and reducing that fingerprint is a deliberate choice this rule cannot see",
+                note: "why a client is configured not to send the field: a `User-Agent` might carry enough information to identify a specific device, usually combined with other characteristics, and reducing that fingerprint is a deliberate choice this rule cannot see",
             },
         ]
     }
@@ -194,6 +194,30 @@ mod tests {
         );
     }
 
+    /// The field lines of an example, with its start line dropped — and the
+    /// drop is load-bearing, so it is checked rather than assumed. Every example
+    /// here is a request, and the fields below the start line are filed onto the
+    /// request for that reason. A response-shaped example added later would have
+    /// its status line discarded in the same silence and its fields put where
+    /// this rule cannot see them, which would let a `NonCompliant` example
+    /// satisfy a guard by being invisible to it. Both guards parse through here
+    /// so neither can be the one that forgets.
+    fn published_fields(snippet: &str) -> Vec<(&str, &str)> {
+        let mut lines = snippet.lines();
+        let start = lines.next().expect("an example has a start line");
+        assert!(
+            !start.starts_with("HTTP/"),
+            "a response-shaped example cannot be checked by these guards: {start:?}"
+        );
+        lines
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| {
+                l.split_once(": ")
+                    .unwrap_or_else(|| panic!("not a header line: {l:?}"))
+            })
+            .collect()
+    }
+
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
         use crate::rules::{Compliance, Rule as _};
@@ -202,26 +226,7 @@ mod tests {
 
         let mut saw_a_finding = false;
         for ex in rule.examples() {
-            let mut lines = ex.snippet.lines();
-            let start = lines.next().expect("an example has a start line");
-            // Every example here is a request, and the fields below the start
-            // line are filed onto the request for that reason. A response-shaped
-            // example added later would have its status line discarded and its
-            // fields put where this rule cannot see them — which would let a
-            // NonCompliant example pass the guard by being invisible to it.
-            assert!(
-                !start.starts_with("HTTP/"),
-                "a response-shaped example cannot be checked by this guard: {start:?}"
-            );
-
-            let pairs: Vec<(&str, &str)> = lines
-                .filter(|l| !l.trim().is_empty())
-                .map(|l| {
-                    l.split_once(": ")
-                        .unwrap_or_else(|| panic!("not a header line: {l:?}"))
-                })
-                .collect();
-
+            let pairs = published_fields(ex.snippet);
             let tx = crate::test_helpers::make_test_transaction_with_headers(&pairs);
             let found = rule.check_transaction(
                 &tx,
@@ -261,14 +266,7 @@ mod tests {
             if ex.compliance != Compliance::Compliant {
                 continue;
             }
-            let pairs: Vec<(&str, &str)> = ex
-                .snippet
-                .lines()
-                .skip(1)
-                .filter(|l| !l.trim().is_empty())
-                .map(|l| l.split_once(": ").expect("a header line"))
-                .collect();
-
+            let pairs = published_fields(ex.snippet);
             let tx = crate::test_helpers::make_test_transaction_with_headers(&pairs);
             let found = grammar.check_transaction(
                 &tx,
