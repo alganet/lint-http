@@ -82,7 +82,7 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
                 // "previously received" only diverges from "most recent" after
                 // an earlier decrease, which was itself flagged at that step.
                 // Not a spec-licensed construct — a deliberate choice to avoid a
-                // redundant second finding (RULECITES §4.1).
+                // redundant second finding.
                 break;
             }
         }
