@@ -1552,13 +1552,13 @@ sources:
     snippet: 'Accept-Encoding = #( codings [ weight ] )'
     cited_by:
     - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
-      line: 33
+      line: 47
   - label: client_accept_encoding_present (2)
     section: § 12.5.3
     snippet: An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.
     cited_by:
     - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
-      line: 39
+      line: 53
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 48
   - label: client_accept_encoding_present (3)
@@ -1566,15 +1566,27 @@ sources:
     snippet: If no Accept-Encoding header field is in the request, any content coding is considered acceptable by the user agent.
     cited_by:
     - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
-      line: 32
+      line: 46
   - label: client_accept_encoding_present (4)
     section: § 12.5.3
     snippet: When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response.
     cited_by:
     - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
-      line: 31
+      line: 45
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 19
+  - label: client_accept_encoding_present (5)
+    section: § 9.3.6
+    snippet: Any 2xx (Successful) response indicates that the sender (and all inbound proxies) will switch to tunnel mode immediately after the response header section; data received after that header section is from the server identified by the request target.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
+      line: 33
+  - label: client_accept_encoding_present (6)
+    section: § 9.3.6
+    snippet: The CONNECT method requests that the recipient establish a tunnel to the destination origin server identified by the request target and, if successful, thereafter restrict its behavior to blind forwarding of data, in both directions, until the tunnel is closed.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
+      line: 32
   - label: client_accept_ranges_on_partial_content
     section: § 14.3
     snippet: The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource.
@@ -1850,7 +1862,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 248
     - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
-      line: 47
+      line: 61
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 52
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
