@@ -2582,7 +2582,7 @@ sources:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 56
     - file: lint-http-rules/src/rules/server_content_type_present.rs
-      line: 67
+      line: 96
   - label: message_content_type_well_formed (3)
     section: § 8.3.1
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
@@ -2953,6 +2953,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_charset_specification.rs
       line: 48
+  - label: server_content_type_present
+    section: § 15.3.6
+    snippet: Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 41
+  - label: server_content_type_present (2)
+    section: § 9.3.2
+    snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 52
   - label: server_etag_or_last_modified
     section: § 8.8.2.1
     snippet: An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined
@@ -3601,12 +3613,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 104
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 57
   - label: message_response_body_length_accuracy (3)
     section: § 6.3
     snippet: Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section.
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 50
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 33
   - label: message_response_body_length_accuracy (4)
     section: § 6.3
     snippet: Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection.
@@ -3614,7 +3630,7 @@ sources:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 135
     - file: lint-http-rules/src/rules/server_content_type_present.rs
-      line: 50
+      line: 79
   - label: message_trailer_headers_valid
     section: § 7.1.2
     snippet: trailer-section   = *( field-line CRLF )

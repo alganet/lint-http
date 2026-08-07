@@ -27,9 +27,38 @@ impl Rule for ServerContentTypePresent {
             return None;
         };
 
-        // Per RFCs, no body is allowed for 1xx, 204, 304 responses
+        // The responses that carry no content, and so cannot be missing a
+        // header field that describes content. The list had three entries and
+        // needed six.
+        // cite(RFC 9112 § 6.3): "Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section."
         let status = resp.status;
-        if (100..200).contains(&status) || status == 204 || status == 304 {
+        let bodiless_status = (100..200).contains(&status) || status == 204 || status == 304;
+
+        // 205 is not in § 6.3's item 1, and is bodiless all the same -- its own
+        // status definition says so in a MUST NOT. A 205 declaring a
+        // Content-Length was reported for omitting a Content-Type it has
+        // nothing to describe.
+        // cite(RFC 9110 § 15.3.6): "Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response."
+        let reset_content = status == 205;
+
+        // A HEAD response carries no content by definition, so § 8.3's
+        // condition -- "a message containing content" -- is not met however
+        // large the resource is. Whether it *should* still carry the
+        // Content-Type a GET would have sent is a different sentence (§ 9.3.2's
+        // same-header-fields SHOULD) and a different rule's finding:
+        // `semantic_head_response_headers_match_get` compares the two
+        // transactions, and its configurable header list already names
+        // `content-type`.
+        // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+        let head_request = tx.request.method.eq_ignore_ascii_case("HEAD");
+
+        // And a 2xx to CONNECT is a tunnel: the octets after the header section
+        // are not content and no media type describes them.
+        // cite(RFC 9112 § 6.3): "Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields."
+        let tunnelling =
+            tx.request.method.eq_ignore_ascii_case("CONNECT") && (200..300).contains(&status);
+
+        if bodiless_status || reset_content || head_request || tunnelling {
             return None;
         }
 
@@ -203,6 +232,39 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// Responses that carry no content cannot be missing a field that describes
+    /// content. The skip list had 1xx, 204 and 304; these three were reported.
+    #[rstest]
+    #[case("HEAD", 200, vec![("content-length", "1048576")])]
+    #[case("HEAD", 200, vec![("transfer-encoding", "chunked")])]
+    #[case("GET", 205, vec![("content-length", "10")])]
+    #[case("CONNECT", 200, vec![("content-length", "10")])]
+    #[case("CONNECT", 299, vec![("transfer-encoding", "chunked")])]
+    fn a_response_with_no_content_is_not_missing_a_content_type(
+        #[case] method: &str,
+        #[case] status: u16,
+        #[case] headers: Vec<(&str, &str)>,
+    ) {
+        let mut tx = resp(status, &headers, None);
+        tx.request.method = method.to_string();
+        assert!(
+            run(&tx).is_none(),
+            "{method} -> {status} carries no content to describe"
+        );
+    }
+
+    /// The exemptions are bounded: a CONNECT that did not tunnel, and every
+    /// ordinary method, are still checked.
+    #[rstest]
+    #[case("GET", 200)]
+    #[case("CONNECT", 405)]
+    #[case("POST", 201)]
+    fn ordinary_responses_are_still_checked(#[case] method: &str, #[case] status: u16) {
+        let mut tx = resp(status, &[("content-length", "10")], None);
+        tx.request.method = method.to_string();
+        assert!(run(&tx).is_some());
     }
 
     /// Where the octets were counted, the count decides. The rule used to infer
