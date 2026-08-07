@@ -2680,11 +2680,27 @@ sources:
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 30
   - label: message_extension_headers_registered
+    section: § 5
+    snippet: Fields are sent and received within the header and trailer sections of messages
+    cited_by:
+    - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
+      line: 72
+    - file: lint-http-rules/src/rules/message_header_field_names_token.rs
+      line: 18
+  - label: message_extension_headers_registered (2)
     section: § 5.1
     snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"
     cited_by:
     - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
-      line: 87
+      line: 174
+  - label: message_extension_headers_registered (3)
+    section: § 6.5
+    snippet: Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields"
+    cited_by:
+    - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
+      line: 94
+    - file: lint-http-rules/src/rules/message_header_field_names_token.rs
+      line: 35
   - label: message_from_header_email_syntax
     section: § 10.1.2
     snippet: The "From" header field contains an Internet email address for a human user who controls the requesting user agent.
@@ -2692,18 +2708,6 @@ sources:
     - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
       line: 29
   - label: message_header_field_names_token
-    section: § 5
-    snippet: Fields are sent and received within the header and trailer sections of messages
-    cited_by:
-    - file: lint-http-rules/src/rules/message_header_field_names_token.rs
-      line: 18
-  - label: message_header_field_names_token (2)
-    section: § 6.5
-    snippet: Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields"
-    cited_by:
-    - file: lint-http-rules/src/rules/message_header_field_names_token.rs
-      line: 35
-  - label: message_header_field_names_token (3)
     section: § A
     snippet: field-name = token field-value = *field-content
     cited_by:
@@ -3879,13 +3883,15 @@ sources:
       line: 128
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
       line: 36
-  - label: message_header_field_names_token
+  - label: message_extension_headers_registered
     section: § 4.2
     snippet: A request or response containing uppercase characters in field names MUST be treated as malformed
     cited_by:
+    - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
+      line: 166
     - file: lint-http-rules/src/rules/message_header_field_names_token.rs
       line: 130
-  - label: message_header_field_names_token (2)
+  - label: message_header_field_names_token
     section: § 4.2
     snippet: Properties of HTTP field names and values are discussed in more detail in Section 5.1 of [HTTP]
     cited_by:
