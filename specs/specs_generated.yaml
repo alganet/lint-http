@@ -1620,13 +1620,121 @@ sources:
     - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
       line: 32
   - label: client_accept_ranges_on_partial_content
+    section: § 14
+    snippet: Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 109
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 54
+  - label: client_accept_ranges_on_partial_content (2)
+    section: § 14.2
+    snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 83
+  - label: client_accept_ranges_on_partial_content (3)
+    section: § 14.2
+    snippet: An origin server MUST ignore a Range header field that contains a range unit it does not understand.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 142
+  - label: client_accept_ranges_on_partial_content (4)
+    section: § 14.2
+    snippet: The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 82
+    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
+      line: 86
+  - label: client_accept_ranges_on_partial_content (5)
+    section: § 14.3
+    snippet: A client MAY generate range requests regardless of having received an Accept-Ranges field.  The information only provides advice for the sake of improving performance and reducing unnecessary network transfers.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 110
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 55
+  - label: client_accept_ranges_on_partial_content (6)
+    section: § 14.3
+    snippet: A server that does not support any kind of range request for the target resource MAY send
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 118
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 71
+  - label: client_accept_ranges_on_partial_content (7)
+    section: § 14.3
+    snippet: Conversely, a client MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 163
+  - label: client_accept_ranges_on_partial_content (8)
     section: § 14.3
     snippet: The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
-      line: 51
+      line: 95
     - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
       line: 31
+  - label: client_accept_ranges_on_partial_content (9)
+    section: § 14.3
+    snippet: to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 92
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 72
+  - label: client_accept_ranges_on_partial_content (10)
+    section: § 15.3.7
+    snippet: A client MUST inspect a 206 response's Content-Type and Content-Range field(s) to determine what parts are enclosed and whether additional requests are needed.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 164
+  - label: client_accept_ranges_on_partial_content (11)
+    section: § 5.3
+    snippet: a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 28
+    - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
+      line: 101
+    - file: lint-http-rules/src/rules/message_content_disposition_token_valid.rs
+      line: 114
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 51
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 59
+    - file: lint-http-rules/src/rules/message_etag_syntax.rs
+      line: 77
+    - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
+      line: 34
+    - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
+      line: 43
+    - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
+      line: 40
+    - file: lint-http-rules/src/rules/message_sec_fetch_site_value_valid.rs
+      line: 40
+    - file: lint-http-rules/src/rules/message_sec_fetch_user_value_valid.rs
+      line: 40
+    - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
+      line: 40
+    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
+      line: 41
+    - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
+      line: 40
+  - label: client_accept_ranges_on_partial_content (12)
+    section: § A
+    snippet: Range = ranges-specifier
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 27
+  - label: client_accept_ranges_on_partial_content (13)
+    section: § A
+    snippet: range-unit = token ranges-specifier = range-unit "=" range-set
+    cited_by:
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 37
   - label: client_cache_respect
     section: § 13.1.2
     snippet: When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request
@@ -1809,6 +1917,8 @@ sources:
       line: 52
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 79
+    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 47
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 56
   - label: lint-http-rules/src/helpers/accept_ranges.rs (2)
@@ -2458,48 +2568,24 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
       line: 22
   - label: message_accept_ranges_and_206_consistency
-    section: § 14
-    snippet: Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
-      line: 54
-  - label: message_accept_ranges_and_206_consistency (2)
     section: § 14.2
     snippet: If all of the preconditions are true, the server supports the Range header field for the target resource, the received Range field-value contains a valid ranges-specifier with a range-unit supported for that target resource, and that ranges-specifier is satisfiable with respect to the selected representation, the server SHOULD send a 206 (Partial Content) response with content containing one or more partial representations that correspond to the satisfiable range-spec(s) requested.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
       line: 106
-  - label: message_accept_ranges_and_206_consistency (3)
-    section: § 14.3
-    snippet: A client MAY generate range requests regardless of having received an Accept-Ranges field.  The information only provides advice for the sake of improving performance and reducing unnecessary network transfers.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
-      line: 55
-  - label: message_accept_ranges_and_206_consistency (4)
-    section: § 14.3
-    snippet: A server that does not support any kind of range request for the target resource MAY send
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
-      line: 71
-  - label: message_accept_ranges_and_206_consistency (5)
-    section: § 14.3
-    snippet: to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
-      line: 72
-  - label: message_accept_ranges_and_206_consistency (6)
+  - label: message_accept_ranges_and_206_consistency (2)
     section: § 14.3
     snippet: to indicate that it supports byte range requests for that target resource, thereby encouraging its use by the client for future partial requests on the same request path.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
       line: 56
-  - label: message_accept_ranges_and_206_consistency (7)
+  - label: message_accept_ranges_and_206_consistency (3)
     section: § 15.3.7
     snippet: 'A server that generates a 206 response MUST generate the following header fields, in addition to those required in the subsections below, if the field would have been sent in a 200 (OK) response to the same request: Date, Cache-Control, ETag, Expires, Content-Location, and Vary.'
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
       line: 57
-  - label: message_accept_ranges_and_206_consistency (8)
+  - label: message_accept_ranges_and_206_consistency (4)
     section: § 15.3.7
     snippet: The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation.
     cited_by:
@@ -2691,36 +2777,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
       line: 62
-  - label: message_conditional_headers_consistency (7)
-    section: § 5.3
-    snippet: a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list
-    cited_by:
-    - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
-      line: 101
-    - file: lint-http-rules/src/rules/message_content_disposition_token_valid.rs
-      line: 114
-    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 51
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 59
-    - file: lint-http-rules/src/rules/message_etag_syntax.rs
-      line: 77
-    - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
-      line: 34
-    - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
-      line: 43
-    - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
-      line: 40
-    - file: lint-http-rules/src/rules/message_sec_fetch_site_value_valid.rs
-      line: 40
-    - file: lint-http-rules/src/rules/message_sec_fetch_user_value_valid.rs
-      line: 40
-    - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
-      line: 40
-    - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
-      line: 41
-    - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
-      line: 40
   - label: message_connection_header_tokens_valid
     section: § 7.6.1
     snippet: The "Connection" header field allows the sender to list desired control options for the current connection.
@@ -3578,24 +3634,18 @@ sources:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
       line: 80
   - label: stateful_range_request_and_caching (5)
-    section: § 14.2
-    snippet: The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 86
-  - label: stateful_range_request_and_caching (6)
     section: § 15.3.7.3
     snippet: A client that has received multiple partial responses to GET requests on a target resource MAY combine those responses into a larger continuous range if they share the same strong validator.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
       line: 93
-  - label: stateful_range_request_and_caching (7)
+  - label: stateful_range_request_and_caching (6)
     section: § 15.3.7.3
     snippet: These ranges can only be safely combined if they all have in common the same strong validator (Section 8.8.1).
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
       line: 134
-  - label: stateful_range_request_and_caching (8)
+  - label: stateful_range_request_and_caching (7)
     section: § 9.1
     snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
     cited_by:

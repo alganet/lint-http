@@ -7,11 +7,56 @@ use crate::rules::Rule;
 
 pub struct ClientAcceptRangesOnPartialContent;
 
+/// The range unit this request asks in, or `None` when the `Range` field is not
+/// something a unit may honestly be read out of.
+///
+/// Every reason to decline here belongs to `client_range_header_syntax_valid`,
+/// which reads every field line and reports the value itself. What is wanted is
+/// one construct out of a value that can be trusted, so a second, more lenient
+/// reading of the production is exactly what this must not become: no trimming
+/// around the unit, and no unit taken out of a value that has no `=` in it.
+fn requested_unit(headers: &hyper::HeaderMap) -> Option<String> {
+    let mut lines = headers.get_all("range").iter();
+    let value = lines.next()?;
+    // `Range` is not a list -- its entire value is one ranges-specifier -- so a
+    // second field line is not a continuation of the first, and there is no
+    // combined value here to read a unit out of. That the second line was sent
+    // at all is a violation of the sentence below, reported by whichever rule
+    // owns it and not by this one.
+    //
+    // cite(RFC 9110 § A): "Range = ranges-specifier"
+    // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+    if lines.next().is_some() {
+        return None;
+    }
+
+    // The delimiter is not optional: a `Range` value is a range unit, an "=",
+    // and a range set. A value without one is not a ranges-specifier, and the
+    // text before the first "=" of a value that has none is not a unit.
+    //
+    // cite(RFC 9110 § A): "range-unit = token ranges-specifier = range-unit "=" range-set"
+    let (unit, _range_set) = value.to_str().ok()?.split_once('=')?;
+
+    // A range unit is a `token`, so there is nothing to trim off one: the space
+    // in `bytes =0-499` is part of what the client sent, and what to say about
+    // it belongs to the rule that reads the whole value.
+    if crate::helpers::token::find_invalid_token_char(unit).is_some() {
+        return None;
+    }
+
+    // cite(RFC 9110 § 14.1): "All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1."
+    Some(unit.to_ascii_lowercase())
+}
+
 impl Rule for ClientAcceptRangesOnPartialContent {
     fn id(&self) -> &'static str {
         "client_accept_ranges_on_partial_content"
     }
 
+    /// Documentation, not a filter: in this engine only `Server` decides
+    /// anything, and `Client` and `Both` dispatch identically. What keeps this
+    /// rule off a message it has nothing to say about is the `Range` field it
+    /// requires and the previous response it reads, both below.
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -23,84 +68,105 @@ impl Rule for ClientAcceptRangesOnPartialContent {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Only applies to requests that contain a UTF-8 Range header we can parse.
-        let range_val = crate::helpers::headers::get_header_str(&tx.request.headers, "range")?;
-        // Only treat the header as having a unit if it includes a '=' delimiter (e.g. 'bytes=0-499')
-        let range_unit = {
-            let mut parts = range_val.splitn(2, '=');
-            let unit = parts.next().unwrap_or_default();
-            if parts.next().is_some() {
-                Some(unit.trim().to_ascii_lowercase())
-            } else {
-                None
-            }
-        };
 
+        // The subject is a request that asks for a range, and presence is the
+        // whole of it: the advice below is against attempting a range request at
+        // all, so a value this rule cannot read is still a range request.
+        //
+        // The method is not filtered on, and the second sentence is why. A
+        // server must ignore `Range` on a method for which range handling is not
+        // defined, so such a request is answered with the whole representation
+        // -- more of the wasted transfer this field exists to prevent than a GET
+        // would be, not less.
+        //
+        // cite(RFC 9110 § 14.2): "The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation."
+        // cite(RFC 9110 § 14.2): "A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined."
+        tx.request.headers.get_all("range").iter().next()?;
+
+        // The engine hands this rule a history scoped to this client and this
+        // request URI, which is the whole reason the advice below applies at
+        // all: it is advice about the same request path. Only the most recent
+        // response is read -- a later response supersedes what an earlier one
+        // advised about the resource as it is now.
+        //
+        // cite(RFC 9110 § 14.3): "to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose."
         let prev = history.previous()?;
 
+        // cite(RFC 9110 § 14.3): "The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource."
         let resp = prev.response.as_ref()?;
 
-        // Collect any ASCII-valid Accept-Ranges tokens from previous response
-        let mut saw_units: Vec<String> = Vec::new();
-        let mut any_accept_ranges_present = false;
+        // What the response advertised, read by the code both readers of this
+        // field share -- including its trailer section, which is part of the
+        // field's definition.
+        let advertised = crate::helpers::accept_ranges::read_advertisement(resp);
 
-        for hv in resp.headers.get_all("accept-ranges").iter() {
-            if let Ok(s) = hv.to_str() {
-                any_accept_ranges_present = true;
-                for token in crate::helpers::headers::parse_list_header(s) {
-                    // cite(RFC 9110 § 14.3): "The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource."
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!("Invalid token '{}' in Accept-Ranges header", c),
-                        });
-                    }
-                    saw_units.push(token.to_ascii_lowercase());
-                }
-            }
-        }
-
-        // Range unit already parsed from validated UTF-8 header above.
-
-        // If Accept-Ranges explicitly advertises 'none' -> client should not send Range
-        if saw_units.iter().any(|t| t == "none") {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: "Client sent Range request despite previous response advertising 'Accept-Ranges: none'".into(),
-            });
-        }
-
-        // If Accept-Ranges was present, but does not advertise the unit used by the client, flag violation
-        if any_accept_ranges_present {
-            if let Some(unit) = &range_unit {
-                if !saw_units.iter().any(|u| u == unit) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!("Client sent Range using unit '{}' but previous response did not advertise it in Accept-Ranges", unit),
-                    });
-                }
-            }
-            // If unit could not be parsed, be lenient and do not raise here
+        // No advertisement is not a reason to say anything, and the sentences
+        // below are as explicit as this specification gets. This rule used to
+        // report exactly this when the previous response was a 206 -- a client
+        // that had just been served a partial response, reported for asking for
+        // the next part of it.
+        //
+        // cite(RFC 9110 § 14): "Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability."
+        // cite(RFC 9110 § 14.3): "A client MAY generate range requests regardless of having received an Accept-Ranges field.  The information only provides advice for the sake of improving performance and reducing unnecessary network transfers."
+        if !advertised.present {
             return None;
         }
 
-        // No Accept-Ranges present in previous response. If previous response was 206, recommend client to avoid sending Range requests without prior advertisement
-        if resp.status == 206 {
+        // `none` is the one thing this field says that is addressed to the
+        // client's next request, and it says not to make this one.
+        //
+        // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
+        if advertised.advertises("none") {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
-                message: "Client sent Range request but previous 206 Partial Content response did not advertise Accept-Ranges".into(),
+                message: "Previous response for this resource sent Accept-Ranges: none, advising against a range request on the same request path, and this request sends Range anyway (advice: nothing forbids it)".into(),
             });
         }
 
+        // A field line that could not be read may have been the one naming this
+        // request's unit, so a mismatch below would rest on nothing.
+        if !advertised.complete {
+            return None;
+        }
+
+        let unit = requested_unit(&tx.request.headers)?;
+
+        // What the mismatch costs, and all it costs: an origin server must
+        // ignore a `Range` field in a unit it does not understand, so the
+        // request is answered with the whole representation. That is the
+        // unnecessary transfer this field exists to prevent, and it is still
+        // advice -- nothing makes the advertised list exhaustive, and the
+        // sentence at the top of this function permits the request outright.
+        //
+        // cite(RFC 9110 § 14.2): "An origin server MUST ignore a Range header field that contains a range unit it does not understand."
+        if !advertised.advertises(&unit) {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: format!(
+                    "Range asks in '{}', a unit the previous response for this resource did not advertise, so a server that does not understand it will ignore the field and send the whole representation (advice: nothing forbids it)",
+                    unit
+                ),
+            });
+        }
+
+        // Where the rule stops, and no parser gets past it. Both sentences below
+        // are requirements on a conclusion the client drew -- what it assumed,
+        // what it inspected -- and nothing on the wire records a conclusion: a
+        // client that assumed and a client that did not send the same bytes.
+        // Their strength is not the obstacle. The first is a MUST NOT and is as
+        // undecidable as the weakest advice in this file, which is why it is
+        // said out loud here and in the description rather than approximated by
+        // a check on something else.
+        //
+        // cite(RFC 9110 § 14.3): "Conversely, a client MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses."
+        // cite(RFC 9110 § 15.3.7): "A client MUST inspect a 206 response's Content-Type and Content-Range field(s) to determine what parts are enclosed and whether additional requests are needed."
         None
     }
 
     fn description(&self) -> &'static str {
-        "Clients should track server advertising of range support via the `Accept-Ranges` response header and avoid sending `Range` requests when the server has explicitly advertised `Accept-Ranges: none`. If a previous response for the same resource was `206 Partial Content` but did not advertise `Accept-Ranges`, clients should be conservative and avoid sending subsequent `Range` requests unless the server signals support."
+        "Advice a client was given, and whether the next request took it. `Accept-Ranges` tells a client which range units a resource supports, or that it supports none — and almost everything this rule has to say about the request that follows is advice, because RFC 9110 §14.3 says the field \"only provides advice for the sake of improving performance and reducing unnecessary network transfers\".\n\n**`Accept-Ranges: none` followed by a `Range` request** is the one finding addressed to the client. The permission to send `none` is granted to a server that supports no kind of range request \"to advise the client not to attempt a range request on the same request path\", and this request attempts one. It is still advice: the same section says a client \"MAY generate range requests regardless of having received an Accept-Ranges field\".\n\n**A `Range` in a unit the previous response did not advertise** is advice about a wasted transfer. §14.2 says an origin server \"MUST ignore a Range header field that contains a range unit it does not understand\", so such a request is answered with the whole representation — which is what the advertisement exists to prevent. Nothing makes the advertised list exhaustive, so this is not a violation either.\n\n**What this rule no longer reports.** A `Range` request following a 206 that carried no `Accept-Ranges` field: §14.3's \"regardless of having received an Accept-Ranges field\" permits it in as many words, and §14 makes range requests an OPTIONAL feature of HTTP altogether. Whether the advertised value is a well-formed list of range units belongs to `server_accept_ranges_values_valid`; whether the `Range` value is a well-formed ranges-specifier belongs to `client_range_header_syntax_valid`. Where either value cannot be read as this rule needs it, it declines rather than reporting the field a second time — but a `Range` field that cannot be read is still a range request, and still takes the `none` advice.\n\n**What no rule can check.** §14.3 also says a client \"MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses\", and §15.3.7 that a client \"MUST inspect a 206 response's Content-Type and Content-Range field(s)\". Both are requirements on a conclusion the client drew; nothing on the wire distinguishes a client that assumed from one that did not, so this rule stops there rather than approximating them.\n\n**What it reads.** The transaction immediately preceding this one from the same client for the same request URI, which is what \"the same request path\" is measured against; a later response supersedes what an earlier one advised, so only the most recent is read. `Accept-Ranges` is read from the trailer section as well as the header section, which §14.3 permits."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -109,13 +175,25 @@ impl Rule for ClientAcceptRangesOnPartialContent {
                 spec: "RFC 9110",
                 section: Some("14.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3",
-                note: "`Accept-Ranges`: response header that advertises supported `range-unit` tokens or `none`",
+                note: "`Accept-Ranges`: advice, in the section's own words, about which range units a resource supports — or `none`, which advises against attempting a range request on the same request path. A client MAY send range requests regardless, and MUST NOT assume the field means future range requests will be answered with partial responses, which no parser can check",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("14.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
+                note: "`Range`: `ranges-specifier`, and an origin server MUST ignore one whose range unit it does not understand — which is what a request in an unadvertised unit costs",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("14.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1",
+                note: "Range units: `range-unit = token`, shared by `Accept-Ranges` and `Range`, and case-insensitive — which is why both sides of the comparison are folded",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("15.3.7"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
-                note: "`206 Partial Content` and `Content-Range`. RFC 7233 §4.1 defined them; RFC 9110 obsoleted RFC 7233",
+                note: "`206 Partial Content`: a client MUST inspect its `Content-Type` and `Content-Range`, which is not observable either. A 206 that advertised nothing is no longer reported here. RFC 7233 §4.1 defined the status code; RFC 9110 obsoleted RFC 7233",
             },
         ]
     }
@@ -125,18 +203,25 @@ impl Rule for ClientAcceptRangesOnPartialContent {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("— server advertises support for bytes and client uses bytes"),
+                label: Some("— the server advertised bytes and the client asks in bytes"),
                 snippet: "HTTP/1.1 200 OK\nAccept-Ranges: bytes\n\nGET /resource HTTP/1.1\nRange: bytes=0-499",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "— a client MAY generate range requests regardless of having received the field",
+                ),
+                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\n\nGET /resource HTTP/1.1\nRange: bytes=500-999",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("— server explicitly rejects ranges, client should not send Range"),
+                label: Some("— advice: the server advised against range requests on this path"),
                 snippet: "HTTP/1.1 200 OK\nAccept-Ranges: none\n\nGET /resource HTTP/1.1\nRange: bytes=0-499",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("— previous response was 206 but did not advertise Accept-Ranges (client should not assume support)"),
-                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\n\nGET /resource HTTP/1.1\nRange: bytes=500-999",
+                label: Some("— advice: a unit the previous response did not advertise"),
+                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: bytes\n\nGET /resource HTTP/1.1\nRange: pages=1-2",
             },
         ]
     }
@@ -149,101 +234,318 @@ static REGISTRATION: &dyn crate::rules::Rule = &ClientAcceptRangesOnPartialConte
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hyper::header::{HeaderName, HeaderValue};
     use rstest::rstest;
 
-    fn make_prev_resp(
-        status: u16,
-        accept_ranges: Option<&str>,
-    ) -> crate::http_transaction::HttpTransaction {
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
-        if let Some(ar) = accept_ranges {
-            tx.response.as_mut().unwrap().headers =
-                crate::test_helpers::make_headers_from_pairs(&[("accept-ranges", ar)]);
-        }
-        tx
+    fn config() -> crate::config::Config {
+        crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "client_accept_ranges_on_partial_content",
+        ])
     }
 
-    #[rstest]
-    #[case(Some((206, Some("bytes"))), "bytes=0-1", false)]
-    #[case(Some((200, Some("none"))), "bytes=0-1", true)]
-    #[case(Some((206, None)), "bytes=0-1", true)]
-    #[case(Some((200, None)), "bytes=0-1", false)]
-    #[case(Some((206, Some("pages"))), "bytes=0-1", true)]
-    #[case(None, "bytes=0-1", false)]
-    fn check_cases(
-        #[case] prev: Option<(u16, Option<&str>)>,
-        #[case] range_val: &str,
-        #[case] expect_violation: bool,
-    ) -> anyhow::Result<()> {
-        let rule = ClientAcceptRangesOnPartialContent;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+    /// A field section as name/value pairs. The value is bytes rather than a
+    /// `&str` because half of these tests are about a value that is not one.
+    type Fields<'a> = &'a [(&'a str, &'a [u8])];
 
+    /// The previous response a fixture is built around: status, header section,
+    /// trailer section.
+    type Previous<'a> = (u16, Fields<'a>, Fields<'a>);
+
+    fn section(pairs: Fields<'_>) -> hyper::HeaderMap {
+        let mut hm = hyper::HeaderMap::new();
+        for (name, value) in pairs {
+            hm.append(
+                name.parse::<HeaderName>().expect("a field name"),
+                HeaderValue::from_bytes(value).expect("a field value"),
+            );
+        }
+        hm
+    }
+
+    /// Every fixture is built here. The rule reads two field sections of the
+    /// previous response and treats a field line it cannot decode differently
+    /// from one that is absent, so a constructor that can only express a header
+    /// section of valid US-ASCII cannot state what half of these tests are about.
+    ///
+    /// The two request URIs are equal because that is what the engine's
+    /// `ByResource` query guarantees, not because the rule compares them.
+    fn judge(previous: Option<Previous<'_>>, request: Fields<'_>) -> Option<Violation> {
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("range", range_val)]);
+        tx.request.headers = section(request);
 
-        let history = match prev {
-            Some((status, ar)) => {
-                let mut p = make_prev_resp(status, ar);
-                // set previous request URI to same resource to simulate stateful match
-                p.request.uri = tx.request.uri.clone();
-                crate::transaction_history::TransactionHistory::from_transactions(vec![p])
+        let history = match previous {
+            Some((status, headers, trailers)) => {
+                let mut prev =
+                    crate::test_helpers::make_test_transaction_with_response(status, &[]);
+                prev.request.uri = tx.request.uri.clone();
+                prev.response = Some(crate::http_transaction::ResponseInfo {
+                    status,
+                    version: "HTTP/1.1".into(),
+                    headers: section(headers),
+                    body_length: None,
+                    trailers: (!trailers.is_empty()).then(|| section(trailers)),
+                });
+                crate::transaction_history::TransactionHistory::from_transactions(vec![prev])
             }
             None => crate::transaction_history::TransactionHistory::empty(),
         };
 
-        let v = rule.check_transaction(&tx, &history, &cfg);
-        if expect_violation {
-            assert!(v.is_some());
-        } else {
-            assert!(v.is_none());
+        ClientAcceptRangesOnPartialContent.check_transaction(&tx, &history, &config())
+    }
+
+    const RANGE: &[(&str, &[u8])] = &[("range", b"bytes=0-1".as_slice())];
+
+    #[rstest]
+    #[case::advertised(200, &[("accept-ranges", b"bytes".as_slice())][..], false)]
+    #[case::none(200, &[("accept-ranges", b"none".as_slice())][..], true)]
+    #[case::another_unit(200, &[("accept-ranges", b"pages".as_slice())][..], true)]
+    #[case::nothing_advertised(200, &[][..], false)]
+    fn check_advertisement_cases(
+        #[case] status: u16,
+        #[case] headers: &[(&str, &[u8])],
+        #[case] expect_violation: bool,
+    ) {
+        let found = judge(Some((status, headers, &[])), RANGE);
+        assert_eq!(
+            found.is_some(),
+            expect_violation,
+            "headers={headers:?} gave {found:?}"
+        );
+    }
+
+    /// § 14.3 permits a client to send range requests having received no
+    /// `Accept-Ranges` field, in as many words. A 206 is the case this rule used
+    /// to report: a client served a partial response, reported for asking for
+    /// the rest of it.
+    #[rstest]
+    #[case::after_a_206(206)]
+    #[case::after_a_200(200)]
+    #[case::after_a_416(416)]
+    fn a_response_that_advertised_nothing_is_not_advice(#[case] status: u16) {
+        assert!(judge(Some((status, &[], &[])), RANGE).is_none());
+    }
+
+    /// § 14.3 permits the field in a trailer section, so advice given there is
+    /// advice.
+    #[test]
+    fn a_trailer_section_advises_too() {
+        let found = judge(
+            Some((200, &[], &[("accept-ranges", b"none".as_slice())])),
+            RANGE,
+        );
+        assert!(found.is_some());
+    }
+
+    /// A `Range` field this rule cannot read is still a range request, and the
+    /// `none` advice was against making one. The unit comparison is what needs a
+    /// readable value.
+    #[rstest]
+    #[case::not_ascii(&[("range", &[0xff][..])][..])]
+    #[case::not_a_ranges_specifier(&[("range", b"bytes 0-1".as_slice())][..])]
+    #[case::two_field_lines(&[("range", b"bytes=0-1".as_slice()), ("range", b"bytes=2-3".as_slice())][..])]
+    #[case::space_before_the_delimiter(&[("range", b"bytes =0-1".as_slice())][..])]
+    fn a_range_this_rule_cannot_read_is_still_a_range_request(#[case] request: &[(&str, &[u8])]) {
+        assert!(
+            judge(
+                Some((200, &[("accept-ranges", b"none".as_slice())], &[])),
+                request
+            )
+            .is_some(),
+            "the none advice does not depend on the value"
+        );
+        assert!(
+            judge(
+                Some((200, &[("accept-ranges", b"bytes".as_slice())], &[])),
+                request
+            )
+            .is_none(),
+            "the unit comparison has no unit to compare"
+        );
+    }
+
+    /// § 14.1 says range unit names are case-insensitive, so the fold is the
+    /// spec's and not a tolerance this rule chose.
+    #[test]
+    fn unit_names_are_compared_case_insensitively() {
+        let found = judge(
+            Some((200, &[("accept-ranges", b"BYTES".as_slice())], &[])),
+            &[("range", b"Bytes=0-1".as_slice())],
+        );
+        assert!(found.is_none());
+    }
+
+    /// The unreadable line may have been the one naming this request's unit, so
+    /// the mismatch finding has nothing to rest on...
+    #[test]
+    fn an_unreadable_advertisement_silences_the_unit_comparison() {
+        let found = judge(
+            Some((
+                200,
+                &[
+                    ("accept-ranges", b"pages".as_slice()),
+                    ("accept-ranges", &[0xff][..]),
+                ],
+                &[],
+            )),
+            RANGE,
+        );
+        assert!(found.is_none());
+    }
+
+    /// ... but a `none` that *was* read still says what it says.
+    #[test]
+    fn an_unreadable_advertisement_does_not_silence_none() {
+        let found = judge(
+            Some((
+                200,
+                &[
+                    ("accept-ranges", b"none".as_slice()),
+                    ("accept-ranges", &[0xff][..]),
+                ],
+                &[],
+            )),
+            RANGE,
+        );
+        assert!(found.is_some());
+    }
+
+    /// Whether the advertised value is a well-formed list of range units belongs
+    /// to `server_accept_ranges_values_valid`, and this rule used to emit that
+    /// finding itself, with a message of its own.
+    #[test]
+    fn an_advertisement_its_owner_reports_is_not_reported_here() {
+        let found = judge(
+            Some((200, &[("accept-ranges", b"x@bad".as_slice())], &[])),
+            RANGE,
+        );
+        assert!(found.is_none());
+    }
+
+    /// Nothing to compare a request against.
+    #[rstest]
+    #[case::no_history(None)]
+    #[case::no_response(Some(()))]
+    fn a_previous_transaction_with_nothing_to_read_is_not_read(#[case] previous: Option<()>) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = section(RANGE);
+
+        let history = match previous {
+            Some(()) => {
+                let prev = crate::test_helpers::make_test_transaction();
+                crate::transaction_history::TransactionHistory::from_transactions(vec![prev])
+            }
+            None => crate::transaction_history::TransactionHistory::empty(),
+        };
+
+        assert!(ClientAcceptRangesOnPartialContent
+            .check_transaction(&tx, &history, &config())
+            .is_none());
+    }
+
+    #[test]
+    fn a_request_with_no_range_is_not_this_rules_subject() {
+        assert!(judge(
+            Some((200, &[("accept-ranges", b"none".as_slice())], &[])),
+            &[]
+        )
+        .is_none());
+    }
+
+    /// Nothing else runs a rule's published examples through it, and every
+    /// example here is a previous response followed by the request it advises.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::{Compliance, Rule as _};
+
+        let mut saw_a_finding = false;
+        for ex in ClientAcceptRangesOnPartialContent.examples() {
+            let (response, request) = ex
+                .snippet
+                .split_once("\n\n")
+                .unwrap_or_else(|| panic!("not a response and a request: {:?}", ex.snippet));
+
+            let mut response = response.lines();
+            let status_line = response.next().expect("a response has a status line");
+            let status: u16 = status_line
+                .strip_prefix("HTTP/1.1 ")
+                .and_then(|rest| rest.split(' ').next())
+                .and_then(|code| code.parse().ok())
+                .unwrap_or_else(|| panic!("not a status line: {status_line:?}"));
+
+            let mut request = request.lines();
+            let request_line = request.next().expect("a request has a request line");
+            assert!(
+                request_line.ends_with(" HTTP/1.1"),
+                "not a request line: {request_line:?}"
+            );
+
+            fn fields<'a>(lines: impl Iterator<Item = &'a str>) -> Vec<(&'a str, &'a [u8])> {
+                lines
+                    .map(|line| {
+                        let (name, value) = line
+                            .split_once(": ")
+                            .unwrap_or_else(|| panic!("not a field line: {line:?}"));
+                        (name, value.as_bytes())
+                    })
+                    .collect()
+            }
+
+            let found = judge(Some((status, &fields(response), &[])), &fields(request));
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule reports its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    assert!(
+                        found.is_some(),
+                        "rule accepts its NonCompliant example {:?}",
+                        ex.snippet
+                    );
+                    saw_a_finding = true;
+                }
+            }
         }
-        Ok(())
+        assert!(saw_a_finding, "the guard ran without exercising a finding");
     }
 
+    /// This rule reads a range unit out of each field and nothing else, so every
+    /// published value goes past the code that owns its syntax.
     #[test]
-    fn invalid_accept_ranges_token_reports_violation() {
-        let rule = ClientAcceptRangesOnPartialContent;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let mut p = make_prev_resp(200, Some("x@bad"));
-        p.request.uri = crate::test_helpers::make_test_transaction()
-            .request
-            .uri
-            .clone();
+    fn published_examples_hold_values_their_owners_accept() {
+        use crate::rules::Rule as _;
 
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-1")]);
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![p.clone()]),
-            &cfg,
-        );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("Invalid token"));
-    }
-
-    #[test]
-    fn no_previous_response_does_nothing() -> anyhow::Result<()> {
-        let rule = ClientAcceptRangesOnPartialContent;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-1")]);
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_none());
-        Ok(())
+        for ex in ClientAcceptRangesOnPartialContent.examples() {
+            for line in ex.snippet.lines() {
+                let Some((name, value)) = line.split_once(": ") else {
+                    continue;
+                };
+                match name.to_ascii_lowercase().as_str() {
+                    "content-range" => assert!(
+                        crate::helpers::content_range::parse_content_range(value).is_ok(),
+                        "Content-Range {value:?} does not parse"
+                    ),
+                    "accept-ranges" => {
+                        for token in crate::helpers::headers::parse_list_header(value) {
+                            assert!(
+                                crate::helpers::token::find_invalid_token_char(token).is_none(),
+                                "Accept-Ranges holds {token:?}, which is not a token"
+                            );
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
 
     #[test]
     fn scope_is_client() {
-        let rule = ClientAcceptRangesOnPartialContent;
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
+        assert_eq!(
+            ClientAcceptRangesOnPartialContent.scope(),
+            crate::rules::RuleScope::Client
+        );
     }
 
     #[test]
@@ -255,100 +557,13 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_accept_ranges_treated_as_missing_reports_violation() -> anyhow::Result<()> {
-        let rule = ClientAcceptRangesOnPartialContent;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-
-        // Create a previous response 206 with non-UTF8 Accept-Ranges header
-        let mut p = make_prev_resp(206, None);
-        // replace header map with one that has a non-utf8 value
-        let mut hm = p.response.as_ref().unwrap().headers.clone();
-        use hyper::header::HeaderValue;
-        hm.insert("accept-ranges", HeaderValue::from_bytes(&[0xff]).unwrap());
-        p.response = Some(crate::http_transaction::ResponseInfo {
-            status: 206,
-            version: p.response.as_ref().unwrap().version.clone(),
-            headers: hm,
-            body_length: None,
-            trailers: None,
-        });
-
-        // ensure URI matches so previous state is relevant
-        p.request.uri = crate::test_helpers::make_test_transaction()
-            .request
-            .uri
-            .clone();
-
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("range", "bytes=0-1")]);
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![p.clone()]),
-            &cfg,
-        );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("Accept-Ranges") || msg.contains("should include"));
-        Ok(())
-    }
-
-    #[test]
-    fn non_utf8_range_with_accept_ranges_present_is_lenient() -> anyhow::Result<()> {
-        let rule = ClientAcceptRangesOnPartialContent;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-
-        // Previous response advertises 'bytes' in Accept-Ranges
-        let mut p = make_prev_resp(200, Some("bytes"));
-        p.request.uri = crate::test_helpers::make_test_transaction()
-            .request
-            .uri
-            .clone();
-
-        // Create a request with a non-utf8 Range header value
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = tx.request.headers.clone();
-        use hyper::header::HeaderValue;
-        hm.insert("range", HeaderValue::from_bytes(&[0xff]).unwrap());
-        tx.request.headers = hm;
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![p.clone()]),
-            &cfg,
-        );
-        // Be lenient: if the request Range header is non-utf8, do not raise a violation when Accept-Ranges was present
-        assert!(v.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn non_utf8_range_with_previous_206_is_lenient() -> anyhow::Result<()> {
-        let rule = ClientAcceptRangesOnPartialContent;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-
-        // Create a previous 206 response with no Accept-Ranges header
-        let mut p = make_prev_resp(206, None);
-        p.request.uri = crate::test_helpers::make_test_transaction()
-            .request
-            .uri
-            .clone();
-
-        // Create a request with a non-utf8 Range header value
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = tx.request.headers.clone();
-        use hyper::header::HeaderValue;
-        hm.insert("range", HeaderValue::from_bytes(&[0xff]).unwrap());
-        tx.request.headers = hm;
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![p.clone()]),
-            &cfg,
-        );
-        // If Range header itself is not valid UTF-8, the rule should not emit a misleading violation about Accept-Ranges
-        assert!(v.is_none());
-        Ok(())
+    fn validate_rules_missing_severity_errors() {
+        let mut cfg = config();
+        if let Some(toml::Value::Table(table)) =
+            cfg.rules.get_mut("client_accept_ranges_on_partial_content")
+        {
+            table.remove("severity");
+        }
+        assert!(crate::rules::validate_rules(&cfg).is_err());
     }
 }
