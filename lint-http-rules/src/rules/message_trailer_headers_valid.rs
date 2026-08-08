@@ -205,22 +205,52 @@ impl Rule for MessageTrailerHeadersValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Trailer` header members are syntactically valid header field-names and do not nominate hop-by-hop headers. Trailer members must be `token`-formatted header field-names and MUST NOT be hop-by-hop headers such as `Connection`, `Keep-Alive`, `Proxy-Authenticate`, `Proxy-Authorization`, `TE`, `Trailer`, `Transfer-Encoding`, or `Upgrade`. When a header is nominated via `Connection`, it is considered hop-by-hop and therefore not appropriate as a trailer member."
+        "Validates the `Trailer` header field's own value — the list of field names a sender says it anticipates sending as trailer fields.\n\nThe field is `Trailer = [ field-name *( OWS \",\" OWS field-name ) ]` (RFC 9110 §A). Every member must therefore be a `token`, and no member may be empty: `Trailer: ETag,,Expires` is a list a sender MUST NOT generate (RFC 9110 §5.6.1.1). An **empty value** is a different thing and is not reported — the production's outer brackets make a list of no field names a list, so `Trailer:` says only that nothing is announced. Where the field appears on several lines, the lines are one list (RFC 9110 §5.2), so an empty member written at a line boundary is an empty member.\n\nA member is reported when it names a field that cannot reach a recipient's trailer section:\n\n- **Nominated by this message's own `Connection`.** An intermediary MUST remove any header *or trailer* field named as a connection-option before forwarding (RFC 9110 §7.6.1), so the announced trailer cannot arrive. The `Connection` consulted is the one in the same field section as the `Trailer`; a request's connection options say nothing about a response's trailers.\n- **Connection-specific whatever the message says** — `Connection`, `Keep-Alive`, `Proxy-Connection`, `TE`, `Transfer-Encoding`, `Upgrade`, `Proxy-Authenticate`, `Proxy-Authorization`. RFC 9110 §7.6.1 names the first six as fields intermediaries SHOULD remove whether or not a connection-option lists them; the last two are single-hop by their own definitions (§11.7.1, §11.7.2).\n- **`Trailer` itself**, which announces a section the recipient has already finished reading.\n\nThe broader question — whether a *nameable* field such as `ETag` or `Expires` may be sent in trailers at all (RFC 9110 §6.5.1 permits a trailer field only where the field's own definition does) — is asked of the fields that actually arrive, by `message_trailer_fields_validity`. This rule reads only the declaration."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("7.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1.2",
-                note: "Chunked trailer section. This said RFC 7230 §4.1.2 — the right section of an obsoleted document, under the *other* entry's note",
+                spec: "RFC 9110",
+                section: Some("6.6.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.2",
+                note: "The `Trailer` field itself: what its value means, and the SHOULD that asks a sender to write one",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("A"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
+                note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.6.1.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
+                note: "The sender's half of the list construct. The recipient's half (§5.6.1.2, ignore empty elements) is a different party's requirement and is why the shared list reader is not used here",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("5.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
+                note: "Several `Trailer` lines in one field section are one field value, so the members are counted after the lines are joined",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("7.6.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
-                note: "`Connection` and hop-by-hop semantics. This said RFC 7230 §6.1 — likewise, with the two notes swapped between them",
+                note: "`Connection` and hop-by-hop semantics; the sentence that removes connection-options from a trailer section is the MUST behind the nomination finding. This said RFC 7230 §6.1 — the right section of an obsoleted document, with the two notes swapped between them",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("6.5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
+                note: "Limitations on use of trailers. Applied here only to `Trailer` naming itself; the general question is `message_trailer_fields_validity`'s",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("7.1.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1.2",
+                note: "The chunked transfer coding's trailer section — HTTP/1.1's framing mechanism for the section this field announces. This said RFC 7230 §4.1.2",
             },
         ]
     }
@@ -230,17 +260,29 @@ impl Rule for MessageTrailerHeadersValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nTrailer: ETag, Expires\n\n<response body>",
+                label: Some(
+                    "Fields whose own definitions put them in trailers — this one's sender defines it",
+                ),
+                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: chunked\nTrailer: X-Checksum\n\n<chunked body>\nX-Checksum: abc123",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("A list of no field names is a list; the field is `#field-name`, not `1#field-name`"),
+                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: chunked\nTrailer:\n\n<chunked body>",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
+                label: Some("An empty member — the list construct's sender requirement"),
+                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: chunked\nTrailer: X-Checksum,,X-Signature\n\n<chunked body>",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Connection-specific whatever the message says"),
                 snippet: "HTTP/1.1 200 OK\nTrailer: Connection\n\n<response body>",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
+                label: Some("Connection-specific because this message's own `Connection` says so"),
                 snippet: "HTTP/1.1 200 OK\nConnection: Keep-Alive\nTrailer: Keep-Alive\n\n<response body>",
             },
         ]
@@ -482,6 +524,86 @@ mod tests {
     fn trailer_cannot_announce_the_section_it_is_inside(#[case] value: &str) {
         let v = trailer(Section::Response, value).expect("violation");
         assert!(v.message.contains("already inside"), "{}", v.message);
+    }
+
+    /// Every published snippet is run through the rule, and every Compliant one is
+    /// run through the rule that owns what it announces: `Trailer` names fields
+    /// the sender intends to *send*, and whether a field may be sent in a trailer
+    /// section is `message_trailer_fields_validity`'s question. This rule shipped
+    /// `Trailer: ETag, Expires` as its Compliant example, and `Expires` is a field
+    /// that rule rejects — a presence-shaped rule cannot see that in its own file.
+    #[test]
+    fn published_examples_are_judged_by_this_rule_and_by_the_one_that_owns_the_trailers() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageTrailerHeadersValid;
+        let owner = crate::rules::message_trailer_fields_validity::MessageTrailerFieldsValidity;
+        let owner_cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_fields_validity",
+            "warn",
+        );
+
+        for ex in rule.examples() {
+            let mut pairs: Vec<(&str, &str)> = Vec::new();
+            for line in ex.snippet.lines() {
+                if line.starts_with("HTTP/") || line.starts_with('<') {
+                    continue;
+                }
+                if line.is_empty() {
+                    break; // the body, and after it the trailer section
+                }
+                let (name, value) = line.split_once(':').unwrap_or_else(|| {
+                    panic!("example header line is not `Name: value`: {line:?}")
+                });
+                pairs.push((name, value.trim()));
+            }
+            assert!(
+                pairs.iter().any(|(k, _)| k.eq_ignore_ascii_case("trailer")),
+                "example carries no Trailer field: {}",
+                ex.snippet
+            );
+
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().unwrap().headers =
+                crate::test_helpers::make_headers_from_pairs(&pairs);
+            let v = run(&tx);
+            match ex.compliance {
+                Compliance::Compliant => assert!(v.is_none(), "{}: {v:?}", ex.snippet),
+                Compliance::NonCompliant => assert!(v.is_some(), "{}", ex.snippet),
+            }
+
+            if !matches!(ex.compliance, Compliance::Compliant) {
+                continue;
+            }
+
+            // Send what the example announces, and ask the rule that owns the
+            // trailer section whether it may be sent.
+            let announced: Vec<&str> = pairs
+                .iter()
+                .filter(|(k, _)| k.eq_ignore_ascii_case("trailer"))
+                .flat_map(|(_, v)| crate::helpers::headers::parse_list_header(v))
+                .collect();
+            if announced.is_empty() {
+                continue;
+            }
+            let mut trailers = hyper::HeaderMap::new();
+            for name in &announced {
+                trailers.append(
+                    name.parse::<HeaderName>().expect("announced field name"),
+                    HeaderValue::from_static("x"),
+                );
+            }
+            tx.response.as_mut().unwrap().trailers = Some(trailers);
+            let v = owner.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &owner_cfg,
+            );
+            assert!(
+                v.is_none(),
+                "the Compliant example announces a field that cannot be a trailer: {v:?}\n{}",
+                ex.snippet
+            );
+        }
     }
 
     #[test]
