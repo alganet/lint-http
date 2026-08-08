@@ -160,9 +160,27 @@ pub fn get_all_header_values(headers: &HeaderMap, name: &str) -> Option<String> 
 /// cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
 /// cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
 pub fn combined_field_value_as_written(headers: &HeaderMap, name: &str) -> Option<String> {
+    Some(
+        combined_field_value_octets(headers, name)?
+            .into_iter()
+            .map(char::from)
+            .collect(),
+    )
+}
+
+/// The same combined field value as [`combined_field_value_as_written`], as the
+/// octets themselves.
+///
+/// Every octet crosses into a `char` of the same value and back without loss, so
+/// the two functions differ only in what the caller finds convenient: a parser
+/// written against a grammar whose terminals are octet ranges (`ctext`,
+/// `obs-text`, `quoted-pair`) reads bytes, and one comparing tokens reads a
+/// `&str`. The join itself -- and the sentence that licenses it -- lives here
+/// once, so neither caller decides separately what a field's value is.
+pub fn combined_field_value_octets(headers: &HeaderMap, name: &str) -> Option<Vec<u8>> {
     let mut lines = headers.get_all(name).iter().peekable();
     lines.peek()?;
-    let mut combined = String::new();
+    let mut combined: Vec<u8> = Vec::new();
     // The separator goes between the lines, and "between" is a count of lines and
     // not of the characters written so far: a first line carrying nothing is a
     // line, and joining on "is there anything yet" swallowed it — putting the one
@@ -170,12 +188,26 @@ pub fn combined_field_value_as_written(headers: &HeaderMap, name: &str) -> Optio
     let mut first = true;
     for hv in lines {
         if !first {
-            combined.push(',');
+            combined.push(b',');
         }
         first = false;
-        combined.extend(hv.as_bytes().iter().map(|&b| char::from(b)));
+        combined.extend_from_slice(hv.as_bytes());
     }
     Some(combined)
+}
+
+/// Render an octet for a finding message without letting a raw control or
+/// `obs-text` byte into the output.
+///
+/// A finding names the octet that stopped a parse, and that octet is by
+/// definition one the grammar did not admit -- often a control character, which
+/// written through would corrupt the message rather than describe it.
+pub fn describe_octet(b: u8) -> String {
+    if (0x20..0x7f).contains(&b) {
+        format!("'{}'", b as char)
+    } else {
+        format!("0x{:02X}", b)
+    }
 }
 
 /// Weak-compare an `If-None-Match` header value against a known ETag.
