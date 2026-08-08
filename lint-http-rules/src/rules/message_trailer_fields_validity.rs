@@ -11,9 +11,13 @@ use crate::rules::Rule;
 /// `Trailer` declaration in the header section. Announcing a field and sending one
 /// are two acts, and §6.5.1's MUST NOT binds the second.
 ///
-/// The framing precondition below is not checked and cannot be: a trailer section
-/// reaches this rule only because the framing that carries it delivered one, so
-/// there is no message here in which the sentence is false.
+/// The framing precondition below is not checked, and the reason is in this rule's
+/// inputs rather than in the sentence. A trailer section reaches a rule only because
+/// a framing mechanism delivered one: the proxy fills these fields from the frame
+/// that carried them, so on a captured exchange the sentence cannot be false. The
+/// other input is a capture file, which the proxy also wrote — and a hand-edited one
+/// claiming HTTP/1.0 and a trailer section would be a finding about the file, not
+/// about a sender.
 ///
 /// cite(RFC 9110 § 6.5.1): "A trailer section is only possible when supported by the version of HTTP in use and enabled by an explicit framing mechanism."
 pub struct MessageTrailerFieldsValidity;
@@ -210,11 +214,14 @@ fn check_trailers(
             return Some(Violation {
                 rule: rule_id.to_string(),
                 severity: config.severity,
+                // The message names the field's own definition rather than the
+                // category §6.5.1 sorts it under, because the category is not what
+                // decides: `Authentication-Info` is an authentication field and its
+                // definition permits the usage.
                 message: format!(
-                    "Trailer section contains prohibited field '{}'; \
-                     trailers must not include fields used for message framing, \
-                     routing, request modifiers, authentication, response control \
-                     data, or payload processing (RFC 9110 §6.5.1)",
+                    "Trailer section contains '{}', whose definition does not permit \
+                     it to be sent in a trailer section; its value is one a recipient \
+                     needs before it reads the content (RFC 9110 §6.5.1)",
                     name
                 ),
             });
@@ -510,7 +517,7 @@ mod tests {
 
         let v = rule.check_transaction(&tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("prohibited"));
+        assert!(v.unwrap().message.contains("does not permit"));
     }
 
     // ---- Connection-nominated hop-by-hop trailer fields ----
@@ -618,7 +625,7 @@ mod tests {
         let v = rule.check_transaction(&tx, &empty_history(), &cfg());
         assert!(v.is_some());
         // Should say "prohibited", not "hop-by-hop", since static check runs first.
-        assert!(v.unwrap().message.contains("prohibited"));
+        assert!(v.unwrap().message.contains("does not permit"));
     }
 
     // ---- Request trailers checked before response trailers ----
@@ -761,7 +768,7 @@ mod tests {
 
         let v = rule.check_transaction(&tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("prohibited"));
+        assert!(v.unwrap().message.contains("does not permit"));
     }
 
     #[test]
@@ -822,7 +829,7 @@ mod tests {
 
         let v = rule.check_transaction(&tx, &empty_history(), &cfg());
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("prohibited"));
+        assert!(v.unwrap().message.contains("does not permit"));
     }
 
     #[test]
