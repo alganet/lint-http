@@ -2847,8 +2847,6 @@ sources:
       line: 7
     - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
       line: 37
-    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
-      line: 35
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 41
   - label: lint-http-rules/src/helpers/token.rs
@@ -4353,6 +4351,72 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_response_405_allow.rs
       line: 27
+  - label: server_response_location_on_redirect
+    section: § 10.2.2
+    snippet: For 201 (Created) responses, the Location value refers to the primary resource created by the request.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 28
+  - label: server_response_location_on_redirect (2)
+    section: § 10.2.2
+    snippet: For 3xx (Redirection) responses, the Location value refers to the preferred target resource for automatically redirecting the request.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 117
+  - label: server_response_location_on_redirect (3)
+    section: § 15.3.2
+    snippet: The primary resource created by the request is identified by either a Location header field in the response or, if no Location header field is received, by the target URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 27
+  - label: server_response_location_on_redirect (4)
+    section: § 15.4
+    snippet: If a Location header field (Section 10.2.2) is provided, the user agent MAY automatically redirect its request to the URI referenced by the Location field value, even if the specific status code is not understood.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 112
+  - label: server_response_location_on_redirect (5)
+    section: § 15.4.1
+    snippet: For request methods other than HEAD, the server SHOULD generate content in the 300 response containing a list of representation metadata and URI reference(s) from which the user or user agent can choose the one most preferred.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 38
+  - label: server_response_location_on_redirect (6)
+    section: § 15.4.1
+    snippet: If the server has a preferred choice, the server SHOULD generate a Location header field containing a preferred choice's URI reference.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 37
+  - label: server_response_location_on_redirect (7)
+    section: § 15.4.2
+    snippet: The server SHOULD generate a Location header field in the response containing a preferred URI reference for the new permanent URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 43
+  - label: server_response_location_on_redirect (8)
+    section: § 15.4.3
+    snippet: The server SHOULD generate a Location header field in the response containing a URI reference for the different URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 50
+  - label: server_response_location_on_redirect (9)
+    section: § 15.4.4
+    snippet: The 303 (See Other) status code indicates that the server is redirecting the user agent to a different resource, as indicated by a URI in the Location header field, which is intended to provide an indirect response to the original request.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 58
+  - label: server_response_location_on_redirect (10)
+    section: § 15.4.8
+    snippet: The server SHOULD generate a Location header field in the response containing a URI reference for the different URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 68
+  - label: server_response_location_on_redirect (11)
+    section: § 15.4.9
+    snippet: The server SHOULD generate a Location header field in the response containing a preferred URI reference for the new permanent URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 74
   - label: server_retry_after_status_validity
     section: § 10.2.3
     snippet: When sent with a 503 (Service Unavailable) response, Retry-After indicates how long the service is expected to be unavailable to the client.
