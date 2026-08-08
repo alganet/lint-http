@@ -375,6 +375,12 @@ impl MessageForwardedHeaderValidity {
         // a syntax rule measures, so the element that contributes nothing to the
         // list is reported here rather than silently discarded.
         //
+        // The `#` in the field's own production is the bridge to the two
+        // requirements below: RFC 7239 does not define what a list is, it
+        // borrows HTTP's, so what HTTP asks of a sender using the construct is
+        // asked of a sender of this field.
+        //
+        // cite(RFC 7239 § 3): "This specification uses the Augmented Backus-Naur Form (ABNF) notation of [RFC5234] with the list rule extension defined in Section 7 of [RFC7230]."
         // cite(RFC 7239 § 4, label: Forwarded grammar): "Forwarded   = 1#forwarded-element"
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         let mut carried_an_element = false;
