@@ -18,7 +18,7 @@ Checks that a `Range` request header field is a well-formed `ranges-specifier`: 
 
 **What it does not report.** Whether a range is *satisfiable* — that depends on the length of the selected representation, which no request carries. A `Range` on a method other than GET — the requirement there is on the server, which must ignore such a field; nothing addresses the client that sent it. Overlapping or descending ranges — §14.2 asks for ascending order with a SHOULD that ends "unless there is a specific need to request a later part earlier", and a request records the ranges rather than the need.
 
-**What a finding costs.** §14.2 lets a server that supports range requests "ignore or reject" a field carrying an invalid ranges-specifier, so the price of one is the range request, not the request: the client gets the whole representation, or a 400.
+**What a finding costs.** §14.2 lets a server that supports range requests "ignore or reject" a field carrying an invalid ranges-specifier, so the price of one is the range request rather than the request — a client that asked for part of a representation is answered with all of it.
 
 ## Specifications
 

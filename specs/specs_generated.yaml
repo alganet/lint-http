@@ -1768,25 +1768,25 @@ sources:
     snippet: A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit.
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 106
+      line: 107
   - label: client_range_header_syntax_valid (2)
     section: § 14.1.1
     snippet: An int-range is invalid if the last-pos value is present and less than the first-pos.
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 342
+      line: 343
   - label: int-range position grammar
     section: § 14.1.1
     snippet: first-pos     = 1*DIGIT last-pos      = 1*DIGIT
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 298
+      line: 299
   - label: int-range grammar
     section: § 14.1.1
     snippet: int-range     = first-pos "-" [ last-pos ]
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 318
+      line: 319
   - label: other-range grammar
     section: § 14.1.1
     snippet: other-range   = 1*( %x21-2B / %x2D-7E )
@@ -1794,73 +1794,73 @@ sources:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 55
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 259
+      line: 260
   - label: range-set grammar
     section: § 14.1.1
     snippet: range-set        = 1#range-spec
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 229
+      line: 230
   - label: suffix-length grammar
     section: § 14.1.1
     snippet: suffix-length = 1*DIGIT
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 302
+      line: 303
   - label: suffix-range grammar
     section: § 14.1.1
     snippet: suffix-range  = "-" suffix-length
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 301
+      line: 302
   - label: client_range_header_syntax_valid (3)
     section: § 14.1.2
     snippet: A client can limit the number of bytes requested without knowing the size of the selected representation.  If the last-pos value is absent, or if the value is greater than or equal to the current length of the representation data, the byte range is interpreted as the remainder of the representation
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 334
+      line: 335
   - label: client_range_header_syntax_valid (4)
     section: § 14.1.2
     snippet: A client can refer to the last N bytes (N > 0) of the selected representation using a suffix-range.
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 306
+      line: 307
   - label: client_range_header_syntax_valid (5)
     section: § 14.1.2
     snippet: Each byte range is expressed as an integer range at some offset, relative to either the beginning (int-range) or end (suffix-range) of the representation data.  Byte ranges do not use the other-range specifier.
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 293
+      line: 294
   - label: client_range_header_syntax_valid (6)
     section: § 14.1.2
     snippet: 'For a GET request, a valid bytes range-spec is satisfiable if it is either:'
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 131
+      line: 132
   - label: client_range_header_syntax_valid (7)
     section: § 14.1.2
     snippet: The "bytes" range unit is used to express subranges of a representation data's octet sequence.
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 271
+      line: 272
   - label: a bytes range-set the section prints with a leading space
     section: § 14.1.2
     snippet: bytes= 0-999, 4500-5499, -1000
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 226
+      line: 227
   - label: client_range_header_syntax_valid (8)
     section: § 14.2
     snippet: A client that is requesting multiple ranges SHOULD list those ranges in ascending order (the order in which they would typically be received in a complete representation) unless there is a specific need to request a later part earlier.
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 133
+      line: 134
   - label: client_range_header_syntax_valid (9)
     section: § 14.2
     snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.  For this specification, GET is the only method for which range handling is defined.
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 132
+      line: 133
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
       line: 80
   - label: client_range_header_syntax_valid (10)
@@ -1868,25 +1868,25 @@ sources:
     snippet: An origin server MUST ignore a Range header field that contains a range unit it does not understand.  A proxy MAY discard a Range header field that contains a range unit it does not understand.
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 225
+      line: 226
   - label: Range grammar
     section: § 14.2
     snippet: Range = ranges-specifier
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 88
+      line: 89
   - label: client_range_header_syntax_valid (11)
     section: § 5.6.1.1
     snippet: 1#element => element *( OWS "," OWS element )
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 240
+      line: 241
   - label: client_range_header_syntax_valid (12)
     section: § 5.6.1.1
     snippet: In any production that uses the list construct, a sender MUST NOT generate empty list elements.
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 249
+      line: 250
     - file: lint-http-rules/src/rules/message_cache_control_directive_validity.rs
       line: 116
     - file: lint-http-rules/src/rules/message_cache_control_token_valid.rs
@@ -1910,7 +1910,7 @@ sources:
     snippet: OWS            = *( SP / HTAB )
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 241
+      line: 242
   - label: client_request_version_method_validity
     section: § 9.3.1
     snippet: A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server
@@ -2066,7 +2066,7 @@ sources:
     - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
       line: 47
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 222
+      line: 223
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 56
   - label: lint-http-rules/src/helpers/accept_ranges.rs (2)
@@ -2078,7 +2078,7 @@ sources:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 80
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 223
+      line: 224
   - label: Accept-Ranges grammar
     section: § 14.3
     snippet: Accept-Ranges     = acceptable-ranges acceptable-ranges = 1#range-unit
@@ -2158,7 +2158,7 @@ sources:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 51
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 224
+      line: 225
   - label: ranges-specifier grammar
     section: § 14.1.1
     snippet: ranges-specifier = range-unit "=" range-set
@@ -2166,7 +2166,7 @@ sources:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 50
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 89
+      line: 90
   - label: lint-http-rules/src/helpers/content_range.rs (3)
     section: § 14.1.2
     snippet: In the byte-range syntax, first-pos, last-pos, and suffix-length are expressed as decimal number of octets.  Since there is no predefined limit to the length of content, recipients MUST anticipate potentially large decimal numerals and prevent parsing errors due to integer conversion overflows.
@@ -2174,7 +2174,7 @@ sources:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 197
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 369
+      line: 370
   - label: lint-http-rules/src/helpers/content_range.rs (4)
     section: § 14.4
     snippet: A Content-Range field value is invalid if it contains a range-resp that has a last-pos value less than its first-pos value, or a complete-length value less than or equal to its last-pos value.
