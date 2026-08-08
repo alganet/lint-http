@@ -2301,6 +2301,8 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 40
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 149
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (2)
     section: § 11.7.2
     snippet: Unlike Authorization, the Proxy-Authorization header field applies only to the next inbound proxy that demanded authentication using the Proxy-Authenticate header field.
@@ -2415,6 +2417,8 @@ sources:
       line: 143
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 55
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 16
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 266
   - label: lint-http-rules/src/helpers/accept_ranges.rs (5)
@@ -2603,6 +2607,8 @@ sources:
       line: 64
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 25
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 21
   - label: lint-http-rules/src/helpers/headers.rs (5)
     section: § 5.3
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP.
@@ -4199,6 +4205,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_www_authenticate_challenge_syntax.rs
       line: 34
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 58
   - label: semantic_cache_coherence
     section: § 15.4.5
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
@@ -4224,11 +4232,71 @@ sources:
     - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
       line: 27
   - label: semantic_status_code_semantics
-    section: § 15.5.2
-    snippet: The server generating a 401 response MUST send a WWW-Authenticate header field
+    section: § 11.6.1
+    snippet: A server MAY generate a WWW-Authenticate header field in other response messages to indicate that supplying credentials (or different credentials) might affect the response.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 32
+      line: 103
+  - label: semantic_status_code_semantics (2)
+    section: § 11.6.1
+    snippet: Furthermore, the header field itself can occur multiple times.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 25
+  - label: semantic_status_code_semantics (3)
+    section: § 11.7.1
+    snippet: A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 108
+  - label: semantic_status_code_semantics (4)
+    section: § 11.7.1
+    snippet: The "Proxy-Authenticate" header field consists of at least one challenge that indicates the authentication scheme(s) and parameters applicable to the proxy for this request.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 59
+  - label: semantic_status_code_semantics (5)
+    section: § 15.5.2
+    snippet: The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 63
+    - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
+      line: 30
+  - label: semantic_status_code_semantics (6)
+    section: § 15.5.2
+    snippet: The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 67
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 84
+  - label: semantic_status_code_semantics (7)
+    section: § 15.5.8
+    snippet: The 407 (Proxy Authentication Required) status code is similar to 401 (Unauthorized), but it indicates that the client needs to authenticate itself in order to use a proxy for this request.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 105
+  - label: semantic_status_code_semantics (8)
+    section: § 15.5.8
+    snippet: The proxy MUST send a Proxy-Authenticate header field (Section 11.7.1) containing a challenge applicable to that proxy for the request.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 107
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 124
+  - label: semantic_status_code_semantics (9)
+    section: § A
+    snippet: Proxy-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 123
+  - label: semantic_status_code_semantics (10)
+    section: § A
+    snippet: WWW-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 83
   - label: server_200_vs_204_body_consistency
     section: § 15.3.1
     snippet: The 200 (OK) status code indicates that the request has succeeded.
@@ -4507,12 +4575,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
       line: 57
-  - label: stateful_authentication_failure_loop (2)
-    section: § 15.5.2
-    snippet: The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
-      line: 30
   - label: stateful_cache_validation_chain
     section: § 13.1.2
     snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*"
