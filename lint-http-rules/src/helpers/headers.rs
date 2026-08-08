@@ -632,11 +632,30 @@ mod concat_header_tests {
 /// This is the fixed half of the question "may this field be a trailer". The other
 /// half is [`is_nominated_by_connection`], which depends on the message.
 ///
-/// The categories below are the ones the cited sentence names, in its order. The
-/// last group is here because a connection-specific field is, by definition, needed
-/// before the content is read; `trailer` is here because a Trailer field inside a
-/// trailer section announces nothing.
+/// **This table is a subset, and deliberately so.** The requirement is stated the
+/// other way round — a trailer field is forbidden *unless* the sender knows the
+/// field's own definition permits it, and the registry guidance says that by default
+/// no definition does. A table of names answers the opposite question, so every field
+/// nobody thought of passes. It cannot be inverted here: for a field this codebase
+/// holds no definition of (`X-Checksum`, `Grpc-Status`), only the sender knows whether
+/// a definition permits the usage, and reporting all of them would report the senders
+/// that read their own specification. What the table can hold honestly is the fields
+/// whose definitions are in the specifications this crate cites and do *not* permit
+/// trailers; `message_trailer_fields_validity` says so where an operator reads it.
+///
+/// The categories below are the ones §6.5.1 names, in its order. The last group is
+/// here because a connection-specific field is, by definition, needed before the
+/// content is read; `trailer` is here because a Trailer field inside a trailer
+/// section announces nothing.
+///
+/// Membership is per field *definition*, never per category: RFC 9110 puts
+/// `Authentication-Info` and `Proxy-Authentication-Info` under authentication and
+/// then permits both in trailers, so neither is here. See
+/// [`is_prohibited_trailer_field`] for where that is written down.
+///
 // cite(RFC 9110 § 6.5.1): "Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format."
+// cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
+// cite(RFC 9110 § 16.3.2): "If the field is allowable in trailers; by default, it will not be (see Section 6.5.1)."
 pub static PROHIBITED_TRAILER_FIELDS: &[&str] = &[
     // Message framing
     "content-length",
@@ -660,14 +679,15 @@ pub static PROHIBITED_TRAILER_FIELDS: &[&str] = &[
     "if-none-match",
     "if-range",
     "if-unmodified-since",
-    // Authentication (RFC 9110 §11)
-    "authentication-info",
+    // Authentication (RFC 9110 §11). `Authentication-Info` and
+    // `Proxy-Authentication-Info` are the two that §11 takes back out again, and
+    // they are not here.
     "authorization",
     "proxy-authenticate",
-    "proxy-authentication-info",
     "proxy-authorization",
     "www-authenticate",
-    // Response control data (RFC 9110 §6.2)
+    // Response control data. These are the fields §6.5.1's "response controls"
+    // names in prose; §6.2 "Control Data" is the start line, not this.
     "age",
     "date",
     "expires",
@@ -689,6 +709,17 @@ pub static PROHIBITED_TRAILER_FIELDS: &[&str] = &[
 /// Whether `name` cannot appear in a trailer section because of what it is.
 ///
 /// See [`is_nominated_by_connection`] for the half that depends on the message.
+///
+/// Two fields this returns `false` for used to be in the table, on the strength of
+/// the category §6.5.1 lists them under. Both definitions say the opposite in one
+/// sentence each, and the sentence is the thing §6.5.1 asks the sender to know — so
+/// a sender whose scheme allows it is conforming, and the rule that reports this
+/// cannot tell which scheme is in use. The permission is conditional and the
+/// condition is not on the wire; a name the RFC permits at all does not belong in a
+/// table of names the RFC forbids.
+///
+// cite(RFC 9110 § 11.6.3): "Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this."
+// cite(RFC 9110 § 11.7.3): "Proxy-Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this."
 pub fn is_prohibited_trailer_field(name: &str) -> bool {
     let name_l = name.trim().to_ascii_lowercase();
     PROHIBITED_TRAILER_FIELDS.contains(&name_l.as_str())

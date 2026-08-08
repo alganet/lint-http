@@ -239,10 +239,8 @@ mod tests {
     #[case("if-none-match")]
     #[case("if-range")]
     #[case("if-unmodified-since")]
-    #[case("authentication-info")]
     #[case("authorization")]
     #[case("proxy-authenticate")]
-    #[case("proxy-authentication-info")]
     #[case("proxy-authorization")]
     #[case("www-authenticate")]
     #[case("age")]
@@ -605,6 +603,28 @@ mod tests {
 
         let v = rule.check_transaction(&tx, &empty_history(), &cfg());
         assert!(v.is_none());
+    }
+
+    /// The two fields §11 permits in a trailer section, having listed them under the
+    /// category §6.5.1 forbids. Both were in the prohibited table and both were
+    /// reported; the permission is conditional on the authentication scheme, which
+    /// this rule cannot see, so the conforming sender is the one that must be
+    /// believed.
+    #[rstest]
+    #[case("authentication-info")]
+    #[case("proxy-authentication-info")]
+    fn field_whose_own_definition_permits_a_trailer_is_not_reported(#[case] field: &str) {
+        let rule = MessageTrailerFieldsValidity;
+        let mut tx = make_test_transaction_with_response(200, &[("trailer", field)]);
+        let mut trailers = hyper::HeaderMap::new();
+        trailers.insert(
+            field.parse::<hyper::header::HeaderName>().unwrap(),
+            "nextnonce=\"abc\"".parse().unwrap(),
+        );
+        tx.response.as_mut().unwrap().trailers = Some(trailers);
+
+        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        assert!(v.is_none(), "expected no violation for '{field}': {v:?}");
     }
 
     #[test]
