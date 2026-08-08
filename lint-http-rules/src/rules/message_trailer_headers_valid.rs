@@ -16,19 +16,7 @@ use crate::rules::Rule;
 #[derive(Debug, Clone)]
 pub struct MessageTrailerHeadersValid;
 
-/// Trim `OWS`, and only `OWS`.
-///
-/// `str::trim` trims Unicode whitespace, and the value this rule works on carries
-/// one `char` per octet — so U+00A0 in it is the octet %xA0, which is `obs-text`
-/// and not whitespace of any kind. Trimming it would turn a member no production
-/// admits into an empty one, reporting the list for a defect the element has.
-///
-/// cite(RFC 9110 § 5.6.3): "The OWS rule is used where zero or more linear whitespace octets might appear."
-fn trim_ows(s: &str) -> &str {
-    s.trim_matches(|c| c == ' ' || c == '\t')
-}
-
-use crate::helpers::headers::combined_field_value_as_written;
+use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 
 impl MessageTrailerHeadersValid {
     /// One field section: its `Trailer` list, measured against its own `Connection`.

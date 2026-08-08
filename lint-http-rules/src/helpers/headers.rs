@@ -196,6 +196,23 @@ pub fn combined_field_value_octets(headers: &HeaderMap, name: &str) -> Option<Ve
     Some(combined)
 }
 
+/// Trim `OWS` -- and only `OWS` -- from both ends of a field value or one of its
+/// members.
+///
+/// `str::trim` trims Unicode whitespace, and a value read through
+/// [`combined_field_value_as_written`] carries one `char` per octet -- so U+00A0
+/// in it is the octet %xA0, which is `obs-text` and not whitespace of any kind.
+/// Trimming it would turn a member no production admits into an empty one,
+/// reporting the list for a defect the element has. U+0085 is the same story at
+/// %x85. Every list-based field measuring what a sender wrote needs this, so it
+/// is transcribed once rather than per rule.
+///
+/// cite(RFC 9110 § 5.6.3): "The OWS rule is used where zero or more linear whitespace octets might appear."
+/// cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+pub fn trim_ows(s: &str) -> &str {
+    s.trim_matches(|c| c == ' ' || c == '\t')
+}
+
 /// Render an octet for a finding message without letting a raw control or
 /// `obs-text` byte into the output.
 ///
