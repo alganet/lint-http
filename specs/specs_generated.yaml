@@ -2188,7 +2188,7 @@ sources:
     - file: lint-http-rules/src/rules/message_caching_directive_interaction.rs
       line: 64
     - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
-      line: 65
+      line: 72
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 235
     - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
@@ -2316,7 +2316,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 68
     - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
-      line: 98
+      line: 105
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (5)
     section: § 7.6.1
     snippet: Furthermore, intermediaries SHOULD remove or replace fields that are known to require removal before forwarding, whether or not they appear as a connection-option, after applying those fields' semantics.
@@ -3086,7 +3086,7 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 232
     - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
-      line: 76
+      line: 83
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 71
   - label: message_accept_header_media_type_syntax (7)
@@ -3320,11 +3320,17 @@ sources:
     - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
       line: 62
   - label: message_connection_header_tokens_valid
+    section: § 5.5
+    snippet: A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
+      line: 56
+  - label: message_connection_header_tokens_valid (2)
     section: § 7.6.1
     snippet: A sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content.  For example, Cache-Control is never appropriate as a connection option (Section 5.2 of [CACHING]).
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
-      line: 99
+      line: 106
   - label: Connection grammar
     section: § 7.6.1
     snippet: 'Connection        = #connection-option connection-option = token'
@@ -3333,14 +3339,14 @@ sources:
       line: 23
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 79
-  - label: message_connection_header_tokens_valid (2)
+  - label: message_connection_header_tokens_valid (3)
     section: § 7.6.1
     snippet: The "Connection" header field allows the sender to list desired control options for the current connection.
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
       line: 22
     - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
-      line: 126
+      line: 133
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
       line: 27
     - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
@@ -3354,7 +3360,7 @@ sources:
     snippet: Connection = [ connection-option *( OWS "," OWS connection-option ) ]
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
-      line: 49
+      line: 55
   - label: message_content_disposition_token_valid
     section: § 5.5
     snippet: Field values are usually constrained to the range of US-ASCII characters [USASCII].
