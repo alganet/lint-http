@@ -2702,7 +2702,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 986
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 291
+      line: 313
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 118
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
@@ -2856,7 +2856,7 @@ sources:
     - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
       line: 143
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 244
+      line: 242
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 174
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
@@ -3011,6 +3011,8 @@ sources:
       line: 37
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 87
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 278
   - label: message_accept_encoding_parameter_validity (3)
     section: § 12.5.3
     snippet: 'Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*"'
@@ -3064,7 +3066,7 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 267
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 277
+      line: 289
   - label: message_accept_header_media_type_syntax (2)
     section: § 12.5.1
     snippet: Each media-range might be followed by optional applicable media type parameters (e.g., charset), followed by an optional "q" parameter for indicating a relative weight (Section 12.4.2).
@@ -3888,7 +3890,7 @@ sources:
     snippet: The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request.
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 361
+      line: 383
   - label: message_te_header_constraints (2)
     section: § 10.1.4
     snippet: A sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
@@ -3900,9 +3902,9 @@ sources:
     snippet: The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections.
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 337
+      line: 359
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 362
+      line: 384
   - label: message_te_header_constraints (4)
     section: § 10.1.4
     snippet: The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding.
@@ -3916,7 +3918,7 @@ sources:
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.  A sender MUST NOT generate BWS in messages.  A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 230
+      line: 233
   - label: message_te_header_constraints (6)
     section: § 7.6.1
     snippet: Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field.
@@ -5012,7 +5014,7 @@ sources:
     snippet: The TE header field (Section 10.1.4 of [HTTP]) uses a pseudo-parameter named "q" as the rank value when multiple transfer codings are acceptable.
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 271
+      line: 269
   - label: message_te_header_constraints (2)
     section: § 7.4
     snippet: If the TE field value is empty or if no TE field is present, the only acceptable transfer coding is chunked.
@@ -5032,7 +5034,7 @@ sources:
     snippet: When multiple transfer codings are acceptable, the client MAY rank the codings by preference using a case-insensitive "q" parameter (similar to the qvalues used in content negotiation fields; see Section 12.4.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 272
+      line: 270
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 259
   - label: message_transfer_coding_iana_registered
