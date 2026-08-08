@@ -2146,7 +2146,7 @@ sources:
     - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
       line: 77
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
-      line: 112
+      line: 118
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 289
     - file: lint-http-rules/src/rules/server_vary_header_valid.rs
@@ -2226,7 +2226,7 @@ sources:
     - file: lint-http-rules/src/rules/message_server_header_product_valid.rs
       line: 36
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
-      line: 134
+      line: 140
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
       line: 56
   - label: lint-http-core/src/http_date.rs
@@ -2302,7 +2302,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 733
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
-      line: 153
+      line: 159
   - label: lint-http-proxy/src/proxy/websocket.rs
     section: § 15.2
     snippet: A 1xx response is terminated by the end of the header section; it cannot contain content or trailers.
@@ -3216,7 +3216,7 @@ sources:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
       line: 27
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
-      line: 69
+      line: 75
     - file: lint-http-rules/src/rules/server_keep_alive_timeout_reasonable.rs
       line: 89
   - label: message_content_disposition_token_valid
@@ -3438,7 +3438,7 @@ sources:
     - file: lint-http-rules/src/rules/message_header_field_names_token.rs
       line: 155
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
-      line: 120
+      line: 126
   - label: message_http3_pseudo_headers_validity
     section: § 15
     snippet: All valid status codes are within the range of 100 to 599, inclusive.
@@ -3746,13 +3746,13 @@ sources:
     - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
       line: 185
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
-      line: 135
+      line: 141
   - label: message_trailer_headers_valid
     section: § 5.1
     snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1.
     cited_by:
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
-      line: 137
+      line: 143
   - label: message_trailer_headers_valid (2)
     section: § 5.2
     snippet: When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma.
@@ -3776,13 +3776,13 @@ sources:
     snippet: Fields that describe the message itself, such as when and how the message has been generated, can appear in both requests and responses.
     cited_by:
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
-      line: 181
+      line: 187
   - label: Trailer grammar
     section: § A
     snippet: Trailer = [ field-name *( OWS "," OWS field-name ) ]
     cited_by:
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
-      line: 94
+      line: 100
   - label: message_transfer_coding_iana_registered
     section: § 10.1.4
     snippet: 'TE                 = #t-codings t-codings          = "trailers" / ( transfer-coding [ weight ] ) transfer-coding    = token *( OWS ";" OWS transfer-parameter ) transfer-parameter = token BWS "=" BWS ( token / quoted-string )'

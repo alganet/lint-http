@@ -46,10 +46,16 @@ fn combined_field_value(hdrs: &hyper::HeaderMap, name: &str) -> Option<String> {
     let mut lines = hdrs.get_all(name).iter().peekable();
     lines.peek()?;
     let mut combined = String::new();
+    // The separator goes between the lines, and "between" is a count of lines and
+    // not of the characters written so far: a first line carrying nothing is a
+    // line, and joining on "is there anything yet" swallowed it — putting the one
+    // empty member the joining exists to expose back out of reach.
+    let mut first = true;
     for hv in lines {
-        if !combined.is_empty() {
+        if !first {
             combined.push(',');
         }
+        first = false;
         combined.extend(hv.as_bytes().iter().map(|&b| char::from(b)));
     }
     Some(combined)
@@ -205,7 +211,7 @@ impl Rule for MessageTrailerHeadersValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validates the `Trailer` header field's own value — the list of field names a sender says it anticipates sending as trailer fields.\n\nThe field is `Trailer = [ field-name *( OWS \",\" OWS field-name ) ]` (RFC 9110 §A). Every member must therefore be a `token`, and no member may be empty: `Trailer: ETag,,Expires` is a list a sender MUST NOT generate (RFC 9110 §5.6.1.1). An **empty value** is a different thing and is not reported — the production's outer brackets make a list of no field names a list, so `Trailer:` says only that nothing is announced. Where the field appears on several lines, the lines are one list (RFC 9110 §5.2), so an empty member written at a line boundary is an empty member.\n\nA member is reported when it names a field that cannot reach a recipient's trailer section:\n\n- **Nominated by this message's own `Connection`.** An intermediary MUST remove any header *or trailer* field named as a connection-option before forwarding (RFC 9110 §7.6.1), so the announced trailer cannot arrive. The `Connection` consulted is the one in the same field section as the `Trailer`; a request's connection options say nothing about a response's trailers.\n- **Connection-specific whatever the message says** — `Connection`, `Keep-Alive`, `Proxy-Connection`, `TE`, `Transfer-Encoding`, `Upgrade`, `Proxy-Authenticate`, `Proxy-Authorization`. RFC 9110 §7.6.1 names the first six as fields intermediaries SHOULD remove whether or not a connection-option lists them; the last two are single-hop by their own definitions (§11.7.1, §11.7.2).\n- **`Trailer` itself**, which announces a section the recipient has already finished reading.\n\nThe broader question — whether a *nameable* field such as `ETag` or `Expires` may be sent in trailers at all (RFC 9110 §6.5.1 permits a trailer field only where the field's own definition does) — is asked of the fields that actually arrive, by `message_trailer_fields_validity`. This rule reads only the declaration."
+        "Validates the `Trailer` header field's own value — the list of field names a sender says it anticipates sending as trailer fields.\n\nThe field is `Trailer = [ field-name *( OWS \",\" OWS field-name ) ]` (RFC 9110 §A). Every member must therefore be a `token`, and no member may be empty: `Trailer: ETag,,Expires` is a list a sender MUST NOT generate (RFC 9110 §5.6.1.1). An **empty value** is a different thing and is not reported — the production's outer brackets make a list of no field names a list, so `Trailer:` says only that nothing is announced. Where the field appears on several lines, the lines are one list (RFC 9110 §5.2), so an empty member written at a line boundary is an empty member.\n\nA member is reported when it names a field that cannot reach a recipient's trailer section:\n\n- **Nominated by this message's own `Connection`.** An intermediary MUST remove any header *or trailer* field named as a connection-option before forwarding (RFC 9110 §7.6.1), so the announced trailer cannot arrive. The `Connection` consulted is the one in the same field section as the `Trailer`; a request's connection options say nothing about a response's trailers.\n- **Connection-specific whatever the message says** — `Connection`, `Keep-Alive`, `Proxy-Connection`, `TE`, `Transfer-Encoding`, `Upgrade`, `Proxy-Authenticate`, `Proxy-Authorization`, and each for a different sentence. RFC 9110 §7.6.1 lists five of them (`Proxy-Connection`, `Keep-Alive`, `TE`, `Transfer-Encoding`, `Upgrade`) as fields an intermediary SHOULD remove whether or not a connection-option names them; `Connection` itself is removed by that section's MUST, once the intermediary has acted on it; and `Proxy-Authenticate` and `Proxy-Authorization` apply only to the next hop by their own definitions (§11.7.1, §11.7.2).\n- **`Trailer` itself**, which announces a section the recipient has already finished reading.\n\nThe broader question — whether a *nameable* field such as `ETag` or `Expires` may be sent in trailers at all (RFC 9110 §6.5.1 permits a trailer field only where the field's own definition does) — is asked of the fields that actually arrive, by `message_trailer_fields_validity`. This rule reads only the declaration."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -408,6 +414,22 @@ mod tests {
             &[("trailer", b"X-Checksum"), ("trailer", b"")],
         ))
         .expect("the joined value holds an empty member");
+        assert!(v.message.contains("empty member"), "{}", v.message);
+
+        // The empty line first, which is the same list and was the case a join
+        // written as "separate what is already there" put back out of reach.
+        let v = run(&tx_with(
+            Section::Response,
+            &[("trailer", b""), ("trailer", b"X-Checksum")],
+        ))
+        .expect("a first line carrying nothing is a first member carrying nothing");
+        assert!(v.message.contains("empty member"), "{}", v.message);
+
+        let v = run(&tx_with(
+            Section::Response,
+            &[("trailer", b""), ("trailer", b"")],
+        ))
+        .expect("two lines of nothing are two members, not the absence of a list");
         assert!(v.message.contains("empty member"), "{}", v.message);
 
         let v = run(&tx_with(
