@@ -24,18 +24,20 @@ impl Rule for MessageTrailerHeadersValid {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Cache Connection header nomination once for both request and response checks
-        let connection_val =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "connection").or_else(
-                || {
-                    tx.response.as_ref().and_then(|r| {
-                        crate::helpers::headers::get_header_str(&r.headers, "connection")
-                    })
-                },
-            );
 
-        // Helper to validate Trailer header(s) in a set of headers
+        // Validate the `Trailer` field(s) of one field section, against the
+        // `Connection` field of that same section.
+        //
+        // A connection-option is a statement by the sender of *that* message about
+        // *that* hop — the sentence below removes the named fields "from the
+        // message" the option arrived in. So a request's connection options say
+        // nothing about what the response may put in its trailers. This used to
+        // read the request's `Connection` first and the response's only in its
+        // absence, which was wrong in both directions at once: it measured a
+        // response's declaration against the client's options, and when the request
+        // carried any `Connection` at all it never looked at the server's.
         let check_headers = |hdrs: &hyper::HeaderMap| -> Option<Violation> {
+            let connection_val = crate::helpers::headers::get_header_str(hdrs, "connection");
             // cite(RFC 9112 § 7.1.2): "trailer-section   = *( field-line CRLF )"
             // cite(RFC 9110 § 7.6.1): "The "Connection" header field allows the sender to list desired control options for the current connection."
             for hv in hdrs.get_all("trailer").iter() {
@@ -417,8 +419,12 @@ mod tests {
         Ok(())
     }
 
+    /// The other section's `Connection` is not this message's, in either
+    /// direction. `Keep-Alive` is still reported below — it is connection-specific
+    /// whatever the message says — so the case is made with a field name that is
+    /// only connection-specific because a `Connection` field said so.
     #[test]
-    fn request_trailer_response_connection_nominated_reports_violation() -> anyhow::Result<()> {
+    fn connection_options_do_not_reach_the_other_sections_trailer() -> anyhow::Result<()> {
         let rule = MessageTrailerHeadersValid;
         let cfg = crate::test_helpers::make_test_config_with_severity(
             "message_trailer_headers_valid",
@@ -427,16 +433,38 @@ mod tests {
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
-            crate::test_helpers::make_headers_from_pairs(&[("connection", "Keep-Alive")]);
+            crate::test_helpers::make_headers_from_pairs(&[("connection", "X-Response-Control")]);
         tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("trailer", "Keep-Alive")]);
+            crate::test_helpers::make_headers_from_pairs(&[("trailer", "X-Response-Control")]);
 
         let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
+        assert!(
+            v.is_none(),
+            "the response's connection options say nothing about the request's trailers: {v:?}"
+        );
+
+        // And the response's own are read even when the request carries some.
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("connection", "Keep-Alive")]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("connection", "X-Response-Control"),
+            ("trailer", "X-Response-Control"),
+        ]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(
+            v.is_some(),
+            "the response's own Connection is the one its Trailer is measured against"
+        );
         Ok(())
     }
 
