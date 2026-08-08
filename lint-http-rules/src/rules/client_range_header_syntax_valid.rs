@@ -26,40 +26,67 @@ impl Rule for ClientRangeHeaderSyntaxValid {
         use hyper::header::RANGE;
 
         let hdrs = tx.request.headers.get_all(RANGE);
-        let _ = hdrs.iter().next()?;
+        hdrs.iter().next()?;
 
-        // cite(RFC 9110 § 14.2): "The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges"
+        // `to_str` refuses every octet outside visible US-ASCII, and the shared
+        // reader below folds that refusal into the same `None` it returns for an
+        // absent field. This rule owns the difference -- one of the two is a
+        // finding about the message on the wire -- so the question the helper does
+        // not report on is asked here, before it is asked to read anything.
+        //
+        // The message used to call such a value "non-UTF8", which was wrong twice:
+        // `to_str` rejects a perfectly good UTF-8 `é` as readily as a lone 0xFF,
+        // and neither is the reason it is a finding. The reason is that no part of
+        // a ranges-specifier -- a token, `=`, or a range-spec -- is built from
+        // anything but visible US-ASCII.
         for hv in hdrs.iter() {
-            let Ok(s) = hv.to_str() else {
+            if hv.to_str().is_err() {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
-                    message: "Range header contains non-UTF8 value".into(),
-                });
-            };
-
-            // The split is the shared one, not a second copy of it: the unit is a
-            // token, so the first `=` is the separator whatever follows it, and
-            // the same function answers this question for `Content-Range`.
-            let Some((unit, range_set)) = crate::helpers::content_range::split_ranges_specifier(s)
-            else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "Invalid Range header '{}': not a ranges-specifier (a range-unit token, '=', then a range-set)",
-                        s
-                    ),
-                });
-            };
-
-            if let Err(e) = validate_range_set(&unit, range_set) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!("Invalid Range header '{}': {}", s, e),
+                    message: "Range header holds an octet no part of a ranges-specifier admits"
+                        .into(),
                 });
             }
+        }
+
+        // Two field lines with one name are one field value: a recipient appends
+        // them in order, separated by comma SP. Reading them as two values answers
+        // about a value nobody sees -- `bytes=0-1` beside `bytes=2-3` is a single
+        // range-set whose second element is `bytes=2-3`, which is a specifier the
+        // `bytes` unit has no form for, and it is that value the origin acts on.
+        //
+        // Whether the sender was permitted to send two lines at all is a separate
+        // and arguable question -- § 5.3's exception turns on whether the field's
+        // definition allows a comma-separated list, and `Range`'s does, one level
+        // down, in `range-set`. Joining decides nothing about it and needs to
+        // decide nothing: the joined value is measured against the same grammar
+        // either way. Every line was read cleanly just above, so the helper's
+        // remaining `None` is the absent case, which the first line here ruled out.
+        let value = crate::helpers::headers::get_all_header_values(&tx.request.headers, "range")?;
+
+        // cite(RFC 9110 § 14.2): "The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges"
+        // The split is the shared one, not a second copy of it: the unit is a
+        // token, so the first `=` is the separator whatever follows it, and the
+        // same function answers this question for `Content-Range`.
+        let Some((unit, range_set)) = crate::helpers::content_range::split_ranges_specifier(&value)
+        else {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: format!(
+                    "Invalid Range header '{}': not a ranges-specifier (a range-unit token, '=', then a range-set)",
+                    value
+                ),
+            });
+        };
+
+        if let Err(e) = validate_range_set(&unit, range_set) {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: format!("Invalid Range header '{}': {}", value, e),
+            });
         }
         None
     }
@@ -266,21 +293,31 @@ mod tests {
     }
 
     /// This used to append `bytes=0-1` and `items=0-1` and rest on the second one
-    /// being reported for its unit -- so it asserted the defect above, not the
-    /// claim in its name. The second line is one the `bytes` unit refuses now.
-    #[test]
-    fn multiple_values_all_checked() -> anyhow::Result<()> {
+    /// being reported for its unit -- so it asserted a defect, not the claim in
+    /// its name. Two lines are one value here, and the name says which.
+    #[rstest]
+    // Joined: `bytes=0-1, bytes=2-3`, whose second element is a specifier the
+    // `bytes` unit has no form for. Neither line says that on its own.
+    #[case(&["bytes=0-1", "bytes=2-3"], true)]
+    #[case(&["bytes=0-1", "bytes=5-3"], true)]
+    // Joined: `bytes=0-1, 2-3`, which is one well-formed two-element range-set.
+    #[case(&["bytes=0-1", "2-3"], false)]
+    fn field_lines_are_joined_before_they_are_parsed(
+        #[case] lines: &[&str],
+        #[case] expect_violation: bool,
+    ) -> anyhow::Result<()> {
         let mut tx = make_test_transaction();
-        // Append two Range header values; one is invalid
-        tx.request
-            .headers
-            .append("range", "bytes=0-1".parse::<HeaderValue>()?);
-        tx.request
-            .headers
-            .append("range", "bytes=5-3".parse::<HeaderValue>()?);
+        for line in lines {
+            tx.request
+                .headers
+                .append("range", line.parse::<HeaderValue>()?);
+        }
 
-        let v = judge(&tx);
-        assert!(v.is_some());
+        assert_eq!(
+            judge(&tx).is_some(),
+            expect_violation,
+            "for the field lines {lines:?}"
+        );
         Ok(())
     }
 
@@ -345,17 +382,23 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn non_utf8_header_reports_violation() -> anyhow::Result<()> {
+    /// `0xFF` is not UTF-8 and `0xC3 0xA9` is -- the `é` a client might put in a
+    /// field value by accident. Both are outside every production this field is
+    /// built from, and neither is readable, so the finding is the same one.
+    #[rstest]
+    #[case(&[0xff])]
+    #[case("bytes=0-\u{e9}".as_bytes())]
+    fn an_octet_outside_the_grammar_is_reported(#[case] bad: &[u8]) -> anyhow::Result<()> {
         let mut tx = make_test_transaction();
-        // Non-UTF8 header value should be treated as violation
-        let bad = HeaderValue::from_bytes(&[0xff]).expect("should construct non-utf8 header");
+        let bad = HeaderValue::from_bytes(bad).expect("should construct the header value");
         tx.request.headers.insert("range", bad);
 
         let v = judge(&tx);
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("non-UTF8"));
+        let msg = v.expect("expected a violation").message;
+        assert!(
+            msg.contains("no part of a ranges-specifier admits"),
+            "reported for another reason: {msg}"
+        );
         Ok(())
     }
 
