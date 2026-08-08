@@ -10,15 +10,15 @@ SPDX-License-Identifier: ISC
 
 HTTP/3 does not support the `101 (Switching Protocols)` informational status code. The protocol upgrade mechanism used in HTTP/1.1 has no equivalent in HTTP/3; applications that require protocol switching should use extended CONNECT (RFC 9220) instead.
 
-Additionally, informational (1xx) responses in HTTP/3 consist of only a HEADERS frame and must not include a message body, `Content-Length` header, or trailer fields.
+This rule applies when the request version is `HTTP/3`. The response is checked only when its own version is also `HTTP/3`; in a reverse-proxy setup the upstream response may arrive via HTTP/1.1, where `101` is legitimate.
 
-This rule applies when the request version is `HTTP/3`. Response properties are checked only when the response's own version is also `HTTP/3`; in a reverse-proxy setup the upstream response may arrive via HTTP/1.1 where `101` is legitimate.
+**One status code, and only what HTTP/3 says about it.** This rule also used to report a `Content-Length`, a message body, or a trailer section on a `1xx` response. Those rest on RFC 9110 §15.2 — *"A 1xx response is terminated by the end of the header section; it cannot contain content or trailers"* — which is not a sentence about HTTP/3, so enforcing it here meant the same defect over HTTP/1.1 or HTTP/2 went unreported. `server_no_body_for_1xx_204_304` enforces it on every version, and for `204` and `304` as well as `1xx`.
 
 ## Specifications
 
 - [RFC 9114 §4.5](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5): HTTP Upgrade
 - [RFC 9114 §4.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1): HTTP Message Framing, where interim and final responses are described. This note said HTTP Message Exchanges, which is not a section RFC 9114 has
-- [RFC 9110 §15.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2): Informational 1xx
+- [RFC 9110 §15.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2): Informational 1xx — where 101 is defined, and where the rule 101 breaks is written. Its sentence forbidding content and trailers on a 1xx is version-independent and is enforced by server_no_body_for_1xx_204_304, not here
 - [RFC 9220](https://www.rfc-editor.org/rfc/rfc9220.html): Bootstrapping WebSockets with HTTP/3
 
 ## Configuration
@@ -52,16 +52,4 @@ Content-Type: text/html
 ```http
 HTTP/3 101 Switching Protocols
 Upgrade: websocket
-```
-
-```http
-HTTP/3 100 Continue
-Content-Length: 0
-```
-
-```http
-HTTP/3 103 Early Hints
-Link: </style.css>; rel=preload; as=style
-
-<body data follows>
 ```
