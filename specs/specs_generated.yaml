@@ -2853,8 +2853,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/status.rs
       line: 7
-    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
-      line: 37
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 41
   - label: lint-http-rules/src/helpers/token.rs
@@ -4325,6 +4323,46 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 30
+  - label: server_3xx_vs_request_method
+    section: § 15.4
+    snippet: 307 | (Temporary Redirect) and 308 (Permanent Redirect) [RFC7538] | were later added to unambiguously indicate method-preserving | redirects, and status codes 301 and 302 have been adjusted to | allow a POST request to be redirected as GET.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
+      line: 38
+  - label: server_3xx_vs_request_method (2)
+    section: § 15.4
+    snippet: If a Location header field (Section 10.2.2) is provided, the user agent MAY automatically redirect its request to the URI referenced by the Location field value, even if the specific status code is not understood.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
+      line: 73
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 121
+  - label: server_3xx_vs_request_method (3)
+    section: § 15.4.2
+    snippet: historical reasons, a user agent MAY change the | request method from POST to GET for the subsequent request. If | this behavior is undesired, the 308 (Permanent Redirect) status | code can be used instead.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
+      line: 29
+  - label: server_3xx_vs_request_method (4)
+    section: § 15.4.3
+    snippet: For historical reasons, a user agent MAY change the | request method from POST to GET for the subsequent request. If | this behavior is undesired, the 307 (Temporary Redirect) status | code can be used instead.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
+      line: 31
+  - label: server_3xx_vs_request_method (5)
+    section: § 9.1
+    snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
+      line: 86
+    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
+      line: 81
+  - label: server_3xx_vs_request_method (6)
+    section: § 9.3.3
+    snippet: If the result of processing a POST would be equivalent to a representation of an existing resource, an origin server MAY redirect the user agent to that resource by sending a 303 (See Other) response with the existing resource's identifier in the Location field.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
+      line: 95
   - label: acceptable-ranges grammar
     section: § 14.3
     snippet: acceptable-ranges = 1#range-unit
@@ -4454,48 +4492,42 @@ sources:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 27
   - label: server_response_location_on_redirect (4)
-    section: § 15.4
-    snippet: If a Location header field (Section 10.2.2) is provided, the user agent MAY automatically redirect its request to the URI referenced by the Location field value, even if the specific status code is not understood.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
-      line: 121
-  - label: server_response_location_on_redirect (5)
     section: § 15.4.1
     snippet: For request methods other than HEAD, the server SHOULD generate content in the 300 response containing a list of representation metadata and URI reference(s) from which the user or user agent can choose the one most preferred.
     cited_by:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 38
-  - label: server_response_location_on_redirect (6)
+  - label: server_response_location_on_redirect (5)
     section: § 15.4.1
     snippet: If the server has a preferred choice, the server SHOULD generate a Location header field containing a preferred choice's URI reference.
     cited_by:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 37
-  - label: server_response_location_on_redirect (7)
+  - label: server_response_location_on_redirect (6)
     section: § 15.4.2
     snippet: The server SHOULD generate a Location header field in the response containing a preferred URI reference for the new permanent URI.
     cited_by:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 43
-  - label: server_response_location_on_redirect (8)
+  - label: server_response_location_on_redirect (7)
     section: § 15.4.3
     snippet: The server SHOULD generate a Location header field in the response containing a URI reference for the different URI.
     cited_by:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 50
-  - label: server_response_location_on_redirect (9)
+  - label: server_response_location_on_redirect (8)
     section: § 15.4.4
     snippet: The 303 (See Other) status code indicates that the server is redirecting the user agent to a different resource, as indicated by a URI in the Location header field, which is intended to provide an indirect response to the original request.
     cited_by:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 58
-  - label: server_response_location_on_redirect (10)
+  - label: server_response_location_on_redirect (9)
     section: § 15.4.8
     snippet: The server SHOULD generate a Location header field in the response containing a URI reference for the different URI.
     cited_by:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 68
-  - label: server_response_location_on_redirect (11)
+  - label: server_response_location_on_redirect (10)
     section: § 15.4.9
     snippet: The server SHOULD generate a Location header field in the response containing a preferred URI reference for the new permanent URI.
     cited_by:
@@ -4645,12 +4677,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
       line: 134
-  - label: stateful_range_request_and_caching (6)
-    section: § 9.1
-    snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 81
 - label: RFC 9111
   url: https://www.rfc-editor.org/rfc/rfc9111.txt
   type: text/plain
