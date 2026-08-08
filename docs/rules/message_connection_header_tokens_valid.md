@@ -18,7 +18,7 @@ One name is reported as a name. RFC 9110 §7.6.1 says a sender MUST NOT send a c
 
 An option is not required to name a field that is present: §7.6.1 says a connection-specific field might not be needed when no parameter is associated with an option, and `close` names no field at all. The converse — a connection-specific field arriving without an option naming it — is not asked here either.
 
-Scope: this rule reads header sections, and measures the value wherever it appears. Some versions of HTTP do not allow the field at all (§7.6.1); `message_http3_no_connection_header` is the rule that reports its presence over HTTP/3. Whether `Connection` may appear in a *trailer* section is §6.5.1's question and `message_trailer_fields_validity`'s. Whether an `upgrade` option is backed by an `Upgrade` field is `message_connection_upgrade`'s.
+Scope: this rule reads header sections — a request's and a response's — and measures the value whatever protocol version carried it. Some versions of HTTP do not allow the field at all (§7.6.1); `message_http3_no_connection_header` is the rule that reports its presence over HTTP/3. Whether `Connection` may appear in a *trailer* section is §6.5.1's question and `message_trailer_fields_validity`'s. Whether an `upgrade` option is backed by an `Upgrade` field is `message_connection_upgrade`'s.
 
 ## Specifications
 
