@@ -87,3 +87,11 @@ Host: user:pass@example.com
 GET /path HTTP/1.1
 Host: exa mple.com
 ```
+
+### ❌ Bad Two field lines of a field that does not recombine as a list
+
+```http
+GET /path HTTP/1.1
+Host: a.example
+Host: b.example
+```

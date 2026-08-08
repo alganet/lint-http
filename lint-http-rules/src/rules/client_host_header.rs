@@ -243,6 +243,11 @@ impl Rule for ClientHostHeader {
                 label: Some("A character no host production generates"),
                 snippet: "GET /path HTTP/1.1\nHost: exa mple.com",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Two field lines of a field that does not recombine as a list"),
+                snippet: "GET /path HTTP/1.1\nHost: a.example\nHost: b.example",
+            },
         ]
     }
 }
@@ -433,8 +438,12 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(
-            violation.is_some(),
+        assert_eq!(
+            violation.map(|v| v.message),
+            Some(
+                "Host field value '\u{a0}' is not a host and port: invalid character '\u{a0}' in host '\u{a0}'"
+                    .to_string()
+            ),
             "an obs-text octet is a host of one character no production admits"
         );
     }
