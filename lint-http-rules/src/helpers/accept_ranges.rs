@@ -41,12 +41,30 @@ impl Advertisement {
     }
 }
 
+/// The field sections of a response that may carry `Accept-Ranges`, in the order
+/// they arrive on the wire.
+///
+/// There are two, and which of them a reader looks in is not a detail any caller
+/// should be deciding for itself: a response that advertises its units after the
+/// content is advertising them, and a reader that opens the header section alone
+/// reports it for saying nothing. The rule that owns the field's syntax needs the
+/// same two sections and the raw lines inside them, so the sentence lives here
+/// and the walk over it is shared.
+///
+// cite(RFC 9110 § 14.3): "The Accept-Ranges field MAY be sent in a trailer section, but is preferred to be sent as a header field because the information is particularly useful for restarting large information transfers that have failed in mid-content (before the trailer section is received)."
+pub fn field_sections(
+    resp: &crate::http_transaction::ResponseInfo,
+) -> impl Iterator<Item = &hyper::HeaderMap> {
+    [Some(&resp.headers), resp.trailers.as_ref()]
+        .into_iter()
+        .flatten()
+}
+
 /// Read `Accept-Ranges` out of both of the response's field sections.
 ///
-/// The field is defined for the trailer section as well as the header section,
-/// which is the whole reason this is a function rather than one loop: a response
-/// that advertises its units after the content is advertising them, and reading
-/// only the header section reports it for saying nothing.
+/// What makes this a function rather than one loop is the shape of its answer,
+/// described on `Advertisement`: a caller that folds "said nothing" into "said
+/// something unreadable" reports a response for the first when it did the second.
 pub fn read_advertisement(resp: &crate::http_transaction::ResponseInfo) -> Advertisement {
     let mut advertised = Advertisement {
         present: false,
@@ -54,11 +72,7 @@ pub fn read_advertisement(resp: &crate::http_transaction::ResponseInfo) -> Adver
         units: Vec::new(),
     };
 
-    // cite(RFC 9110 § 14.3): "The Accept-Ranges field MAY be sent in a trailer section, but is preferred to be sent as a header field because the information is particularly useful for restarting large information transfers that have failed in mid-content (before the trailer section is received)."
-    for section in [Some(&resp.headers), resp.trailers.as_ref()]
-        .into_iter()
-        .flatten()
-    {
+    for section in field_sections(resp) {
         for hv in section.get_all("accept-ranges").iter() {
             advertised.present = true;
 
