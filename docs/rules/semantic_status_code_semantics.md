@@ -8,18 +8,18 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Two status codes are defined in terms of a field the response has to carry, and this rule reports the responses that do not carry it.
+Two status codes are defined in terms of a field the response has to carry, and this rule reports the responses that do not carry it — plus, advisorily, a `Proxy-Authenticate` arriving on any other status.
 
 - `401 Unauthorized` — a server generating one **MUST** send a `WWW-Authenticate` header field containing at least one challenge applicable to the target resource (RFC 9110 §15.5.2, §11.6.1)
 - `407 Proxy Authentication Required` — the proxy generating one **MUST** send at least one `Proxy-Authenticate` header field, containing a challenge applicable to that proxy for the request (RFC 9110 §15.5.8, §11.7.1)
 
-Both MUSTs ask for a **challenge**, not for a field line, so a `401` carrying an empty `WWW-Authenticate:` is reported too. That case is invisible to every other rule: both fields are defined as `#challenge`, and a `#` list is permitted to be empty, so the value is well-formed and only the status definition asks for more. Whether an element that *is* present is a well-formed challenge belongs to `message_www_authenticate_challenge_syntax`; this rule only asks whether one is there at all.
+Both MUSTs ask for a **challenge**, not for a field line, so a `401` carrying an empty `WWW-Authenticate:` is reported too. That case is not a syntax defect: both fields are defined as `#challenge`, a `#` list is permitted to hold no elements at all, and a recipient is required to accept the empty ones it does hold — so the value is well-formed, and what it fails is its status definition. Whether an element that *is* present is a well-formed challenge belongs to `message_www_authenticate_challenge_syntax`; this rule only asks whether one is there at all.
 
 **A `WWW-Authenticate` on any other status is not reported.** §11.6.1 says a server **MAY** generate one in other responses, to indicate that supplying credentials (or different credentials) might affect the response — so the field is permitted anywhere and a rule reporting it would be reporting a permission being used.
 
 **A `Proxy-Authenticate` outside a 407 is reported, and no requirement is violated by such a response.** §11.7.1 gives that field no matching permission, but it states no prohibition either; what it does say is that the field addresses the one client that chose this proxy, and outside a 407 nothing tells that client what to do with the challenge. The finding is advisory — configure the severity accordingly. The two fields are treated differently here on purpose, and the difference is one sentence in §11.6.1 that §11.7.1 does not have.
 
-Only response status and field presence are read. The rule says nothing about `Authorization`, `Proxy-Authorization`, or the content of the response.
+The response status and those two fields are the whole input — whether a challenge is there, never what it says. A 401 is measured from the response as it arrived rather than as it was generated, which §11.6.1 makes the same question by forbidding an intermediary from modifying the field; for the 407 no such sentence exists, and §11.7.1 addresses that field to a single hop, so an absence there is weaker evidence about the proxy that generated the status. The rule says nothing about `Authorization`, `Proxy-Authorization`, or the content of the response.
 
 ## Specifications
 
