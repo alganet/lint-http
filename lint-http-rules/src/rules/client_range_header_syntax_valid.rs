@@ -76,7 +76,7 @@ impl Rule for ClientRangeHeaderSyntaxValid {
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "GET /big-file HTTP/1.1\nHost: example.com\nRange: items=0-1\n# unsupported unit\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=abc\n# non-numeric\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=5-3\n# first > last",
+                snippet: "GET /big-file HTTP/1.1\nHost: example.com\nRange: items=0-1\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=abc\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=5-3",
             },
         ]
     }
@@ -163,6 +163,15 @@ mod tests {
     use hyper::header::HeaderValue;
     use rstest::rstest;
 
+    fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+        let rule = ClientRangeHeaderSyntaxValid;
+        rule.check_transaction(
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+    }
+
     #[rstest]
     #[case("bytes=0-499", false)]
     #[case("bytes=500-999,1000-1499", false)]
@@ -190,12 +199,7 @@ mod tests {
         let mut tx = make_test_transaction();
         tx.request.headers.insert("range", value.parse()?);
 
-        let rule = ClientRangeHeaderSyntaxValid;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
+        let v = judge(&tx);
 
         if expect_violation {
             assert!(v.is_some(), "expected violation for '{}', got none", value);
@@ -221,25 +225,68 @@ mod tests {
             .headers
             .append("range", "items=0-1".parse::<HeaderValue>()?);
 
-        let rule = ClientRangeHeaderSyntaxValid;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
+        let v = judge(&tx);
         assert!(v.is_some());
         Ok(())
+    }
+
+    /// Nothing else runs a rule's published examples through it, so a snippet
+    /// that is not a message at all reads as documentation to its author and
+    /// publishes as HTTP: three of these blocks used to carry a `# non-numeric`
+    /// line where a field line belongs. Every block here is one request, and the
+    /// verdict on it has to be the one the label promises.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::Compliance;
+
+        let mut saw_a_finding = false;
+        for ex in ClientRangeHeaderSyntaxValid.examples() {
+            for block in ex.snippet.split("\n\n") {
+                let mut lines = block.lines();
+                let request_line = lines.next().expect("a request has a request line");
+                assert!(
+                    request_line.ends_with(" HTTP/1.1"),
+                    "not a request line: {request_line:?}"
+                );
+
+                let mut tx = make_test_transaction();
+                tx.request.headers.clear();
+                for line in lines {
+                    let (name, value) = line
+                        .split_once(": ")
+                        .unwrap_or_else(|| panic!("not a field line: {line:?}"));
+                    tx.request.headers.append(
+                        hyper::header::HeaderName::from_bytes(name.as_bytes())
+                            .unwrap_or_else(|_| panic!("not a field name: {name:?}")),
+                        value
+                            .parse::<HeaderValue>()
+                            .unwrap_or_else(|_| panic!("not a field value: {value:?}")),
+                    );
+                }
+
+                let found = judge(&tx);
+                match ex.compliance {
+                    Compliance::Compliant => assert!(
+                        found.is_none(),
+                        "rule reports its Compliant example {block:?}: {found:?}"
+                    ),
+                    Compliance::NonCompliant => {
+                        assert!(
+                            found.is_some(),
+                            "rule accepts its NonCompliant example {block:?}"
+                        );
+                        saw_a_finding = true;
+                    }
+                }
+            }
+        }
+        assert!(saw_a_finding, "the guard ran without exercising a finding");
     }
 
     #[test]
     fn header_absent_no_violation() -> anyhow::Result<()> {
         let tx = make_test_transaction();
-        let rule = ClientRangeHeaderSyntaxValid;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
+        let v = judge(&tx);
         assert!(v.is_none());
         Ok(())
     }
@@ -251,12 +298,7 @@ mod tests {
         let bad = HeaderValue::from_bytes(&[0xff]).expect("should construct non-utf8 header");
         tx.request.headers.insert("range", bad);
 
-        let rule = ClientRangeHeaderSyntaxValid;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
+        let v = judge(&tx);
         assert!(v.is_some());
         let msg = v.unwrap().message;
         assert!(msg.contains("non-UTF8"));
