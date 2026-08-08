@@ -124,11 +124,15 @@ impl Rule for ServerAcceptRangesValuesValid {
         //
         // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
         // cite(RFC 9110 § 14.3): "to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose."
-        let others: Vec<&str> = units
-            .iter()
-            .map(String::as_str)
-            .filter(|u| *u != "none")
-            .collect();
+        let mut others: Vec<&str> = Vec::new();
+        for unit in units.iter().map(String::as_str) {
+            // A unit named twice is named once in the message: the finding is
+            // about which units sit beside `none`, and repeating one of them
+            // says nothing further about that.
+            if unit != "none" && !others.contains(&unit) {
+                others.push(unit);
+            }
+        }
         if units.iter().any(|u| u == "none") && !others.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
@@ -358,6 +362,8 @@ mod tests {
 
     #[rstest]
     #[case(None, false)]
+    // The two field values § 14.3 prints, which are the whole of what the
+    // section shows a conforming `Accept-Ranges` looking like.
     #[case(Some("bytes"), false)]
     #[case(Some("none"), false)]
     #[case(Some("bytes, bytes"), false)]
@@ -374,6 +380,8 @@ mod tests {
     #[case(Some("none, bytes"), true)]
     #[case(Some("bytes, none"), true)]
     #[case(Some("NONE, Pages"), true)]
+    // A unit named twice beside `none` is named once in the finding.
+    #[case(Some("bytes, none, bytes"), true)]
     // Two `none`s are a repetition, not a combination. The old check counted
     // the list's elements rather than looking at them, and reported this for
     // combining `none` with other range-units that were not there.
@@ -441,6 +449,21 @@ mod tests {
         #[case] expect_violation: bool,
     ) {
         assert_eq!(judge(&advertising(lines)).is_some(), expect_violation);
+    }
+
+    /// The finding names the units sitting beside `none`, and names each of them
+    /// once: repeating one says nothing further about the contradiction.
+    #[test]
+    fn the_units_beside_none_are_named_once_each() {
+        let found = judge(&advertising(&[(
+            Section::Header,
+            b"bytes, none, BYTES, pages".as_slice(),
+        )]));
+        let message = found.expect("expected a violation").message;
+        assert!(
+            message.starts_with("Accept-Ranges advertises 'bytes', 'pages' beside 'none'"),
+            "unexpected message: {message}"
+        );
     }
 
     /// `0xFF` is not UTF-8 and `0xC3 0xA9` is -- the `é` a server might put in a
