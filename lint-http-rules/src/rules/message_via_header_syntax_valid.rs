@@ -263,7 +263,8 @@ fn validate_via(value: &[u8]) -> Result<(), String> {
             ));
         }
 
-        i = validate_member(v, i, n)?;
+        let commented;
+        (i, commented) = validate_member(v, i, n)?;
         i = skip_ws(v, i);
 
         if i == v.len() {
@@ -271,13 +272,19 @@ fn validate_via(value: &[u8]) -> Result<(), String> {
         }
         if v[i] != b',' {
             // `validate_member` stops at the first octet that cannot continue a
-            // member, so whatever is here followed a complete one -- a second
-            // comment, or a third element in a two-element production.
+            // member, so whatever is here followed a complete one. A `(` can only
+            // be a second comment: an unspaced one is not a comment at all and
+            // has already been reported against the `received-by` it ran into.
             return Err(if v[i] == b'(' {
                 format!("member {n} carries more than one comment, and the production permits one")
+            } else if commented {
+                format!(
+                    "member {n} has content after its comment, starting {}",
+                    describe_octet(v[i])
+                )
             } else {
                 format!(
-                    "member {n} has content after its received-by and comment, starting {}",
+                    "member {n} has content after its received-by, starting {}",
                     describe_octet(v[i])
                 )
             });
@@ -286,13 +293,15 @@ fn validate_via(value: &[u8]) -> Result<(), String> {
     }
 }
 
-/// Validate one list member, returning the offset just past it.
+/// Validate one list member, returning the offset just past it and whether the
+/// optional comment was there.
 ///
 /// The three parts are consumed in the order the production writes them, so the
 /// octet that stops each one is reported against the part it interrupted rather
-/// than against the member as a whole.
+/// than against the member as a whole -- including the caller's report of what
+/// follows the member, which is why it is told whether a comment was taken.
 // cite(RFC 9110 § 7.6.3): "Via = #( received-protocol RWS received-by [ RWS comment ] )"
-fn validate_member(v: &[u8], start: usize, n: usize) -> Result<usize, String> {
+fn validate_member(v: &[u8], start: usize, n: usize) -> Result<(usize, bool), String> {
     // A `received-protocol` is a `protocol-version` that a `protocol-name` and a
     // slash may precede, so the first token is the version until a slash proves
     // it was the name. Both halves are tokens; §7.8 is where the field's own
@@ -412,10 +421,13 @@ fn validate_member(v: &[u8], start: usize, n: usize) -> Result<usize, String> {
     // cite(RFC 9110 § 7.6.3): "However, comments in Via are optional, and a recipient MAY remove them prior to forwarding the message."
     let after_ws = skip_ws(v, i);
     if after_ws > i && v.get(after_ws) == Some(&b'(') {
-        i = scan_comment(v, after_ws).map_err(|e| format!("member {n}: {e}"))?;
+        return Ok((
+            scan_comment(v, after_ws).map_err(|e| format!("member {n}: {e}"))?,
+            true,
+        ));
     }
 
-    Ok(i)
+    Ok((i, false))
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -487,7 +499,7 @@ mod tests {
     #[case("1.1 ex@mple", "member 1 has a received-by containing '@'")]
     #[case(
         "1.1 exa mple",
-        "member 1 has content after its received-by and comment, starting 'm'"
+        "member 1 has content after its received-by, starting 'm'"
     )]
     #[case(
         "1.1 fred (a) (b)",
@@ -495,7 +507,7 @@ mod tests {
     )]
     #[case(
         "1.1 fred (a) x",
-        "member 1 has content after its received-by and comment, starting 'x'"
+        "member 1 has content after its comment, starting 'x'"
     )]
     #[case(
         "1.1 fred (unterminated",
