@@ -643,6 +643,10 @@ pub static PROHIBITED_TRAILER_FIELDS: &[&str] = &[
     "transfer-encoding",
     // Routing
     "host",
+    // `Forwarded` is routing too, and RFC 7239 defines it for the header
+    // section and nowhere else — so the sender does not know its definition
+    // permits a trailer, because it does not.
+    "forwarded",
     // Request modifiers — controls
     "cache-control",
     "expect",

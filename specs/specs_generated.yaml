@@ -17,17 +17,17 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1404
+      line: 1408
   - label: lint-http-rules/src/helpers/headers.rs (2)
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1399
+      line: 1403
   - label: lint-http-rules/src/helpers/headers.rs (3)
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1398
+      line: 1402
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -796,6 +796,16 @@ sources:
       line: 39
     - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
       line: 106
+- label: RFC 5234
+  url: https://www.rfc-editor.org/rfc/rfc5234.txt
+  type: text/plain
+  fragments:
+  - label: message_forwarded_header_validity
+    section: § 2.3
+    snippet: ABNF strings are case insensitive and the character set for these strings is US-ASCII.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 143
 - label: RFC 5322
   url: https://www.rfc-editor.org/rfc/rfc5322.txt
   type: text/plain
@@ -805,25 +815,25 @@ sources:
     snippet: 'Normally, a mailbox is composed of two parts: (1) an optional display name that indicates the name of the recipient (which can be a person or a system) that could be displayed to the user of a mail application, and (2) an addr-spec address enclosed in angle brackets'
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1148
+      line: 1152
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.4
     snippet: There is an alternate simple form of a mailbox where the addr-spec address appears alone, without the recipient's name or the angle brackets.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1161
+      line: 1165
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.4.1
     snippet: An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1179
+      line: 1183
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.4.1
     snippet: The locally interpreted string is either a quoted-string or a dot-atom.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1182
+      line: 1186
 - label: RFC 5646
   url: https://www.rfc-editor.org/rfc/rfc5646.txt
   type: text/plain
@@ -1079,7 +1089,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1400
+      line: 1404
     - file: lint-http-rules/src/helpers/uri.rs
       line: 139
   - label: lint-http-rules/src/helpers/uri.rs
@@ -1317,10 +1327,160 @@ sources:
   fragments:
   - label: message_forwarded_header_validity
     section: § 4
-    snippet: The "Forwarded" HTTP header field is an OPTIONAL header field
+    snippet: '"Forwarded" is only for use in HTTP requests and is not to be used in HTTP responses.'
     cited_by:
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
-      line: 182
+      line: 458
+  - label: message_forwarded_header_validity (2)
+    section: § 4
+    snippet: Each parameter MUST NOT occur more than once per field-value.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 256
+  - label: Forwarded grammar
+    section: § 4
+    snippet: Forwarded   = 1#forwarded-element
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 371
+  - label: message_forwarded_header_validity (3)
+    section: § 4
+    snippet: Note that as ":" and "[]" are not valid characters in "token", IPv6 addresses are written as "quoted-string".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 303
+  - label: message_forwarded_header_validity (4)
+    section: § 4
+    snippet: The parameter names are case-insensitive.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 286
+  - label: forwarded-element grammar
+    section: § 4
+    snippet: forwarded-element = [ forwarded-pair ] *( ";" [ forwarded-pair ] )
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 243
+  - label: forwarded-pair grammar
+    section: § 4
+    snippet: forwarded-pair = token "=" value value          = token / quoted-string
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 266
+  - label: message_forwarded_header_validity (5)
+    section: § 5.1
+    snippet: The syntax of a "by" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 84
+  - label: message_forwarded_header_validity (6)
+    section: § 5.2
+    snippet: The syntax of a "for" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 83
+  - label: message_forwarded_header_validity (7)
+    section: § 5.3
+    snippet: The syntax for a "host" value, after potential quoted-string unescaping, MUST conform to the Host ABNF described in Section 5.4 of [RFC7230].
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 196
+  - label: message_forwarded_header_validity (8)
+    section: § 5.4
+    snippet: The syntax of a "proto" value, after potential quoted-string unescaping, MUST conform to the URI scheme name as defined in Section 3.1 in [RFC3986] and registered with IANA according to [RFC4395].
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 212
+  - label: message_forwarded_header_validity (9)
+    section: § 5.5
+    snippet: All extension parameters SHOULD be registered in the "HTTP Forwarded Parameter" registry.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 341
+  - label: message_forwarded_header_validity (10)
+    section: § 6
+    snippet: It is important to note that an IPv6 address and any nodename with node-port specified MUST be quoted, since ":" is not an allowed character in "token".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 304
+  - label: message_forwarded_header_validity (11)
+    section: § 6
+    snippet: To distinguish an "obfport" from a port, the "obfport" MUST have a leading underscore. Further, it MUST also consist of only "ALPHA", "DIGIT", and the characters ".", "_", and "-".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 49
+  - label: node grammar
+    section: § 6
+    snippet: node     = nodename [ ":" node-port ]
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 68
+  - label: node-port grammar
+    section: § 6
+    snippet: node-port     = port / obfport port          = 1*5DIGIT obfport       = "_" 1*(ALPHA / DIGIT / "." / "_" / "-")
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 180
+  - label: nodename grammar
+    section: § 6
+    snippet: nodename = IPv4address / "[" IPv6address "]" / "unknown" / obfnode
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 107
+  - label: obfnode grammar
+    section: § 6
+    snippet: obfnode = "_" 1*( ALPHA / DIGIT / "." / "_" / "-")
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 47
+  - label: message_forwarded_header_validity (12)
+    section: § 6.1
+    snippet: Also, note that an IPv6 address is always enclosed in square brackets.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 92
+  - label: message_forwarded_header_validity (13)
+    section: § 6.1
+    snippet: The "IPv6address" SHOULD comply with textual representation recommendations [RFC5952] (for example, lowercase, compression of zeros).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 127
+  - label: message_forwarded_header_validity (14)
+    section: § 6.2
+    snippet: The "unknown" identifier is used when the identity of the preceding entity is not known, but the proxy server still wants to signal that a forwarding of the request was made.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 144
+  - label: message_forwarded_header_validity (15)
+    section: § 6.3
+    snippet: To distinguish the obfuscated identifier from other identifiers, it MUST have a leading underscore "_". Furthermore, it MUST also consist of only "ALPHA", "DIGIT", and the characters ".", "_", and "-".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 48
+  - label: message_forwarded_header_validity (16)
+    section: § 7.1
+    snippet: Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 242
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 440
+  - label: message_forwarded_header_validity (17)
+    section: § 8.2
+    snippet: This header field should never be copied into response messages by origin servers or intermediaries, as it can reveal the whole proxy chain to the client.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 459
+  - label: message_forwarded_header_validity (18)
+    section: § 9
+    snippet: New parameters and their values MUST conform with the forwarded-pair as defined in ABNF in Section 4.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 342
+  - label: message_x_forwarded_consistency
+    section: § 4
+    snippet: The "Forwarded" HTTP header field is an OPTIONAL header field
+    cited_by:
     - file: lint-http-rules/src/rules/message_x_forwarded_consistency.rs
       line: 32
 - label: RFC 7240
@@ -1486,25 +1646,25 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1078
+      line: 1082
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1019
+      line: 1023
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1057
+      line: 1061
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1050
+      line: 1054
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
@@ -1961,6 +2121,8 @@ sources:
       line: 117
     - file: lint-http-rules/src/rules/message_caching_directive_interaction.rs
       line: 64
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 372
     - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
       line: 135
     - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
@@ -2106,7 +2268,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 20
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 702
+      line: 706
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
       line: 16
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (6)
@@ -2116,7 +2278,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 85
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 729
+      line: 733
   - label: lint-http-proxy/src/proxy/websocket.rs
     section: § 15.2
     snippet: A 1xx response is terminated by the end of the header section; it cannot contain content or trailers.
@@ -2183,6 +2345,8 @@ sources:
       line: 61
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 52
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 382
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 178
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
@@ -2310,7 +2474,7 @@ sources:
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 987
+      line: 991
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 171
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
@@ -2356,13 +2520,15 @@ sources:
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 940
+      line: 944
   - label: lint-http-rules/src/helpers/headers.rs (5)
     section: § 5.6.4
     snippet: qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 871
+      line: 875
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 33
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 333
   - label: lint-http-rules/src/helpers/headers.rs (6)
@@ -2370,15 +2536,17 @@ sources:
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 850
+      line: 854
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 888
+      line: 892
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 544
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.6.4
     snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 870
+      line: 874
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 118
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
@@ -2390,7 +2558,7 @@ sources:
     snippet: Parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1353
+      line: 1357
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 156
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
@@ -2402,7 +2570,7 @@ sources:
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1343
+      line: 1347
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 296
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
@@ -2418,7 +2586,7 @@ sources:
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1302
+      line: 1306
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
@@ -2430,7 +2598,7 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1261
+      line: 1265
   - label: lint-http-rules/src/helpers/headers.rs (11)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
@@ -2541,6 +2709,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 644
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 197
   - label: message_accept_and_content_type_negotiation
     section: § 12.1
     snippet: A user agent cannot rely on proactive negotiation preferences being consistently honored, since the origin server might not implement proactive negotiation for the requested resource or might decide that sending a response that doesn't conform to the user agent's preferences is better than sending a 406 (Not Acceptable) response.
