@@ -1629,6 +1629,8 @@ sources:
       line: 38
     - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
       line: 54
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 53
   - label: client_accept_ranges_on_partial_content (2)
     section: § 14.2
     snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.
@@ -1667,11 +1669,15 @@ sources:
       line: 118
     - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
       line: 71
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 125
   - label: client_accept_ranges_on_partial_content (7)
     section: § 14.3
     snippet: Conversely, a client MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses.
     cited_by:
     - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+      line: 163
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 163
   - label: client_accept_ranges_on_partial_content (8)
     section: § 14.3
@@ -1681,6 +1687,8 @@ sources:
       line: 95
     - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
       line: 31
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 23
   - label: client_accept_ranges_on_partial_content (9)
     section: § 14.3
     snippet: to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose.
@@ -1689,6 +1697,8 @@ sources:
       line: 92
     - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
       line: 72
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 126
   - label: client_accept_ranges_on_partial_content (10)
     section: § 15.3.7
     snippet: A client MUST inspect a 206 response's Content-Type and Content-Range field(s) to determine what parts are enclosed and whether additional requests are needed.
@@ -1739,6 +1749,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
       line: 37
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 295
   - label: client_cache_respect
     section: § 13.1.2
     snippet: When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request
@@ -1875,13 +1887,15 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 89
-  - label: client_range_header_syntax_valid (11)
+  - label: 1#element expansion
     section: § 5.6.1.1
     snippet: 1#element => element *( OWS "," OWS element )
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 241
-  - label: client_range_header_syntax_valid (12)
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 281
+  - label: client_range_header_syntax_valid (11)
     section: § 5.6.1.1
     snippet: In any production that uses the list construct, a sender MUST NOT generate empty list elements.
     cited_by:
@@ -1897,9 +1911,11 @@ sources:
       line: 135
     - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
       line: 77
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 285
     - file: lint-http-rules/src/rules/server_vary_header_valid.rs
       line: 59
-  - label: client_range_header_syntax_valid (13)
+  - label: client_range_header_syntax_valid (12)
     section: § 5.6.2
     snippet: Delimiters are chosen from the set of US-ASCII visual characters not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}").
     cited_by:
@@ -1911,6 +1927,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 242
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 282
   - label: client_request_version_method_validity
     section: § 9.3.1
     snippet: A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server
@@ -2058,7 +2076,7 @@ sources:
     snippet: All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1.
     cited_by:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
-      line: 90
+      line: 104
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 52
     - file: lint-http-rules/src/helpers/content_range.rs
@@ -2069,36 +2087,42 @@ sources:
       line: 223
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 56
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 160
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 307
   - label: lint-http-rules/src/helpers/accept_ranges.rs (2)
     section: § 14.1
     snippet: Range units are intended to be extensible, as described in Section 16.5.
     cited_by:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
-      line: 84
+      line: 98
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 80
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 224
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 261
   - label: Accept-Ranges grammar
     section: § 14.3
     snippet: Accept-Ranges     = acceptable-ranges acceptable-ranges = 1#range-unit
     cited_by:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
-      line: 71
-    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
-      line: 35
+      line: 85
   - label: lint-http-rules/src/helpers/accept_ranges.rs (3)
     section: § 14.3
     snippet: The Accept-Ranges field MAY be sent in a trailer section, but is preferred to be sent as a header field because the information is particularly useful for restarting large information transfers that have failed in mid-content (before the trailer section is received).
     cited_by:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
-      line: 57
+      line: 54
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 162
   - label: lint-http-rules/src/helpers/accept_ranges.rs (4)
     section: § 5.6.1.2
     snippet: Empty elements do not contribute to the count of elements present.
     cited_by:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
-      line: 78
+      line: 92
     - file: lint-http-rules/src/helpers/headers.rs
       line: 248
     - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
@@ -2111,12 +2135,16 @@ sources:
       line: 143
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 55
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 262
   - label: lint-http-rules/src/helpers/accept_ranges.rs (5)
     section: § 5.6.1.2
     snippet: In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production
     cited_by:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
-      line: 99
+      line: 113
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 269
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 11.1
     snippet: It uses a case-insensitive token to identify the authentication scheme
@@ -2249,6 +2277,8 @@ sources:
       line: 81
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 320
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 93
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 5.3
     snippet: Since it cannot be combined into a single field value, | recipients ought to handle "Set-Cookie" as a special case while | processing fields.
@@ -2671,6 +2701,8 @@ sources:
       line: 78
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 232
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 71
   - label: message_accept_header_media_type_syntax (7)
     section: § 5.6.6
     snippet: parameter       = parameter-name "=" parameter-value
@@ -3545,6 +3577,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 30
+  - label: acceptable-ranges grammar
+    section: § 14.3
+    snippet: acceptable-ranges = 1#range-unit
+    cited_by:
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 94
+  - label: server_accept_ranges_values_valid
+    section: § 16.5.1
+    snippet: The "HTTP Range Unit Registry" defines the namespace for the range unit names and refers to their corresponding specifications.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 161
+  - label: tchar grammar
+    section: § 5.6.2
+    snippet: tchar          = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA ; any VCHAR, except delimiters
+    cited_by:
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 72
   - label: server_authentication_challenge_validity
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
