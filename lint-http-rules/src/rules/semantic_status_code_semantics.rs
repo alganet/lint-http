@@ -24,6 +24,11 @@ pub struct SemanticStatusCodeSemantics;
 /// Several lines is the expected shape for these two fields, not an edge case:
 /// cite(RFC 9110 § 11.6.1): "Furthermore, the header field itself can occur multiple times."
 ///
+/// That last sentence is written in `WWW-Authenticate`'s section, and it reaches
+/// `Proxy-Authenticate` because §11.7.1 sends it there rather than because the two
+/// fields look alike:
+/// cite(RFC 9110 § 11.7.1): "Note that the parsing considerations for WWW-Authenticate apply to this header field as well; see Section 11.6.1 for details."
+///
 /// The octets are read undecoded. Whether an element is a well-formed `challenge`
 /// belongs to `message_www_authenticate_challenge_syntax`; whether one exists at all
 /// is answerable without knowing what the bytes spell, and `to_str` would answer
@@ -53,17 +58,26 @@ impl Rule for SemanticStatusCodeSemantics {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
-        // Both fields are defined as response fields by their own definitions, which
-        // is why this rule reads the response and never the request.
+        // This rule reads the response and never the request, and the two fields say
+        // so differently. `WWW-Authenticate` is called a response header field in its
+        // definition's first words; `Proxy-Authenticate`'s definition never uses the
+        // word, and what puts that field in a response is the sentence after it,
+        // which names the response it is sent in.
         // cite(RFC 9110 § 11.6.1): "The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource."
         // cite(RFC 9110 § 11.7.1): "The "Proxy-Authenticate" header field consists of at least one challenge that indicates the authentication scheme(s) and parameters applicable to the proxy for this request."
+        // cite(RFC 9110 § 11.7.1): "A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates."
         let resp = tx.response.as_ref()?;
         let status = resp.status;
 
         // cite(RFC 9110 § 15.5.2): "The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource."
         if status == 401 {
-            // The status definition and the field definition say this twice, and the
-            // two halves of the sentence are checked separately below.
+            // The MUST is on the server that *generated* the 401 and what this rule
+            // has is the response as it arrived, several hops later. The two are the
+            // same question for this field: an intermediary is forbidden from
+            // touching it, so a field absent here was absent there — unless some hop
+            // is violating a MUST NOT of its own, which this rule cannot see and
+            // would report against the origin.
+            // cite(RFC 9110 § 11.6.1): "A proxy forwarding a response MUST NOT modify any WWW-Authenticate header fields in that response."
             // cite(RFC 9110 § 15.5.2): "The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource."
             if !resp.headers.contains_key("www-authenticate") {
                 return Some(Violation {
@@ -77,9 +91,12 @@ impl Rule for SemanticStatusCodeSemantics {
             }
 
             // "containing at least one challenge" is the other half of the same MUST,
-            // and nothing else in the tree asks it: the field's own grammar admits a
-            // value with no challenge in it, so an empty `WWW-Authenticate:` is a
-            // conforming field line and a 401 that violates its status definition.
+            // and it is not a syntax question: the field's own grammar admits a value
+            // with no challenge in it, so an empty `WWW-Authenticate:` is a conforming
+            // field line and a 401 that violates its status definition. (Today
+            // `message_www_authenticate_challenge_syntax` reports the same value as a
+            // syntax error, which the `#` grammar does not support — that is a defect
+            // in that rule, not the reason this check exists.)
             // cite(RFC 9110 § A): "WWW-Authenticate = [ challenge *( OWS "," OWS challenge ) ]"
             // cite(RFC 9110 § 15.5.2): "The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource."
             if !carries_a_challenge(&resp.headers, "www-authenticate") {
@@ -104,6 +121,12 @@ impl Rule for SemanticStatusCodeSemantics {
 
         // cite(RFC 9110 § 15.5.8): "The 407 (Proxy Authentication Required) status code is similar to 401 (Unauthorized), but it indicates that the client needs to authenticate itself in order to use a proxy for this request."
         if status == 407 {
+            // The 401's guarantee has no counterpart here: nothing forbids an
+            // intermediary from touching this field, and its own definition says it
+            // is addressed to one hop, so a proxy on the way is entitled to answer
+            // for itself. The observed absence is still the only reading available,
+            // and it is weaker evidence about the generator than the 401's.
+            // cite(RFC 9110 § 11.7.1): "Unlike WWW-Authenticate, the Proxy-Authenticate header field applies only to the next outbound client on the response chain."
             // cite(RFC 9110 § 15.5.8): "The proxy MUST send a Proxy-Authenticate header field (Section 11.7.1) containing a challenge applicable to that proxy for the request."
             // cite(RFC 9110 § 11.7.1): "A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates."
             if !resp.headers.contains_key("proxy-authenticate") {
@@ -170,7 +193,7 @@ impl Rule for SemanticStatusCodeSemantics {
     }
 
     fn description(&self) -> &'static str {
-        "Two status codes are defined in terms of a field the response has to carry, and this rule reports the responses that do not carry it.\n\n- `401 Unauthorized` — a server generating one **MUST** send a `WWW-Authenticate` header field containing at least one challenge applicable to the target resource (RFC 9110 §15.5.2, §11.6.1)\n- `407 Proxy Authentication Required` — the proxy generating one **MUST** send at least one `Proxy-Authenticate` header field, containing a challenge applicable to that proxy for the request (RFC 9110 §15.5.8, §11.7.1)\n\nBoth MUSTs ask for a **challenge**, not for a field line, so a `401` carrying an empty `WWW-Authenticate:` is reported too. That case is invisible to every other rule: both fields are defined as `#challenge`, and a `#` list is permitted to be empty, so the value is well-formed and only the status definition asks for more. Whether an element that *is* present is a well-formed challenge belongs to `message_www_authenticate_challenge_syntax`; this rule only asks whether one is there at all.\n\n**A `WWW-Authenticate` on any other status is not reported.** §11.6.1 says a server **MAY** generate one in other responses, to indicate that supplying credentials (or different credentials) might affect the response — so the field is permitted anywhere and a rule reporting it would be reporting a permission being used.\n\n**A `Proxy-Authenticate` outside a 407 is reported, and no requirement is violated by such a response.** §11.7.1 gives that field no matching permission, but it states no prohibition either; what it does say is that the field addresses the one client that chose this proxy, and outside a 407 nothing tells that client what to do with the challenge. The finding is advisory — configure the severity accordingly. The two fields are treated differently here on purpose, and the difference is one sentence in §11.6.1 that §11.7.1 does not have.\n\nOnly response status and field presence are read. The rule says nothing about `Authorization`, `Proxy-Authorization`, or the content of the response."
+        "Two status codes are defined in terms of a field the response has to carry, and this rule reports the responses that do not carry it — plus, advisorily, a `Proxy-Authenticate` arriving on any other status.\n\n- `401 Unauthorized` — a server generating one **MUST** send a `WWW-Authenticate` header field containing at least one challenge applicable to the target resource (RFC 9110 §15.5.2, §11.6.1)\n- `407 Proxy Authentication Required` — the proxy generating one **MUST** send at least one `Proxy-Authenticate` header field, containing a challenge applicable to that proxy for the request (RFC 9110 §15.5.8, §11.7.1)\n\nBoth MUSTs ask for a **challenge**, not for a field line, so a `401` carrying an empty `WWW-Authenticate:` is reported too. That case is not a syntax defect: both fields are defined as `#challenge`, a `#` list is permitted to hold no elements at all, and a recipient is required to accept the empty ones it does hold — so the value is well-formed, and what it fails is its status definition. Whether an element that *is* present is a well-formed challenge belongs to `message_www_authenticate_challenge_syntax`; this rule only asks whether one is there at all.\n\n**A `WWW-Authenticate` on any other status is not reported.** §11.6.1 says a server **MAY** generate one in other responses, to indicate that supplying credentials (or different credentials) might affect the response — so the field is permitted anywhere and a rule reporting it would be reporting a permission being used.\n\n**A `Proxy-Authenticate` outside a 407 is reported, and no requirement is violated by such a response.** §11.7.1 gives that field no matching permission, but it states no prohibition either; what it does say is that the field addresses the one client that chose this proxy, and outside a 407 nothing tells that client what to do with the challenge. The finding is advisory — configure the severity accordingly. The two fields are treated differently here on purpose, and the difference is one sentence in §11.6.1 that §11.7.1 does not have.\n\nThe response status and those two fields are the whole input — whether a challenge is there, never what it says. A 401 is measured from the response as it arrived rather than as it was generated, which §11.6.1 makes the same question by forbidding an intermediary from modifying the field; for the 407 no such sentence exists, and §11.7.1 addresses that field to a single hop, so an absence there is weaker evidence about the proxy that generated the status. The rule says nothing about `Authorization`, `Proxy-Authorization`, or the content of the response."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -378,7 +401,8 @@ mod tests {
         let v = judge(&response_with(401, &[("www-authenticate", value)]))
             .unwrap_or_else(|| panic!("expected violation for {value:?}"));
         assert!(
-            v.message.contains("with no challenge in it"),
+            v.message
+                .contains("WWW-Authenticate field with no challenge in it"),
             "{}",
             v.message
         );
@@ -391,7 +415,8 @@ mod tests {
         let v = judge(&response_with(407, &[("proxy-authenticate", value)]))
             .unwrap_or_else(|| panic!("expected violation for {value:?}"));
         assert!(
-            v.message.contains("with no challenge in it"),
+            v.message
+                .contains("Proxy-Authenticate field with no challenge in it"),
             "{}",
             v.message
         );

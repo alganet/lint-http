@@ -175,7 +175,7 @@ Generated index of every rule in the catalogue. Each entry links to the per-rule
 - [semantic_origin_matching_for_cors](rules/semantic_origin_matching_for_cors.md) — When a server responds to a cross-origin request the `Access-Control-Allow-Origin`
 - [semantic_patch_partial_update](rules/semantic_patch_partial_update.md) — The `PATCH` method is defined for applying partial modifications to an
 - [semantic_post_creates_resource](rules/semantic_post_creates_resource.md) — When a `POST` request results in the origin server creating one or more new
-- [semantic_status_code_semantics](rules/semantic_status_code_semantics.md) — Two status codes are defined in terms of a field the response has to carry, and this rule reports the responses that do not carry it.
+- [semantic_status_code_semantics](rules/semantic_status_code_semantics.md) — Two status codes are defined in terms of a field the response has to carry, and this rule reports the responses that do not carry it — plus, advisorily, a `Proxy-Authenticate` arriving on any other status.
 - [semantic_trace_method_echo](rules/semantic_trace_method_echo.md) — Validate TRACE method semantics with two pragmatic checks:
 
 ## Stateful Rules

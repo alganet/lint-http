@@ -2302,7 +2302,9 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 40
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 149
+      line: 129
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 172
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (2)
     section: § 11.7.2
     snippet: Unlike Authorization, the Proxy-Authorization header field applies only to the next inbound proxy that demanded authentication using the Proxy-Authenticate header field.
@@ -4206,7 +4208,7 @@ sources:
     - file: lint-http-rules/src/rules/message_www_authenticate_challenge_syntax.rs
       line: 34
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 58
+      line: 66
   - label: semantic_cache_coherence
     section: § 15.4.5
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
@@ -4233,70 +4235,84 @@ sources:
       line: 27
   - label: semantic_status_code_semantics
     section: § 11.6.1
+    snippet: A proxy forwarding a response MUST NOT modify any WWW-Authenticate header fields in that response.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 80
+  - label: semantic_status_code_semantics (2)
+    section: § 11.6.1
     snippet: A server MAY generate a WWW-Authenticate header field in other response messages to indicate that supplying credentials (or different credentials) might affect the response.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 103
-  - label: semantic_status_code_semantics (2)
+      line: 120
+  - label: semantic_status_code_semantics (3)
     section: § 11.6.1
     snippet: Furthermore, the header field itself can occur multiple times.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
       line: 25
-  - label: semantic_status_code_semantics (3)
+  - label: semantic_status_code_semantics (4)
     section: § 11.7.1
     snippet: A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 108
-  - label: semantic_status_code_semantics (4)
+      line: 68
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 131
+  - label: semantic_status_code_semantics (5)
+    section: § 11.7.1
+    snippet: Note that the parsing considerations for WWW-Authenticate apply to this header field as well; see Section 11.6.1 for details.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+      line: 30
+  - label: semantic_status_code_semantics (6)
     section: § 11.7.1
     snippet: The "Proxy-Authenticate" header field consists of at least one challenge that indicates the authentication scheme(s) and parameters applicable to the proxy for this request.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 59
-  - label: semantic_status_code_semantics (5)
+      line: 67
+  - label: semantic_status_code_semantics (7)
     section: § 15.5.2
     snippet: The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 63
+      line: 72
     - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
       line: 30
-  - label: semantic_status_code_semantics (6)
+  - label: semantic_status_code_semantics (8)
     section: § 15.5.2
     snippet: The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 67
+      line: 81
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 84
-  - label: semantic_status_code_semantics (7)
+      line: 101
+  - label: semantic_status_code_semantics (9)
     section: § 15.5.8
     snippet: The 407 (Proxy Authentication Required) status code is similar to 401 (Unauthorized), but it indicates that the client needs to authenticate itself in order to use a proxy for this request.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 105
-  - label: semantic_status_code_semantics (8)
+      line: 122
+  - label: semantic_status_code_semantics (10)
     section: § 15.5.8
     snippet: The proxy MUST send a Proxy-Authenticate header field (Section 11.7.1) containing a challenge applicable to that proxy for the request.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 107
+      line: 130
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 124
-  - label: semantic_status_code_semantics (9)
+      line: 147
+  - label: semantic_status_code_semantics (11)
     section: § A
     snippet: Proxy-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
     cited_by:
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 123
-  - label: semantic_status_code_semantics (10)
+      line: 146
+  - label: semantic_status_code_semantics (12)
     section: § A
     snippet: WWW-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
     cited_by:
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 83
+      line: 100
   - label: server_200_vs_204_body_consistency
     section: § 15.3.1
     snippet: The 200 (OK) status code indicates that the request has succeeded.
