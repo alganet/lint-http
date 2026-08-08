@@ -5,6 +5,17 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
+/// The fields that actually arrive after the content, and whether they may.
+///
+/// This rule reads the *trailer section*; `message_trailer_headers_valid` reads the
+/// `Trailer` declaration in the header section. Announcing a field and sending one
+/// are two acts, and §6.5.1's MUST NOT binds the second.
+///
+/// The framing precondition below is not checked and cannot be: a trailer section
+/// reaches this rule only because the framing that carries it delivered one, so
+/// there is no message here in which the sentence is false.
+///
+/// cite(RFC 9110 § 6.5.1): "A trailer section is only possible when supported by the version of HTTP in use and enabled by an explicit framing mechanism."
 pub struct MessageTrailerFieldsValidity;
 
 impl Rule for MessageTrailerFieldsValidity {
@@ -12,6 +23,11 @@ impl Rule for MessageTrailerFieldsValidity {
         "message_trailer_fields_validity"
     }
 
+    /// A trailer section is a sender's, and either party is a sender. The
+    /// requirement names no direction, and a request's trailer section is reachable
+    /// here — HTTP/1.1 chunked framing runs both ways.
+    ///
+    /// cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -50,7 +66,7 @@ impl Rule for MessageTrailerFieldsValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Validates that actual trailer fields sent after the message body do not contain prohibited headers and are consistent with any `Trailer` header declaration.\n\nRFC 9110 §6.5.1 forbids trailer fields used for message framing (`Transfer-Encoding`, `Content-Length`), routing (`Host`), request modifiers (controls and conditionals such as `Cache-Control`, `If-Match`, `Range`), authentication (`Authorization`, `WWW-Authenticate`), response control data (`Date`, `Location`, `Vary`), or payload processing (`Content-Type`, `Content-Encoding`, `Content-Range`, `Trailer` itself). Hop-by-hop headers (`Connection`, `Keep-Alive`, `Upgrade`) are also prohibited.\n\nWhen a `Trailer` header is present in the message headers, this rule additionally checks that all actual trailer fields were declared, since senders SHOULD list expected trailer fields before the message body.\n\nThis rule complements `message_trailer_headers_valid`, which validates the `Trailer` header declaration itself (field-name syntax and hop-by-hop restrictions). This rule instead validates the **actual trailer fields** that appear after the body."
+        "Validates the fields that actually arrive in a message's trailer section — the fields sent after the content, in a request or a response.\n\nA field is reported for one of three reasons:\n\n- **Its own definition does not permit the usage.** RFC 9110 §6.5.1: a sender MUST NOT generate a trailer field unless it knows the corresponding field definition permits it. Reported for the fields whose definitions this linter holds and which do not: message framing (`Content-Length`, `Transfer-Encoding`), routing (`Host`, `Forwarded`), request modifiers (`Cache-Control`, `Expect`, `Max-Forwards`, `Pragma`, `Range`, `TE`, and the five `If-*` conditionals), authentication (`Authorization`, `WWW-Authenticate`, `Proxy-Authenticate`, `Proxy-Authorization`), response controls (`Age`, `Date`, `Expires`, `Location`, `Retry-After`, `Vary`, `Warning`), content format (`Content-Encoding`, `Content-Range`, `Content-Type`), the connection-specific `Connection`, `Keep-Alive` and `Upgrade`, and `Trailer` itself, which would announce a section the recipient has finished reading.\n- **This message's own `Connection` names it.** A field listed as a connection-option carries control information for the current connection, and RFC 9110 §7.6.1 has every intermediary remove such a field from the trailer section before forwarding. The `Connection` consulted is the one in the same message as the trailer section, across all of its field lines.\n- **The `Trailer` declaration did not indicate it.** Where a message carries a `Trailer` header field, RFC 9110 §6.6.2's SHOULD asks it to indicate which fields might appear in the trailers, so a field that arrives unannounced is reported. `Trailer:` carrying nothing is a legal, empty declaration that announces no field at all — it is read, not treated as missing.\n\n**Scope limit, and it is the requirement's shape rather than an omission.** §6.5.1 is deny-by-default — RFC 9110 §16.3.2 says a new field is not allowable in trailers unless its definition says so — while the first check above is a list of names, which answers the opposite question. It cannot be inverted here: for a field this linter holds no definition of (`X-Checksum`, `Grpc-Status`), only the sender knows whether its definition permits the usage, and reporting all of them would report the senders that read their own specification. So a field absent from the list passes, and its passing is not a verdict. For the same reason, `Authentication-Info` and `Proxy-Authentication-Info` are *not* reported: RFC 9110 §11.6.3 and §11.7.3 permit both in a trailer section when the authentication scheme allows it, and the scheme is not visible here.\n\nTwo further sentences of §6.5.1 are left alone deliberately: that a trailer section is only possible where the framing enables one (a trailer section reaches this rule only because framing delivered it), and that a server SHOULD NOT send trailer fields it *believes* the user agent needs to receive (a belief, which no capture records).\n\nThis rule complements `message_trailer_headers_valid`, which reads the `Trailer` declaration's own syntax. Announcing a field and sending one are two acts; this rule judges the second."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -59,19 +75,43 @@ impl Rule for MessageTrailerFieldsValidity {
                 spec: "RFC 9110",
                 section: Some("6.5"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5",
-                note: "Trailer Fields",
+                note: "Trailer fields: what a trailer section is, and why what it carries cannot unmake a routing or processing choice already made from the header section",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("6.5.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
-                note: "Limitations on Use of Trailers",
+                note: "The MUST NOT behind the first finding, and it is deny-by-default: a trailer field is permitted only where the field's own definition says so. This rule reports the subset it can name; a field it does not recognise is not thereby approved",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("6.6.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.2",
+                note: "The `Trailer` field, whose SHOULD asks a sender to indicate which fields might appear — the sentence behind the undeclared-field finding, which said §6.5 in the finding text",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.6.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
+                note: "`Connection`: naming a field as a connection-option makes its value control information for this connection, and every intermediary removes it from the trailer section before forwarding",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("11.6.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.3",
+                note: "`Authentication-Info` may be sent as a trailer field when the authentication scheme allows it — a field §6.5.1's authentication category would forbid, permitted by name in its own definition. §11.7.3 says the same of `Proxy-Authentication-Info`. Neither is reported",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("16.3.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.3.2",
+                note: "The registry's advice to authors of new fields, and the sentence that makes §6.5.1 deny-by-default: a field is not allowable in trailers unless its definition says it is",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9112",
                 section: Some("7.1.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1.2",
-                note: "Chunked Transfer Coding (Trailer Section)",
+                note: "The chunked transfer coding's trailer section — HTTP/1.1's framing mechanism for the section this rule reads, and the reason the framing precondition in §6.5.1 needs no check here",
             },
         ]
     }
@@ -81,17 +121,29 @@ impl Rule for MessageTrailerFieldsValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
+                label: Some("Announced before the content, sent after it"),
                 snippet: "HTTP/1.1 200 OK\nTrailer: X-Checksum\nTransfer-Encoding: chunked\n\n<chunked body>\nX-Checksum: abc123",
             },
             Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "A field §6.5.1's categories would forbid and its own definition permits",
+                ),
+                snippet: "HTTP/1.1 200 OK\nTrailer: Authentication-Info\nTransfer-Encoding: chunked\n\n<chunked body>\nAuthentication-Info: nextnonce=\"a1b2c3\"",
+            },
+            Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
+                label: Some("Message framing, which the recipient needed before the content"),
                 snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: chunked\n\n<chunked body>\nContent-Length: 42",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
+                label: Some("Control information for this connection, by the sender's own account"),
+                snippet: "HTTP/1.1 200 OK\nConnection: keep-alive, X-Hop-State\nTransfer-Encoding: chunked\n\n<chunked body>\nX-Hop-State: value",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Sent after the content, and the declaration did not indicate it"),
                 snippet: "HTTP/1.1 200 OK\nTrailer: X-Checksum\nTransfer-Encoding: chunked\n\n<chunked body>\nX-Signature: sig-value",
             },
         ]
@@ -827,6 +879,72 @@ mod tests {
     }
 
     // ---- Scope and config ----
+
+    /// Every published snippet is run through the rule, and every Compliant one is
+    /// also run through the rule that owns the declaration it carries: this rule
+    /// judges what arrives after the content and cannot see a `Trailer` field it
+    /// may not write. The sibling shipped a Compliant example announcing a field
+    /// this rule rejects; this is the same guard pointing the other way.
+    #[test]
+    fn published_examples_are_judged_by_this_rule_and_by_the_one_that_owns_the_declaration() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = MessageTrailerFieldsValidity;
+        let owner = crate::rules::message_trailer_headers_valid::MessageTrailerHeadersValid;
+        let owner_cfg = crate::test_helpers::make_test_config_with_severity(
+            "message_trailer_headers_valid",
+            "warn",
+        );
+
+        for ex in rule.examples() {
+            let mut header_pairs: Vec<(&str, &str)> = Vec::new();
+            let mut trailer_pairs: Vec<(&str, &str)> = Vec::new();
+            let mut past_the_body = false;
+            for line in ex.snippet.lines() {
+                if line.starts_with("HTTP/") || line.starts_with('<') {
+                    continue;
+                }
+                if line.is_empty() {
+                    past_the_body = true;
+                    continue;
+                }
+                let (name, value) = line
+                    .split_once(':')
+                    .unwrap_or_else(|| panic!("example field line is not `Name: value`: {line:?}"));
+                if past_the_body {
+                    trailer_pairs.push((name, value.trim()));
+                } else {
+                    header_pairs.push((name, value.trim()));
+                }
+            }
+            assert!(
+                !trailer_pairs.is_empty(),
+                "example carries no trailer section: {}",
+                ex.snippet
+            );
+
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().unwrap().headers =
+                crate::test_helpers::make_headers_from_pairs(&header_pairs);
+            tx.response.as_mut().unwrap().trailers =
+                Some(crate::test_helpers::make_headers_from_pairs(&trailer_pairs));
+
+            let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+            match ex.compliance {
+                Compliance::Compliant => assert!(v.is_none(), "{}: {v:?}", ex.snippet),
+                Compliance::NonCompliant => assert!(v.is_some(), "{}", ex.snippet),
+            }
+
+            if !matches!(ex.compliance, Compliance::Compliant) {
+                continue;
+            }
+            let v = owner.check_transaction(&tx, &empty_history(), &owner_cfg);
+            assert!(
+                v.is_none(),
+                "the Compliant example writes a Trailer field its owner rejects: {v:?}\n{}",
+                ex.snippet
+            );
+        }
+    }
 
     #[test]
     fn id_and_scope_are_expected() {
