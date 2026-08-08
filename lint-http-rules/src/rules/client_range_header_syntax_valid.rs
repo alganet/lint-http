@@ -176,48 +176,79 @@ fn validate_range_set(unit: &str, range_set: &str) -> Result<(), String> {
 }
 
 /// Check one range-spec against the two forms the `bytes` unit defines.
+///
+/// Both forms are digits and one hyphen, so the whole of the check is which side
+/// of the hyphen the digits are on and how many of them there are. Neither
+/// production leaves room for whitespace between the two -- there is nothing
+/// between `first-pos` and `"-"` to put it in. Two `trim` calls used to sit on
+/// either side of the hyphen and spend that room anyway, so `bytes=0 - 499`
+/// passed: a value no sender may generate, accepted by the only rule that reads
+/// this field. They are gone rather than tightened, because a range-spec's
+/// octets are settled before this function is reached.
+///
+/// A specifier that is neither form is not an `other-range` fallback here: for
+/// this unit and no other, the specification withdraws that alternative outright.
 fn validate_bytes_range_spec(spec: &str) -> Result<(), String> {
-    // Suffix form: -<suffix-length>
-    if let Some(num) = spec.strip_prefix('-') {
-        if num.is_empty() {
-            return Err("invalid suffix-byte-range (missing digits)".into());
-        }
-        if !num.chars().all(|c| c.is_ascii_digit()) {
-            return Err("suffix-byte-range contains non-digit".into());
-        }
+    let is_digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+
+    if let Some(suffix_length) = spec.strip_prefix('-') {
+        return if is_digits(suffix_length) {
+            Ok(())
+        } else {
+            Err(format!(
+                "suffix-range '{}' is not '-' followed by 1*DIGIT",
+                spec
+            ))
+        };
+    }
+
+    let Some((first, last)) = spec.split_once('-') else {
+        return Err(format!(
+            "byte range-spec '{}' is neither an int-range nor a suffix-range",
+            spec
+        ));
+    };
+    if !is_digits(first) {
+        return Err(format!("first-pos '{}' is not 1*DIGIT", first));
+    }
+
+    // A `first-pos` with no `last-pos` after it is the whole remainder of the
+    // representation, which is a request a client makes on purpose when it does
+    // not know how long the representation is.
+    if last.is_empty() {
         return Ok(());
     }
-
-    // Otherwise expect <first>-<last?> where last may be empty
-    let dash_idx = spec
-        .find('-')
-        .ok_or_else(|| "byte-range-spec missing '-'".to_string())?;
-    let first = spec[..dash_idx].trim();
-    let last = spec[dash_idx + 1..].trim();
-
-    if first.is_empty() {
-        return Err("byte-range-spec missing first position".into());
+    if !is_digits(last) {
+        return Err(format!("last-pos '{}' is not 1*DIGIT", last));
     }
-    if !first.chars().all(|c| c.is_ascii_digit()) {
-        return Err("first byte-pos contains non-digit".into());
-    }
-
-    if !last.is_empty() {
-        if !last.chars().all(|c| c.is_ascii_digit()) {
-            return Err("last byte-pos contains non-digit".into());
-        }
-        // check ordering first <= last
-        let first_v: u128 = first
-            .parse()
-            .map_err(|_| "first byte-pos overflow".to_string())?;
-        let last_v: u128 = last
-            .parse()
-            .map_err(|_| "last byte-pos overflow".to_string())?;
-        if first_v > last_v {
-            return Err("first byte-pos greater than last".into());
-        }
+    if is_less_than(last, first) {
+        return Err(format!(
+            "last-pos {} is less than first-pos {}",
+            last, first
+        ));
     }
     Ok(())
+}
+
+/// Compare two `1*DIGIT` numerals as numerals, without turning them into
+/// integers.
+///
+/// This comparison used to parse both sides into `u128` and report `first
+/// byte-pos overflow` when that failed, so a 39-digit `first-pos` -- which
+/// `1*DIGIT` admits without qualification -- was reported as invalid syntax,
+/// with a test pinning it. The section that defines byte ranges says the
+/// opposite in as many words: there is no predefined limit to the length of
+/// content, so recipients must anticipate potentially large decimal numerals and
+/// prevent parsing errors due to integer conversion overflows. The rule was
+/// failing on precisely the input that sentence tells it to expect.
+///
+/// Length first, then digit order. With leading zeros stripped the longer
+/// numeral is the larger one, and two of equal length compare as ASCII does.
+/// Stripping them is not a tidy-up either: `1*DIGIT` permits `007`, so `007` and
+/// `7` have to come out equal.
+fn is_less_than(a: &str, b: &str) -> bool {
+    let (a, b) = (a.trim_start_matches('0'), b.trim_start_matches('0'));
+    (a.len(), a) < (b.len(), b)
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -266,8 +297,17 @@ mod tests {
     #[case("bytes=1-2,", true)]
     #[case("bytes=5-a", true)]
     #[case("bytes=a-5", true)]
+    #[case("bytes=0-1-2", true)]
+    #[case("bytes=0 - 499", true)]
+    // `1*DIGIT` bounds neither position, and leading zeros are part of it.
+    #[case("bytes=007-8", false)]
+    #[case("bytes=8-007", true)]
     #[case(
         "bytes=340282366920938463463374607431768211456-340282366920938463463374607431768211457",
+        false
+    )]
+    #[case(
+        "bytes=340282366920938463463374607431768211457-340282366920938463463374607431768211456",
         true
     )]
     fn check_range_cases(
