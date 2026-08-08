@@ -4,11 +4,11 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# Server Response Location on Redirect
+# Redirects that do not say where to
 
 ## Description
 
-Five status codes are asked for a `Location` header field in their own status definition, and this rule reports a response on one of them that carries none.
+Five status codes name a `Location` header field in their own definition — four asking for it with a SHOULD, and `303` by being defined in terms of it — and this rule reports a response on one of them that carries none.
 
 - `301 Moved Permanently` — a preferred URI reference for the new permanent URI (RFC 9110 §15.4.2, SHOULD)
 - `302 Found` — a URI reference for the different URI (§15.4.3, SHOULD)

@@ -102,19 +102,30 @@ impl Rule for ServerResponseLocationOnRedirect {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
+        // The status is read first because the status is what gives the field a
+        // referent at all — which is also why the set below is not the one
+        // `server_redirect_status_and_location_validity` carries. That rule asks
+        // which statuses give `Location` something to refer *to*, so its list keeps
+        // the 201 and the 300; this one asks which statuses have a sentence asking
+        // for the field, and neither of those does. The two lists were byte-identical
+        // and are not the same question.
+        // cite(RFC 9110 § 10.2.2): "For 3xx (Redirection) responses, the Location value refers to the preferred target resource for automatically redirecting the request."
         let reason = location_asked_for(resp.status)?;
 
         // Presence is the whole input, and this is what presence buys: a user agent
-        // that would have followed the redirect has a URI to follow. So a value on
-        // any field line counts, nothing is joined across lines, and the value is
-        // never read — `server_location_header_uri_valid` owns `Location =
-        // URI-reference` and reads each line of it.
+        // that would have followed the redirect has a URI to follow. So a value on any
+        // field line counts and nothing is joined across lines; an empty value counts
+        // too, because a field line is what the sentence asked for and whether the
+        // value is usable is `server_location_header_uri_valid`'s question — it reads
+        // each `Location` line and this rule reads none of them.
         // cite(RFC 9110 § 15.4): "If a Location header field (Section 10.2.2) is provided, the user agent MAY automatically redirect its request to the URI referenced by the Location field value, even if the specific status code is not understood."
         if resp.headers.get_all("location").iter().next().is_some() {
             return None;
         }
 
-        // cite(RFC 9110 § 10.2.2): "For 3xx (Redirection) responses, the Location value refers to the preferred target resource for automatically redirecting the request."
+        // No cite of its own: what makes this a violation is the sentence
+        // `location_asked_for` matched, cited at the branch that matched it and
+        // carried into the message from there.
         Some(Violation {
             rule: self.id().into(),
             severity: config.severity,
@@ -127,11 +138,11 @@ impl Rule for ServerResponseLocationOnRedirect {
     }
 
     fn title(&self) -> Option<&'static str> {
-        Some("Server Response Location on Redirect")
+        Some("Redirects that do not say where to")
     }
 
     fn description(&self) -> &'static str {
-        "Five status codes are asked for a `Location` header field in their own status definition, and this rule reports a response on one of them that carries none.\n\n- `301 Moved Permanently` — a preferred URI reference for the new permanent URI (RFC 9110 §15.4.2, SHOULD)\n- `302 Found` — a URI reference for the different URI (§15.4.3, SHOULD)\n- `303 See Other` — §15.4.4 defines the status as a redirection to the resource the field names; there is no separate SHOULD because the field is what the status *is*\n- `307 Temporary Redirect` — a URI reference for the different URI (§15.4.8, SHOULD)\n- `308 Permanent Redirect` — a preferred URI reference for the new permanent URI (§15.4.9, SHOULD)\n\n**`300 Multiple Choices` is not reported.** §15.4.1's SHOULD is conditioned on the server *having* a preferred choice, which no field on the wire records; a 300 that offers alternatives with no preference among them is the status working as defined, and §15.4.1 asks that server for content listing the alternatives rather than for a `Location`.\n\n**`201 Created` is not reported either.** §15.3.2 describes the response without the field rather than discouraging it — with no `Location`, the resource created is the target URI. The one sentence that asks a 201 for the field is §9.3.3's, which is about `POST`; `semantic_post_creates_resource` knows the request method and reports that case.\n\n`304`, the deprecated `305` and `306`, and any unregistered 3xx are not reported: no sentence asks them for the field.\n\nOnly presence is read. Whether the value is a usable `URI-reference` belongs to `server_location_header_uri_valid`, and a `Location` on a status that gives it no referent belongs to `server_redirect_status_and_location_validity`."
+        "Five status codes name a `Location` header field in their own definition — four asking for it with a SHOULD, and `303` by being defined in terms of it — and this rule reports a response on one of them that carries none.\n\n- `301 Moved Permanently` — a preferred URI reference for the new permanent URI (RFC 9110 §15.4.2, SHOULD)\n- `302 Found` — a URI reference for the different URI (§15.4.3, SHOULD)\n- `303 See Other` — §15.4.4 defines the status as a redirection to the resource the field names; there is no separate SHOULD because the field is what the status *is*\n- `307 Temporary Redirect` — a URI reference for the different URI (§15.4.8, SHOULD)\n- `308 Permanent Redirect` — a preferred URI reference for the new permanent URI (§15.4.9, SHOULD)\n\n**`300 Multiple Choices` is not reported.** §15.4.1's SHOULD is conditioned on the server *having* a preferred choice, which no field on the wire records; a 300 that offers alternatives with no preference among them is the status working as defined, and §15.4.1 asks that server for content listing the alternatives rather than for a `Location`.\n\n**`201 Created` is not reported either.** §15.3.2 describes the response without the field rather than discouraging it — with no `Location`, the resource created is the target URI. The one sentence that asks a 201 for the field is §9.3.3's, which is about `POST`; `semantic_post_creates_resource` knows the request method and reports that case.\n\n`304`, the deprecated `305` and `306`, and any unregistered 3xx are not reported: no sentence asks them for the field.\n\nOnly presence is read. Whether the value is a usable `URI-reference` belongs to `server_location_header_uri_valid`, and a `Location` on a status that gives it no referent belongs to `server_redirect_status_and_location_validity`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -294,9 +305,11 @@ mod tests {
 
     /// §15.3.2 defines the no-Location 201: the resource created is the target URI.
     /// The POST case is `semantic_post_creates_resource`'s, which knows the method.
-    #[test]
-    fn a_201_without_location_is_not_this_rules_finding() {
-        assert!(judge(&response_with(201, None)).is_none());
+    #[rstest]
+    #[case(201, None)]
+    #[case(201, Some("/resource/123"))]
+    fn a_201_is_never_reported(#[case] status: u16, #[case] location: Option<&str>) {
+        assert!(judge(&response_with(status, location)).is_none());
     }
 
     /// No sentence asks these for the field, so reaching the fall-through is not a
