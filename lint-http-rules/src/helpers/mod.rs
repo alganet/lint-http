@@ -6,6 +6,7 @@
 //!
 //! This module groups reusable helpers for validating HTTP common structures.
 
+pub mod accept_ranges;
 pub mod auth;
 pub mod content_range;
 pub mod cookie;

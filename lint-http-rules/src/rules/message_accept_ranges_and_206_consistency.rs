@@ -7,87 +7,6 @@ use crate::rules::Rule;
 
 pub struct MessageAcceptRangesAnd206Consistency;
 
-/// What a response says about range support, read from every `Accept-Ranges`
-/// field line it carries.
-struct Advertisement {
-    /// A field line named `Accept-Ranges` was there, whatever it held. This is
-    /// the only thing the "advertises nothing" finding may rest on: a value the
-    /// rule cannot read is still a value on the wire, and announcing its absence
-    /// would be a claim about the message that is simply false.
-    present: bool,
-    /// Every field line read as a list of range units. False once one of them
-    /// held something that is not one -- an octet outside US-ASCII, a character
-    /// `token` excludes, or no element at all -- in which case `units` is a
-    /// lower bound on what the response said and nothing may be concluded from
-    /// a unit's absence from it.
-    complete: bool,
-    /// The advertised units, lowercased.
-    units: Vec<String>,
-}
-
-/// Read `Accept-Ranges` out of both of the response's field sections.
-///
-/// The field is defined for the trailer section as well as the header section,
-/// which is the whole reason this is a function rather than one loop: a response
-/// that advertises its units after the content is advertising them, and reading
-/// only the header section reports it for saying nothing.
-fn read_advertisement(resp: &crate::http_transaction::ResponseInfo) -> Advertisement {
-    let mut advertised = Advertisement {
-        present: false,
-        complete: true,
-        units: Vec::new(),
-    };
-
-    // cite(RFC 9110 § 14.3): "The Accept-Ranges field MAY be sent in a trailer section, but is preferred to be sent as a header field because the information is particularly useful for restarting large information transfers that have failed in mid-content (before the trailer section is received)."
-    for section in [Some(&resp.headers), resp.trailers.as_ref()]
-        .into_iter()
-        .flatten()
-    {
-        for hv in section.get_all("accept-ranges").iter() {
-            advertised.present = true;
-
-            // `to_str` rejects every octet outside visible US-ASCII, which is
-            // wider than this field's production allows in the first place, so
-            // the failure is never a false alarm here -- but it is also not this
-            // rule's finding to report.
-            //
-            // cite(RFC 9110 § 14.3, label: Accept-Ranges grammar): "Accept-Ranges     = acceptable-ranges acceptable-ranges = 1#range-unit"
-            let Ok(value) = hv.to_str() else {
-                advertised.complete = false;
-                continue;
-            };
-
-            let mut saw_a_unit = false;
-            // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
-            for token in crate::helpers::headers::parse_list_header(value) {
-                // A range unit is a token and nothing narrower: the set is open
-                // by design, so a name this rule has never heard of is a name it
-                // has to carry rather than reject.
-                //
-                // cite(RFC 9110 § 14.1): "Range units are intended to be extensible, as described in Section 16.5."
-                if crate::helpers::token::find_invalid_token_char(token).is_some() {
-                    advertised.complete = false;
-                    continue;
-                }
-                saw_a_unit = true;
-                // cite(RFC 9110 § 14.1): "All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1."
-                advertised.units.push(token.to_ascii_lowercase());
-            }
-
-            // A list whose elements are all empty is a list of no range units,
-            // and the production asks for at least one. `server_accept_ranges_values_valid`
-            // owns that; here it only means the line advertised nothing.
-            //
-            // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production"
-            if !saw_a_unit {
-                advertised.complete = false;
-            }
-        }
-    }
-
-    advertised
-}
-
 impl Rule for MessageAcceptRangesAnd206Consistency {
     fn id(&self) -> &'static str {
         "message_accept_ranges_and_206_consistency"
@@ -120,7 +39,10 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
             return None;
         }
 
-        let advertised = read_advertisement(resp);
+        // What the response advertises, read by the code that both readers of
+        // this field share -- including the trailer section, which is part of
+        // the field's definition.
+        let advertised = crate::helpers::accept_ranges::read_advertisement(resp);
 
         // Advice, and the sentences that keep it advice. The field is worth
         // sending -- it is what a client restarting this transfer would read --
@@ -148,7 +70,7 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
         //
         // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
         // cite(RFC 9110 § 14.3): "to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose."
-        if advertised.units.iter().any(|u| u == "none") {
+        if advertised.advertises("none") {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
@@ -182,7 +104,7 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
         // nothing about which units the field lists.
         //
         // cite(RFC 9110 § 14.2): "If all of the preconditions are true, the server supports the Range header field for the target resource, the received Range field-value contains a valid ranges-specifier with a range-unit supported for that target resource, and that ranges-specifier is satisfiable with respect to the selected representation, the server SHOULD send a 206 (Partial Content) response with content containing one or more partial representations that correspond to the satisfiable range-spec(s) requested."
-        if !advertised.units.iter().any(|u| u == unit) {
+        if !advertised.advertises(unit) {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
