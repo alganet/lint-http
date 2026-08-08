@@ -7,6 +7,83 @@ use crate::rules::Rule;
 
 pub struct ServerResponseLocationOnRedirect;
 
+/// The sentence that asks a response on `status` for a `Location` field, phrased
+/// for the operator reading the finding — `None` where no sentence asks at all.
+///
+/// Seven statuses have `Location` in their definition and five of them ask for it.
+/// Every one of those sentences is in the status's *own* definition, not in the
+/// field's section: §10.2.2 says what the value refers to on a 201 and on a 3xx and
+/// asks nobody to send it.
+///
+/// The two that do not ask are answered first and by name, so that each carries the
+/// sentence it was read from rather than falling into the silence at the bottom.
+fn location_asked_for(status: u16) -> Option<&'static str> {
+    // §15.3.2 describes the 201 without the field rather than discouraging it — with
+    // no `Location`, the resource created is the target URI. The one sentence that
+    // asks a 201 for the field is §9.3.3's, which is about POST;
+    // `semantic_post_creates_resource` gates on the request method and reports it.
+    // Reporting it here too would report every PUT that created a resource at the URI
+    // it was sent to, and report a POST twice.
+    // cite(RFC 9110 § 15.3.2): "The primary resource created by the request is identified by either a Location header field in the response or, if no Location header field is received, by the target URI."
+    // cite(RFC 9110 § 10.2.2): "For 201 (Created) responses, the Location value refers to the primary resource created by the request."
+    if status == 201 {
+        return None;
+    }
+
+    // A 300's SHOULD is conditioned on something no field on the wire records:
+    // whether the server *has* a preferred choice. Offering alternatives with no
+    // preference among them is what the status is for, and §15.4.1 asks that server
+    // for content listing the alternatives, not for a `Location`.
+    // cite(RFC 9110 § 15.4.1): "If the server has a preferred choice, the server SHOULD generate a Location header field containing a preferred choice's URI reference."
+    // cite(RFC 9110 § 15.4.1): "For request methods other than HEAD, the server SHOULD generate content in the 300 response containing a list of representation metadata and URI reference(s) from which the user or user agent can choose the one most preferred."
+    if status == 300 {
+        return None;
+    }
+
+    // cite(RFC 9110 § 15.4.2): "The server SHOULD generate a Location header field in the response containing a preferred URI reference for the new permanent URI."
+    if status == 301 {
+        return Some(
+            "§15.4.2 asks for a preferred URI reference for the new permanent URI, with a SHOULD",
+        );
+    }
+
+    // cite(RFC 9110 § 15.4.3): "The server SHOULD generate a Location header field in the response containing a URI reference for the different URI."
+    if status == 302 {
+        return Some("§15.4.3 asks for a URI reference for the different URI, with a SHOULD");
+    }
+
+    // 303 is the one without a SHOULD, and the modal is weaker only in wording: the
+    // field is not recommended for this status, it is what the status *is*. A 303
+    // whose Location is missing names no resource for the user agent to retrieve.
+    // cite(RFC 9110 § 15.4.4): "The 303 (See Other) status code indicates that the server is redirecting the user agent to a different resource, as indicated by a URI in the Location header field, which is intended to provide an indirect response to the original request."
+    if status == 303 {
+        return Some(
+            "§15.4.4 defines the status as a redirection to the resource this field names, so \
+             without it the response identifies nothing",
+        );
+    }
+
+    // The same sentence as 302's, one section away and written for a status whose
+    // method is preserved. Two sections, two cites.
+    // cite(RFC 9110 § 15.4.8): "The server SHOULD generate a Location header field in the response containing a URI reference for the different URI."
+    if status == 307 {
+        return Some("§15.4.8 asks for a URI reference for the different URI, with a SHOULD");
+    }
+
+    // The same sentence as 301's, for the method-preserving permanent redirect.
+    // cite(RFC 9110 § 15.4.9): "The server SHOULD generate a Location header field in the response containing a preferred URI reference for the new permanent URI."
+    if status == 308 {
+        return Some(
+            "§15.4.9 asks for a preferred URI reference for the new permanent URI, with a SHOULD",
+        );
+    }
+
+    // No cite here, because *no sentence* is what this means. 304 and the deprecated
+    // 305/306 are 3xx and are asked for nothing; a 3xx nobody has registered is asked
+    // for nothing by anybody. Reaching this arm is not a judgement about the response.
+    None
+}
+
 impl Rule for ServerResponseLocationOnRedirect {
     fn id(&self) -> &'static str {
         "server_response_location_on_redirect"
@@ -25,27 +102,36 @@ impl Rule for ServerResponseLocationOnRedirect {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
-        let status = resp.status;
+        let reason = location_asked_for(resp.status)?;
 
-        // RFC 9110: 201 (Created) SHOULD include Location for the created resource.
-        // 3xx redirection codes that SHOULD include Location when a preferred target exists:
-        // 300, 301, 302, 303, 307, 308 (see §15.4 and §10.2.2).
-        let should_have_location = matches!(status, 201 | 300 | 301 | 302 | 303 | 307 | 308);
-
-        // cite(RFC 9110 § 15.4): "The 3xx (Redirection) class of status code indicates that further action needs to be taken by the user agent in order to fulfill the request."
-        if should_have_location && resp.headers.get_all("location").iter().next().is_none() {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: format!("Response with status {} SHOULD include a Location header (RFC 9110 §10.2.2, §15.4)", status),
-            });
+        // Presence is the whole input, and this is what presence buys: a user agent
+        // that would have followed the redirect has a URI to follow. So a value on
+        // any field line counts, nothing is joined across lines, and the value is
+        // never read — `server_location_header_uri_valid` owns `Location =
+        // URI-reference` and reads each line of it.
+        // cite(RFC 9110 § 15.4): "If a Location header field (Section 10.2.2) is provided, the user agent MAY automatically redirect its request to the URI referenced by the Location field value, even if the specific status code is not understood."
+        if resp.headers.get_all("location").iter().next().is_some() {
+            return None;
         }
 
-        None
+        // cite(RFC 9110 § 10.2.2): "For 3xx (Redirection) responses, the Location value refers to the preferred target resource for automatically redirecting the request."
+        Some(Violation {
+            rule: self.id().into(),
+            severity: config.severity,
+            message: format!(
+                "Response with status {status} carries no Location header field, and {reason}. \
+                 A user agent has no target to redirect to",
+                status = resp.status,
+            ),
+        })
+    }
+
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Response Location on Redirect")
     }
 
     fn description(&self) -> &'static str {
-        "Checks that responses where the semantics call for a `Location` header include one. In particular, a `201 (Created)` response and many redirection responses (300, 301, 302, 303, 307, 308) SHOULD include a `Location` header referring to the created or preferred target resource."
+        "Five status codes are asked for a `Location` header field in their own status definition, and this rule reports a response on one of them that carries none.\n\n- `301 Moved Permanently` — a preferred URI reference for the new permanent URI (RFC 9110 §15.4.2, SHOULD)\n- `302 Found` — a URI reference for the different URI (§15.4.3, SHOULD)\n- `303 See Other` — §15.4.4 defines the status as a redirection to the resource the field names; there is no separate SHOULD because the field is what the status *is*\n- `307 Temporary Redirect` — a URI reference for the different URI (§15.4.8, SHOULD)\n- `308 Permanent Redirect` — a preferred URI reference for the new permanent URI (§15.4.9, SHOULD)\n\n**`300 Multiple Choices` is not reported.** §15.4.1's SHOULD is conditioned on the server *having* a preferred choice, which no field on the wire records; a 300 that offers alternatives with no preference among them is the status working as defined, and §15.4.1 asks that server for content listing the alternatives rather than for a `Location`.\n\n**`201 Created` is not reported either.** §15.3.2 describes the response without the field rather than discouraging it — with no `Location`, the resource created is the target URI. The one sentence that asks a 201 for the field is §9.3.3's, which is about `POST`; `semantic_post_creates_resource` knows the request method and reports that case.\n\n`304`, the deprecated `305` and `306`, and any unregistered 3xx are not reported: no sentence asks them for the field.\n\nOnly presence is read. Whether the value is a usable `URI-reference` belongs to `server_location_header_uri_valid`, and a `Location` on a status that gives it no referent belongs to `server_redirect_status_and_location_validity`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -54,13 +140,55 @@ impl Rule for ServerResponseLocationOnRedirect {
                 spec: "RFC 9110",
                 section: Some("10.2.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
-                note: "`Location = URI-reference` and semantics for `201` and `3xx` responses",
+                note: "Defines `Location = URI-reference` and what the value refers to on a 201 and on a 3xx; it asks no one to send the field",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("15.4"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
-                note: "Redirection status codes and their `Location` semantics",
+                note: "What a provided Location buys: a user agent MAY redirect to it automatically, even where it does not understand the status code",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.1",
+                note: "300 Multiple Choices: the SHOULD applies only if the server has a preferred choice, so this rule does not report a 300",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2",
+                note: "301 Moved Permanently: the server SHOULD generate a Location header field containing a preferred URI reference for the new permanent URI",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.4.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.3",
+                note: "302 Found: the server SHOULD generate a Location header field containing a URI reference for the different URI",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.4.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.4",
+                note: "303 See Other: the status is defined as a redirection to the resource indicated by a URI in the Location header field",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.4.8"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.8",
+                note: "307 Temporary Redirect: the server SHOULD generate a Location header field containing a URI reference for the different URI",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.4.9"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.9",
+                note: "308 Permanent Redirect: the server SHOULD generate a Location header field containing a preferred URI reference for the new permanent URI",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.3.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.2",
+                note: "201 Created: with no Location field, the resource created is identified by the target URI — which is why this rule does not report a 201",
             },
         ]
     }
@@ -70,23 +198,37 @@ impl Rule for ServerResponseLocationOnRedirect {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
+                label: Some("301: the preferred URI reference for the new permanent URI"),
                 snippet: "HTTP/1.1 301 Moved Permanently\nLocation: https://example.org/new",
             },
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 201 Created\nLocation: /resource/123",
+                label: Some("303: the resource the user agent is being redirected to"),
+                snippet: "HTTP/1.1 303 See Other\nLocation: /orders/9001",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "300 with no preferred choice: §15.4.1's SHOULD does not apply, and the alternatives go in the content",
+                ),
+                snippet: "HTTP/1.1 300 Multiple Choices\nContent-Type: text/html",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "201 with no Location: the resource created is the target URI. A POST that created one is `semantic_post_creates_resource`'s question",
+                ),
+                snippet: "HTTP/1.1 201 Created\nContent-Type: application/json",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 301 Moved Permanently\n# missing Location header",
+                label: Some("302 with nothing to be found at"),
+                snippet: "HTTP/1.1 302 Found\nContent-Type: text/html",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 201 Created\n# missing Location header",
+                label: Some("308: a permanent redirect that does not say where to"),
+                snippet: "HTTP/1.1 308 Permanent Redirect\nContent-Type: text/html",
             },
         ]
     }
@@ -101,82 +243,157 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    fn make_tx(status: u16, loc: Option<&str>) -> crate::http_transaction::HttpTransaction {
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status,
-            version: "HTTP/1.1".into(),
-            headers: match loc {
-                Some(l) => crate::test_helpers::make_headers_from_pairs(&[("location", l)]),
-                None => crate::test_helpers::make_headers_from_pairs(&[]),
-            },
-            body_length: None,
-            trailers: None,
-        });
-        tx
+    /// Every fixture is a response on some status, carrying the field or not.
+    fn response_with(
+        status: u16,
+        location: Option<&str>,
+    ) -> crate::http_transaction::HttpTransaction {
+        let pairs: Vec<(&str, &str)> = location.into_iter().map(|v| ("location", v)).collect();
+        crate::test_helpers::make_test_transaction_with_response(status, &pairs)
     }
 
+    fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+        let rule = ServerResponseLocationOnRedirect;
+        rule.check_transaction(
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+    }
+
+    /// One case per arm of `location_asked_for`, in both directions.
     #[rstest]
-    #[case(201, None, true)]
-    #[case(201, Some("/created"), false)]
-    #[case(300, None, true)]
-    #[case(300, Some("/choice"), false)]
-    #[case(301, None, true)]
-    #[case(302, Some("https://ex.com/"), false)]
-    #[case(303, None, true)]
-    #[case(307, None, true)]
-    #[case(308, Some("/new"), false)]
-    #[case(304, None, false)]
-    #[case(200, Some("/ok"), false)]
-    #[case(200, None, false)]
-    fn check_location_presence(
+    #[case(301, false, true)]
+    #[case(301, true, false)]
+    #[case(302, false, true)]
+    #[case(302, true, false)]
+    #[case(303, false, true)]
+    #[case(303, true, false)]
+    #[case(307, false, true)]
+    #[case(307, true, false)]
+    #[case(308, false, true)]
+    #[case(308, true, false)]
+    fn the_five_statuses_a_sentence_asks(
         #[case] status: u16,
-        #[case] loc: Option<&str>,
+        #[case] with_location: bool,
         #[case] expect_violation: bool,
     ) {
-        let rule = ServerResponseLocationOnRedirect;
-        let tx = make_tx(status, loc);
-        let config = crate::test_helpers::make_test_config_with_severity(
-            "server_response_location_on_redirect",
-            "warn",
-        );
+        let tx = response_with(status, with_location.then_some("/new"));
+        let v = judge(&tx);
+        assert_eq!(v.is_some(), expect_violation, "{status} -> {v:?}");
+    }
 
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &config,
-        );
-        if expect_violation {
-            assert!(v.is_some(), "expected violation for status {}", status);
-        } else {
-            assert!(
-                v.is_none(),
-                "did not expect violation for status {}",
-                status
-            );
-        }
+    /// §15.4.1's SHOULD applies only if the server has a preferred choice, which is
+    /// not on the wire — so a 300 with no Location is the status working as defined.
+    #[rstest]
+    #[case(300, None)]
+    #[case(300, Some("/preferred"))]
+    fn a_300_is_never_reported(#[case] status: u16, #[case] location: Option<&str>) {
+        assert!(judge(&response_with(status, location)).is_none());
+    }
+
+    /// §15.3.2 defines the no-Location 201: the resource created is the target URI.
+    /// The POST case is `semantic_post_creates_resource`'s, which knows the method.
+    #[test]
+    fn a_201_without_location_is_not_this_rules_finding() {
+        assert!(judge(&response_with(201, None)).is_none());
+    }
+
+    /// No sentence asks these for the field, so reaching the fall-through is not a
+    /// judgement about the response.
+    #[rstest]
+    #[case(304)]
+    #[case(305)]
+    #[case(306)]
+    #[case(309)]
+    #[case(399)]
+    #[case(200)]
+    #[case(404)]
+    fn statuses_no_sentence_asks(#[case] status: u16) {
+        assert!(judge(&response_with(status, None)).is_none());
+        assert!(judge(&response_with(status, Some("/somewhere"))).is_none());
     }
 
     #[test]
-    fn scope_is_server() {
+    fn no_response_no_violation() {
         let rule = ServerResponseLocationOnRedirect;
+        let tx = crate::test_helpers::make_test_transaction();
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn id_and_scope() {
+        let rule = ServerResponseLocationOnRedirect;
+        assert_eq!(rule.id(), "server_response_location_on_redirect");
         assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
     }
 
     #[test]
-    fn no_response_returns_none() {
-        let rule = ServerResponseLocationOnRedirect;
-        let tx = crate::test_helpers::make_test_transaction();
-        let config = crate::test_helpers::make_test_config_with_severity(
+    fn validate_rules_with_valid_config() -> anyhow::Result<()> {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "server_response_location_on_redirect",
-            "warn",
-        );
+        ]);
+        crate::rules::validate_rules(&cfg)?;
+        Ok(())
+    }
 
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &config,
+    /// The message is derived data: it names the status and the sentence that asked.
+    /// Both are claims, so both are pinned, per arm.
+    #[rstest]
+    #[case(301, "§15.4.2")]
+    #[case(302, "§15.4.3")]
+    #[case(303, "§15.4.4")]
+    #[case(307, "§15.4.8")]
+    #[case(308, "§15.4.9")]
+    fn the_message_names_the_status_and_its_sentence(#[case] status: u16, #[case] section: &str) {
+        let v = judge(&response_with(status, None)).expect("expected violation");
+        assert!(
+            v.message.contains(&format!("status {status}")),
+            "{}",
+            v.message
         );
-        assert!(v.is_none());
+        assert!(v.message.contains(section), "{}", v.message);
+    }
+
+    /// Every published snippet is run through the rule.
+    #[test]
+    fn published_examples_are_judged_by_this_rule() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = ServerResponseLocationOnRedirect;
+
+        for ex in rule.examples() {
+            let mut status = None;
+            let mut pairs: Vec<(&str, &str)> = Vec::new();
+            for (i, line) in ex.snippet.lines().enumerate() {
+                if i == 0 {
+                    let code = line
+                        .strip_prefix("HTTP/1.1 ")
+                        .and_then(|rest| rest.split_whitespace().next())
+                        .and_then(|code| code.parse::<u16>().ok())
+                        .unwrap_or_else(|| {
+                            panic!("the first line of an example is its status line: {line:?}")
+                        });
+                    status = Some(code);
+                    continue;
+                }
+                let (name, value) = line.split_once(':').unwrap_or_else(|| {
+                    panic!("example header line is not `Name: value`: {line:?}")
+                });
+                pairs.push((name, value.trim()));
+            }
+            let status = status.expect("example has a status line");
+
+            let tx = crate::test_helpers::make_test_transaction_with_response(status, &pairs);
+            let v = judge(&tx);
+            match ex.compliance {
+                Compliance::Compliant => assert!(v.is_none(), "{}: {v:?}", ex.snippet),
+                Compliance::NonCompliant => assert!(v.is_some(), "{}", ex.snippet),
+            }
+        }
     }
 }
