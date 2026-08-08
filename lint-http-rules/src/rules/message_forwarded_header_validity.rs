@@ -10,13 +10,13 @@
 //! a check reaching for `token` because the value looked token-shaped goes
 //! wrong, since `token` admits characters none of those three productions do.
 
+use crate::helpers::forwarded_node::NodeForm;
 use crate::helpers::headers::{
     split_commas_respecting_quotes, split_semicolons_respecting_quotes, unescape_quoted_string,
 };
 use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
 use crate::rules::Rule;
-use std::net::{Ipv4Addr, Ipv6Addr};
 
 /// Every octet of a field line as the `char` of the same value.
 ///
@@ -35,168 +35,18 @@ fn field_line(bytes: &[u8]) -> String {
     bytes.iter().map(|&b| b as char).collect()
 }
 
-/// `obfnode` and `obfport` are one production under two names, and both of the
-/// sentences below say the same two things about it: the leading underscore is
-/// what distinguishes it, and the characters after it are not `tchar`'s.
-///
-/// Reading it as a `token` — which is what this rule did — accepts `x-foo` as an
-/// obfuscated identifier. It is not one: nothing in §6 generates a nodename that
-/// is neither an address, nor `unknown`, nor underscore-led, so `for=x-foo` has
-/// no parse at all.
-///
-// cite(RFC 7239 § 6, label: obfnode grammar): "obfnode = "_" 1*( ALPHA / DIGIT / "." / "_" / "-")"
-// cite(RFC 7239 § 6.3): "To distinguish the obfuscated identifier from other identifiers, it MUST have a leading underscore "_". Furthermore, it MUST also consist of only "ALPHA", "DIGIT", and the characters ".", "_", and "-"."
-// cite(RFC 7239 § 6): "To distinguish an "obfport" from a port, the "obfport" MUST have a leading underscore. Further, it MUST also consist of only "ALPHA", "DIGIT", and the characters ".", "_", and "-"."
-fn is_obfuscated(s: &str) -> bool {
-    let Some(rest) = s.strip_prefix('_') else {
-        return false;
-    };
-    !rest.is_empty()
-        && rest
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
-}
-
-/// Where the nodename ends and `":" node-port` begins.
-///
-/// The first colon settles it, not the last: no `nodename` alternative holds a
-/// colon except the bracketed IPv6 literal, whose colons are all inside the
-/// brackets, and no `node-port` alternative holds one at all. Splitting at the
-/// last colon instead reads `2001:db8::1` as the nodename `2001:db8:` with a
-/// port, hiding an address that had to be bracketed behind a port complaint.
-///
-// cite(RFC 7239 § 6, label: node grammar): "node     = nodename [ ":" node-port ]"
-fn split_node(value: &str) -> (&str, Option<&str>) {
-    let from = match value.starts_with('[') {
-        true => value.find(']').map(|i| i + 1).unwrap_or(value.len()),
-        false => 0,
-    };
-    match value[from..].find(':') {
-        Some(offset) => (&value[..from + offset], Some(&value[from + offset + 1..])),
-        None => (value, None),
-    }
-}
-
 /// A `for=` / `by=` value, after quoted-string unescaping: RFC 7239 §6's `node`.
 ///
-/// Returns the finding's text, or `None` when the value is a node.
+/// The production is shared with the legacy `X-Forwarded-For` / `X-Forwarded-By`
+/// family, which §7.4 converts into these very parameters, so it lives in
+/// [`crate::helpers::forwarded_node`] and this function supplies the subject its
+/// findings name. Returns the finding's text, or `None` when the value is a node.
 // cite(RFC 7239 § 5.2): "The syntax of a "for" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6."
 // cite(RFC 7239 § 5.1): "The syntax of a "by" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6."
 fn validate_node(param: &str, value: &str) -> Option<String> {
-    // Asked of the whole value, before it is split: an address written without
-    // its brackets has colons in it, and every one of them looks like the
-    // separator before a `node-port`. Reported here, the finding names what is
-    // wrong with the value; reported by the checks below, it is a complaint
-    // about `2001` not being an IPv4 address.
-    //
-    // cite(RFC 7239 § 6.1): "Also, note that an IPv6 address is always enclosed in square brackets."
-    if value.parse::<Ipv6Addr>().is_ok() {
-        return Some(format!(
-            "Forwarded '{}' holds an unbracketed IPv6 address: '{}'",
-            param, value
-        ));
-    }
-
-    let (nodename, port) = split_node(value);
-
-    // The four alternatives, in the production's order. Which one a value is
-    // trying to be is decided by its first character in every case: a bracket
-    // opens the IPv6 literal, an underscore the obfuscated identifier, and the
-    // two remaining forms are exact.
-    //
-    // cite(RFC 7239 § 6, label: nodename grammar): "nodename = IPv4address / "[" IPv6address "]" / "unknown" / obfnode"
-    if let Some(rest) = nodename.strip_prefix('[') {
-        let Some(inner) = rest.strip_suffix(']') else {
-            return Some(format!(
-                "Forwarded '{}' is not a bracketed IPv6 address: '{}'",
-                param, nodename
-            ));
-        };
-        let Ok(address) = inner.parse::<Ipv6Addr>() else {
-            return Some(format!(
-                "Forwarded '{}' is not an IPv6 address: '{}'",
-                param, inner
-            ));
-        };
-        // A SHOULD about how the address is written, not about which address it
-        // is, so it is asked only once the octets are known to parse. The two
-        // deviations §6.1 names in passing — case and uncompressed zeroes — are
-        // exactly the two that survive a round trip through the parser, which is
-        // why the recommended form can be shown rather than described.
-        //
-        // cite(RFC 7239 § 6.1): "The "IPv6address" SHOULD comply with textual representation recommendations [RFC5952] (for example, lowercase, compression of zeros)."
-        let recommended = address.to_string();
-        if inner != recommended {
-            return Some(format!(
-                "Forwarded '{}' writes the IPv6 address as '{}' where the recommended textual representation is '{}'",
-                param, inner, recommended
-            ));
-        }
-        return validate_node_port(param, port);
-    }
-
-    // An ABNF string literal matches either case, so the fold here is the
-    // production's and not a tolerance this rule chose. `unknown` is the one
-    // place in this field where that is true: everything else compared below is
-    // a character class or an address.
-    //
-    // cite(RFC 5234 § 2.3): "ABNF strings are case insensitive and the character set for these strings is US-ASCII."
-    // cite(RFC 7239 § 6.2): "The "unknown" identifier is used when the identity of the preceding entity is not known, but the proxy server still wants to signal that a forwarding of the request was made."
-    if nodename.eq_ignore_ascii_case("unknown") {
-        return validate_node_port(param, port);
-    }
-
-    if is_obfuscated(nodename) {
-        return validate_node_port(param, port);
-    }
-
-    // Both address productions are RFC 3986's, named as such by §6's ABNF, and
-    // both are the standard library's parsers here — including the part of
-    // `dec-octet` that is easy to write by hand and wrong: `010` is generated by
-    // no alternative of it, and `Ipv4Addr` refuses it too.
-    //
-    // cite(RFC 3986 § 3.2.2, label: IPv4address grammar): "IPv4address = dec-octet "." dec-octet "." dec-octet "." dec-octet"
-    // cite(RFC 3986 § 3.2.2, label: dec-octet grammar): "dec-octet   = DIGIT                 ; 0-9 / %x31-39 DIGIT         ; 10-99"
-    if nodename.parse::<Ipv4Addr>().is_ok() {
-        return validate_node_port(param, port);
-    }
-
-    // Nothing generates this nodename. The message names the alternative the
-    // value was closest to, because the everyday defect is an identifier that
-    // was obfuscated without the underscore that says so.
-    if nodename.chars().all(|c| c.is_ascii_digit() || c == '.') {
-        return Some(format!(
-            "Forwarded '{}' is not an IPv4 address: '{}'",
-            param, nodename
-        ));
-    }
-    Some(format!(
-        "Forwarded '{}' is not a node identifier: '{}' is neither an IPv4 address, a bracketed IPv6 address, `unknown`, nor an obfuscated identifier (which must begin with `_` and hold only letters, digits, `.`, `_` and `-`)",
-        param, nodename
-    ))
-}
-
-/// The optional `":" node-port` of a node identifier.
-///
-/// `1*5DIGIT` is the whole of what a numeric port may be here: five digits, no
-/// range. This rule used to measure it with the shared TCP-port reader, which
-/// rejects `0` and anything over 65535 and so reported `for=192.0.2.1:0` and
-/// `for="192.0.2.1:99999"` — both of which the production generates — while the
-/// obfuscated form it has no idea about was rejected outright.
-///
-// cite(RFC 7239 § 6, label: node-port grammar): "node-port     = port / obfport port          = 1*5DIGIT obfport       = "_" 1*(ALPHA / DIGIT / "." / "_" / "-")"
-fn validate_node_port(param: &str, port: Option<&str>) -> Option<String> {
-    let port = port?;
-    if is_obfuscated(port) {
-        return None;
-    }
-    if !port.is_empty() && port.len() <= 5 && port.chars().all(|c| c.is_ascii_digit()) {
-        return None;
-    }
-    Some(format!(
-        "Forwarded '{}' has '{}' where a node-port is expected: one to five digits, or an obfuscated port beginning with `_`",
-        param, port
-    ))
+    crate::helpers::forwarded_node::validate_node(value, NodeForm::Forwarded)
+        .err()
+        .map(|e| format!("Forwarded '{}' {}", param, e))
 }
 
 /// A `host=` value, after unescaping: the `Host` field's own ABNF.
