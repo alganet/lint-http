@@ -2,170 +2,418 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::ipv6::{parse_bracketed_ipv6, parse_port_str};
+//! The `Forwarded` field's syntax, read as the grammar that defines it.
+//!
+//! Three productions meet in one field value and only one of them is HTTP's.
+//! The list and its members are RFC 7239 §4's, a node identifier is §6's, and
+//! `host` and `proto` are handed to RFC 3986's by §5.3 and §5.4 — which is where
+//! a check reaching for `token` because the value looked token-shaped goes
+//! wrong, since `token` admits characters none of those three productions do.
+
+use crate::helpers::headers::{
+    split_commas_respecting_quotes, split_semicolons_respecting_quotes, unescape_quoted_string,
+};
+use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
 use crate::rules::Rule;
-use std::net::IpAddr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
-/// Validate a `for=`/`by=` node identifier (RFC 7239 §6): `unknown`, an
-/// IP[:port], a bracketed IPv6[:port], or an obfuscated token. Returns the
-/// error message on failure, `None` when valid. Extracted from
-/// `validate_element` so the dispatcher stays within the complexity budget.
-fn validate_node_identifier(name: &str, value: &str) -> Option<String> {
-    use crate::helpers::token::find_invalid_token_char;
-
-    // value may be 'unknown', an obfuscated token, or an addr (IPv4/IPv6) optionally with port
-    if value.eq_ignore_ascii_case("unknown") {
-        return None;
-    }
-
-    // IPv6 in brackets: [2001:db8::1] or [2001:db8::1]:port. `parse_bracketed_ipv6`
-    // (shared with the sibling header rules) owns the bracket/port *syntax*; the
-    // address is validated here and the port via `parse_port_str`.
-    if value.starts_with('[') {
-        let Some((inside, port)) = parse_bracketed_ipv6(value) else {
-            return Some(format!(
-                "Invalid IPv6 bracketed address in Forwarded '{}' parameter: {}",
-                name, value
-            ));
-        };
-        if inside.parse::<IpAddr>().is_err() {
-            return Some(format!(
-                "Invalid IPv6 address in Forwarded '{}' parameter: {}",
-                name, inside
-            ));
-        }
-        if let Some(port) = port {
-            if parse_port_str(port).is_none() {
-                return Some(format!(
-                    "Invalid port '{}' in Forwarded '{}' parameter",
-                    port, name
-                ));
-            }
-        }
-        return None;
-    }
-
-    // Possibly contains a colon for IPv4:port or token:port. Split on the last ':'
-    if let Some(idx) = value.rfind(':') {
-        let (host, port_part) = value.split_at(idx);
-        let port = &port_part[1..];
-        // An empty port (`ip:`) is treated as absent (RFC 3986) and accepted; a
-        // present port must pass `parse_port_str` (rejects 0, a leading '+', and
-        // out-of-range, matching the sibling header rules).
-        if !port.is_empty() && parse_port_str(port).is_none() {
-            return Some(format!(
-                "Invalid port '{}' in Forwarded '{}' parameter",
-                port, name
-            ));
-        }
-        // try parsing host as IP
-        if host.parse::<IpAddr>().is_ok() {
-            return None;
-        }
-        // else treat as obfuscated token - must follow token grammar
-        if let Some(c) = find_invalid_token_char(host) {
-            return Some(format!(
-                "Invalid obfuscated token '{}' in Forwarded '{}' parameter",
-                c, name
-            ));
-        }
-        return None;
-    }
-
-    // No port and not bracketed; try parse as IP
-    if value.parse::<IpAddr>().is_ok() {
-        return None;
-    }
-
-    // If this looks like a dotted IPv4 (digits and dots only) but failed to parse,
-    // that's an invalid IPv4 address (common misconfiguration)
-    if value.chars().all(|c| c.is_ascii_digit() || c == '.') {
-        return Some(format!(
-            "Invalid IPv4 address in Forwarded '{}' parameter: {}",
-            name, value
-        ));
-    }
-
-    // Otherwise obfuscated token (must be token)
-    if let Some(c) = find_invalid_token_char(value) {
-        return Some(format!(
-            "Invalid obfuscated token '{}' in Forwarded '{}' parameter",
-            c, name
-        ));
-    }
-    None
+/// Every octet of a field line as the `char` of the same value.
+///
+/// `to_str` refuses every octet outside visible US-ASCII and this field's value
+/// production does not: `qdtext` admits `obs-text`, so `foo="Ünix"` is a
+/// conforming extension parameter that the old reader announced as a value "not
+/// valid UTF-8" — a claim about an encoding, on a field where no encoding was
+/// ever applied, standing in for the check that had something to say.
+///
+/// The mapping is a bijection. Every character the grammar is built from is
+/// ASCII and crosses it unchanged, and every octet no production admits arrives
+/// as a `char` no production admits either, at the check that owns it.
+///
+// cite(RFC 9110 § 5.6.4): "qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text"
+fn field_line(bytes: &[u8]) -> String {
+    bytes.iter().map(|&b| b as char).collect()
 }
 
-/// Validate a `host=` value (RFC 7239 §6): a host or host:port, or a bracketed
-/// IPv6[:port]. Returns the error message on failure, `None` when valid.
-/// Extracted alongside [`validate_node_identifier`] to keep the dispatcher flat.
-fn validate_host_param(value: &str) -> Option<String> {
-    use crate::helpers::token::find_invalid_token_char;
+/// `obfnode` and `obfport` are one production under two names, and both of the
+/// sentences below say the same two things about it: the leading underscore is
+/// what distinguishes it, and the characters after it are not `tchar`'s.
+///
+/// Reading it as a `token` — which is what this rule did — accepts `x-foo` as an
+/// obfuscated identifier. It is not one: nothing in §6 generates a nodename that
+/// is neither an address, nor `unknown`, nor underscore-led, so `for=x-foo` has
+/// no parse at all.
+///
+// cite(RFC 7239 § 6, label: obfnode grammar): "obfnode = "_" 1*( ALPHA / DIGIT / "." / "_" / "-")"
+// cite(RFC 7239 § 6.3): "To distinguish the obfuscated identifier from other identifiers, it MUST have a leading underscore "_". Furthermore, it MUST also consist of only "ALPHA", "DIGIT", and the characters ".", "_", and "-"."
+// cite(RFC 7239 § 6): "To distinguish an "obfport" from a port, the "obfport" MUST have a leading underscore. Further, it MUST also consist of only "ALPHA", "DIGIT", and the characters ".", "_", and "-"."
+fn is_obfuscated(s: &str) -> bool {
+    let Some(rest) = s.strip_prefix('_') else {
+        return false;
+    };
+    !rest.is_empty()
+        && rest
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+}
 
-    // If bracketed IPv6, validate. `parse_bracketed_ipv6` owns the bracket/port
-    // syntax; the address is checked here and the port via `parse_port_str`.
-    if value.starts_with('[') {
-        let Some((inside, port)) = parse_bracketed_ipv6(value) else {
-            return Some(format!(
-                "Invalid IPv6 bracketed address in Forwarded 'host' parameter: {}",
-                value
-            ));
-        };
-        if inside.parse::<IpAddr>().is_err() {
-            return Some(format!(
-                "Invalid IPv6 address in Forwarded 'host' parameter: {}",
-                inside
-            ));
-        }
-        if let Some(port) = port {
-            if parse_port_str(port).is_none() {
-                return Some(format!(
-                    "Invalid port '{}' in Forwarded 'host' parameter",
-                    port
-                ));
-            }
-        }
-        return None;
+/// Where the nodename ends and `":" node-port` begins.
+///
+/// The first colon settles it, not the last: no `nodename` alternative holds a
+/// colon except the bracketed IPv6 literal, whose colons are all inside the
+/// brackets, and no `node-port` alternative holds one at all. Splitting at the
+/// last colon instead reads `2001:db8::1` as the nodename `2001:db8:` with a
+/// port, hiding an address that had to be bracketed behind a port complaint.
+///
+// cite(RFC 7239 § 6, label: node grammar): "node     = nodename [ ":" node-port ]"
+fn split_node(value: &str) -> (&str, Option<&str>) {
+    let from = match value.starts_with('[') {
+        true => value.find(']').map(|i| i + 1).unwrap_or(value.len()),
+        false => 0,
+    };
+    match value[from..].find(':') {
+        Some(offset) => (&value[..from + offset], Some(&value[from + offset + 1..])),
+        None => (value, None),
     }
+}
 
-    // host may include port. Empty port (`host:`) is accepted as absent (RFC
-    // 3986); a present port must pass `parse_port_str`.
-    if let Some(idx) = value.rfind(':') {
-        let (host, port_part) = value.split_at(idx);
-        let port = &port_part[1..];
-        if !port.is_empty() && parse_port_str(port).is_none() {
-            return Some(format!(
-                "Invalid port '{}' in Forwarded 'host' parameter",
-                port
-            ));
-        }
-        // host part may be a reg-name; ensure token-ish
-        if let Some(c) = find_invalid_token_char(host) {
-            return Some(format!(
-                "Invalid host '{}' in Forwarded 'host' parameter (invalid char '{}')",
-                host, c
-            ));
-        }
-        return None;
-    }
-
-    if let Some(c) = find_invalid_token_char(value) {
+/// A `for=` / `by=` value, after quoted-string unescaping: RFC 7239 §6's `node`.
+///
+/// Returns the finding's text, or `None` when the value is a node.
+// cite(RFC 7239 § 5.2): "The syntax of a "for" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6."
+// cite(RFC 7239 § 5.1): "The syntax of a "by" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6."
+fn validate_node(param: &str, value: &str) -> Option<String> {
+    // Asked of the whole value, before it is split: an address written without
+    // its brackets has colons in it, and every one of them looks like the
+    // separator before a `node-port`. Reported here, the finding names what is
+    // wrong with the value; reported by the checks below, it is a complaint
+    // about `2001` not being an IPv4 address.
+    //
+    // cite(RFC 7239 § 6.1): "Also, note that an IPv6 address is always enclosed in square brackets."
+    if value.parse::<Ipv6Addr>().is_ok() {
         return Some(format!(
-            "Invalid host '{}' in Forwarded 'host' parameter (invalid char '{}')",
-            value, c
+            "Forwarded '{}' holds an unbracketed IPv6 address: '{}'",
+            param, value
         ));
     }
-    None
+
+    let (nodename, port) = split_node(value);
+
+    // The four alternatives, in the production's order. Which one a value is
+    // trying to be is decided by its first character in every case: a bracket
+    // opens the IPv6 literal, an underscore the obfuscated identifier, and the
+    // two remaining forms are exact.
+    //
+    // cite(RFC 7239 § 6, label: nodename grammar): "nodename = IPv4address / "[" IPv6address "]" / "unknown" / obfnode"
+    if let Some(rest) = nodename.strip_prefix('[') {
+        let Some(inner) = rest.strip_suffix(']') else {
+            return Some(format!(
+                "Forwarded '{}' is not a bracketed IPv6 address: '{}'",
+                param, nodename
+            ));
+        };
+        let Ok(address) = inner.parse::<Ipv6Addr>() else {
+            return Some(format!(
+                "Forwarded '{}' is not an IPv6 address: '{}'",
+                param, inner
+            ));
+        };
+        // A SHOULD about how the address is written, not about which address it
+        // is, so it is asked only once the octets are known to parse. The two
+        // deviations §6.1 names in passing — case and uncompressed zeroes — are
+        // exactly the two that survive a round trip through the parser, which is
+        // why the recommended form can be shown rather than described.
+        //
+        // cite(RFC 7239 § 6.1): "The "IPv6address" SHOULD comply with textual representation recommendations [RFC5952] (for example, lowercase, compression of zeros)."
+        let recommended = address.to_string();
+        if inner != recommended {
+            return Some(format!(
+                "Forwarded '{}' writes the IPv6 address as '{}' where the recommended textual representation is '{}'",
+                param, inner, recommended
+            ));
+        }
+        return validate_node_port(param, port);
+    }
+
+    // An ABNF string literal matches either case, so the fold here is the
+    // production's and not a tolerance this rule chose. `unknown` is the one
+    // place in this field where that is true: everything else compared below is
+    // a character class or an address.
+    //
+    // cite(RFC 5234 § 2.3): "ABNF strings are case insensitive and the character set for these strings is US-ASCII."
+    // cite(RFC 7239 § 6.2): "The "unknown" identifier is used when the identity of the preceding entity is not known, but the proxy server still wants to signal that a forwarding of the request was made."
+    if nodename.eq_ignore_ascii_case("unknown") {
+        return validate_node_port(param, port);
+    }
+
+    if is_obfuscated(nodename) {
+        return validate_node_port(param, port);
+    }
+
+    if nodename.parse::<Ipv4Addr>().is_ok() {
+        return validate_node_port(param, port);
+    }
+
+    // Nothing generates this nodename. The message names the alternative the
+    // value was closest to, because the everyday defect is an identifier that
+    // was obfuscated without the underscore that says so.
+    if nodename.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return Some(format!(
+            "Forwarded '{}' is not an IPv4 address: '{}'",
+            param, nodename
+        ));
+    }
+    Some(format!(
+        "Forwarded '{}' is not a node identifier: '{}' is neither an IPv4 address, a bracketed IPv6 address, `unknown`, nor an obfuscated identifier (which must begin with `_` and hold only letters, digits, `.`, `_` and `-`)",
+        param, nodename
+    ))
+}
+
+/// The optional `":" node-port` of a node identifier.
+///
+/// `1*5DIGIT` is the whole of what a numeric port may be here: five digits, no
+/// range. This rule used to measure it with the shared TCP-port reader, which
+/// rejects `0` and anything over 65535 and so reported `for=192.0.2.1:0` and
+/// `for="192.0.2.1:99999"` — both of which the production generates — while the
+/// obfuscated form it has no idea about was rejected outright.
+///
+// cite(RFC 7239 § 6, label: node-port grammar): "node-port     = port / obfport port          = 1*5DIGIT obfport       = "_" 1*(ALPHA / DIGIT / "." / "_" / "-")"
+fn validate_node_port(param: &str, port: Option<&str>) -> Option<String> {
+    let port = port?;
+    if is_obfuscated(port) {
+        return None;
+    }
+    if !port.is_empty() && port.len() <= 5 && port.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    Some(format!(
+        "Forwarded '{}' has '{}' where a node-port is expected: one to five digits, or an obfuscated port beginning with `_`",
+        param, port
+    ))
+}
+
+/// A `host=` value, after unescaping: the `Host` field's own ABNF.
+// cite(RFC 7239 § 5.3): "The syntax for a "host" value, after potential quoted-string unescaping, MUST conform to the Host ABNF described in Section 5.4 of [RFC7230]."
+// cite(RFC 9110 § 7.2, label: Host grammar): "Host = uri-host [ ":" port ]"
+fn validate_host(value: &str) -> Option<String> {
+    crate::helpers::uri::validate_host_and_optional_port(value)
+        .err()
+        .map(|e| format!("Forwarded 'host' is not a Host field value: {}", e))
+}
+
+/// A `proto=` value, after unescaping: a URI scheme name.
+///
+/// The MUST has two halves and this is the first. A scheme is also required to
+/// be registered with IANA, and the registry is open — anyone may register one
+/// through the procedures RFC 7595 sets out — so an unregistered name is not a
+/// finding a fixed list in this file could reach. `http` and `https` are what
+/// §5.4 calls typical, not what it permits.
+///
+// cite(RFC 7239 § 5.4): "The syntax of a "proto" value, after potential quoted-string unescaping, MUST conform to the URI scheme name as defined in Section 3.1 in [RFC3986] and registered with IANA according to [RFC4395]."
+fn validate_proto(value: &str) -> Option<String> {
+    crate::helpers::uri::validate_scheme_name(value)
+        .err()
+        .map(|e| format!("Forwarded 'proto' is not a URI scheme name: {}", e))
 }
 
 pub struct MessageForwardedHeaderValidity;
+
+impl MessageForwardedHeaderValidity {
+    /// One `forwarded-element`: the semicolon-separated sublist of pairs.
+    ///
+    /// The element arrives trimmed of the whitespace the *list* allows around
+    /// its commas. Everything inside it is the element's own production, which
+    /// has no `OWS` in it anywhere.
+    fn check_element(&self, elem: &str, config: &crate::rules::RuleConfig) -> Option<Violation> {
+        let violation = |message: String| {
+            Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message,
+            })
+        };
+
+        // §7.1's whitespace is the list's, between elements; the element itself
+        // is `[ forwarded-pair ] *( ";" [ forwarded-pair ] )` and generates none
+        // — not around a semicolon, not around the `=`. Asked here, quote-aware,
+        // because SP and HTAB are `qdtext` and a value that quotes them is
+        // conforming.
+        //
+        // cite(RFC 7239 § 7.1): "Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields."
+        // cite(RFC 7239 § 4, label: forwarded-element grammar): "forwarded-element = [ forwarded-pair ] *( ";" [ forwarded-pair ] )"
+        if let Some(c) = whitespace_outside_quotes(elem) {
+            return violation(format!(
+                "Forwarded element holds whitespace its grammar does not admit ({:?} in '{}')",
+                c, elem
+            ));
+        }
+
+        // Each parameter at most once, in this element. Two elements naming the
+        // same parameter are the ordinary case — a chain of proxies is a list of
+        // elements each holding its own `for` — which is why the sentence says
+        // "per field-value" and this set is per element.
+        //
+        // cite(RFC 7239 § 4): "Each parameter MUST NOT occur more than once per field-value."
+        let mut seen: Vec<String> = Vec::new();
+
+        for param in split_semicolons_respecting_quotes(elem) {
+            // `[ forwarded-pair ]` — the pair is optional at every position, so
+            // `for=192.0.2.1;;proto=https` names two parameters and nothing else.
+            if param.is_empty() {
+                continue;
+            }
+
+            // cite(RFC 7239 § 4, label: forwarded-pair grammar): "forwarded-pair = token "=" value value          = token / quoted-string"
+            let Some((name, raw_value)) = param.split_once('=') else {
+                return violation(format!(
+                    "Forwarded parameter '{}' has no '=' and no value",
+                    param
+                ));
+            };
+
+            // `token` is `1*tchar`: a name is never empty, and `find_invalid_token_char`
+            // says nothing about a string that has no characters to be wrong.
+            if name.is_empty() {
+                return violation(format!("Forwarded parameter '{}' has no name", param));
+            }
+            if let Some(c) = find_invalid_token_char(name) {
+                return violation(format!(
+                    "Forwarded parameter name '{}' is not a token ({:?} is not a tchar)",
+                    name, c
+                ));
+            }
+
+            // cite(RFC 7239 § 4): "The parameter names are case-insensitive."
+            let name_lc = name.to_ascii_lowercase();
+            if seen.contains(&name_lc) {
+                return violation(format!(
+                    "Forwarded element names the '{}' parameter more than once: '{}'",
+                    name_lc, elem
+                ));
+            }
+            seen.push(name_lc.clone());
+
+            // The two alternatives of `value`. A quoted-string is checked as
+            // one and then unescaped, because every sentence naming a
+            // parameter's syntax below measures the value *after* unescaping; a
+            // bare value has to be a token, which is what makes an address with
+            // a port or a bracketed IPv6 literal a violation when it is written
+            // unquoted, ':' and '[' being no part of `tchar`.
+            //
+            // cite(RFC 7239 § 4): "Note that as ":" and "[]" are not valid characters in "token", IPv6 addresses are written as "quoted-string"."
+            // cite(RFC 7239 § 6): "It is important to note that an IPv6 address and any nodename with node-port specified MUST be quoted, since ":" is not an allowed character in "token"."
+            let value = if raw_value.starts_with('"') {
+                match unescape_quoted_string(raw_value) {
+                    Ok(unescaped) => unescaped,
+                    Err(e) => {
+                        return violation(format!(
+                            "Forwarded '{}' is not a well-formed quoted-string: {}",
+                            name, e
+                        ))
+                    }
+                }
+            } else {
+                if raw_value.is_empty() {
+                    return violation(format!("Forwarded parameter '{}' has no value", param));
+                }
+                if let Some(c) = find_invalid_token_char(raw_value) {
+                    return violation(format!(
+                        "Forwarded '{}' value '{}' is neither a token ({:?} is not a tchar) nor a quoted-string",
+                        name, raw_value, c
+                    ));
+                }
+                raw_value.to_string()
+            };
+
+            if value.is_empty() {
+                return violation(format!("Forwarded parameter '{}' has no value", param));
+            }
+
+            let finding = match name_lc.as_str() {
+                "for" | "by" => validate_node(&name_lc, &value),
+                "host" => validate_host(&value),
+                "proto" => validate_proto(&value),
+                // An extension parameter, and there is no list of them to check
+                // against: the registry is IANA's, adding to it takes IETF
+                // Review, and what this rule can measure — that the pair is a
+                // `forwarded-pair` — has already been measured above.
+                //
+                // cite(RFC 7239 § 5.5): "All extension parameters SHOULD be registered in the "HTTP Forwarded Parameter" registry."
+                // cite(RFC 7239 § 9): "New parameters and their values MUST conform with the forwarded-pair as defined in ABNF in Section 4."
+                _ => None,
+            };
+            if let Some(message) = finding {
+                return violation(message);
+            }
+        }
+
+        None
+    }
+
+    /// One `Forwarded` field line.
+    fn check_field_line(&self, line: &str, config: &crate::rules::RuleConfig) -> Option<Violation> {
+        let violation = |message: String| {
+            Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message,
+            })
+        };
+
+        // Quote-aware, because a comma inside a quoted-string is `qdtext` and
+        // not a member separator: the recipient's list reader used here before
+        // cut `foo="a,b"` in two and reported both halves of a conforming value.
+        // It also dropped every empty element, which is the recipient's
+        // requirement standing in for the sender's — and the sender's is the one
+        // a syntax rule measures, so the element that contributes nothing to the
+        // list is reported here rather than silently discarded.
+        //
+        // cite(RFC 7239 § 4, label: Forwarded grammar): "Forwarded   = 1#forwarded-element"
+        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+        let elements = split_commas_respecting_quotes(line);
+        let mut carried_an_element = false;
+
+        for elem in &elements {
+            let elem = elem.trim();
+            if elem.is_empty() {
+                // `1#` is unsatisfied by a line of these, and the count is what
+                // says so: an empty element is not one of the elements present.
+                //
+                // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+                continue;
+            }
+            carried_an_element = true;
+            if let Some(v) = self.check_element(elem, config) {
+                return Some(v);
+            }
+        }
+
+        if !carried_an_element {
+            return violation(
+                "Forwarded field line carries no forwarded-element, and the field is a list of at least one".into(),
+            );
+        }
+        if elements.iter().any(|e| e.trim().is_empty()) {
+            return violation(format!(
+                "Forwarded field line holds an empty element: '{}'",
+                line
+            ));
+        }
+
+        None
+    }
+}
 
 impl Rule for MessageForwardedHeaderValidity {
     fn id(&self) -> &'static str {
         "message_forwarded_header_validity"
     }
 
+    /// Both, and the response half is not a second place to look for the field:
+    /// it is where finding the field at all is the finding. `Client` and `Both`
+    /// dispatch identically in this engine — only `Server` filters, by skipping
+    /// a transaction with no response — so the enum documents the two directions
+    /// this rule has something to say about.
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -177,197 +425,49 @@ impl Rule for MessageForwardedHeaderValidity {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Helper to validate a single Forwarded element (one comma-separated member)
-        let validate_element = |elem: &str| -> Option<Violation> {
-            // cite(RFC 7239 § 4): "The "Forwarded" HTTP header field is an OPTIONAL header field"
-            if elem.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: "Forwarded header contains empty element".into(),
-                });
-            }
 
-            // split into semicolon separated parameters, respecting quoted-strings so we
-            // don't split semicolons inside quoted values
-            let mut params = Vec::new();
-            let mut start = 0usize;
-            let mut in_quote = false;
-            let mut escape = false;
-            for (i, ch) in elem.char_indices() {
-                if escape {
-                    escape = false;
-                    continue;
-                }
-                if ch == '\\' && in_quote {
-                    escape = true;
-                    continue;
-                }
-                if ch == '"' {
-                    in_quote = !in_quote;
-                    continue;
-                }
-                if ch == ';' && !in_quote {
-                    params.push(&elem[start..i]);
-                    start = i + 1;
-                }
-            }
-            params.push(&elem[start..]);
-
-            for param in params.into_iter().map(|p| p.trim()) {
-                if param.is_empty() {
-                    continue;
-                }
-                let mut nv = param.splitn(2, '=').map(|s| s.trim());
-                let name = nv.next().unwrap();
-                let val = nv.next();
-
-                if val.is_none() || name.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!("Forwarded parameter '{}' missing value or '='", param),
-                    });
-                }
-
-                // name must be a token
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!("Invalid token '{}' in Forwarded parameter name", c),
-                    });
-                }
-
-                let name_lc = name.to_ascii_lowercase();
-                let value = val.unwrap();
-                let raw_value = value;
-
-                if raw_value.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!("Forwarded parameter '{}' missing value or '='", param),
-                    });
-                }
-
-                // If quoted-string, validate and unquote (with unescaping) for further checks
-                let mut value_owned: Option<String> = None;
-                if value.starts_with('"') {
-                    match crate::helpers::headers::unescape_quoted_string(value) {
-                        Ok(u) => {
-                            if u.is_empty() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "Empty value in Forwarded '{}' parameter",
-                                        name
-                                    ),
-                                });
-                            }
-                            value_owned = Some(u);
-                        }
-                        Err(e) => {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "Invalid quoted-string in Forwarded parameter '{}': {}",
-                                    name, e
-                                ),
-                            })
-                        }
-                    }
-                }
-                let value = value_owned.as_deref().unwrap_or(raw_value);
-
-                if name_lc == "for" || name_lc == "by" {
-                    if let Some(message) = validate_node_identifier(name, value) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message,
-                        });
-                    }
-                    continue;
-                }
-
-                if name_lc == "proto" {
-                    // proto must be a token such as http or https
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!("Invalid token '{}' in Forwarded proto parameter", c),
-                        });
-                    }
-                    continue;
-                }
-
-                if name_lc == "host" {
-                    if let Some(message) = validate_host_param(value) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message,
-                        });
-                    }
-                    continue;
-                }
-
-                // Unknown parameter name - ensure token name and token or quoted-string value
-                if raw_value.starts_with('"') {
-                    // already validated quoted-string above
-                    continue;
-                }
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!(
-                            "Invalid token '{}' in Forwarded parameter value for '{}'",
-                            c, name
-                        ),
-                    });
-                }
-            }
-            None
-        };
-
+        // Every field line of the request's header section. A list may be split
+        // over several of them and each holds whole elements — a comma is what
+        // separates members, and joining the lines would put one there — so each
+        // line is read on its own and the elements are the same elements.
+        //
+        // The request's *trailer* section is not read here. A `Forwarded` in one
+        // is a finding, and it belongs to the sentence that says a sender may
+        // not put a field in a trailer unless that field's definition permits it
+        // — which is the trailer rule's, over the shared table of field names
+        // this one now appears in.
+        //
+        // cite(RFC 7239 § 7.1): "Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields."
         for hv in tx.request.headers.get_all("forwarded").iter() {
-            if let Ok(s) = hv.to_str() {
-                // split comma-separated elements
-                for elem in crate::helpers::headers::parse_list_header(s) {
-                    if let Some(v) = validate_element(elem) {
-                        return Some(v);
-                    }
-                }
-            } else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: "Forwarded header value is not valid UTF-8".into(),
-                });
+            if let Some(v) = self.check_field_line(&field_line(hv.as_bytes()), &config) {
+                return Some(v);
             }
         }
 
-        // Now also check response headers: Forwarded can appear in responses per RFC 7239
+        // The field is a request field, and this is not a scope note: §4 says so
+        // in a sentence, and §8.2 says why — the value names every proxy between
+        // the client and the origin, and a response carries it back to the party
+        // it was hidden from. This rule used to walk the response to validate
+        // the syntax of what it found there, under a comment saying the field
+        // "can appear in responses per RFC 7239", with a test pinning that a
+        // well-formed one was no finding at all.
+        //
+        // Both of the response's field sections, because §8.2's copy is a copy
+        // wherever it lands.
+        //
+        // cite(RFC 7239 § 4): ""Forwarded" is only for use in HTTP requests and is not to be used in HTTP responses."
+        // cite(RFC 7239 § 8.2): "This header field should never be copied into response messages by origin servers or intermediaries, as it can reveal the whole proxy chain to the client."
         if let Some(resp) = &tx.response {
-            for hv in resp.headers.get_all("forwarded").iter() {
-                if let Ok(s) = hv.to_str() {
-                    for elem in crate::helpers::headers::parse_list_header(s) {
-                        if let Some(v) = validate_element(elem) {
-                            return Some(v);
-                        }
-                    }
-                } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Forwarded header value is not valid UTF-8".into(),
-                    });
-                }
+            let in_trailers = resp
+                .trailers
+                .as_ref()
+                .is_some_and(|t| t.contains_key("forwarded"));
+            if resp.headers.contains_key("forwarded") || in_trailers {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Response carries a Forwarded header field: the field is only for use in HTTP requests, and copying it into a response reveals the proxy chain to the client".into(),
+                });
             }
         }
 
@@ -375,16 +475,48 @@ impl Rule for MessageForwardedHeaderValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Validates `Forwarded` header field-values follow the `Forwarded` header syntax as specified by RFC 7239 §4. Each element MUST be a semicolon-separated list of parameter `name=value` pairs; parameter names MUST be valid tokens. Well-known parameters (`for`, `by`, `proto`, `host`) are checked for syntactic validity (IPv4, bracketed IPv6 with optional port, `unknown`, obfuscated token, or quoted-string)."
+        "Validates `Forwarded` (RFC 7239 §4) against the grammar that defines it: the field is a list of elements, each a semicolon-separated sublist of `name=value` pairs whose names are tokens and whose values are tokens or quoted-strings, with no whitespace inside an element and no parameter named twice in one element.\n\nThe four registered parameters are checked against the sentences that define them. `for` and `by` must be a node identifier (RFC 7239 §6): an IPv4 address, a bracketed IPv6 address, `unknown`, or an obfuscated identifier — which **must begin with an underscore** and hold only letters, digits, `.`, `_` and `-` — each optionally followed by `:` and a port of one to five digits or an obfuscated port. An IPv6 address, and any node identifier carrying a port, must be written as a quoted-string, since `:` and `[]` are not token characters. `host` must conform to the `Host` field ABNF (RFC 9110 §7.2) and `proto` to a URI scheme name (RFC 3986 §3.1).\n\nA `Forwarded` field in a **response** is reported: RFC 7239 §4 restricts the field to requests, and §8.2 explains that copying it into a response reveals the whole proxy chain to the client.\n\nWhat this rule does not check: an extension parameter's name against the IANA \"HTTP Forwarded Parameters\" registry, or a `proto` value against the URI scheme registry — both registries are open and live elsewhere. A `Forwarded` field in a trailer section is reported by the trailer-fields rule, not here. The IPv6 recommendation of RFC 7239 §6.1 (RFC 5952 form: lowercase, zeroes compressed) is a SHOULD, and a value that parses but is written differently is reported as one."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 7239",
-            section: Some("4"),
-            url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-4",
-            note: "Forwarded header",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 7239",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-4",
+                note: "The field's grammar, the case-insensitivity of parameter names, the MUST NOT on naming a parameter twice in one element, and the sentence restricting the field to requests",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7239",
+                section: Some("6"),
+                url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-6",
+                note: "`node`, `nodename`, `node-port`: the obfuscated forms MUST begin with an underscore, a numeric port is one to five digits, and an address with a port MUST be quoted. §6.1's SHOULD asks for the RFC 5952 textual form",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7239",
+                section: Some("5"),
+                url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-5",
+                note: "The four registered parameters. `host` MUST conform to the Host ABNF and `proto` to a URI scheme name; extension parameters SHOULD be registered, in a registry this rule does not hold",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7239",
+                section: Some("8.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-8.2",
+                note: "Why a response must not carry the field: it reveals the whole proxy chain to the client",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("7.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2",
+                note: "`Host = uri-host [ \":\" port ]`, which §5.3 makes the syntax of a `host` parameter",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 3986",
+                section: Some("3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1",
+                note: "`scheme = ALPHA *( ALPHA / DIGIT / \"+\" / \"-\" / \".\" )`, which §5.4 makes the syntax of a `proto` parameter",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -393,15 +525,39 @@ impl Rule for MessageForwardedHeaderValidity {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "Forwarded: for=192.0.2.43;proto=https;by=203.0.113.5\nForwarded: for=\"[2001:db8::1]\";host=example.com",
+                snippet: "Forwarded: for=192.0.2.43;proto=https;by=203.0.113.5\n\nForwarded: for=\"[2001:db8::1]\";host=example.com\n\nForwarded: for=\"192.0.2.43:47011\", for=_gazonk\n\nForwarded: for=unknown;by=_SEVKISEK",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "Forwarded: for=999.999.999.999\n# invalid IPv4\n\nForwarded: for=[2001:db8::zzz]\n# invalid IPv6\n\nForwarded: for\n# missing '=' and value\n\nForwarded: for=192.0.2.1:99999\n# invalid port",
+                snippet: "Forwarded: for=999.999.999.999\n# not an IPv4 address, and not a node identifier of any other kind\n\nForwarded: for=x-foo\n# an obfuscated identifier must begin with an underscore\n\nForwarded: for=192.0.2.43:4711\n# a node identifier with a port must be quoted: ':' is not a token character\n\nForwarded: for=\"192.0.2.43:123456\"\n# a numeric node-port is one to five digits\n\nForwarded: for=192.0.2.43;for=198.51.100.17\n# a parameter may be named only once per element\n\nForwarded: proto=ht_tp\n# a URI scheme name holds no underscore",
             },
         ]
     }
+}
+
+/// The first whitespace character outside a quoted-string, if any.
+///
+/// Written here rather than reached for from the splitters because it is the
+/// same walk they make: a DQUOTE opens and closes a string, a backslash inside
+/// one escapes the octet after it, and neither means anything outside one.
+// cite(RFC 9110 § 5.6.4): "quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )"
+fn whitespace_outside_quotes(s: &str) -> Option<char> {
+    let mut in_quote = false;
+    let mut escaped = false;
+    for c in s.chars() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match c {
+            '\\' if in_quote => escaped = true,
+            '"' => in_quote = !in_quote,
+            c if c.is_ascii_whitespace() && !in_quote => return Some(c),
+            _ => {}
+        }
+    }
+    None
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -411,798 +567,417 @@ static REGISTRATION: &dyn crate::rules::Rule = &MessageForwardedHeaderValidity;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hyper::header::HeaderValue;
 
-    fn make_tx_with_forwarded(value: &str) -> crate::http_transaction::HttpTransaction {
+    /// The rule's verdict on one request carrying these `Forwarded` field lines.
+    fn judge(values: &[&str]) -> Option<String> {
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("forwarded", value)]);
-        tx
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        for value in values {
+            tx.request.headers.append(
+                "forwarded",
+                HeaderValue::from_bytes(value.as_bytes()).expect("a field value"),
+            );
+        }
+        MessageForwardedHeaderValidity
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "message_forwarded_header_validity",
+                ]),
+            )
+            .map(|v| v.message)
+    }
+
+    /// One field line, which is what all but a couple of the cases below need.
+    fn judge_one(value: &str) -> Option<String> {
+        judge(&[value])
     }
 
     #[test]
-    fn valid_forwarded_simple_for_ipv4() {
-        let tx = make_tx_with_forwarded("for=192.0.2.43");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
+    fn the_field_values_the_rfc_prints_are_all_accepted() {
+        // §4's examples, §6's, §6.3's, §7.1's three equivalent forms, §7.4's and
+        // §7.5's. Running a specification's own examples through the rule that
+        // reads the field is worth more than any test written from the same
+        // reading of the spec as the code.
+        for value in [
+            "for=\"_gazonk\"",
+            "For=\"[2001:db8:cafe::17]:4711\"",
+            "for=192.0.2.60;proto=http;by=203.0.113.43",
+            "for=192.0.2.43, for=198.51.100.17",
+            "for=\"192.0.2.43:47011\"",
+            "for=\"[2001:db8:cafe::17]:47011\"",
+            "for=_hidden, for=_SEVKISEK",
+            "for=192.0.2.43,for=\"[2001:db8:cafe::17]\",for=unknown",
+            "for=192.0.2.43, for=\"[2001:db8:cafe::17]\", for=unknown",
+            "for=192.0.2.43",
+            "for=192.0.2.43, for=198.51.100.17;by=203.0.113.60;proto=http;host=example.com",
+        ] {
+            assert_eq!(judge_one(value), None, "{value}");
+        }
     }
 
     #[test]
-    fn valid_forwarded_for_ipv6_bracketed() {
-        let tx = make_tx_with_forwarded("for=\"[2001:db8::1]\"");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
+    fn an_obfuscated_identifier_must_begin_with_an_underscore() {
+        // Every one of these is a `token`, which is what the rule used to ask.
+        // None of them is an `obfnode`.
+        for value in ["for=x-foo", "for=hidden", "by=proxy1", "for=\"x-foo:8080\""] {
+            let message = judge_one(value).unwrap_or_else(|| panic!("{value}"));
+            assert!(message.contains("node identifier"), "{value}: {message}");
+        }
+        for value in ["for=_foo", "by=_SEVKISEK", "for=_a.b-c_d"] {
+            assert_eq!(judge_one(value), None, "{value}");
+        }
+        // The characters after the underscore are not `tchar`'s either: `~` is
+        // one and is no part of an obfuscated identifier.
+        assert!(judge_one("for=_a~b").is_some());
     }
 
     #[test]
-    fn valid_forwarded_with_port() {
-        let tx = make_tx_with_forwarded("for=198.51.100.17:1234;proto=https;by=203.0.113.5");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
+    fn a_node_port_is_five_digits_or_an_obfuscated_port() {
+        // `port = 1*5DIGIT` has no range in it. The shared TCP-port reader this
+        // rule used to call rejects `0` and everything over 65535, and knows
+        // nothing of an obfuscated port at all.
+        for value in [
+            "for=\"192.0.2.1:0\"",
+            "for=\"192.0.2.1:99999\"",
+            "for=\"192.0.2.1:080\"",
+            "for=\"192.0.2.1:_obf\"",
+            "for=\"[2001:db8::1]:_obf\"",
+            "for=\"unknown:8080\"",
+        ] {
+            assert_eq!(judge_one(value), None, "{value}");
+        }
+        for value in [
+            "for=\"192.0.2.1:123456\"",
+            "for=\"192.0.2.1:\"",
+            "for=\"192.0.2.1:8o8\"",
+            "for=\"[2001:db8::1]:x\"",
+        ] {
+            let message = judge_one(value).unwrap_or_else(|| panic!("{value}"));
+            assert!(message.contains("node-port"), "{value}: {message}");
+        }
     }
 
     #[test]
-    fn invalid_forwarded_empty_element() {
-        let tx = make_tx_with_forwarded(", ;for=192.0.2.43");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        // Leading empty list members and stray semicolons are ignored by header parsing; consider this valid
-        assert!(v.is_none());
+    fn an_address_with_a_port_and_an_ipv6_literal_must_be_quoted() {
+        // `:` and `[` are no part of `tchar`, so an unquoted value holding one
+        // is not a `value` at all — which is the sentence §6 spells out for
+        // exactly this field.
+        // The sentence §6 spells out is about a node identifier, and the
+        // production behind it is `value = token / quoted-string`, which every
+        // parameter is measured against — so a `host` with a port is quoted for
+        // the same reason a `for` with one is.
+        for value in [
+            "for=192.0.2.1:8080",
+            "for=[2001:db8::1]",
+            "for=[2001:db8::1]:8080",
+            "host=example.com:8080",
+            "host=[2001:db8::1]:8080",
+        ] {
+            let message = judge_one(value).unwrap_or_else(|| panic!("{value}"));
+            assert!(
+                message.contains("neither a token") && message.contains("quoted-string"),
+                "{value}: {message}"
+            );
+        }
     }
 
     #[test]
-    fn invalid_forwarded_missing_eq() {
-        let tx = make_tx_with_forwarded("for");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
+    fn an_unbracketed_ipv6_address_is_reported_as_one() {
+        let message = judge_one("for=\"2001:db8::1\"").expect("a finding");
+        assert!(message.contains("unbracketed IPv6"), "{message}");
     }
 
     #[test]
-    fn invalid_forwarded_bad_ipv4() {
-        let tx = make_tx_with_forwarded("for=999.999.999.999");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
+    fn a_parameter_may_be_named_once_per_element() {
+        // Two elements naming `for` is the ordinary case: that is what a chain
+        // of proxies looks like. Twice inside one element is the MUST NOT.
+        assert_eq!(judge_one("for=192.0.2.1, for=192.0.2.2"), None);
+        for value in [
+            "for=192.0.2.1;for=192.0.2.2",
+            "for=192.0.2.1;FOR=192.0.2.2",
+            "host=a.example;proto=https;host=b.example",
+        ] {
+            let message = judge_one(value).unwrap_or_else(|| panic!("{value}"));
+            assert!(message.contains("more than once"), "{value}: {message}");
+        }
     }
 
     #[test]
-    fn invalid_forwarded_bad_ipv6_brackets() {
-        let tx = make_tx_with_forwarded("for=[2001:db8::zzz]");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
+    fn an_element_admits_no_whitespace_of_its_own() {
+        for value in [
+            "for=192.0.2.1; proto=https",
+            "for=192.0.2.1 ;proto=https",
+            "for = 192.0.2.1",
+            "for=192.0.2.1; ;proto=https",
+        ] {
+            let message = judge_one(value).unwrap_or_else(|| panic!("{value}"));
+            assert!(message.contains("whitespace"), "{value}: {message}");
+        }
+        // The list's own whitespace, around its commas, is §7.1's and is fine —
+        // and whitespace inside a quoted-string is `qdtext`.
+        assert_eq!(judge_one("for=192.0.2.1,  for=192.0.2.2"), None);
+        assert_eq!(judge_one("foo=\"a b\""), None);
     }
 
     #[test]
-    fn invalid_forwarded_bad_port() {
-        let tx = make_tx_with_forwarded("for=192.0.2.1:99999");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
+    fn an_empty_element_is_the_senders_defect_and_not_dropped() {
+        // The recipient's list reader drops these, which is what §5.6.1.2 asks
+        // of a recipient and the opposite of what a syntax rule measures.
+        for value in [
+            "for=192.0.2.1,,for=192.0.2.2",
+            ", for=192.0.2.1",
+            "for=192.0.2.1,",
+        ] {
+            let message = judge_one(value).unwrap_or_else(|| panic!("{value}"));
+            assert!(message.contains("empty element"), "{value}: {message}");
+        }
+        for value in ["", " ", ","] {
+            let message = judge_one(value).unwrap_or_else(|| panic!("{value:?}"));
+            assert!(
+                message.contains("no forwarded-element"),
+                "{value:?}: {message}"
+            );
+        }
     }
 
     #[test]
-    fn non_utf8_header_is_violation() -> anyhow::Result<()> {
-        let rule = MessageForwardedHeaderValidity;
+    fn a_comma_inside_a_quoted_string_is_not_a_member_separator() {
+        // Split blindly on commas, this conforming value became two elements
+        // and both halves were reported.
+        assert_eq!(judge_one("foo=\"a,b\""), None);
+        assert_eq!(judge_one("foo=\"a;b\""), None);
+        assert_eq!(judge_one("foo=\"a\\\"b\""), None);
+    }
+
+    #[test]
+    fn a_host_parameter_is_measured_against_the_host_abnf() {
+        for value in [
+            "host=example.com",
+            "host=\"example.com:8080\"",
+            "host=\"example.com:\"",
+            "host=\"example.com:99999\"",
+            "host=\"[2001:db8::1]:8080\"",
+            // `uri-host` is wider than `token`, so a registered name holding a
+            // sub-delimiter is a `value` only in its quoted form.
+            "host=\"a(b).example\"",
+        ] {
+            assert_eq!(judge_one(value), None, "{value}");
+        }
+        for value in ["host=\"user@host\"", "host=\"exa mple\"", "host=\"a^b\""] {
+            let message = judge_one(value).unwrap_or_else(|| panic!("{value}"));
+            assert!(message.contains("Host field value"), "{value}: {message}");
+        }
+    }
+
+    #[test]
+    fn a_proto_parameter_is_a_uri_scheme_name() {
+        for value in ["proto=http", "proto=https", "proto=coap+ws"] {
+            assert_eq!(judge_one(value), None, "{value}");
+        }
+        // All three are tokens, and none is a scheme name.
+        for value in ["proto=ht_tp", "proto=9https", "proto=ht%tp"] {
+            let message = judge_one(value).unwrap_or_else(|| panic!("{value}"));
+            assert!(message.contains("URI scheme name"), "{value}: {message}");
+        }
+    }
+
+    #[test]
+    fn an_ipv6_address_is_asked_for_the_recommended_textual_form() {
+        for value in [
+            "for=\"[2001:DB8::1]\"",
+            "for=\"[2001:db8:0:0:0:0:0:1]\"",
+            "for=\"[2001:db8::0:1]\"",
+        ] {
+            let message = judge_one(value).unwrap_or_else(|| panic!("{value}"));
+            assert!(
+                message.contains("recommended textual representation"),
+                "{value}: {message}"
+            );
+        }
+        // Rust's own rendering is the recommended one, which is what makes the
+        // comparison honest: lowercase, the longest run of zeroes compressed,
+        // and the mixed form for an IPv4-mapped address.
+        for value in [
+            "for=\"[2001:db8::1]\"",
+            "for=\"[::1]\"",
+            "for=\"[::ffff:192.0.2.1]\"",
+        ] {
+            assert_eq!(judge_one(value), None, "{value}");
+        }
+    }
+
+    #[test]
+    fn a_pair_needs_a_token_name_and_a_value() {
+        for (value, expected) in [
+            ("for", "no '=' and no value"),
+            ("=192.0.2.1", "has no name"),
+            ("foo=", "has no value"),
+            ("for=\"\"", "has no value"),
+            ("@=1", "is not a token"),
+            ("foo=\"bar\"x", "well-formed quoted-string"),
+            ("foo=bad@value", "neither a token"),
+        ] {
+            let message = judge_one(value).unwrap_or_else(|| panic!("{value}"));
+            assert!(message.contains(expected), "{value}: {message}");
+        }
+        // An extension parameter is not checked beyond the pair: there is no
+        // list of registered names in this rule to check it against.
+        assert_eq!(judge_one("foo=bar"), None);
+        assert_eq!(judge_one("foo=\"bar baz\""), None);
+    }
+
+    #[test]
+    fn obs_text_in_a_quoted_string_is_not_a_finding_about_utf_8() {
+        // `qdtext` admits `obs-text`, so this extension parameter conforms. The
+        // reader that refused it announced a value "not valid UTF-8" — which is
+        // neither what it checked nor true of the octets on the wire.
         let mut tx = crate::test_helpers::make_test_transaction();
-        use hyper::header::HeaderValue;
-        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        let bad = HeaderValue::from_bytes(&[0xff])?;
-        hm.append("forwarded", bad);
-        tx.request.headers = hm;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        tx.request.headers.append(
+            "forwarded",
+            HeaderValue::from_bytes(b"foo=\"\xdcnix\"").expect("a field value"),
         );
-        assert!(v.is_some());
-        Ok(())
+        let rule = MessageForwardedHeaderValidity;
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .is_none());
+
+        // The same octet outside a quoted-string is a finding, and about the
+        // thing that is actually wrong with it.
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        tx.request.headers.append(
+            "forwarded",
+            HeaderValue::from_bytes(b"for=\xff").expect("a field value"),
+        );
+        let message = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .expect("a finding")
+            .message;
+        assert!(message.contains("neither a token"), "{message}");
     }
 
     #[test]
-    fn response_forwarded_values_checked() {
+    fn every_field_line_is_read() {
+        assert_eq!(judge(&["for=192.0.2.1", "for=192.0.2.2"]), None);
+        assert!(judge(&["for=192.0.2.1", "for=999.999.999.999"]).is_some());
+    }
+
+    #[test]
+    fn a_response_carrying_the_field_is_the_finding() {
+        // The field is only for use in requests. This rule used to validate the
+        // syntax of a response's `Forwarded` and pass a well-formed one.
+        let rule = MessageForwardedHeaderValidity;
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
-            &[("forwarded", "for=192.0.2.4, proto=https")],
+            &[("forwarded", "for=192.0.2.1")],
         );
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        let message = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &config,
+            )
+            .expect("a finding")
+            .message;
+        assert!(
+            message.contains("only for use in HTTP requests"),
+            "{message}"
         );
-        assert!(v.is_none());
-    }
 
-    #[test]
-    fn invalid_forwarded_obfuscated_token_invalid_char() {
-        let tx = make_tx_with_forwarded("for=obf@bad");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_proto_token_char() {
-        let tx = make_tx_with_forwarded("proto=ht@tp");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_host_with_large_port() {
-        let tx = make_tx_with_forwarded("host=example.com:99999");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_host_missing_bracket() {
-        let tx = make_tx_with_forwarded("host=[2001:db8::1");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_for_unterminated_quoted_ipv6() {
-        let tx = make_tx_with_forwarded("for=\"[2001:db8::1\"");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn forwarded_by_unknown_is_ok() {
-        let tx = make_tx_with_forwarded("by=unknown");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn forwarded_for_obfuscated_token_ok() {
-        let tx = make_tx_with_forwarded("for=x-foo");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn unknown_param_value_invalid_token_char() {
-        let tx = make_tx_with_forwarded("foo=bad@value");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn response_forwarded_invalid_element_reports_violation() {
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("forwarded", "for=999.999.999.999")],
-        );
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn response_unknown_param_value_invalid_token_char() {
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("forwarded", "foo=bad@value")],
-        );
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn valid_forwarded_quoted_ipv6_with_port() {
-        let tx = make_tx_with_forwarded("for=\"[2001:db8::1]:1234\"");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn invalid_forwarded_quoted_ipv6_empty_inside() {
-        let tx = make_tx_with_forwarded("for=\"[]\"");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_quoted_ipv6_bad_port_syntax() {
-        let tx = make_tx_with_forwarded("for=\"[2001:db8::1]x\"");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn valid_forwarded_host_with_port_regname() {
-        let tx = make_tx_with_forwarded("host=example.com:8080");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn invalid_forwarded_host_invalid_char() {
-        let tx = make_tx_with_forwarded("host=exa mple");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn unknown_param_quoted_string_ok() {
-        let tx = make_tx_with_forwarded("foo=\"bar baz\"");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn multiple_forwarded_header_fields_invalid_reports_violation() {
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
-            ("forwarded", "for=192.0.2.1"),
-            ("forwarded", "for=999.999.999.999"),
-        ]);
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn unknown_param_token_ok() {
-        let tx = make_tx_with_forwarded("foo=bar");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn invalid_forwarded_ipv6_port_non_numeric() {
-        let tx = make_tx_with_forwarded("for=[2001:db8::1]:x");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_ipv6_port_empty() {
-        let tx = make_tx_with_forwarded("for=[2001:db8::1]:");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_host_bracketed_port_non_numeric() {
-        let tx = make_tx_with_forwarded("host=[2001:db8::1]:notnum");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn valid_forwarded_host_bracketed_with_port() {
-        let tx = make_tx_with_forwarded("host=[2001:db8::1]:8080");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn valid_forwarded_obfuscated_with_port() {
-        let tx = make_tx_with_forwarded("for=x-foo:8080");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn invalid_forwarded_obfuscated_token_with_port_invalid_char() {
-        let tx = make_tx_with_forwarded("for=obf@bad:8080");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    /// Run the rule against a single `Forwarded` value; return whether it
-    /// reported a violation. Keeps the port-acceptance cases below compact.
-    fn forwarded_has_violation(value: &str) -> bool {
-        let tx = make_tx_with_forwarded(value);
-        let rule = MessageForwardedHeaderValidity;
-        rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        )
-        .is_some()
-    }
-
-    #[test]
-    fn forwarded_port_zero_and_plus_rejected() {
-        // Deliberate semantics change (#21): adopting `parse_port_str` rejects
-        // port `0` and a leading `+`, which the old inline `parse::<u16>()`
-        // accepted, across the `for`/`by`/`host` and bracketed-IPv6 paths.
-        assert!(forwarded_has_violation("for=192.0.2.1:0"));
-        assert!(forwarded_has_violation("by=192.0.2.1:+80"));
-        assert!(forwarded_has_violation("host=example.com:0"));
-        assert!(forwarded_has_violation("for=[2001:db8::1]:0"));
-        assert!(forwarded_has_violation("host=[2001:db8::1]:+80"));
-    }
-
-    #[test]
-    fn forwarded_valid_ports_still_accepted() {
-        // Controls: in-range ports (incl. leading zeros) remain valid.
-        assert!(!forwarded_has_violation("for=192.0.2.1:1"));
-        assert!(!forwarded_has_violation("for=192.0.2.1:65535"));
-        assert!(!forwarded_has_violation("for=192.0.2.1:080"));
-        assert!(!forwarded_has_violation("host=[2001:db8::1]:8080"));
-    }
-
-    #[test]
-    fn quoted_unknown_ok() {
-        let tx = make_tx_with_forwarded("for=\"unknown\"");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn invalid_forwarded_bare_ipv6_no_brackets() {
-        let tx = make_tx_with_forwarded("for=2001:db8::1");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_param_name_invalid_token_char() {
-        let tx = make_tx_with_forwarded("@=1");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_empty_value() {
-        let tx = make_tx_with_forwarded("foo=");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_proto_quoted_with_space_is_violation() {
-        let tx = make_tx_with_forwarded("proto=\"ht tp\"");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn unknown_param_quoted_with_escaped_quote_ok() {
-        let tx = make_tx_with_forwarded("foo=\"a\\\"b\"");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn invalid_forwarded_host_with_port_and_space() {
-        let tx = make_tx_with_forwarded("host=exa mple:80");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_empty_param_name() {
-        let tx = make_tx_with_forwarded("=value");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn non_utf8_response_header_is_violation() -> anyhow::Result<()> {
-        let rule = MessageForwardedHeaderValidity;
+        // Including in the trailer section: a copy is a copy wherever it lands.
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        use hyper::header::HeaderValue;
-        let bad = HeaderValue::from_bytes(&[0xff])?;
-        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-        hm.append("forwarded", bad);
-        tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        tx.response.as_mut().expect("a response").trailers = Some(
+            crate::test_helpers::make_headers_from_pairs(&[("forwarded", "for=192.0.2.1")]),
         );
-        assert!(v.is_some());
-        Ok(())
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &config,
+            )
+            .is_some());
+
+        // A response with no `Forwarded` of its own is not a finding, whatever
+        // the request carried.
+        let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &config,
+            )
+            .is_none());
     }
 
     #[test]
-    fn unknown_param_quoted_with_semicolon_ok() {
-        let tx = make_tx_with_forwarded("foo=\"a;b\"");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::Compliance;
 
-    #[test]
-    fn invalid_forwarded_for_missing_closing_bracket() {
-        let tx = make_tx_with_forwarded("for=[2001:db8::1");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_for_non_colon_after_bracket() {
-        let tx = make_tx_with_forwarded("for=[2001:db8::1]x");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_host_non_colon_after_bracket() {
-        let tx = make_tx_with_forwarded("host=[2001:db8::1]x");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_empty_header_value() {
-        let tx = make_tx_with_forwarded("");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        // Empty header value is ignored by header parsing; considered valid
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn invalid_forwarded_quoted_string_extra_chars() {
-        let tx = make_tx_with_forwarded("foo=\"bar\"x");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_empty_quoted_for() {
-        let tx = make_tx_with_forwarded("for=\"\"");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        let v = v.unwrap();
-        assert!(v.message.contains("Empty value"));
-    }
-
-    #[test]
-    fn valid_forwarded_quoted_ipv4_with_port() {
-        let tx = make_tx_with_forwarded("for=\"192.0.2.1:8080\"");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn forwarded_extra_semicolon_ignored() {
-        let tx = make_tx_with_forwarded("for=192.0.2.1; ;proto=https");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn valid_forwarded_host_ipv4_with_port() {
-        let tx = make_tx_with_forwarded("host=192.0.2.1:80");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn valid_forwarded_host_bracketed_no_port() {
-        let tx = make_tx_with_forwarded("host=[2001:db8::1]");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn forwarded_host_empty_port_is_accepted() {
-        let tx = make_tx_with_forwarded("host=example.com:");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        // Empty port after ':' is accepted (treated as absent) by the implementation
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn invalid_forwarded_host_with_at() {
-        let tx = make_tx_with_forwarded("host=user@host");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_quoted_string_control_char() -> anyhow::Result<()> {
-        let rule = MessageForwardedHeaderValidity;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        use hyper::header::HeaderValue;
-        // Try to construct a header containing an embedded control character inside a quoted-string.
-        // If `HeaderValue::from_bytes` refuses it, that's acceptable; otherwise the rule should report a violation.
-        match HeaderValue::from_bytes(b"for=\"bad\x01\"") {
-            Ok(bad) => {
-                let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
-                hm.append("forwarded", bad);
-                tx.request.headers = hm;
-                let v = rule.check_transaction(
-                    &tx,
-                    &crate::transaction_history::TransactionHistory::empty(),
-                    &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-                );
-                assert!(v.is_some());
-            }
-            Err(_) => {
-                // Header construction failed (control characters not allowed) — still a valid outcome for this test
-                // Nothing to assert; header construction failure is an acceptable outcome.
+        let mut saw_a_finding = false;
+        for ex in MessageForwardedHeaderValidity.examples() {
+            for block in ex.snippet.split("\n\n") {
+                let values: Vec<&str> = block
+                    .lines()
+                    .filter(|l| !l.starts_with('#'))
+                    .map(|l| {
+                        l.split_once(": ")
+                            .unwrap_or_else(|| panic!("not a field line: {l:?}"))
+                            .1
+                    })
+                    .collect();
+                let found = judge(&values);
+                match ex.compliance {
+                    Compliance::Compliant => assert!(
+                        found.is_none(),
+                        "rule reports its Compliant example {block:?}: {found:?}"
+                    ),
+                    Compliance::NonCompliant => {
+                        assert!(
+                            found.is_some(),
+                            "rule accepts its NonCompliant example {block:?}"
+                        );
+                        saw_a_finding = true;
+                    }
+                }
             }
         }
-        Ok(())
+        assert!(saw_a_finding, "the guard ran without exercising a finding");
     }
 
     #[test]
-    fn invalid_forwarded_host_empty_brackets() {
-        let tx = make_tx_with_forwarded("host=[]");
-        let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+    fn an_obs_text_octet_outside_a_quoted_string_is_not_called_whitespace() {
+        // The octet arrives as the `char` of the same value, and `U+00A0` is
+        // whitespace to Unicode and `obs-text` to HTTP. The finding is about the
+        // production the octet is standing outside of, not about spacing.
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        tx.request.headers.append(
+            "forwarded",
+            HeaderValue::from_bytes(b"foo=a\xa0b").expect("a field value"),
         );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn invalid_forwarded_ipv4_port_non_numeric() {
-        let tx = make_tx_with_forwarded("for=192.0.2.1:xyz");
         let rule = MessageForwardedHeaderValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
+        let message = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .expect("a finding")
+            .message;
+        assert!(message.contains("neither a token"), "{message}");
     }
 
     #[test]
