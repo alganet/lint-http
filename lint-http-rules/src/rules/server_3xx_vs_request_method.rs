@@ -25,17 +25,24 @@ pub struct Server3xxVsRequestMethod;
 fn unambiguous_alternative(status: u16) -> Option<(&'static str, &'static str)> {
     match status {
         // Both notes are set in the RFC's gutter block, so the `|` line markers are
-        // part of the extracted passage and part of the quote.
+        // part of the extracted passage and part of the quote. §15.4.2's passage also
+        // starts one word later than §15.4.3's — the extractor keeps "For" with the
+        // note marker there — which is why the two quotes are not symmetric.
         // cite(RFC 9110 § 15.4.2): "historical reasons, a user agent MAY change the | request method from POST to GET for the subsequent request. If | this behavior is undesired, the 308 (Permanent Redirect) status | code can be used instead."
         301 => Some(("308 (Permanent Redirect)", "§15.4.2")),
         // cite(RFC 9110 § 15.4.3): "For historical reasons, a user agent MAY change the | request method from POST to GET for the subsequent request. If | this behavior is undesired, the 307 (Temporary Redirect) status | code can be used instead."
         302 => Some(("307 (Temporary Redirect)", "§15.4.3")),
-        // No other status is in the same position. 307 and 308 exist precisely to say
-        // the method is kept; 303 is defined as a redirection to a resource the user
-        // agent retrieves; 300 offers a choice; 304 sends the client to its own stored
-        // response. Nothing in §15.4 calls any of them ambiguous about the method, so
-        // reaching this arm is not a judgement about the response.
+        // No other status is in the same position, and every §15.4.x subsection was
+        // read to say so rather than only the two above. 307 says the method is kept
+        // with a MUST NOT of its own; 303 says it changes, by being defined as a
+        // redirection the user agent retrieves. 300, 304 and the deprecated 305/306
+        // say nothing about the method at all, and neither does 308's own section —
+        // what makes 308 method-preserving is §15.4's history, which is also the
+        // sentence that says what the 301/302 adjustment was for. Reaching this arm is
+        // not a judgement about the response.
         // cite(RFC 9110 § 15.4): "307 | (Temporary Redirect) and 308 (Permanent Redirect) [RFC7538] | were later added to unambiguously indicate method-preserving | redirects, and status codes 301 and 302 have been adjusted to | allow a POST request to be redirected as GET."
+        // cite(RFC 9110 § 15.4.8): "The 307 (Temporary Redirect) status code indicates that the target resource resides temporarily under a different URI and the user agent MUST NOT change the request method if it performs an automatic redirection to that URI."
+        // cite(RFC 9110 § 15.4.4): "The 303 (See Other) status code indicates that the server is redirecting the user agent to a different resource, as indicated by a URI in the Location header field, which is intended to provide an indirect response to the original request."
         _ => None,
     }
 }
@@ -133,7 +140,19 @@ impl Rule for Server3xxVsRequestMethod {
                 spec: "RFC 9110",
                 section: Some("15.4"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
-                note: "Why only these two: 307 and 308 were added to indicate method-preserving redirects, and 301 and 302 were adjusted to allow a POST to be redirected as GET. Also what a provided Location buys — a user agent MAY follow it automatically",
+                note: "Why only these two: 307 and 308 were added to indicate method-preserving redirects, and 301 and 302 were adjusted to allow a POST to be redirected as GET. This is also the only sentence that says 308 preserves the method — §15.4.9 does not repeat it. Also what a provided Location buys: a user agent MAY follow it automatically",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.4.8"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.8",
+                note: "307 Temporary Redirect: the user agent MUST NOT change the request method when it redirects automatically — the unambiguous half of the 302 pair, and never reported by this rule",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.4.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.4",
+                note: "303 See Other: defined as a redirection to a resource the user agent retrieves, so the change of method is what the status means rather than something left open",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
