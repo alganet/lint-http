@@ -3439,6 +3439,8 @@ sources:
       line: 103
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 140
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 102
   - label: message_content_location_and_uri_consistency
     section: § 8.7
     snippet: Content-Location = absolute-URI / partial-URI
@@ -4313,16 +4315,76 @@ sources:
       line: 100
   - label: server_200_vs_204_body_consistency
     section: § 15.3.1
+    snippet: Aside from responses to CONNECT, a 200 response is expected to contain message content unless the message framing explicitly indicates that the content has zero length.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 62
+  - label: server_200_vs_204_body_consistency (2)
+    section: § 15.3.1
+    snippet: For CONNECT, there is no content because the successful result is a tunnel, which begins immediately after the 200 response header section.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 84
+  - label: server_200_vs_204_body_consistency (3)
+    section: § 15.3.1
+    snippet: If some aspect of the request indicates a preference for no content upon success, the origin server ought to send a 204 (No Content) response instead.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 22
+  - label: server_200_vs_204_body_consistency (4)
+    section: § 15.3.1
     snippet: The 200 (OK) status code indicates that the request has succeeded.
     cited_by:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 29
-  - label: server_200_vs_204_body_consistency (2)
+      line: 61
+  - label: server_200_vs_204_body_consistency (5)
+    section: § 15.3.5
+    snippet: A 204 response is terminated by the end of the header section; it cannot contain content or trailers.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 27
+  - label: server_200_vs_204_body_consistency (6)
     section: § 15.3.5
     snippet: The 204 (No Content) status code indicates that the server has successfully fulfilled the request and that there is no additional content to send in the response content.
     cited_by:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 30
+      line: 26
+  - label: server_200_vs_204_body_consistency (7)
+    section: § 6.4
+    snippet: This abstract definition of content reflects the data after it has been extracted from the message framing.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 123
+  - label: server_200_vs_204_body_consistency (8)
+    section: § 6.4.1
+    snippet: 2xx (Successful) responses to a CONNECT request method (Section 9.3.6) switch the connection to tunnel mode instead of having content.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 85
+  - label: server_200_vs_204_body_consistency (9)
+    section: § 6.4.1
+    snippet: Responses to the HEAD request method (Section 9.3.2) never include content; the associated response header fields indicate only what their values would have been if the request method had been GET (Section 9.3.1).
+    cited_by:
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 75
+  - label: server_200_vs_204_body_consistency (10)
+    section: § 9.1
+    snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 70
+    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
+      line: 93
+    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
+      line: 81
+  - label: server_200_vs_204_body_consistency (11)
+    section: § 9.3.2
+    snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 74
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 52
   - label: server_3xx_vs_request_method
     section: § 15.4
     snippet: 307 | (Temporary Redirect) and 308 (Permanent Redirect) [RFC7538] | were later added to unambiguously indicate method-preserving | redirects, and status codes 301 and 302 have been adjusted to | allow a POST request to be redirected as GET.
@@ -4364,14 +4426,6 @@ sources:
     - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
       line: 44
   - label: server_3xx_vs_request_method (7)
-    section: § 9.1
-    snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
-      line: 93
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 81
-  - label: server_3xx_vs_request_method (8)
     section: § 9.3.3
     snippet: If the result of processing a POST would be equivalent to a representation of an existing resource, an origin server MAY redirect the user agent to that resource by sending a 303 (See Other) response with the existing resource's identifier in the Location field.
     cited_by:
@@ -4443,12 +4497,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 109
-  - label: server_content_type_present (5)
-    section: § 9.3.2
-    snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_content_type_present.rs
-      line: 52
   - label: server_etag_or_last_modified
     section: § 8.8.2.1
     snippet: An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined
@@ -5155,6 +5203,8 @@ sources:
       line: 58
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 115
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 99
   - label: message_content_transfer_encoding_valid
     section: § B.5
     snippet: HTTP does not use the Content-Transfer-Encoding field of MIME.
@@ -5201,6 +5251,8 @@ sources:
       line: 53
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 116
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 101
   - label: message_request_body_length_accuracy (5)
     section: § 6.3
     snippet: If the sender closes the connection or the recipient times out before the indicated number of octets are received, the recipient MUST consider the message to be incomplete and close the connection.
