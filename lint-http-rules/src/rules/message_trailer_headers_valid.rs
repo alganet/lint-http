@@ -28,38 +28,7 @@ fn trim_ows(s: &str) -> &str {
     s.trim_matches(|c| c == ' ' || c == '\t')
 }
 
-/// The combined field value for `name` in one field section, one `char` per octet.
-///
-/// Two decisions, and the same sentence is behind both. A list-based field is one
-/// list however many lines carry it, so the lines are joined before the members
-/// are counted — an empty element written at a line boundary is an empty element.
-/// And the join is over the raw octets: a value outside US-ASCII is not a value
-/// this field may carry, but it is the *member* that is wrong, so every octet is
-/// decoded to the `char` of the same value and reaches the check that owns it.
-/// `to_str` would have folded the whole message into "no Trailer here", and
-/// `get_all_header_values` folds it into `None` for the same reason — right for a
-/// caller asking what a message advertised, wrong for one reporting what it wrote.
-///
-/// cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
-/// cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-fn combined_field_value(hdrs: &hyper::HeaderMap, name: &str) -> Option<String> {
-    let mut lines = hdrs.get_all(name).iter().peekable();
-    lines.peek()?;
-    let mut combined = String::new();
-    // The separator goes between the lines, and "between" is a count of lines and
-    // not of the characters written so far: a first line carrying nothing is a
-    // line, and joining on "is there anything yet" swallowed it — putting the one
-    // empty member the joining exists to expose back out of reach.
-    let mut first = true;
-    for hv in lines {
-        if !first {
-            combined.push(',');
-        }
-        first = false;
-        combined.extend(hv.as_bytes().iter().map(|&b| char::from(b)));
-    }
-    Some(combined)
-}
+use crate::helpers::headers::combined_field_value_as_written;
 
 impl MessageTrailerHeadersValid {
     /// One field section: its `Trailer` list, measured against its own `Connection`.
@@ -86,8 +55,8 @@ impl MessageTrailerHeadersValid {
             })
         };
 
-        let value = combined_field_value(hdrs, "trailer")?;
-        let connection_val = combined_field_value(hdrs, "connection");
+        let value = combined_field_value_as_written(hdrs, "trailer")?;
+        let connection_val = combined_field_value_as_written(hdrs, "connection");
 
         // The field's own production, in the form the collected grammar gives a
         // sender, and the two things it says about emptiness. The outer `[ ]` is

@@ -23,22 +23,20 @@ impl Rule for MessageTrailerFieldsValidity {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Check request trailers.
+
+        // Each trailer section is measured against the header section of its own
+        // message. A request's `Trailer` announces what that request will send and
+        // its `Connection` names options for that message, so neither says anything
+        // about what the response may put after its content.
         if let Some(ref trailers) = tx.request.trailers {
-            let declared = collect_declared_trailers(&tx.request.headers);
-            let conn_val =
-                crate::helpers::headers::get_header_str(&tx.request.headers, "connection");
-            if let Some(v) = check_trailers(self.id(), &config, trailers, &declared, conn_val) {
+            if let Some(v) = check_trailers(self.id(), &config, trailers, &tx.request.headers) {
                 return Some(v);
             }
         }
 
-        // Check response trailers.
         if let Some(ref resp) = tx.response {
             if let Some(ref trailers) = resp.trailers {
-                let declared = collect_declared_trailers(&resp.headers);
-                let conn_val = crate::helpers::headers::get_header_str(&resp.headers, "connection");
-                if let Some(v) = check_trailers(self.id(), &config, trailers, &declared, conn_val) {
+                if let Some(v) = check_trailers(self.id(), &config, trailers, &resp.headers) {
                     return Some(v);
                 }
             }
@@ -100,56 +98,62 @@ impl Rule for MessageTrailerFieldsValidity {
     }
 }
 
-/// Collect field-names declared in the `Trailer` header, lowercased.
-fn collect_declared_trailers(headers: &hyper::HeaderMap) -> Vec<String> {
-    let mut declared = Vec::new();
-    let mut saw_trailer_header = false;
-    let mut saw_invalid_or_empty_value = false;
-    for val in headers.get_all("trailer") {
-        saw_trailer_header = true;
-        match val.to_str() {
-            Ok(s) => {
-                let mut had_member = false;
-                for member in crate::helpers::headers::parse_list_header(s) {
-                    had_member = true;
-                    declared.push(member.to_ascii_lowercase());
-                }
-                // If the value was present but contained only whitespace (and thus
-                // produced no list members), treat it as effectively invalid so
-                // we don't silently downgrade checks.
-                if !had_member && s.trim().is_empty() {
-                    saw_invalid_or_empty_value = true;
-                }
-            }
-            // Non-UTF-8 values are invalid for header field-content; remember that
-            // we saw an unusable Trailer declaration instead of ignoring it.
-            Err(_) => {
-                saw_invalid_or_empty_value = true;
-            }
-        }
-    }
-    // If a Trailer header was present but yielded no valid field-names (because
-    // all values were invalid/empty), insert a sentinel so that downstream code
-    // can distinguish this from "no Trailer header at all" and still run
-    // undeclared-trailer checks.
-    if saw_trailer_header && declared.is_empty() && saw_invalid_or_empty_value {
-        declared.push("__lint_http_invalid_trailer_declaration__".to_string());
-    }
-    declared
+/// The field names one field section's `Trailer` announces, lowercased, or `None`
+/// where that section carries no `Trailer` field at all.
+///
+/// The two are different inputs and the caller acts on the difference: a message
+/// that announced nothing is not a message that announced an empty list, and only
+/// the second has a declaration to fall short of. `Some(vec![])` is the empty list —
+/// `Trailer:` is a legal value, so it is read, not repaired.
+///
+/// The lines are joined before the members are counted, because the field is one
+/// list however many lines carry it, and the value is carried octet for octet: a
+/// member outside US-ASCII is not a `field-name` and will match no arriving field,
+/// which is the same answer as dropping it and is one the caller can see.
+///
+/// From here the declaration is read the way a recipient reads it, which is the
+/// party this rule stands in for: empty elements are ignored, and the sender is
+/// answered for writing one by `message_trailer_headers_valid`.
+///
+/// cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1."
+/// cite(RFC 9110 § 5.6.1.2): "A recipient MUST parse and ignore a reasonable number of empty list elements:"
+fn collect_declared_trailers(headers: &hyper::HeaderMap) -> Option<Vec<String>> {
+    let value = crate::helpers::headers::combined_field_value_as_written(headers, "trailer")?;
+    Some(
+        crate::helpers::headers::parse_list_header(&value)
+            .map(|member| member.to_ascii_lowercase())
+            .collect(),
+    )
 }
 
-/// Validate actual trailer fields against the prohibited list and declared set.
+/// Validate one message's trailer section against its own header section.
 fn check_trailers(
     rule_id: &str,
     config: &crate::rules::RuleConfig,
     trailers: &hyper::HeaderMap,
-    declared: &[String],
-    connection_val: Option<&str>,
+    headers: &hyper::HeaderMap,
 ) -> Option<Violation> {
-    for key in trailers.keys() {
-        let name = key.as_str(); // hyper normalises header names to lowercase
+    let declared = collect_declared_trailers(headers);
+    // The `Connection` consulted is this message's, all of its lines: the options
+    // are one list however many lines carry them, and reading the first line only
+    // made every option after the first invisible.
+    //
+    // cite(RFC 9110 § 7.6.1): "The "Connection" header field allows the sender to list desired control options for the current connection."
+    let connection_val =
+        crate::helpers::headers::combined_field_value_as_written(headers, "connection");
 
-        // Prohibited trailer field (MUST NOT per RFC 9110 §6.5.1).
+    for key in trailers.keys() {
+        // hyper normalises header names to lowercase, which is the comparison the
+        // field-name production asks for anyway.
+        //
+        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1."
+        let name = key.as_str();
+
+        // The half that depends on what the field is. The table is a subset of the
+        // cited requirement and says so; what it holds are the field definitions
+        // this crate carries that do not permit the usage.
+        //
+        // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
         if crate::helpers::headers::is_prohibited_trailer_field(name) {
             return Some(Violation {
                 rule: rule_id.to_string(),
@@ -165,35 +169,49 @@ fn check_trailers(
         }
 
         // The other half, and the one that depends on this message rather than on
-        // what the field is. The sentence it rests on is cited on the helper.
-        if crate::helpers::headers::is_nominated_by_connection(name, connection_val) {
+        // what the field is — and the one case where the general question above is
+        // decidable for a field nobody defined, because the sender answered it
+        // itself: naming a field as a connection-option says its value is control
+        // information for this connection, which is information the recipient needs
+        // before the content, and every intermediary strips it from the trailer
+        // section on the way. The sentence that reaches into that section is cited
+        // on the helper.
+        //
+        // cite(RFC 9110 § 7.6.1): "When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field."
+        if crate::helpers::headers::is_nominated_by_connection(name, connection_val.as_deref()) {
             return Some(Violation {
                 rule: rule_id.to_string(),
                 severity: config.severity,
                 message: format!(
                     "Trailer field '{}' is named as a connection-option in this \
-                     message's Connection header, which makes it connection-specific \
-                     for this hop and not something a trailer section may carry \
-                     (RFC 9110 §7.6.1)",
+                     message's Connection header, so it is control information for \
+                     this connection and every intermediary removes it from the \
+                     trailer section before forwarding (RFC 9110 §7.6.1)",
                     name
                 ),
             });
         }
 
-        // Undeclared trailer field — only checked when a Trailer header exists,
-        // because it is the declaration that creates the expectation to fall short of.
+        // Undeclared trailer field — asked only of a message that carries a
+        // `Trailer` field, because it is the declaration that creates the
+        // expectation to fall short of. An empty declaration is still a
+        // declaration: `Trailer:` announces a list of no field names, so every
+        // field that then arrives is one it did not indicate.
+        //
         // cite(RFC 9110 § 6.6.2): "A sender that intends to generate one or more trailer fields in a message SHOULD generate a Trailer header field in the header section of that message to indicate which fields might be present in the trailers."
-        if !declared.is_empty() && !declared.iter().any(|d| d == name) {
-            return Some(Violation {
-                rule: rule_id.to_string(),
-                severity: config.severity,
-                message: format!(
-                    "Trailer field '{}' was not declared in the Trailer header; \
-                     senders should list expected trailer fields before the \
-                     message body (RFC 9110 §6.5)",
-                    name
-                ),
-            });
+        if let Some(ref declared) = declared {
+            if !declared.iter().any(|d| d == name) {
+                return Some(Violation {
+                    rule: rule_id.to_string(),
+                    severity: config.severity,
+                    message: format!(
+                        "Trailer field '{}' was not declared in the Trailer header; \
+                         senders should list the fields that might appear in the \
+                         trailers before the message body (RFC 9110 §6.6.2)",
+                        name
+                    ),
+                });
+            }
         }
     }
     None
@@ -485,6 +503,44 @@ mod tests {
         assert!(v.unwrap().message.contains("connection-option"));
     }
 
+    /// The connection options are one list however many `Connection` lines carry
+    /// them. Reading the first line only made every option after the first
+    /// invisible — and `Connection: keep-alive` in front of the interesting one is
+    /// the ordinary shape of a message, not a contrived one.
+    #[test]
+    fn connection_option_on_a_later_line_is_still_a_connection_option() {
+        let rule = MessageTrailerFieldsValidity;
+        let mut tx = make_test_transaction_with_response(200, &[]);
+        let mut hm = hyper::HeaderMap::new();
+        hm.append("connection", "keep-alive".parse().unwrap());
+        hm.append("connection", "X-Custom-Hop".parse().unwrap());
+        tx.response.as_mut().unwrap().headers = hm;
+
+        let mut trailers = hyper::HeaderMap::new();
+        trailers.insert("x-custom-hop", "value".parse().unwrap());
+        tx.response.as_mut().unwrap().trailers = Some(trailers);
+
+        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        assert!(v.is_some(), "second Connection line was not read");
+        assert!(v.unwrap().message.contains("connection-option"));
+    }
+
+    /// A request's connection options are that request's, and a response's trailer
+    /// section is measured against the response's own header section.
+    #[test]
+    fn request_connection_option_does_not_reach_the_response_trailers() {
+        let rule = MessageTrailerFieldsValidity;
+        let mut tx = make_test_transaction_with_response(200, &[]);
+        tx.request.headers = make_headers_from_pairs(&[("connection", "X-Custom-Hop")]);
+
+        let mut trailers = hyper::HeaderMap::new();
+        trailers.insert("x-custom-hop", "value".parse().unwrap());
+        tx.response.as_mut().unwrap().trailers = Some(trailers);
+
+        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        assert!(v.is_none(), "{v:?}");
+    }
+
     #[test]
     fn trailer_not_in_connection_is_ok() {
         let rule = MessageTrailerFieldsValidity;
@@ -573,12 +629,15 @@ mod tests {
         assert!(v.is_none());
     }
 
-    // ---- Whitespace-only Trailer header triggers undeclared via sentinel ----
+    // ---- An empty declaration is a declaration ----
 
     #[test]
     fn whitespace_only_trailer_header_with_actual_trailers_flags_undeclared() {
-        // A whitespace-only Trailer header value is effectively invalid.
-        // The sentinel ensures actual trailer fields are still flagged as undeclared.
+        // `Trailer:` is a legal value — the field is `#field-name`, so a list of no
+        // field names is a list — and it announces nothing. A field that then
+        // arrives is a field the declaration did not indicate, which is what the
+        // finding says. The rule used to reach the same verdict by calling the
+        // value invalid and standing a sentinel field-name in its place.
         let rule = MessageTrailerFieldsValidity;
         let mut tx = make_test_transaction_with_response(200, &[("trailer", "  ")]);
         let mut trailers = hyper::HeaderMap::new();
@@ -668,10 +727,34 @@ mod tests {
         assert!(v.unwrap().message.contains("not declared"));
     }
 
+    /// A `Trailer` value outside US-ASCII announces no field name — a member is a
+    /// `field-name`, which is a `token`, and no `tchar` is outside US-ASCII. The
+    /// octets are carried through rather than dropped, and the member they make
+    /// matches nothing, so it can neither excuse an arriving field nor accuse one.
+    #[test]
+    fn non_ascii_trailer_declaration_announces_nothing() {
+        let rule = MessageTrailerFieldsValidity;
+        let mut tx = make_test_transaction_with_response(200, &[]);
+        let mut hm = hyper::HeaderMap::new();
+        hm.append(
+            "trailer",
+            hyper::header::HeaderValue::from_bytes(&[0xff]).unwrap(),
+        );
+        tx.response.as_mut().unwrap().headers = hm;
+
+        let mut trailers = hyper::HeaderMap::new();
+        trailers.insert("x-checksum", "abc".parse().unwrap());
+        tx.response.as_mut().unwrap().trailers = Some(trailers);
+
+        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("not declared"));
+    }
+
     #[test]
     fn non_utf8_trailer_header_value_still_catches_prohibited() {
-        // If the Trailer header has non-UTF-8, collect_declared_trailers skips it.
-        // Prohibited fields in actual trailers should still be caught.
+        // A prohibited field is prohibited whatever the declaration says, and the
+        // declaration is unreadable here.
         let rule = MessageTrailerFieldsValidity;
         let mut tx = make_test_transaction_with_response(200, &[]);
         let mut hm = hyper::HeaderMap::new();
