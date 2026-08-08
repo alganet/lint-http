@@ -165,7 +165,7 @@ Generated index of every rule in the catalogue. Each entry links to the per-rule
 - [message_warning_header_syntax](rules/message_warning_header_syntax.md) — Validate `Warning` header members follow the syntax described in RFC 7234 §5.5. Each member (a comma-separated `warn-value`) consists of:
 - [message_well_known_uri_format](rules/message_well_known_uri_format.md) — Requests that target site-wide well-known resources MUST use a path starting with `/.well-known/` followed by the resource name. Requests that use `/.well-known` without the trailing slash and name, or that include `/.well-known` at a non-root path (for example, `/foo/.well-known/bar`) are likely misconfigured and should be corrected.
 - [message_www_authenticate_challenge_syntax](rules/message_www_authenticate_challenge_syntax.md) — The `WWW-Authenticate` response header advertises authentication schemes that the server supports. Each challenge consists of an `auth-scheme` (a `token`) followed by optional parameters (`auth-param`) or a `token68` value.
-- [message_x_forwarded_consistency](rules/message_x_forwarded_consistency.md) — Validate common `X-Forwarded-*` headers for well-formedness and basic consistency. This rule checks that:
+- [message_x_forwarded_consistency](rules/message_x_forwarded_consistency.md) — Validates the legacy `X-Forwarded-For`, `X-Forwarded-By`, `X-Forwarded-Proto` and `X-Forwarded-Host` request fields.
 
 ## Semantic Rules
 

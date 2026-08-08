@@ -1467,12 +1467,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 53
+    - file: lint-http-rules/src/rules/message_x_forwarded_consistency.rs
+      line: 111
   - label: message_forwarded_header_validity (9)
     section: § 5.4
     snippet: The syntax of a "proto" value, after potential quoted-string unescaping, MUST conform to the URI scheme name as defined in Section 3.1 in [RFC3986] and registered with IANA according to [RFC4395].
     cited_by:
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 69
+    - file: lint-http-rules/src/rules/message_x_forwarded_consistency.rs
+      line: 98
   - label: message_forwarded_header_validity (10)
     section: § 5.5
     snippet: All extension parameters SHOULD be registered in the "HTTP Forwarded Parameter" registry.
@@ -1506,11 +1510,35 @@ sources:
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 199
   - label: message_x_forwarded_consistency
-    section: § 4
-    snippet: The "Forwarded" HTTP header field is an OPTIONAL header field
+    section: § 1
+    snippet: A common way to disclose this information is by using the non-standard header fields such as X-Forwarded-For, X-Forwarded-By, and X-Forwarded-Proto.
     cited_by:
     - file: lint-http-rules/src/rules/message_x_forwarded_consistency.rs
-      line: 32
+      line: 46
+  - label: message_x_forwarded_consistency (2)
+    section: § 5.4
+    snippet: Typical values are "http" or "https".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_x_forwarded_consistency.rs
+      line: 99
+  - label: message_x_forwarded_consistency (3)
+    section: § 7.4
+    snippet: If a proxy gets incoming requests with X-Forwarded-* header fields present, it is encouraged to convert these into the header field described in this document, if it can be done in a sensible way.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_x_forwarded_consistency.rs
+      line: 47
+  - label: message_x_forwarded_consistency (4)
+    section: § 7.4
+    snippet: If the request only contains one type -- for example, X-Forwarded-For -- this can be translated to "Forwarded", by prepending each element with "for=".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_x_forwarded_consistency.rs
+      line: 84
+  - label: message_x_forwarded_consistency (5)
+    section: § 8.3
+    snippet: The default configuration for both the "by" and "for" parameters SHOULD contain obfuscated identifiers.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_x_forwarded_consistency.rs
+      line: 85
 - label: RFC 7240
   url: https://www.rfc-editor.org/rfc/rfc7240.txt
   type: text/plain
@@ -2021,6 +2049,8 @@ sources:
       line: 105
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 242
+    - file: lint-http-rules/src/rules/message_x_forwarded_consistency.rs
+      line: 66
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 286
   - label: client_host_header
@@ -2809,6 +2839,8 @@ sources:
       line: 157
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 54
+    - file: lint-http-rules/src/rules/message_x_forwarded_consistency.rs
+      line: 112
   - label: message_accept_and_content_type_negotiation
     section: § 12.1
     snippet: A user agent cannot rely on proactive negotiation preferences being consistently honored, since the origin server might not implement proactive negotiation for the requested resource or might decide that sending a response that doesn't conform to the user agent's preferences is better than sending a 406 (Not Acceptable) response.
