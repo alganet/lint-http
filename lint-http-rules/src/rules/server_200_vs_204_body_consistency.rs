@@ -73,6 +73,12 @@ impl Rule for Server200Vs204BodyConsistency {
         // its emptiness is not evidence that 204 was meant.
         // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
         // cite(RFC 9110 § 6.4.1): "Responses to the HEAD request method (Section 9.3.2) never include content; the associated response header fields indicate only what their values would have been if the request method had been GET (Section 9.3.1)."
+        //
+        // The exemption has to be here, above the framing, and not only because the
+        // emptiness is uninformative: a `Content-Length` in a HEAD response is the
+        // length of a message that was never sent, so the branch below would read
+        // the GET's content length as this response's.
+        // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method."
         if tx.request.method == "HEAD" {
             return None;
         }
@@ -88,9 +94,10 @@ impl Rule for Server200Vs204BodyConsistency {
         }
 
         // A declared length is the message's framing only when nothing overrides it.
-        // The sentence is HTTP/1.1's, and so is the field: a `Transfer-Encoding` is
-        // only meaningful in the version that defines it, which is the only version
-        // that can reach this branch with the field present.
+        // The sentence is HTTP/1.1's, and so is the field it names; whether a message
+        // of another version may carry a `Transfer-Encoding` at all is a question for
+        // the rules that own that version, and this one does not answer it. What holds
+        // wherever the field appears is that the length beside it is not the framing.
         //
         // Skipping the *field* is all this buys. The captured octet count below is
         // still evidence, and consulting it is the only way a chunked 200 with an
@@ -132,7 +139,7 @@ impl Rule for Server200Vs204BodyConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a `200 (OK)` response that carries no content, so an operator can check whether `204 (No Content)` was meant instead. **Nothing is being violated.** RFC 9110 §15.3.1 says an origin server *\"ought to\"* send a 204 *\"if some aspect of the request indicates a preference for no content upon success\"* — a modal weaker than SHOULD, and a condition about the *request* that no field on the wire records, so this rule cannot tell the case the sentence is about from the case it is not. It reports both. The same section's preceding sentence expects a 200 to contain content *\"unless the message framing explicitly indicates that the content has zero length\"*, which is the very state reported here, and §6.4.1 says of every response that is not a HEAD response, a CONNECT tunnel, a 1xx, a 204 or a 304: *\"All other responses do include content, although that content might be of zero length.\"* A 200 returning an empty representation — an empty file, an empty collection — is therefore conforming, and reads as a finding only because the alternative status code is often the better answer. Two responses are exempt because they cannot carry content at all: responses to `HEAD` (§9.3.2) and 2xx responses to `CONNECT`, where the tunnel begins where the content would be and a 204 would not open it. Method tokens are compared case-sensitively (§9.1). Emptiness is read from the declared `Content-Length` when the response has no `Transfer-Encoding`, and otherwise from the captured content length; when neither is available the response is not reported, and an invalid `Content-Length` is left to `message_content_length`."
+        "Reports a `200 (OK)` response that carries no content, so an operator can check whether `204 (No Content)` was meant instead. **Nothing is being violated.** RFC 9110 §15.3.1 says an origin server *\"ought to\"* send a 204 *\"if some aspect of the request indicates a preference for no content upon success\"* — a modal weaker than SHOULD, and a condition about the *request* that no field on the wire records, so this rule cannot tell the case the sentence is about from the case it is not. It reports both. The same section's preceding sentence expects a 200 to contain content *\"unless the message framing explicitly indicates that the content has zero length\"*, which is the very state reported here, and §6.4.1 says of every response that is not a HEAD response, a CONNECT tunnel, a 1xx, a 204 or a 304: *\"All other responses do include content, although that content might be of zero length.\"* A 200 returning an empty representation — an empty file, an empty collection — is therefore conforming, and reads as a finding only because the alternative status code is often the better answer. `OPTIONS` is the case an operator will meet most often: §9.3.7 says of a successful OPTIONS that *\"the response content, if any\"* describes the communication options, so having none is anticipated by the method's own definition, and it is still reported here. Two responses are exempt because they cannot carry content at all: responses to `HEAD` (§9.3.2) and 2xx responses to `CONNECT`, where the tunnel begins where the content would be and a 204 would not open it. Method tokens are compared case-sensitively (§9.1). Emptiness is read from the declared `Content-Length` when the response has no `Transfer-Encoding`, and otherwise from the captured content length; when neither is available the response is not reported, and an invalid `Content-Length` is left to `message_content_length`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -166,6 +173,12 @@ impl Rule for Server200Vs204BodyConsistency {
                 section: Some("9.3.6"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
                 note: "CONNECT — a 2xx switches the connection to tunnel mode immediately after the header section; 204 is not an alternative there",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.3.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7",
+                note: "OPTIONS — \"The response content, if any\", so a successful OPTIONS carrying none is anticipated by the method's definition. It is reported like any other 200: the sentence describing the method is not the sentence this rule enforces",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9112",
@@ -246,6 +259,9 @@ mod tests {
     // and 204 would not open the tunnel.
     #[case(200, "CONNECT", &[], Some(0), false)]
     #[case(200, "CONNECT", &[("content-length", "0")], None, false)]
+    // An invalid declared length is a framing error rather than a statement that
+    // the content is empty, so the captured count is not read behind it.
+    #[case(200, "GET", &[("content-length","abc")], Some(0), false)]
     // Neither exemption folds case: `head` and `connect` are not those methods.
     #[case(200, "head", &[("content-length", "0")], None, true)]
     #[case(200, "connect", &[], Some(0), true)]

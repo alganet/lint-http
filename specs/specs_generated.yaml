@@ -3440,7 +3440,7 @@ sources:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 140
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 102
+      line: 109
   - label: message_content_location_and_uri_consistency
     section: § 8.7
     snippet: Content-Location = absolute-URI / partial-URI
@@ -3877,6 +3877,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 55
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 81
   - label: message_response_body_length_accuracy (3)
     section: § 8.6
     snippet: As a result, a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect.
@@ -4324,7 +4326,7 @@ sources:
     snippet: For CONNECT, there is no content because the successful result is a tunnel, which begins immediately after the 200 response header section.
     cited_by:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 84
+      line: 90
   - label: server_200_vs_204_body_consistency (3)
     section: § 15.3.1
     snippet: If some aspect of the request indicates a preference for no content upon success, the origin server ought to send a 204 (No Content) response instead.
@@ -4354,13 +4356,13 @@ sources:
     snippet: This abstract definition of content reflects the data after it has been extracted from the message framing.
     cited_by:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 123
+      line: 130
   - label: server_200_vs_204_body_consistency (8)
     section: § 6.4.1
     snippet: 2xx (Successful) responses to a CONNECT request method (Section 9.3.6) switch the connection to tunnel mode instead of having content.
     cited_by:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 85
+      line: 91
   - label: server_200_vs_204_body_consistency (9)
     section: § 6.4.1
     snippet: Responses to the HEAD request method (Section 9.3.2) never include content; the associated response header fields indicate only what their values would have been if the request method had been GET (Section 9.3.1).
@@ -5204,7 +5206,7 @@ sources:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 115
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 99
+      line: 106
   - label: message_content_transfer_encoding_valid
     section: § B.5
     snippet: HTTP does not use the Content-Transfer-Encoding field of MIME.
@@ -5252,7 +5254,7 @@ sources:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 116
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 101
+      line: 108
   - label: message_request_body_length_accuracy (5)
     section: § 6.3
     snippet: If the sender closes the connection or the recipient times out before the indicated number of octets are received, the recipient MUST consider the message to be incomplete and close the connection.
