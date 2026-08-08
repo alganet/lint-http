@@ -3208,7 +3208,7 @@ sources:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
       line: 27
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
-      line: 40
+      line: 42
     - file: lint-http-rules/src/rules/server_keep_alive_timeout_reasonable.rs
       line: 89
   - label: message_content_disposition_token_valid
@@ -4632,7 +4632,7 @@ sources:
     snippet: trailer-section   = *( field-line CRLF )
     cited_by:
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
-      line: 39
+      line: 41
   - label: message_transfer_coding_iana_registered
     section: § 6.1
     snippet: A server that receives a request message with a transfer coding it does not understand SHOULD respond with 501 (Not Implemented).
