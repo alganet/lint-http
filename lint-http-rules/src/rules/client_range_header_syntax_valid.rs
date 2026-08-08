@@ -79,7 +79,8 @@ impl Rule for ClientRangeHeaderSyntaxValid {
         // remaining `None` is the absent case, which the first line here ruled out.
         //
         // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP."
-        let value = crate::helpers::headers::get_all_header_values(&tx.request.headers, "range")?;
+        let value =
+            crate::helpers::headers::get_all_header_values(&tx.request.headers, RANGE.as_str())?;
 
         // The split is the shared one, not a second copy of it: the unit is a
         // token, so the first `=` is the separator whatever follows it, and the
@@ -135,7 +136,7 @@ impl Rule for ClientRangeHeaderSyntaxValid {
     }
 
     fn description(&self) -> &'static str {
-        "Checks that a `Range` request header field is a well-formed `ranges-specifier`: a range-unit token, an `=`, and a non-empty comma-separated list of range specifiers.\n\n**The unit decides how much can be checked.** RFC 9110 §14.1.1 says the specifier grammar is generic on purpose — \"each range unit is expected to specify requirements on when int-range, suffix-range, and other-range are allowed\" — and range unit names are an open IANA registry. So for a unit other than `bytes` this rule checks only what holds whatever the unit: that the list has at least one element, that no element is empty (§5.6.1.1 makes an empty list element a sender's MUST NOT), and that each element is one run of visible non-comma characters, which every alternative of `range-spec` is. `Range: items=0-1` is not reported. What an `items` specifier may hold is defined by whoever defined `items`, and an origin server that does not understand a unit is told by §14.2 to ignore the field, not to treat it as malformed.\n\n**For `bytes` it also checks the two forms that unit defines**: `first-pos \"-\" [ last-pos ]` and `\"-\" suffix-length`, every position `1*DIGIT`, the last position not below the first, and no third form — §14.1.2 says \"Byte ranges do not use the other-range specifier\". Positions are compared as decimal numerals rather than parsed into an integer, because the same section requires recipients to \"anticipate potentially large decimal numerals\" without failing on overflow.\n\n**All of the field's lines are joined before parsing**, in order and separated by comma SP, because that is the value a recipient acts on: `bytes=0-1` on one line and `bytes=2-3` on the next make one range-set whose second element no byte range specifier admits.\n\n**What it does not report.** Whether a range is *satisfiable* — that depends on the length of the selected representation, which no request carries. A `Range` on a method other than GET — the requirement there is on the server, which must ignore such a field; nothing addresses the client that sent it. Overlapping or descending ranges — §14.2 asks for ascending order with a SHOULD that ends \"unless there is a specific need to request a later part earlier\", and a request records the ranges rather than the need.\n\n**What a finding costs.** §14.2 lets a server that supports range requests \"ignore or reject\" a field carrying an invalid ranges-specifier, so the price of one is the range request, not the request: the client gets the whole representation, or a 400."
+        "Checks that a `Range` request header field is a well-formed `ranges-specifier`: a range-unit token, an `=`, and a non-empty comma-separated list of range specifiers.\n\n**The unit decides how much can be checked.** RFC 9110 §14.1.1 says the specifier grammar is generic on purpose — \"each range unit is expected to specify requirements on when int-range, suffix-range, and other-range are allowed\" — and range unit names are an open IANA registry. So for a unit other than `bytes` this rule checks only what holds whatever the unit: that the list has at least one element, that no element is empty (§5.6.1.1 makes an empty list element a sender's MUST NOT), and that each element is one run of visible non-comma characters, which every alternative of `range-spec` is. `Range: items=0-1` is not reported. What an `items` specifier may hold is defined by whoever defined `items`, and an origin server that does not understand a unit is told by §14.2 to ignore the field, not to treat it as malformed.\n\n**For `bytes` it also checks the two forms that unit defines**: `first-pos \"-\" [ last-pos ]` and `\"-\" suffix-length`, every position `1*DIGIT`, the last position not below the first, and no third form — §14.1.2 says \"Byte ranges do not use the other-range specifier\". Positions are compared as decimal numerals rather than parsed into an integer, because the same section requires recipients to \"anticipate potentially large decimal numerals\" without failing on overflow.\n\n**All of the field's lines are joined before parsing**, in order and separated by comma SP, because that is the value a recipient acts on: `bytes=0-1` on one line and `bytes=2-3` on the next make one range-set whose second element no byte range specifier admits.\n\n**What it does not report.** Whether a range is *satisfiable* — that depends on the length of the selected representation, which no request carries. A `Range` on a method other than GET — the requirement there is on the server, which must ignore such a field; nothing addresses the client that sent it. Overlapping or descending ranges — §14.2 asks for ascending order with a SHOULD that ends \"unless there is a specific need to request a later part earlier\", and a request records the ranges rather than the need.\n\n**What a finding costs.** §14.2 lets a server that supports range requests \"ignore or reject\" a field carrying an invalid ranges-specifier, so the price of one is the range request rather than the request — a client that asked for part of a representation is answered with all of it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -242,9 +243,9 @@ fn validate_range_set(unit: &str, range_set: &str) -> Result<(), String> {
         let spec = spec.trim();
 
         // Not `parse_list_header`, which drops empty elements: that is the right
-        // reading for the seventy-odd recipients that call it and the wrong one
-        // here, because the empty element is this rule's evidence. By the time
-        // that function answers, what a sender must not have generated is gone.
+        // reading for the recipients that call it and the wrong one here, because
+        // the empty element is this rule's evidence. By the time that function
+        // answers, what a sender must not have generated is gone.
         //
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if spec.is_empty() {
@@ -398,6 +399,18 @@ mod tests {
     #[case("bytes=-500", false)]
     #[case("bytes=9500-", false)]
     #[case("bytes=0-0,-1", false)]
+    // Every bytes range specifier § 14.1.2 prints, including the one whose
+    // leading space its own list production does not generate, and the two it
+    // labels valid but not canonical.
+    #[case("bytes= 0-999, 4500-5499, -1000", false)]
+    #[case("bytes=500-600,601-999", false)]
+    #[case("bytes=500-700,601-999", false)]
+    // Inside `suffix-length = 1*DIGIT` and outside the satisfiable specifiers,
+    // which is a question about the representation and not about the field.
+    #[case("bytes=-0", false)]
+    // The unit name is case-insensitive, so the `bytes` checks reach these two.
+    #[case("Bytes=0-1", false)]
+    #[case("BYTES=5-3", true)]
     // A range unit whose specifiers this rule does not know: the generic grammar
     // still holds, and nothing beyond it can be asked.
     #[case("items=0-1", false)]
