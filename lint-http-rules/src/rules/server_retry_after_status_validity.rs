@@ -7,6 +7,35 @@ use crate::rules::Rule;
 
 pub struct ServerRetryAfterStatusValidity;
 
+/// Whether some specification says what `Retry-After` means on `status`.
+///
+/// Four statuses do, and each arm below is one sentence. The set is open in
+/// principle — a future status definition may name the field the way §15.5.14
+/// does — so this is "what is written down today", not a grammar.
+fn status_defines_retry_after(status: u16) -> bool {
+    match status {
+        // The field's own section names two contexts. This is the first.
+        // cite(RFC 9110 § 10.2.3): "When sent with a 503 (Service Unavailable) response, Retry-After indicates how long the service is expected to be unavailable to the client."
+        // cite(RFC 9110 § 15.6.4): "The server MAY send a Retry-After header field (Section 10.2.3) to suggest an appropriate amount of time for the client to wait before retrying the request."
+        503 => true,
+
+        // A 413 asks for the field by name, in its own status definition rather
+        // than in §10.2.3, and asks with a SHOULD — so a temporary 413 carrying
+        // `Retry-After` is a server doing what the same RFC told it to do.
+        // cite(RFC 9110 § 15.5.14): "If the condition is temporary, the server SHOULD generate a Retry-After header field to indicate that it is temporary and after what time the client MAY try again."
+        413 => true,
+
+        // 429 is defined outside RFC 9110, which never mentions that status.
+        // cite(RFC 6585 § 4): "The response representations SHOULD include details explaining the condition, and MAY include a Retry-After header indicating how long to wait before making a new request."
+        429 => true,
+
+        // The second context §10.2.3 names, and it names the whole class rather
+        // than any particular redirect status.
+        // cite(RFC 9110 § 10.2.3): "When sent with any 3xx (Redirection) response, Retry-After indicates the minimum time that the user agent is asked to wait before issuing the redirected request."
+        s => crate::helpers::status::is_redirection_status(s),
+    }
+}
+
 impl Rule for ServerRetryAfterStatusValidity {
     fn id(&self) -> &'static str {
         "server_retry_after_status_validity"
@@ -23,33 +52,43 @@ impl Rule for ServerRetryAfterStatusValidity {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+
+        // `Retry-After` is defined among §10.2's response context fields and its
+        // own sentence names the server as the sender, which is why this rule
+        // reads the response and never the request.
+        // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
         let resp = tx.response.as_ref()?;
 
+        // Presence is the entire input: this rule asks which status the field
+        // arrived on and never what the value says. `message_retry_after_date_or_delay`
+        // owns `Retry-After = HTTP-date / delay-seconds` and the repeated-field-line
+        // check, so neither is transcribed here — and for the same reason nothing is
+        // joined across field lines: a value spread over two lines, or written twice,
+        // is still one presence on one status.
         resp.headers.get_all("retry-after").iter().next()?;
 
         let status = resp.status;
-        // Each arm of the allowed set is one sentence: RFC 9110 names 503 and the 3xx
-        // class; RFC 6585 is where 429 gets its Retry-After, since RFC 9110 never
-        // mentions that status.
-        // cite(RFC 9110 § 10.2.3): "When sent with a 503 (Service Unavailable) response, Retry-After indicates how long the service is expected to be unavailable to the client."
-        // cite(RFC 9110 § 10.2.3): "When sent with any 3xx (Redirection) response, Retry-After indicates the minimum time that the user agent is asked to wait before issuing the redirected request."
-        // cite(RFC 6585 § 4): "The response representations SHOULD include details explaining the condition, and MAY include a Retry-After header indicating how long to wait before making a new request."
-        let allowed =
-            status == 503 || status == 429 || crate::helpers::status::is_redirection_status(status);
-        if allowed {
+        if status_defines_retry_after(status) {
             return None;
         }
 
-        // The specification names the statuses that give `Retry-After` a meaning. On any
-        // other status there is nothing for the client to wait *for*, so the header is a
-        // sender's mistake rather than an instruction.
-        // cite(RFC 9110 § 10.2.3): "the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
+        // No sentence makes this a violation, and the cited one is why. §10.2.3
+        // defines the field generally — a server saying how long to wait before a
+        // follow-up request — with no condition on the status code, and its two
+        // "When sent with" sentences elaborate two cases rather than closing the
+        // set. So the finding is advisory: it reports a field arriving where no
+        // specification says what a user agent should do with it, which is an
+        // interoperability observation and not a requirement. `description()`
+        // says the same where an operator reads it.
+        // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
         Some(Violation {
             rule: self.id().into(),
             severity: config.severity,
             message: format!(
-                "Retry-After header is unusual on status {}: expected 3xx redirection, 429 Too Many Requests, or 503 Service Unavailable",
-                status
+                "Retry-After arrived on status {status}, where no specification gives it a defined meaning; \
+                 it is defined for any 3xx redirection, 413 Content Too Large, 429 Too Many Requests, \
+                 and 503 Service Unavailable. No requirement forbids sending it here — the field's own \
+                 definition puts no condition on the status code — so a client is simply not told what to do with it"
             ),
         })
     }
@@ -59,7 +98,7 @@ impl Rule for ServerRetryAfterStatusValidity {
     }
 
     fn description(&self) -> &'static str {
-        "`Retry-After` is primarily defined for temporary unavailability and redirects. This rule flags responses that include `Retry-After` on statuses where its semantics are unusual.\n\nThe rule allows `Retry-After` on:\n- `503 Service Unavailable` (RFC 9110)\n- any `3xx` redirection (RFC 9110)\n- `429 Too Many Requests` (RFC 6585)"
+        "`Retry-After` tells a user agent how long to wait before making a follow-up request. Four response statuses give it a defined behaviour, and this rule reports the field arriving on any other one.\n\n- any `3xx` redirection — the minimum time to wait before issuing the redirected request (RFC 9110 §10.2.3)\n- `503 Service Unavailable` — how long the service is expected to be unavailable (RFC 9110 §10.2.3, §15.6.4)\n- `413 Content Too Large` — when the condition is temporary, §15.5.14 **asks for the field by name**, with a SHOULD\n- `429 Too Many Requests` — RFC 6585 §4, a status RFC 9110 never mentions\n\n**No requirement is violated by a response this rule reports.** §10.2.3 defines the field with no condition on the status code, and its two \"When sent with\" sentences elaborate two cases rather than closing the set; neither RFC 9110 nor RFC 6585 prohibits `Retry-After` anywhere. The finding is advisory: on a status no specification pairs with the field, what a client does with the value is unspecified, so the instruction is unlikely to be acted on. Configure the severity accordingly.\n\nThe list is what is written down, not a grammar — a future status definition can name the field the way §15.5.14 does, and this rule would have to learn it.\n\nThe status the field arrived on is all this rule reads. The value's syntax (`Retry-After = HTTP-date / delay-seconds`) and a repeated `Retry-After` field line belong to `message_retry_after_date_or_delay`, which reports both."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -68,13 +107,25 @@ impl Rule for ServerRetryAfterStatusValidity {
                 spec: "RFC 9110",
                 section: Some("10.2.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3",
-                note: "Retry-After with 503 and 3xx responses",
+                note: "Defines Retry-After generally, with no condition on the status code, then says what it indicates on a 503 and on any 3xx",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.5.14"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.14",
+                note: "413 Content Too Large: when the condition is temporary the server SHOULD generate a Retry-After header field",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.6.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.6.4",
+                note: "503 Service Unavailable: the server MAY send a Retry-After header field",
             },
             crate::rules::SpecRef {
                 spec: "RFC 6585",
                 section: Some("4"),
                 url: "https://www.rfc-editor.org/rfc/rfc6585.html#section-4",
-                note: "429 Too Many Requests may include Retry-After",
+                note: "429 Too Many Requests: the response MAY include a Retry-After header",
             },
         ]
     }
@@ -84,13 +135,39 @@ impl Rule for ServerRetryAfterStatusValidity {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 503 Service Unavailable\nRetry-After: 120\n\nHTTP/1.1 301 Moved Permanently\nLocation: /new-path\nRetry-After: 30\n\nHTTP/1.1 429 Too Many Requests\nRetry-After: 60",
+                label: Some("503: how long the service is expected to be unavailable"),
+                snippet: "HTTP/1.1 503 Service Unavailable\nRetry-After: 120",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "Any 3xx: the minimum wait before issuing the redirected request",
+                ),
+                snippet: "HTTP/1.1 301 Moved Permanently\nLocation: /new-path\nRetry-After: 30",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("429: defined by RFC 6585, which RFC 9110 does not cover"),
+                snippet: "HTTP/1.1 429 Too Many Requests\nRetry-After: 60",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "413 with a temporary condition: §15.5.14 asks for this field with a SHOULD",
+                ),
+                snippet: "HTTP/1.1 413 Content Too Large\nRetry-After: 3600",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nRetry-After: 10\n\nHTTP/1.1 500 Internal Server Error\nRetry-After: 120",
+                label: Some(
+                    "Nothing pairs the field with a 200, so a user agent is not told what to do with it",
+                ),
+                snippet: "HTTP/1.1 200 OK\nRetry-After: 10",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("The nearest defined status is 503, and its sentence says 503"),
+                snippet: "HTTP/1.1 500 Internal Server Error\nRetry-After: 120",
             },
         ]
     }
@@ -105,6 +182,27 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
+    /// Every fixture is a response on some status, carrying the field or not.
+    fn response_with(
+        status: u16,
+        retry_after: Option<&str>,
+    ) -> crate::http_transaction::HttpTransaction {
+        let pairs: Vec<(&str, &str)> = retry_after
+            .into_iter()
+            .map(|v| ("retry-after", v))
+            .collect();
+        crate::test_helpers::make_test_transaction_with_response(status, &pairs)
+    }
+
+    fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+        let rule = ServerRetryAfterStatusValidity;
+        rule.check_transaction(
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+    }
+
     #[rstest]
     #[case(503, true, false)]
     #[case(429, true, false)]
@@ -112,29 +210,35 @@ mod tests {
     #[case(308, true, false)]
     #[case(300, true, false)]
     #[case(399, true, false)]
+    // §15.5.14 asks a temporary 413 for this field by name; reporting it reported a
+    // server following a SHOULD in the same document.
+    #[case(413, true, false)]
     #[case(200, true, true)]
     #[case(500, true, true)]
+    // 414 is 413's neighbour in §15.5 and says nothing about the field.
+    #[case(414, true, true)]
     #[case(200, false, false)]
+    #[case(413, false, false)]
     fn retry_after_status_semantics(
         #[case] status: u16,
         #[case] with_retry_after: bool,
         #[case] expect_violation: bool,
     ) {
-        let rule = ServerRetryAfterStatusValidity;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let tx = response_with(status, with_retry_after.then_some("120"));
+        let v = judge(&tx);
+        assert_eq!(v.is_some(), expect_violation, "{status} -> {v:?}");
+    }
 
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
-        if with_retry_after {
-            tx.response.as_mut().unwrap().headers =
-                crate::test_helpers::make_headers_from_pairs(&[("retry-after", "120")]);
-        }
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert_eq!(v.is_some(), expect_violation);
+    /// The 3xx arm is a class, not a list of the redirect statuses anyone remembers.
+    #[rstest]
+    #[case(299, true)]
+    #[case(300, false)]
+    #[case(304, false)]
+    #[case(399, false)]
+    #[case(400, true)]
+    fn the_3xx_arm_covers_the_class(#[case] status: u16, #[case] expect_violation: bool) {
+        let v = judge(&response_with(status, Some("30")));
+        assert_eq!(v.is_some(), expect_violation, "{status} -> {v:?}");
     }
 
     #[test]
@@ -166,24 +270,58 @@ mod tests {
         Ok(())
     }
 
+    /// The message is derived data: it names the status it was reached for and the
+    /// four statuses the rule accepts. Both are claims, so both are pinned.
     #[test]
-    fn violation_message_contains_status_and_expected_set() {
-        let rule = ServerRetryAfterStatusValidity;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(500, &[]);
-        tx.response.as_mut().unwrap().headers =
-            crate::test_helpers::make_headers_from_pairs(&[("retry-after", "60")]);
+    fn violation_message_names_the_status_and_the_defined_set() {
+        let v = judge(&response_with(500, Some("60"))).expect("expected violation");
+        assert!(v.message.contains("status 500"), "{}", v.message);
+        for named in ["3xx", "413", "429", "503"] {
+            assert!(v.message.contains(named), "{named} missing: {}", v.message);
+        }
+    }
 
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .expect("expected violation");
-        assert!(v.message.contains("status 500"));
-        assert!(v.message.contains("3xx redirection"));
-        assert!(v.message.contains("429"));
-        assert!(v.message.contains("503"));
+    /// Every published snippet is run through the rule.
+    #[test]
+    fn published_examples_are_judged_by_this_rule() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = ServerRetryAfterStatusValidity;
+
+        for ex in rule.examples() {
+            let mut status = None;
+            let mut pairs: Vec<(&str, &str)> = Vec::new();
+            for (i, line) in ex.snippet.lines().enumerate() {
+                if i == 0 {
+                    let code = line
+                        .strip_prefix("HTTP/1.1 ")
+                        .and_then(|rest| rest.split_whitespace().next())
+                        .and_then(|code| code.parse::<u16>().ok())
+                        .unwrap_or_else(|| {
+                            panic!("the first line of an example is its status line: {line:?}")
+                        });
+                    status = Some(code);
+                    continue;
+                }
+                let (name, value) = line.split_once(':').unwrap_or_else(|| {
+                    panic!("example header line is not `Name: value`: {line:?}")
+                });
+                pairs.push((name, value.trim()));
+            }
+            let status = status.expect("example has a status line");
+            assert!(
+                pairs
+                    .iter()
+                    .any(|(k, _)| k.eq_ignore_ascii_case("retry-after")),
+                "example carries no Retry-After field, so this rule cannot judge it: {}",
+                ex.snippet
+            );
+
+            let tx = crate::test_helpers::make_test_transaction_with_response(status, &pairs);
+            let v = judge(&tx);
+            match ex.compliance {
+                Compliance::Compliant => assert!(v.is_none(), "{}: {v:?}", ex.snippet),
+                Compliance::NonCompliant => assert!(v.is_some(), "{}", ex.snippet),
+            }
+        }
     }
 }
