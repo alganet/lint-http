@@ -166,7 +166,7 @@ impl Rule for ClientAcceptRangesOnPartialContent {
     }
 
     fn description(&self) -> &'static str {
-        "Advice a client was given, and whether the next request took it. `Accept-Ranges` tells a client which range units a resource supports, or that it supports none — and almost everything this rule has to say about the request that follows is advice, because RFC 9110 §14.3 says the field \"only provides advice for the sake of improving performance and reducing unnecessary network transfers\".\n\n**`Accept-Ranges: none` followed by a `Range` request** is the one finding addressed to the client. The permission to send `none` is granted to a server that supports no kind of range request \"to advise the client not to attempt a range request on the same request path\", and this request attempts one. It is still advice: the same section says a client \"MAY generate range requests regardless of having received an Accept-Ranges field\".\n\n**A `Range` in a unit the previous response did not advertise** is advice about a wasted transfer. §14.2 says an origin server \"MUST ignore a Range header field that contains a range unit it does not understand\", so such a request is answered with the whole representation — which is what the advertisement exists to prevent. Nothing makes the advertised list exhaustive, so this is not a violation either.\n\n**What this rule no longer reports.** A `Range` request following a 206 that carried no `Accept-Ranges` field: §14.3's \"regardless of having received an Accept-Ranges field\" permits it in as many words, and §14 makes range requests an OPTIONAL feature of HTTP altogether. Whether the advertised value is a well-formed list of range units belongs to `server_accept_ranges_values_valid`; whether the `Range` value is a well-formed ranges-specifier belongs to `client_range_header_syntax_valid`. Where either value cannot be read as this rule needs it, it declines rather than reporting the field a second time — but a `Range` field that cannot be read is still a range request, and still takes the `none` advice.\n\n**What no rule can check.** §14.3 also says a client \"MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses\", and §15.3.7 that a client \"MUST inspect a 206 response's Content-Type and Content-Range field(s)\". Both are requirements on a conclusion the client drew; nothing on the wire distinguishes a client that assumed from one that did not, so this rule stops there rather than approximating them.\n\n**What it reads.** The transaction immediately preceding this one from the same client for the same request URI, which is what \"the same request path\" is measured against; a later response supersedes what an earlier one advised, so only the most recent is read. `Accept-Ranges` is read from the trailer section as well as the header section, which §14.3 permits."
+        "Advice a client was given, and whether the next request took it. `Accept-Ranges` tells a client which range units a resource supports, or that it supports none — and almost everything this rule has to say about the request that follows is advice, because RFC 9110 §14.3 says the field \"only provides advice for the sake of improving performance and reducing unnecessary network transfers\".\n\n**`Accept-Ranges: none` followed by a `Range` request** is the one finding addressed to the client. The permission to send `none` is granted to a server that supports no kind of range request \"to advise the client not to attempt a range request on the same request path\", and this request attempts one. It is still advice: the same section says a client \"MAY generate range requests regardless of having received an Accept-Ranges field\".\n\n**A `Range` in a unit the previous response did not advertise** is advice about a wasted transfer. §14.2 says an origin server \"MUST ignore a Range header field that contains a range unit it does not understand\", so such a request is answered with the whole representation — which is what the advertisement exists to prevent. Nothing makes the advertised list exhaustive, so this is not a violation either.\n\n**What this rule no longer reports.** A `Range` request following a 206 that carried no `Accept-Ranges` field: §14.3's \"regardless of having received an Accept-Ranges field\" permits it in as many words, and §14 makes range requests an OPTIONAL feature of HTTP altogether. Whether the advertised value is a well-formed list of range units belongs to `server_accept_ranges_values_valid`; whether the `Range` value is a well-formed ranges-specifier belongs to `client_range_header_syntax_valid`. Where either value cannot be read as this rule needs it, it declines rather than reporting the field a second time — but a `Range` field that cannot be read is still a range request, and still takes the `none` advice.\n\n**What no rule can check.** §14.3 also says a client \"MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses\", and §15.3.7 that a client \"MUST inspect a 206 response's Content-Type and Content-Range field(s)\". Both are requirements on a conclusion the client drew; nothing on the wire distinguishes a client that assumed from one that did not, so this rule stops there rather than approximating them.\n\n**What it reads, and what that assumes.** The transaction immediately preceding this one from the same client for the same request URI, which is what \"the same request path\" is measured against; a later response supersedes what an earlier one advised, so only the most recent is read. `Accept-Ranges` is read from the trailer section as well as the header section, which §14.3 permits. Two assumptions come with that and are worth knowing before enabling this rule. *The same client* is an address and a `User-Agent` string, so several user agents behind one address that send the same `User-Agent` are one client here, and advice given to one of them is measured against another's request. And the rule's name is historical: nothing it checks depends on the previous response being a `206 Partial Content`, and after the corrections above it does not read the status code at all."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -247,9 +247,18 @@ mod tests {
     /// `&str` because half of these tests are about a value that is not one.
     type Fields<'a> = &'a [(&'a str, &'a [u8])];
 
-    /// The previous response a fixture is built around: status, header section,
-    /// trailer section.
-    type Previous<'a> = (u16, Fields<'a>, Fields<'a>);
+    /// What this client was told last time it asked for this resource. The
+    /// two cases that are not a response are here rather than in a test of
+    /// their own: they are the same fixture with less in it, and a test that
+    /// builds its own history is a test that can stop agreeing with the others.
+    enum Previously<'a> {
+        /// No transaction for this resource at all.
+        Nothing,
+        /// A transaction whose response was never observed.
+        ATransactionWithNoResponse,
+        /// A response, as a status, a header section and a trailer section.
+        AResponse(u16, Fields<'a>, Fields<'a>),
+    }
 
     fn section(pairs: Fields<'_>) -> hyper::HeaderMap {
         let mut hm = hyper::HeaderMap::new();
@@ -269,15 +278,19 @@ mod tests {
     ///
     /// The two request URIs are equal because that is what the engine's
     /// `ByResource` query guarantees, not because the rule compares them.
-    fn judge(previous: Option<Previous<'_>>, request: Fields<'_>) -> Option<Violation> {
+    fn judge(previously: Previously<'_>, request: Fields<'_>) -> Option<Violation> {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = section(request);
 
-        let history = match previous {
-            Some((status, headers, trailers)) => {
-                let mut prev =
-                    crate::test_helpers::make_test_transaction_with_response(status, &[]);
-                prev.request.uri = tx.request.uri.clone();
+        let mut prev = crate::test_helpers::make_test_transaction();
+        prev.request.uri = tx.request.uri.clone();
+
+        let history = match previously {
+            Previously::Nothing => crate::transaction_history::TransactionHistory::empty(),
+            Previously::ATransactionWithNoResponse => {
+                crate::transaction_history::TransactionHistory::from_transactions(vec![prev])
+            }
+            Previously::AResponse(status, headers, trailers) => {
                 prev.response = Some(crate::http_transaction::ResponseInfo {
                     status,
                     version: "HTTP/1.1".into(),
@@ -287,7 +300,6 @@ mod tests {
                 });
                 crate::transaction_history::TransactionHistory::from_transactions(vec![prev])
             }
-            None => crate::transaction_history::TransactionHistory::empty(),
         };
 
         ClientAcceptRangesOnPartialContent.check_transaction(&tx, &history, &config())
@@ -305,7 +317,7 @@ mod tests {
         #[case] headers: &[(&str, &[u8])],
         #[case] expect_violation: bool,
     ) {
-        let found = judge(Some((status, headers, &[])), RANGE);
+        let found = judge(Previously::AResponse(status, headers, &[]), RANGE);
         assert_eq!(
             found.is_some(),
             expect_violation,
@@ -322,7 +334,7 @@ mod tests {
     #[case::after_a_200(200)]
     #[case::after_a_416(416)]
     fn a_response_that_advertised_nothing_is_not_advice(#[case] status: u16) {
-        assert!(judge(Some((status, &[], &[])), RANGE).is_none());
+        assert!(judge(Previously::AResponse(status, &[], &[]), RANGE).is_none());
     }
 
     /// § 14.3 permits the field in a trailer section, so advice given there is
@@ -330,7 +342,7 @@ mod tests {
     #[test]
     fn a_trailer_section_advises_too() {
         let found = judge(
-            Some((200, &[], &[("accept-ranges", b"none".as_slice())])),
+            Previously::AResponse(200, &[], &[("accept-ranges", b"none".as_slice())]),
             RANGE,
         );
         assert!(found.is_some());
@@ -347,7 +359,7 @@ mod tests {
     fn a_range_this_rule_cannot_read_is_still_a_range_request(#[case] request: &[(&str, &[u8])]) {
         assert!(
             judge(
-                Some((200, &[("accept-ranges", b"none".as_slice())], &[])),
+                Previously::AResponse(200, &[("accept-ranges", b"none".as_slice())], &[]),
                 request
             )
             .is_some(),
@@ -355,7 +367,7 @@ mod tests {
         );
         assert!(
             judge(
-                Some((200, &[("accept-ranges", b"bytes".as_slice())], &[])),
+                Previously::AResponse(200, &[("accept-ranges", b"bytes".as_slice())], &[]),
                 request
             )
             .is_none(),
@@ -368,7 +380,7 @@ mod tests {
     #[test]
     fn unit_names_are_compared_case_insensitively() {
         let found = judge(
-            Some((200, &[("accept-ranges", b"BYTES".as_slice())], &[])),
+            Previously::AResponse(200, &[("accept-ranges", b"BYTES".as_slice())], &[]),
             &[("range", b"Bytes=0-1".as_slice())],
         );
         assert!(found.is_none());
@@ -379,14 +391,14 @@ mod tests {
     #[test]
     fn an_unreadable_advertisement_silences_the_unit_comparison() {
         let found = judge(
-            Some((
+            Previously::AResponse(
                 200,
                 &[
                     ("accept-ranges", b"pages".as_slice()),
                     ("accept-ranges", &[0xff][..]),
                 ],
                 &[],
-            )),
+            ),
             RANGE,
         );
         assert!(found.is_none());
@@ -396,14 +408,14 @@ mod tests {
     #[test]
     fn an_unreadable_advertisement_does_not_silence_none() {
         let found = judge(
-            Some((
+            Previously::AResponse(
                 200,
                 &[
                     ("accept-ranges", b"none".as_slice()),
                     ("accept-ranges", &[0xff][..]),
                 ],
                 &[],
-            )),
+            ),
             RANGE,
         );
         assert!(found.is_some());
@@ -415,37 +427,26 @@ mod tests {
     #[test]
     fn an_advertisement_its_owner_reports_is_not_reported_here() {
         let found = judge(
-            Some((200, &[("accept-ranges", b"x@bad".as_slice())], &[])),
+            Previously::AResponse(200, &[("accept-ranges", b"x@bad".as_slice())], &[]),
             RANGE,
         );
         assert!(found.is_none());
     }
 
-    /// Nothing to compare a request against.
+    /// Nothing to compare a request against. The advice this rule reports is a
+    /// response's, so a resource nobody has asked for yet, and a request whose
+    /// response was never observed, both leave it with nothing to say.
     #[rstest]
-    #[case::no_history(None)]
-    #[case::no_response(Some(()))]
-    fn a_previous_transaction_with_nothing_to_read_is_not_read(#[case] previous: Option<()>) {
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.headers = section(RANGE);
-
-        let history = match previous {
-            Some(()) => {
-                let prev = crate::test_helpers::make_test_transaction();
-                crate::transaction_history::TransactionHistory::from_transactions(vec![prev])
-            }
-            None => crate::transaction_history::TransactionHistory::empty(),
-        };
-
-        assert!(ClientAcceptRangesOnPartialContent
-            .check_transaction(&tx, &history, &config())
-            .is_none());
+    #[case::no_history(Previously::Nothing)]
+    #[case::no_response(Previously::ATransactionWithNoResponse)]
+    fn a_previous_transaction_with_nothing_to_read_is_not_read(#[case] previously: Previously<'_>) {
+        assert!(judge(previously, RANGE).is_none());
     }
 
     #[test]
     fn a_request_with_no_range_is_not_this_rules_subject() {
         assert!(judge(
-            Some((200, &[("accept-ranges", b"none".as_slice())], &[])),
+            Previously::AResponse(200, &[("accept-ranges", b"none".as_slice())], &[]),
             &[]
         )
         .is_none());
@@ -490,7 +491,10 @@ mod tests {
                     .collect()
             }
 
-            let found = judge(Some((status, &fields(response), &[])), &fields(request));
+            let found = judge(
+                Previously::AResponse(status, &fields(response), &[]),
+                &fields(request),
+            );
             match ex.compliance {
                 Compliance::Compliant => assert!(
                     found.is_none(),
