@@ -212,7 +212,7 @@ impl Rule for MessageAcceptRangesAnd206Consistency {
                 spec: "RFC 9110",
                 section: Some("15.3.7"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
-                note: "`206 Partial Content`: the server successfully fulfilling a range request, which is what makes `Accept-Ranges: none` in the same response a contradiction",
+                note: "`206 Partial Content`: the server successfully fulfilling a range request, which is what makes `Accept-Ranges: none` in the same response a contradiction. The section also lists the header fields a 206 MUST carry, and `Accept-Ranges` is not among them. RFC 7233 §4.1 defined the status code; RFC 9110 obsoleted RFC 7233",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",

@@ -23,7 +23,7 @@ Advice about one field, and one contradiction. `Accept-Ranges` tells a client wh
 ## Specifications
 
 - [RFC 9110 §14.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3): `Accept-Ranges`: `1#range-unit`, advertising which units a resource supports, or `none`. Sending it is not required — the section says so twice — and it MAY be sent in a trailer section
-- [RFC 9110 §15.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7): `206 Partial Content`: the server successfully fulfilling a range request, which is what makes `Accept-Ranges: none` in the same response a contradiction
+- [RFC 9110 §15.3.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7): `206 Partial Content`: the server successfully fulfilling a range request, which is what makes `Accept-Ranges: none` in the same response a contradiction. The section also lists the header fields a 206 MUST carry, and `Accept-Ranges` is not among them. RFC 7233 §4.1 defined the status code; RFC 9110 obsoleted RFC 7233
 - [RFC 9110 §14.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2): `Range`: a 206 is the answer when the request's range unit is supported for the target resource, so the `Content-Range` unit is a unit the server supports
 - [RFC 9110 §14.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1): Range units: `range-unit = token`, one construct shared by `Accept-Ranges`, `Range` and `Content-Range`, and case-insensitive — which is why both sides of the comparison are folded
 
