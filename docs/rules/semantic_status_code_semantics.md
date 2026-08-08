@@ -4,17 +4,31 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# Semantic Status Code Semantics
+# Challenges the 401 and the 407 are defined by
 
 ## Description
 
-Detects clear mismatches between HTTP response status codes and the headers/payloads that express authentication or proxy-authentication intent. Examples: a 401 response must include a `WWW-Authenticate` header; a `WWW-Authenticate` header must not appear on non-401 responses. Likewise, `Proxy-Authenticate` is specific to 407 responses. These checks help identify servers that misuse status codes or include misleading headers.
+Two status codes are defined in terms of a field the response has to carry, and this rule reports the responses that do not carry it.
+
+- `401 Unauthorized` — a server generating one **MUST** send a `WWW-Authenticate` header field containing at least one challenge applicable to the target resource (RFC 9110 §15.5.2, §11.6.1)
+- `407 Proxy Authentication Required` — the proxy generating one **MUST** send at least one `Proxy-Authenticate` header field, containing a challenge applicable to that proxy for the request (RFC 9110 §15.5.8, §11.7.1)
+
+Both MUSTs ask for a **challenge**, not for a field line, so a `401` carrying an empty `WWW-Authenticate:` is reported too. That case is invisible to every other rule: both fields are defined as `#challenge`, and a `#` list is permitted to be empty, so the value is well-formed and only the status definition asks for more. Whether an element that *is* present is a well-formed challenge belongs to `message_www_authenticate_challenge_syntax`; this rule only asks whether one is there at all.
+
+**A `WWW-Authenticate` on any other status is not reported.** §11.6.1 says a server **MAY** generate one in other responses, to indicate that supplying credentials (or different credentials) might affect the response — so the field is permitted anywhere and a rule reporting it would be reporting a permission being used.
+
+**A `Proxy-Authenticate` outside a 407 is reported, and no requirement is violated by such a response.** §11.7.1 gives that field no matching permission, but it states no prohibition either; what it does say is that the field addresses the one client that chose this proxy, and outside a 407 nothing tells that client what to do with the challenge. The finding is advisory — configure the severity accordingly. The two fields are treated differently here on purpose, and the difference is one sentence in §11.6.1 that §11.7.1 does not have.
+
+Only response status and field presence are read. The rule says nothing about `Authorization`, `Proxy-Authorization`, or the content of the response.
 
 ## Specifications
 
-- [RFC 9110 §15.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.1): 401 (Unauthorized) responses and WWW-Authenticate requirement
-- [RFC 9110 §15.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.6.1): 407 (Proxy Authentication Required) responses and Proxy-Authenticate
-- [RFC 9110 §6](https://www.rfc-editor.org/rfc/rfc9110.html#section-6): Status code semantics (general)
+- [RFC 9110 §15.5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2): 401 (Unauthorized) — the MUST for a `WWW-Authenticate` header field containing at least one challenge
+- [RFC 9110 §11.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1): `WWW-Authenticate` — the field definition, the same MUST for a 401, and the MAY that permits the field on any other response (which is why this rule reports no such response)
+- [RFC 9110 §15.5.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.8): 407 (Proxy Authentication Required) — the MUST for a `Proxy-Authenticate` header field containing a challenge applicable to that proxy
+- [RFC 9110 §11.7.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.7.1): `Proxy-Authenticate` — at least one field in each 407 the proxy generates, and the sentence limiting the field to the next outbound client, which is all that stands behind the advisory finding on other statuses
+- [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): Empty list elements do not contribute to the count of elements present — why `WWW-Authenticate: ,` carries no challenge
+- [RFC 9110 §15](https://www.rfc-editor.org/rfc/rfc9110.html#section-15): Status Codes — the part of the document both status definitions live in
 
 ## Configuration
 
@@ -40,7 +54,7 @@ HTTP/1.1 407 Proxy Authentication Required
 Proxy-Authenticate: Basic realm="proxy"
 ```
 
-### ❌ Bad
+### ✅ Good — a server MAY hint that credentials would change the answer
 
 ```http
 HTTP/1.1 200 OK
@@ -49,9 +63,32 @@ WWW-Authenticate: Basic realm="example"
 {"ok":true}
 ```
 
+### ❌ Bad
+
 ```http
 HTTP/1.1 401 Unauthorized
 Content-Type: application/json
 
 {"error":"unauthorized"}
+```
+
+### ❌ Bad — the field line is there and the challenge is not
+
+```http
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate:
+```
+
+### ❌ Bad
+
+```http
+HTTP/1.1 407 Proxy Authentication Required
+Content-Type: text/plain
+```
+
+### ❌ Bad — advisory: no requirement is violated by this response
+
+```http
+HTTP/1.1 200 OK
+Proxy-Authenticate: Basic realm="proxy"
 ```
