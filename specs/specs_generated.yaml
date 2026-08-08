@@ -2352,7 +2352,9 @@ sources:
     - file: lint-http-proxy/src/proxy/websocket.rs
       line: 144
     - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
-      line: 53
+      line: 55
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 54
   - label: lint-http-rules/src/helpers/accept_ranges.rs
     section: § 14.1
     snippet: All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1.
@@ -3438,7 +3440,7 @@ sources:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 103
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 140
+      line: 145
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 109
   - label: message_content_location_and_uri_consistency
@@ -3871,6 +3873,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 56
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 143
   - label: message_response_body_length_accuracy (2)
     section: § 8.6
     snippet: A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method.
@@ -3884,7 +3888,7 @@ sources:
     snippet: As a result, a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect.
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 129
+      line: 134
   - label: message_response_body_length_accuracy (4)
     section: § 9.3.2
     snippet: The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.
@@ -4345,6 +4349,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 27
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 55
   - label: server_200_vs_204_body_consistency (6)
     section: § 15.3.5
     snippet: The 204 (No Content) status code indicates that the server has successfully fulfilled the request and that there is no additional content to send in the response content.
@@ -4357,6 +4363,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 130
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 79
   - label: server_200_vs_204_body_consistency (8)
     section: § 6.4.1
     snippet: 2xx (Successful) responses to a CONNECT request method (Section 9.3.6) switch the connection to tunnel mode instead of having content.
@@ -4481,6 +4489,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 41
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 69
   - label: server_content_type_present (2)
     section: § 8.3
     snippet: A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender.
@@ -4526,11 +4536,23 @@ sources:
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 36
   - label: server_no_body_for_1xx_204_304
-    section: § 6.4.1
-    snippet: 1xx (Informational), 204 (No Content), and 304 (Not Modified) responses do not include content.
+    section: § 15.4.5
+    snippet: A 304 response is terminated by the end of the header section; it cannot contain content or trailers.
     cited_by:
     - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
-      line: 37
+      line: 56
+  - label: server_no_body_for_1xx_204_304 (2)
+    section: § 6.4.1
+    snippet: All 1xx (Informational), 204 (No Content), and 304 (Not Modified) responses do not include content.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 49
+  - label: server_no_body_for_1xx_204_304 (3)
+    section: § 8.6
+    snippet: A server MUST NOT send a Content-Length header field in any response with a status code of 1xx (Informational) or 204 (No Content).
+    cited_by:
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 132
   - label: server_response_405_allow
     section: § 15.5.6
     snippet: The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods.
@@ -5188,7 +5210,7 @@ sources:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 75
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 120
+      line: 125
   - label: message_content_length_vs_transfer_encoding (2)
     section: § 6.3
     snippet: An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding
@@ -5204,7 +5226,7 @@ sources:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 58
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 115
+      line: 120
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 106
   - label: message_content_transfer_encoding_valid
@@ -5232,7 +5254,7 @@ sources:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 86
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 130
+      line: 135
   - label: message_request_body_length_accuracy (2)
     section: § 6.2
     snippet: When a message does not have a Transfer-Encoding header field, a Content-Length header field (Section 8.6 of [HTTP]) can provide the anticipated size, as a decimal number of octets, for potential content.
@@ -5252,7 +5274,7 @@ sources:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 53
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 116
+      line: 121
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 108
   - label: message_request_body_length_accuracy (5)
@@ -5274,13 +5296,13 @@ sources:
     snippet: A client MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message.
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 105
+      line: 110
   - label: message_response_body_length_accuracy (2)
     section: § 6.3
     snippet: Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields.
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 104
+      line: 109
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 57
   - label: message_response_body_length_accuracy (3)
@@ -5291,12 +5313,14 @@ sources:
       line: 50
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 33
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 62
   - label: message_response_body_length_accuracy (4)
     section: § 6.3
     snippet: Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection.
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 135
+      line: 140
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 79
   - label: message_te_header_constraints
@@ -5399,6 +5423,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 209
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 173
   - label: message_transfer_encoding_chunked_final (4)
     section: § 9.6
     snippet: A sender SHOULD send a Connection header field (Section 7.6.1 of [HTTP]) containing the "close" connection option when it intends to close a connection.
@@ -5411,6 +5437,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 80
+  - label: server_no_body_for_1xx_204_304
+    section: § 6.1
+    snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
+    cited_by:
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 172
 - label: RFC 9113
   url: https://www.rfc-editor.org/rfc/rfc9113.txt
   type: text/plain
@@ -5433,6 +5465,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 159
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 184
   - label: message_te_header_constraints (2)
     section: § 8.2.2
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".
@@ -5571,6 +5605,18 @@ sources:
       line: 40
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
       line: 105
+  - label: server_no_body_for_1xx_204_304
+    section: § 4.1
+    snippet: Interim responses do not contain content or trailer sections.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 189
+  - label: server_no_body_for_1xx_204_304 (2)
+    section: § 4.1
+    snippet: Transfer codings (see Section 7 of [HTTP/1.1]) are not defined for HTTP/3; the Transfer-Encoding header field MUST NOT be used.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 185
   - label: server_quic_transport_parameters
     section: § 6.1
     snippet: HTTP/3 does not use server-initiated bidirectional streams

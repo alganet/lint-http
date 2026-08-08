@@ -48,50 +48,31 @@ impl Rule for ServerHttp3StatusCodeValidity {
             });
         }
 
-        // Informational (1xx) responses consist of only a HEADERS frame — no content,
-        // no trailers. One sentence governs all three checks in this block.
+        // Three checks used to follow -- a `Content-Length` on a 1xx, captured
+        // content octets on a 1xx, a trailer section on a 1xx -- and all three
+        // were governed by one sentence, quoted here because this is where the
+        // rule stops rather than where it acts:
         // cite(RFC 9110 § 15.2): "A 1xx response is terminated by the end of the header section; it cannot contain content or trailers."
-        if (100..200).contains(&resp.status) {
-            // Content-Length MUST NOT appear on a 1xx response — it announces content.
-            if resp.headers.contains_key("content-length") {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "HTTP/3 {} informational response must not include Content-Length",
-                        resp.status
-                    ),
-                });
-            }
-
-            // A captured body on a 1xx response indicates DATA frames were
-            // sent after an informational HEADERS frame, which is invalid.
-            if let Some(len) = resp.body_length {
-                if len > 0 {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!(
-                            "HTTP/3 {} informational response must not contain a message body",
-                            resp.status
-                        ),
-                    });
-                }
-            }
-
-            // Informational responses do not carry trailers (RFC 9110 §15.2).
-            if resp.trailers.is_some() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "HTTP/3 {} informational response must not contain trailer fields",
-                        resp.status
-                    ),
-                });
-            }
-        }
-
+        //
+        // That sentence is RFC 9110's, not RFC 9114's. It is not about HTTP/3, and this
+        // rule's own SpecRef for it said no more than "Informational 1xx". So a
+        // version-independent requirement was being enforced behind a gate that
+        // gives up unless *both* the request and the response are HTTP/3: the
+        // same 100 (Continue) carrying the same `Content-Length` over HTTP/1.1
+        // was never reported, and the HTTP/3 one was reported twice once a rule
+        // named for the requirement started reading the same three inputs.
+        //
+        // `server_no_body_for_1xx_204_304` is that rule and now owns all three,
+        // for 1xx, 204 and 304 alike and on every version -- so this is a strict
+        // widening, not a handover of coverage. What stays here is the check that
+        // is genuinely HTTP/3's: § 4.5 above, which is a sentence about this
+        // protocol and nothing else.
+        //
+        // The empty-trailer-section case is worth naming, because deleting a test
+        // is the easiest way to lose a decision: a `#[test]` here asserted that a
+        // trailer section carrying no fields is still a violation. It survives, in
+        // the rule that took the check, for the reason recorded there -- § 6.3
+        // forbids the *section*.
         None
     }
 
@@ -100,7 +81,7 @@ impl Rule for ServerHttp3StatusCodeValidity {
     }
 
     fn description(&self) -> &'static str {
-        "HTTP/3 does not support the `101 (Switching Protocols)` informational status code. The protocol upgrade mechanism used in HTTP/1.1 has no equivalent in HTTP/3; applications that require protocol switching should use extended CONNECT (RFC 9220) instead.\n\nAdditionally, informational (1xx) responses in HTTP/3 consist of only a HEADERS frame and must not include a message body, `Content-Length` header, or trailer fields.\n\nThis rule applies when the request version is `HTTP/3`. Response properties are checked only when the response's own version is also `HTTP/3`; in a reverse-proxy setup the upstream response may arrive via HTTP/1.1 where `101` is legitimate."
+        "HTTP/3 does not support the `101 (Switching Protocols)` informational status code. The protocol upgrade mechanism used in HTTP/1.1 has no equivalent in HTTP/3; applications that require protocol switching should use extended CONNECT (RFC 9220) instead.\n\nThis rule applies when the request version is `HTTP/3`. The response is checked only when its own version is also `HTTP/3`; in a reverse-proxy setup the upstream response may arrive via HTTP/1.1, where `101` is legitimate.\n\n**One status code, and only what HTTP/3 says about it.** This rule also used to report a `Content-Length`, a message body, or a trailer section on a `1xx` response. Those rest on RFC 9110 §15.2 — *\"A 1xx response is terminated by the end of the header section; it cannot contain content or trailers\"* — which is not a sentence about HTTP/3, so enforcing it here meant the same defect over HTTP/1.1 or HTTP/2 went unreported. `server_no_body_for_1xx_204_304` enforces it on every version, and for `204` and `304` as well as `1xx`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -121,7 +102,7 @@ impl Rule for ServerHttp3StatusCodeValidity {
                 spec: "RFC 9110",
                 section: Some("15.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2",
-                note: "Informational 1xx",
+                note: "Informational 1xx — where 101 is defined, and where the rule 101 breaks is written. Its sentence forbidding content and trailers on a 1xx is version-independent and is enforced by server_no_body_for_1xx_204_304, not here",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9220",
@@ -155,16 +136,12 @@ impl Rule for ServerHttp3StatusCodeValidity {
                 label: None,
                 snippet: "HTTP/3 101 Switching Protocols\nUpgrade: websocket",
             },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/3 100 Continue\nContent-Length: 0",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/3 103 Early Hints\nLink: </style.css>; rel=preload; as=style\n\n<body data follows>",
-            },
+            // A `100 Continue` carrying a `Content-Length` used to be published
+            // here as NonCompliant. Relabelling it Compliant would have been worse
+            // than removing it: this rule does accept it now, and it is still a
+            // violation of § 8.6 that `server_no_body_for_1xx_204_304` reports --
+            // so the page would have shown an operator a defective message under a
+            // Compliant heading. The description names the rule that owns it.
         ]
     }
 }
@@ -241,57 +218,60 @@ mod tests {
         assert!(v.is_none());
     }
 
-    // --- 1xx with Content-Length is violation ---
+    // --- What a 1xx carries is § 15.2's question, and § 15.2 is not HTTP/3's ---
 
-    #[test]
-    fn informational_100_with_content_length_is_violation() {
+    /// The three checks this rule used to make now belong to the rule named for
+    /// the requirement, and the handover is checked by *running* that rule rather
+    /// than by trusting a comment: it must report every case, including the empty
+    /// trailer section a `#[test]` here used to pin.
+    #[rstest]
+    #[case(100, &[("content-length", "0")][..], None, None)]
+    #[case(103, &[("content-length", "42")][..], None, None)]
+    #[case(199, &[("content-length", "0")][..], None, None)]
+    #[case(100, &[][..], Some(10), None)]
+    #[case(102, &[][..], Some(5), None)]
+    #[case(100, &[("content-length", "10")][..], Some(10), None)]
+    #[case(100, &[][..], None, Some(&[("x-checksum", "abc")][..]))]
+    #[case(103, &[][..], None, Some(&[("x-timing", "50ms")][..]))]
+    #[case(100, &[][..], None, Some(&[][..]))]
+    fn what_a_1xx_carries_is_reported_by_the_owner_and_not_here(
+        #[case] status: u16,
+        #[case] headers: &[(&str, &str)],
+        #[case] body_length: Option<u64>,
+        #[case] trailer_pairs: Option<&[(&str, &str)]>,
+    ) {
         let rule = ServerHttp3StatusCodeValidity;
-        let tx = make_h3_transaction_with_response(100, &[("content-length", "0")]);
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        let v = v.expect("should be a violation");
-        assert_eq!(v.rule, "server_http3_status_code_validity");
-        assert!(v.message.contains("100"));
-        assert!(v.message.contains("Content-Length"));
-    }
-
-    #[test]
-    fn informational_103_with_content_length_is_violation() {
-        let rule = ServerHttp3StatusCodeValidity;
-        let tx = make_h3_transaction_with_response(103, &[("content-length", "42")]);
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("103"));
-        assert!(msg.contains("Content-Length"));
-    }
-
-    // --- 1xx with body is violation ---
-
-    #[test]
-    fn informational_with_body_is_violation() {
-        let rule = ServerHttp3StatusCodeValidity;
-        let mut tx = make_h3_transaction_with_response(100, &[]);
+        let mut tx = make_h3_transaction_with_response(status, headers);
         if let Some(ref mut resp) = tx.response {
-            resp.body_length = Some(10);
+            resp.body_length = body_length;
+            resp.trailers = trailer_pairs.map(crate::test_helpers::make_headers_from_pairs);
         }
 
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        assert!(
+            rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .is_none(),
+            "§ 15.2 is not this rule's sentence"
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("message body"));
+
+        let owner = crate::rules::REGISTERED_RULES
+            .iter()
+            .find(|r| r.id() == "server_no_body_for_1xx_204_304")
+            .expect("the owning rule is registered");
+        assert!(
+            owner
+                .check_transaction(
+                    &tx,
+                    &crate::transaction_history::TransactionHistory::empty(),
+                    &crate::test_helpers::make_test_config_with_enabled_rules(&[owner.id()]),
+                )
+                .is_some(),
+            "nothing reported a {status} carrying headers {headers:?} \
+             body {body_length:?} trailers {trailer_pairs:?}"
+        );
     }
 
     #[test]
@@ -308,28 +288,6 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none());
-    }
-
-    // --- 1xx with trailers is violation ---
-
-    #[test]
-    fn informational_with_trailers_is_violation() {
-        let rule = ServerHttp3StatusCodeValidity;
-        let mut tx = make_h3_transaction_with_response(100, &[]);
-        if let Some(ref mut resp) = tx.response {
-            resp.trailers = Some(crate::test_helpers::make_headers_from_pairs(&[(
-                "x-checksum",
-                "abc",
-            )]));
-        }
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("trailer"));
     }
 
     // --- Non-informational statuses are ok ---
@@ -409,21 +367,6 @@ mod tests {
     // --- Edge cases: 1xx boundary ---
 
     #[test]
-    fn status_199_with_content_length_is_violation() {
-        // 199 is still in the 1xx informational range
-        let rule = ServerHttp3StatusCodeValidity;
-        let tx = make_h3_transaction_with_response(199, &[("content-length", "0")]);
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("199"));
-    }
-
-    #[test]
     fn status_200_with_content_length_is_ok() {
         // 200 is not informational; Content-Length is allowed
         let rule = ServerHttp3StatusCodeValidity;
@@ -474,29 +417,12 @@ mod tests {
         assert!(v.is_none());
     }
 
-    // --- Edge cases: priority of checks ---
+    // --- The one finding, whatever else the message carries ---
 
     #[test]
-    fn content_length_check_takes_priority_over_body_check() {
-        // When both Content-Length and body are present, Content-Length is flagged first
-        let rule = ServerHttp3StatusCodeValidity;
-        let mut tx = make_h3_transaction_with_response(100, &[("content-length", "10")]);
-        if let Some(ref mut resp) = tx.response {
-            resp.body_length = Some(10);
-        }
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Content-Length"));
-    }
-
-    #[test]
-    fn status_101_takes_priority_over_1xx_checks() {
-        // 101 is flagged as forbidden before any 1xx content checks
+    fn a_101_is_reported_as_a_101_whatever_it_carries() {
+        // The status is the whole finding: what the response advertises or sends
+        // is § 15.2's question and another rule's.
         let rule = ServerHttp3StatusCodeValidity;
         let mut tx = make_h3_transaction_with_response(101, &[("content-length", "0")]);
         if let Some(ref mut resp) = tx.response {
@@ -548,67 +474,6 @@ mod tests {
     }
 
     // --- Edge case: 102 Processing with body ---
-
-    #[test]
-    fn informational_102_with_body_is_violation() {
-        let rule = ServerHttp3StatusCodeValidity;
-        let mut tx = make_h3_transaction_with_response(102, &[]);
-        if let Some(ref mut resp) = tx.response {
-            resp.body_length = Some(5);
-        }
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("102"));
-    }
-
-    // --- Edge case: empty trailers HeaderMap is still a violation ---
-
-    #[test]
-    fn informational_with_empty_trailers_is_violation() {
-        // Even an empty trailing HEADERS frame is invalid on 1xx (RFC 9110 §15.2)
-        let rule = ServerHttp3StatusCodeValidity;
-        let mut tx = make_h3_transaction_with_response(100, &[]);
-        if let Some(ref mut resp) = tx.response {
-            resp.trailers = Some(hyper::HeaderMap::new());
-        }
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("trailer"));
-    }
-
-    // --- Edge case: 103 Early Hints with trailers ---
-
-    #[test]
-    fn informational_103_with_trailers_is_violation() {
-        let rule = ServerHttp3StatusCodeValidity;
-        let mut tx = make_h3_transaction_with_response(
-            103,
-            &[("link", "</style.css>; rel=preload; as=style")],
-        );
-        if let Some(ref mut resp) = tx.response {
-            resp.trailers = Some(crate::test_helpers::make_headers_from_pairs(&[(
-                "x-timing", "50ms",
-            )]));
-        }
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("trailer"));
-    }
 
     // --- Scope and config validation ---
 

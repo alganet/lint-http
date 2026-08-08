@@ -77,12 +77,17 @@ impl Rule for MessageResponseBodyLengthAccuracy {
             // Item 1 does still say something checkable about these, and
             // exempting them from the comparison would have thrown it away: not
             // that the declared length is wrong, but that there must be *no
-            // body at all*. Nothing else looks at the captured octets for these
-            // statuses -- `server_no_body_for_1xx_204_304` reads the header
-            // fields that advertise a body, not the body -- so if this rule
-            // simply returned here, a 204 that answered with content would go
-            // unreported by everything.
-            if resp.body_length.is_some_and(|n| n > 0) {
+            // body at all*.
+            //
+            // Item 1 names two things, though, and only one of them is this
+            // rule's to report now. `server_no_body_for_1xx_204_304` reads the
+            // captured octets for the three statuses, and reads them without
+            // needing a `Content-Length` first -- which this rule does need, its
+            // whole entry point being a declared length. So the statuses are
+            // left to it, and what stays here is the half its status gate cannot
+            // reach: a response to HEAD that carries octets whatever its status.
+            // Keeping both would have been two findings for one defect.
+            if !bodiless_status && resp.body_length.is_some_and(|n| n > 0) {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
@@ -487,35 +492,64 @@ mod tests {
         );
     }
 
-    /// Item 1 still says something checkable about these: not that the declared
-    /// length is wrong, but that there must be no body at all. Exempting them
-    /// from the comparison without this would have let a 204 that answered with
-    /// content go unreported by every rule -- the sibling that covers these
-    /// statuses reads the header fields advertising a body, not the body.
+    /// Item 1 still says something checkable about a HEAD response: not that the
+    /// declared length is wrong, but that there must be no body at all. This is
+    /// the half of item 1 the sibling's status gate cannot reach.
     #[rstest]
-    #[case("HEAD", 200)]
-    #[case("GET", 204)]
-    #[case("GET", 304)]
-    #[case("GET", 100)]
-    fn a_bodiless_response_that_sent_octets_is_reported(#[case] method: &str, #[case] status: u16) {
+    #[case(200)]
+    #[case(404)]
+    fn a_head_response_that_sent_octets_is_reported(#[case] status: u16) {
         let mut tx = resp_with(status, &[("content-length", "1024")], Some(7));
-        tx.request.method = method.to_string();
+        tx.request.method = "HEAD".into();
         assert!(
             run(&tx).is_some_and(|v| v.message.contains("cannot contain a message body")),
-            "{method} -> {status} sent 7 octets"
+            "HEAD -> {status} sent 7 octets"
         );
     }
 
-    /// The finding is the body's existence, not its size. A 304 whose captured
-    /// octets happen to equal its declared length is still a 304 with a body,
-    /// and the message says so rather than reporting a match.
+    /// The finding is the body's existence, not its size: a response whose
+    /// captured octets happen to equal its declared length still has a body, and
+    /// the message says so rather than reporting a match.
     #[test]
     fn the_finding_is_the_body_not_the_mismatch() {
-        let mut tx = resp_with(304, &[("content-length", "7")], Some(7));
-        tx.request.method = "GET".into();
-        let v = run(&tx).expect("a 304 with 7 body octets has a body");
+        let mut tx = resp_with(200, &[("content-length", "7")], Some(7));
+        tx.request.method = "HEAD".into();
+        let v = run(&tx).expect("a HEAD response with 7 body octets has a body");
         assert!(v.message.contains("cannot contain a message body"), "{v:?}");
         assert!(!v.message.contains("does not match"), "{v:?}");
+    }
+
+    /// The three statuses moved to the rule named for them, and the handover is
+    /// checked by running it rather than by reading it: this rule declines, and
+    /// the sibling reports -- including the case that has no `Content-Length` for
+    /// this rule's entry point to have found in the first place.
+    #[rstest]
+    #[case(204, &[("content-length", "1024")][..])]
+    #[case(304, &[("content-length", "1024")][..])]
+    #[case(100, &[("content-length", "1024")][..])]
+    #[case(204, &[][..])]
+    #[case(304, &[("transfer-encoding", "chunked")][..])]
+    fn the_three_statuses_are_reported_by_the_sibling_and_not_here(
+        #[case] status: u16,
+        #[case] headers: &[(&str, &str)],
+    ) {
+        let mut tx = resp_with(status, headers, Some(7));
+        tx.request.method = "GET".into();
+        assert!(run(&tx).is_none(), "{status} is not this rule's to report");
+
+        let sibling = crate::rules::REGISTERED_RULES
+            .iter()
+            .find(|r| r.id() == "server_no_body_for_1xx_204_304")
+            .expect("the sibling rule is registered");
+        let found = sibling.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[sibling.id()]),
+        );
+        assert!(
+            found.is_some_and(|v| v.message.contains("content octets")),
+            "{status} sent 7 octets and nothing reported it"
+        );
     }
 
     /// § 6.3 item 2: the octets after a tunnelling 2xx are not content, and the
