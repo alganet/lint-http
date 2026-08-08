@@ -1995,6 +1995,8 @@ sources:
       line: 59
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 77
+    - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
+      line: 75
     - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
       line: 34
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
@@ -2597,6 +2599,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 160
+    - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
+      line: 56
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 25
   - label: lint-http-rules/src/helpers/headers.rs (5)
@@ -3339,6 +3343,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
       line: 56
+    - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
+      line: 88
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 49
   - label: message_connection_header_tokens_valid (2)
@@ -3393,6 +3399,8 @@ sources:
       line: 113
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 50
+    - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
+      line: 73
   - label: message_content_encoding_and_type_consistency
     section: § 15.4.5
     snippet: a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates
@@ -3664,11 +3672,53 @@ sources:
     - file: lint-http-rules/src/rules/message_language_tag_format_valid.rs
       line: 50
   - label: message_max_forwards_numeric
+    section: § 5.5
+    snippet: This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
+      line: 74
+  - label: message_max_forwards_numeric (2)
+    section: § 7.6.2
+    snippet: A recipient MAY ignore a Max-Forwards header field received with any other request methods.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
+      line: 66
+  - label: message_max_forwards_numeric (3)
+    section: § 7.6.2
+    snippet: Each intermediary that receives a TRACE or OPTIONS request containing a Max-Forwards header field MUST check and update its value prior to forwarding the request.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
+      line: 129
+  - label: message_max_forwards_numeric (4)
+    section: § 7.6.2
+    snippet: If the received value is zero (0), the intermediary MUST NOT forward the request; instead, the intermediary MUST respond as the final recipient.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
+      line: 130
+  - label: Max-Forwards grammar
     section: § 7.6.2
     snippet: Max-Forwards = 1*DIGIT
     cited_by:
     - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
-      line: 28
+      line: 98
+  - label: message_max_forwards_numeric (5)
+    section: § 7.6.2
+    snippet: The "Max-Forwards" header field provides a mechanism with the TRACE (Section 9.3.8) and OPTIONS (Section 9.3.7) request methods to limit the number of times that the request is forwarded by proxies.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
+      line: 19
+  - label: message_max_forwards_numeric (6)
+    section: § 7.6.2
+    snippet: The Max-Forwards value is a decimal integer indicating the remaining number of times this request message can be forwarded.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
+      line: 128
+  - label: message_max_forwards_numeric (7)
+    section: § 9.3.7
+    snippet: A proxy MUST NOT generate a Max-Forwards header field while forwarding a request unless that request was received with a Max-Forwards field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
+      line: 131
   - label: message_multipart_boundary_syntax
     section: § 5.6.6
     snippet: A parameter value that matches the token production can be transmitted either as a token or within a quoted-string.
