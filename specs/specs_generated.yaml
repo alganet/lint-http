@@ -610,6 +610,8 @@ sources:
       line: 26
     - file: lint-http-rules/src/helpers/ipv6.rs
       line: 77
+    - file: lint-http-rules/src/rules/client_host_header.rs
+      line: 138
   - label: lint-http-rules/src/helpers/ipv6.rs (2)
     section: § 3.2.2
     snippet: This is the only place where square bracket characters are allowed in the URI syntax.
@@ -1943,6 +1945,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
       line: 28
+    - file: lint-http-rules/src/rules/client_host_header.rs
+      line: 72
     - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
       line: 101
     - file: lint-http-rules/src/rules/message_content_disposition_token_valid.rs
@@ -2001,12 +2005,28 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 27
+  - label: OWS grammar
+    section: § 5.6.3
+    snippet: OWS            = *( SP / HTAB )
+    cited_by:
+    - file: lint-http-rules/src/rules/client_host_header.rs
+      line: 105
+    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
+      line: 242
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 286
   - label: client_host_header
     section: § 7.2
     snippet: A user agent MUST generate a Host header field in a request unless it sends that information as an ":authority" pseudo-header field.
     cited_by:
     - file: lint-http-rules/src/rules/client_host_header.rs
-      line: 30
+      line: 54
+  - label: client_host_header (2)
+    section: § 7.2
+    snippet: In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_host_header.rs
+      line: 22
   - label: client_range_header_syntax_valid
     section: § 14.1.1
     snippet: A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit.
@@ -2157,14 +2177,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 54
-  - label: OWS grammar
-    section: § 5.6.3
-    snippet: OWS            = *( SP / HTAB )
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 242
-    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
-      line: 286
   - label: client_request_version_method_validity
     section: § 9.3.1
     snippet: A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server
@@ -2481,6 +2493,8 @@ sources:
       line: 98
     - file: lint-http-rules/src/helpers/product.rs
       line: 156
+    - file: lint-http-rules/src/rules/client_host_header.rs
+      line: 106
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 11.6.3
     snippet: Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
@@ -2783,6 +2797,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 644
+    - file: lint-http-rules/src/rules/client_host_header.rs
+      line: 157
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 204
   - label: message_accept_and_content_type_negotiation
@@ -4542,7 +4558,25 @@ sources:
     snippet: A client MUST send a Host header field (Section 7.2 of [HTTP]) in all HTTP/1.1 request messages.
     cited_by:
     - file: lint-http-rules/src/rules/client_host_header.rs
-      line: 29
+      line: 55
+  - label: client_host_header (2)
+    section: § 3.2
+    snippet: A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_host_header.rs
+      line: 73
+  - label: client_host_header (3)
+    section: § 3.2
+    snippet: If the authority component is missing or undefined for the target URI, then a client MUST send a Host header field with an empty field value.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_host_header.rs
+      line: 112
+  - label: client_host_header (4)
+    section: § 3.2
+    snippet: If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its "@" delimiter (Section 4.2 of [HTTP]).
+    cited_by:
+    - file: lint-http-rules/src/rules/client_host_header.rs
+      line: 121
   - label: client_request_method_token_valid
     section: § 3.1
     snippet: The method token indicates the request method to be performed on the target resource.
