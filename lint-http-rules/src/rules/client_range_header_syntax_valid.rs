@@ -257,6 +257,12 @@ fn validate_range_set(unit: &str, range_set: &str) -> Result<(), String> {
         // int-range and suffix-range forms are digits and a hyphen -- so a space
         // or a control character inside a specifier is outside all three.
         //
+        // `is_ascii_graphic` is `%x21-7E`, one octet wider than the production:
+        // it admits the comma at `%x2C`. That is exact here and only here,
+        // because the split above consumed every comma in the range-set, so the
+        // difference between the two sets cannot reach this predicate. Anything
+        // reading a range-spec it did not split for itself needs the narrower one.
+        //
         // cite(RFC 9110 § 14.1.1, label: other-range grammar): "other-range   = 1*( %x21-2B / %x2D-7E )"
         if let Some(c) = spec.chars().find(|c| !c.is_ascii_graphic()) {
             return Err(format!(
