@@ -28,7 +28,9 @@ SPDX-License-Identifier: ISC
 
 - [RFC 9110 §15.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2): 301 Moved Permanently: a user agent MAY change the method from POST to GET, and 308 is the status named for a server that does not want that
 - [RFC 9110 §15.4.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.3): 302 Found: the same permission, answered by 307 rather than by 308 — the alternative is per status
-- [RFC 9110 §15.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4): Why only these two: 307 and 308 were added to indicate method-preserving redirects, and 301 and 302 were adjusted to allow a POST to be redirected as GET. Also what a provided Location buys — a user agent MAY follow it automatically
+- [RFC 9110 §15.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4): Why only these two: 307 and 308 were added to indicate method-preserving redirects, and 301 and 302 were adjusted to allow a POST to be redirected as GET. This is also the only sentence that says 308 preserves the method — §15.4.9 does not repeat it. Also what a provided Location buys: a user agent MAY follow it automatically
+- [RFC 9110 §15.4.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.8): 307 Temporary Redirect: the user agent MUST NOT change the request method when it redirects automatically — the unambiguous half of the 302 pair, and never reported by this rule
+- [RFC 9110 §15.4.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.4): 303 See Other: defined as a redirection to a resource the user agent retrieves, so the change of method is what the status means rather than something left open
 - [RFC 9110 §9.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1): The method token is case-sensitive, so the rule compares it exactly rather than folding case
 - [RFC 9110 §9.3.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3): The 303 alternative: an origin server MAY redirect a POST with a 303, if the result of processing it is equivalent to a representation of an existing resource
 
