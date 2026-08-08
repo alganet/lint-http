@@ -25,6 +25,15 @@ pub fn is_tchar(c: char) -> bool {
         )
 }
 
+/// `tchar`, over a single octet.
+///
+/// [`is_tchar`] stays the sole transcription of the character set: every byte at
+/// or above %x80 maps to a `char` outside the ASCII range, which it already
+/// rejects, so `obs-text` is excluded here without a second copy of the list.
+pub fn is_tchar_byte(b: u8) -> bool {
+    is_tchar(b as char)
+}
+
 /// Return the first invalid character in `s` according to the `token` grammar,
 /// or `None` if the entire string is valid.
 pub fn find_invalid_token_char(s: &str) -> Option<char> {

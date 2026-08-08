@@ -17,17 +17,7 @@
 
 use crate::helpers::comment::scan_comment;
 use crate::helpers::headers::describe_octet as describe;
-use crate::helpers::token::is_tchar;
-
-/// `token = 1*tchar`, over a single octet.
-///
-/// `is_tchar` is the sole transcription of `tchar` in the tree and stays that
-/// way: every byte at or above %x80 maps to a `char` outside the ASCII range,
-/// which `is_tchar` already rejects, so `obs-text` is excluded here without a
-/// second copy of the character set.
-fn is_tchar_byte(b: u8) -> bool {
-    is_tchar(b as char)
-}
+use crate::helpers::token::is_tchar_byte;
 
 /// Consume the `product` starting at `start`.
 ///
