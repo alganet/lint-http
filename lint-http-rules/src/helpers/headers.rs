@@ -929,22 +929,17 @@ pub fn split_semicolons_respecting_quotes(s: &str) -> Vec<&str> {
     if start <= s.len() {
         res.push(&s[start..]);
     }
-    // trim whitespace from each segment before returning, leaving the string
-    // slice boundaries unaltered because trimming just adjusts the start/end
-    // indices within the slice.  This matches the expectations of callers and
-    // our tests, and avoids repeating `.trim()` everywhere.
-    res.into_iter()
-        .map(|seg| {
-            let trimmed = seg.trim();
-            // compute offset from original slice
-            let offset_start = seg.as_ptr() as usize - s.as_ptr() as usize;
-            let offset_trim = seg.find(trimmed).unwrap_or(0);
-            let new_start = offset_start + offset_trim;
-            let new_end = new_start + trimmed.len();
-            // safety: new_start/new_end are within original string bounds
-            &s[new_start..new_end]
-        })
-        .collect()
+    // Each segment comes back without the `OWS` the grammars print around their
+    // semicolons, so no caller repeats the trim.
+    //
+    // `str::trim` was wrong here for the same reason it is wrong on a member: a
+    // value read through [`combined_field_value_as_written`] carries one `char`
+    // per octet, so %xA0 in it arrives as U+00A0 — `obs-text`, which no
+    // parameter production admits and which `str::trim` removed, handing the
+    // caller an *empty* segment and hiding the octet behind whichever finding
+    // the caller has for emptiness. [`trim_ows`] is the same three characters of
+    // intent bounded to what `OWS` is.
+    res.into_iter().map(trim_ows).collect()
 }
 
 /// Whether every DQUOTE in `s` closes, under exactly the escape rules the two
