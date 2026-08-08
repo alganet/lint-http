@@ -46,15 +46,12 @@ Range: bytes=-500
 GET /big-file HTTP/1.1
 Host: example.com
 Range: items=0-1
-# unsupported unit
 
 GET /big-file HTTP/1.1
 Host: example.com
 Range: bytes=abc
-# non-numeric
 
 GET /big-file HTTP/1.1
 Host: example.com
 Range: bytes=5-3
-# first > last
 ```
