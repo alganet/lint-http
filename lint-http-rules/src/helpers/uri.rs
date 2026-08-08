@@ -61,23 +61,17 @@ pub fn validate_scheme_if_present(s: &str) -> Option<String> {
     let colon = first_component.find(':')?;
 
     let scheme = &s[..colon];
-    // cite(RFC 3986 § 3.1): "scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )"
-    let mut chars = scheme.chars();
-    // `1*` — the production requires a leading ALPHA, so an empty scheme (a
-    // value opening with ':') satisfies neither it nor `segment-nz-nc`, which
-    // excludes ':' and so cannot start a relative-path reference either.
-    let Some(first) = chars.next() else {
-        return Some("Invalid scheme in value: scheme must not be empty".into());
-    };
-    if !first.is_ascii_alphabetic() {
-        return Some(format!("Invalid scheme in value: '{}'", scheme));
-    }
-    for c in chars {
-        if !(c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.') {
-            return Some(format!("Invalid character '{}' in scheme '{}'", c, scheme));
-        }
-    }
-    None
+    // The production itself is [`validate_scheme_name`]'s. This function is the
+    // half that finds a scheme inside a larger value; what a scheme name may be
+    // made of is one question with one answer, and it was written out twice
+    // here before that function existed.
+    //
+    // An empty scheme (a value opening with ':') satisfies neither `scheme`, whose
+    // `ALPHA` is not optional, nor `segment-nz-nc`, which excludes ':' and so
+    // cannot start a relative-path reference either.
+    validate_scheme_name(scheme)
+        .err()
+        .map(|e| format!("Invalid scheme in value: {}", e))
 }
 
 /// Byte offset of the `://` that separates a scheme from an authority, or
@@ -531,6 +525,152 @@ pub fn parse_query_string(s: &str) -> Vec<(String, String)> {
     out
 }
 
+/// Validate a bare scheme name — the production alone, with no ':' to find it by.
+///
+/// [`validate_scheme_if_present`] locates a scheme inside a larger value and then
+/// asks this question of what it found; a field whose whole value *is* a scheme
+/// name (`Forwarded`'s `proto`) asks it directly. The production was written out
+/// twice before this function existed, and the two copies are the shape three of
+/// this tree's bugs already have.
+///
+/// The leading `ALPHA` is the half a character-set loop drops: `1*` is not what
+/// the production says, and `+`, `-`, `.` and every DIGIT are admitted only
+/// *after* a letter, so `9x` and `+http` are not scheme names.
+// cite(RFC 3986 § 3.1): "scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )"
+// cite(RFC 3986 § 3.1): "Scheme names consist of a sequence of characters beginning with a letter and followed by any combination of letters, digits, plus ("+"), period ("."), or hyphen ("-")."
+pub fn validate_scheme_name(scheme: &str) -> Result<(), String> {
+    let mut chars = scheme.chars();
+    let Some(first) = chars.next() else {
+        return Err("scheme must not be empty".into());
+    };
+    if !first.is_ascii_alphabetic() {
+        return Err(format!("scheme '{}' must begin with a letter", scheme));
+    }
+    for c in chars {
+        if !(c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.') {
+            return Err(format!("invalid character '{}' in scheme '{}'", c, scheme));
+        }
+    }
+    Ok(())
+}
+
+/// Validate a `uri-host`: an IP literal in brackets, or a registered name.
+///
+/// The three alternatives are not three checks. `IPv4address` generates nothing
+/// `reg-name` does not also generate — every `dec-octet` is DIGIT and `.` is
+/// `unreserved` — so a dotted quad that is out of range is a perfectly good
+/// registered name and is not a syntax finding here. What separates the
+/// alternatives is the brackets, which appear in no other host form.
+// cite(RFC 3986 § 3.2.2): "host        = IP-literal / IPv4address / reg-name"
+// cite(RFC 3986 § 3.2.2): "reg-name    = *( unreserved / pct-encoded / sub-delims )"
+// cite(RFC 3986 § 2.3): "unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~""
+// cite(RFC 3986 § 2.2): "sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "=""
+pub fn validate_uri_host(host: &str) -> Result<(), String> {
+    if let Some(rest) = host.strip_prefix('[') {
+        // cite(RFC 3986 § 3.2.2): "IP-literal = "[" ( IPv6address / IPvFuture  ) "]""
+        let Some(inner) = rest.strip_suffix(']') else {
+            return Err(format!("IP literal '{}' is missing its ']'", host));
+        };
+        if inner.parse::<std::net::Ipv6Addr>().is_ok() || is_ipvfuture(inner) {
+            return Ok(());
+        }
+        return Err(format!("'{}' is not an IPv6 address", inner));
+    }
+
+    if host.contains([']', '[']) {
+        return Err(format!(
+            "'{}' holds a bracket, which appears in no host form but an IP literal",
+            host
+        ));
+    }
+
+    // The triplet is the whole of `pct-encoded`, and it is checked where every
+    // other percent-encoding in this module is. Its two hex digits are DIGIT and
+    // ALPHA, so the character walk below has nothing left to say about them.
+    if let Some(msg) = check_percent_encoding(host) {
+        return Err(msg);
+    }
+    for c in host.chars() {
+        if !(c.is_ascii_alphanumeric()
+            || c == '%'
+            || matches!(c, '-' | '.' | '_' | '~')
+            || matches!(
+                c,
+                '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '='
+            ))
+        {
+            return Err(format!("invalid character '{}' in host '{}'", c, host));
+        }
+    }
+    Ok(())
+}
+
+/// `IPvFuture = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )`
+///
+/// Nothing has ever been registered under it, which is the reason to read it
+/// rather than to leave a bracketed literal that is not an IPv6 address as a
+/// finding: the production exists, and a rule that reports what a grammar
+/// generates is wrong however unlikely the value.
+// cite(RFC 3986 § 3.2.2): "IPvFuture  = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )"
+fn is_ipvfuture(s: &str) -> bool {
+    let Some(rest) = s.strip_prefix(['v', 'V']) else {
+        return false;
+    };
+    let Some(dot) = rest.find('.') else {
+        return false;
+    };
+    let (version, tail) = (&rest[..dot], &rest[dot + 1..]);
+    if version.is_empty() || !version.chars().all(|c| c.is_ascii_hexdigit()) {
+        return false;
+    }
+    !tail.is_empty()
+        && tail.chars().all(|c| {
+            c.is_ascii_alphanumeric()
+                || matches!(c, '-' | '.' | '_' | '~' | ':')
+                || matches!(
+                    c,
+                    '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '='
+                )
+        })
+}
+
+/// Validate a `Host` field value: a `uri-host` and, optionally, a port.
+///
+/// The port is `*DIGIT` — no upper bound and no lower one. A number no
+/// transport could carry is a syntax question for nobody, and a colon with
+/// nothing after it is a port of no digits, which is what the second sentence
+/// below is addressing when it asks a URI producer to leave the delimiter off
+/// as well. A rule wanting the TCP range wants a different sentence than these.
+// cite(RFC 9110 § 7.2, label: Host grammar): "Host = uri-host [ ":" port ]"
+// cite(RFC 3986 § 3.2.3): "The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character."
+// cite(RFC 3986 § 3.2.3): "URI producers and normalizers should omit the port component and its ":" delimiter if port is empty or if its value would be the same as that of the scheme's default."
+pub fn validate_host_and_optional_port(value: &str) -> Result<(), String> {
+    // Only a colon after the closing bracket separates a port: every colon
+    // inside an IP literal belongs to the address.
+    let colon = match value.starts_with('[') {
+        true => value.find(']').and_then(|close| {
+            value[close + 1..]
+                .find(':')
+                .map(|offset| close + 1 + offset)
+        }),
+        false => value.find(':'),
+    };
+
+    let (host, port) = match colon {
+        Some(i) => (&value[..i], Some(&value[i + 1..])),
+        None => (value, None),
+    };
+
+    validate_uri_host(host)?;
+
+    if let Some(port) = port {
+        if let Some(c) = port.chars().find(|c| !c.is_ascii_digit()) {
+            return Err(format!("invalid character '{}' in port '{}'", c, port));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -570,6 +710,75 @@ mod tests {
         assert!(validate_scheme_if_present("ht!tp://ex").is_some());
         assert!(validate_scheme_if_present("/relative").is_none());
         assert!(validate_scheme_if_present("https://ex").is_none());
+    }
+
+    #[test]
+    fn scheme_name_needs_a_leading_letter() {
+        assert!(validate_scheme_name("http").is_ok());
+        assert!(validate_scheme_name("coap+ws").is_ok());
+        assert!(validate_scheme_name("a").is_ok());
+        // Every one of these is a `token`, which is why a rule reaching for
+        // `tchar` where the sentence says "URI scheme name" accepts them.
+        assert!(validate_scheme_name("9foo").is_err());
+        assert!(validate_scheme_name("+http").is_err());
+        assert!(validate_scheme_name("ht_tp").is_err());
+        assert!(validate_scheme_name("ht%tp").is_err());
+        assert!(validate_scheme_name("").is_err());
+    }
+
+    #[test]
+    fn uri_host_accepts_what_reg_name_generates() {
+        for host in [
+            "example.com",
+            "EXAMPLE.com",
+            "a(b)c",
+            "a,b;c=d",
+            "%41%42",
+            "192.0.2.1",
+            // A dotted quad out of range is still a registered name.
+            "999.999.999.999",
+            "",
+            "[2001:db8::1]",
+            "[::ffff:192.0.2.1]",
+            "[v7.host:name]",
+        ] {
+            assert!(validate_uri_host(host).is_ok(), "{host}");
+        }
+        for host in [
+            "exa mple",
+            "user@host",
+            "a^b",
+            "a|b",
+            "a\"b",
+            "%4",
+            "%zz",
+            "[2001:db8::1",
+            "[not-an-address]",
+            "2001:db8::1]",
+        ] {
+            assert!(validate_uri_host(host).is_err(), "{host}");
+        }
+    }
+
+    #[test]
+    fn host_port_is_star_digit() {
+        // `port = *DIGIT` bounds nothing: no minimum, so a colon with nothing
+        // after it is a port, and no maximum, so a number no transport could
+        // carry is not a syntax question.
+        for value in [
+            "example.com",
+            "example.com:80",
+            "example.com:",
+            "example.com:0",
+            "example.com:99999",
+            "[2001:db8::1]:8080",
+            "[2001:db8::1]",
+        ] {
+            assert!(validate_host_and_optional_port(value).is_ok(), "{value}");
+        }
+        for value in ["example.com:8o8", "exa mple:80", "2001:db8::1", "[::1]x:80"] {
+            assert!(validate_host_and_optional_port(value).is_err(), "{value}");
+        }
     }
 
     #[test]
