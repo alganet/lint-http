@@ -4362,7 +4362,7 @@ sources:
     snippet: For 3xx (Redirection) responses, the Location value refers to the preferred target resource for automatically redirecting the request.
     cited_by:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
-      line: 117
+      line: 112
   - label: server_response_location_on_redirect (3)
     section: § 15.3.2
     snippet: The primary resource created by the request is identified by either a Location header field in the response or, if no Location header field is received, by the target URI.
@@ -4374,7 +4374,7 @@ sources:
     snippet: If a Location header field (Section 10.2.2) is provided, the user agent MAY automatically redirect its request to the URI referenced by the Location field value, even if the specific status code is not understood.
     cited_by:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
-      line: 112
+      line: 121
   - label: server_response_location_on_redirect (5)
     section: § 15.4.1
     snippet: For request methods other than HEAD, the server SHOULD generate content in the 300 response containing a list of representation metadata and URI reference(s) from which the user or user agent can choose the one most preferred.
