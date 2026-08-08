@@ -8,14 +8,16 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-`Retry-After` tells a user agent how long to wait before making a follow-up request. Four response statuses give it a defined behaviour, and this rule reports the field arriving on any other one.
+`Retry-After` tells a user agent how long to wait before making a follow-up request. Four contexts give it a defined behaviour — one of them a whole status class — and this rule reports the field arriving anywhere else.
 
 - any `3xx` redirection — the minimum time to wait before issuing the redirected request (RFC 9110 §10.2.3)
 - `503 Service Unavailable` — how long the service is expected to be unavailable (RFC 9110 §10.2.3, §15.6.4)
 - `413 Content Too Large` — when the condition is temporary, §15.5.14 **asks for the field by name**, with a SHOULD
 - `429 Too Many Requests` — RFC 6585 §4, a status RFC 9110 never mentions
 
-**No requirement is violated by a response this rule reports.** §10.2.3 defines the field with no condition on the status code, and its two "When sent with" sentences elaborate two cases rather than closing the set; neither RFC 9110 nor RFC 6585 prohibits `Retry-After` anywhere. The finding is advisory: on a status no specification pairs with the field, what a client does with the value is unspecified, so the instruction is unlikely to be acted on. Configure the severity accordingly.
+**No requirement is violated by a response this rule reports.** §10.2.3 defines the field with no condition on the status code, and its two "When sent with" sentences elaborate two cases rather than closing the set; neither RFC 9110 nor RFC 6585 prohibits `Retry-After` anywhere. The finding is advisory: on a status neither document pairs with the field, what a client does with the value is unspecified, so the instruction is unlikely to be acted on. Configure the severity accordingly.
+
+A `Retry-After` in a **request** is not reported either. §10.2 places the field among response fields and §10.2.3 names the server as its sender, but no sentence forbids a client from sending one.
 
 The list is what is written down, not a grammar — a future status definition can name the field the way §15.5.14 does, and this rule would have to learn it.
 
@@ -53,18 +55,19 @@ Location: /new-path
 Retry-After: 30
 ```
 
-### ✅ Good 429: defined by RFC 6585, which RFC 9110 does not cover
+### ✅ Good 429: defined by RFC 6585, which RFC 9110 does not cover. Status line and fields as §4 prints them
 
 ```http
 HTTP/1.1 429 Too Many Requests
-Retry-After: 60
+Content-Type: text/html
+Retry-After: 3600
 ```
 
 ### ✅ Good 413 with a temporary condition: §15.5.14 asks for this field with a SHOULD
 
 ```http
 HTTP/1.1 413 Content Too Large
-Retry-After: 3600
+Retry-After: 120
 ```
 
 ### ❌ Bad Nothing pairs the field with a 200, so a user agent is not told what to do with it

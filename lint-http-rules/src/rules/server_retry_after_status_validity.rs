@@ -7,33 +7,38 @@ use crate::rules::Rule;
 
 pub struct ServerRetryAfterStatusValidity;
 
-/// Whether some specification says what `Retry-After` means on `status`.
+/// Whether some sentence says what `Retry-After` means on `status`.
 ///
-/// Four statuses do, and each arm below is one sentence. The set is open in
-/// principle — a future status definition may name the field the way §15.5.14
-/// does — so this is "what is written down today", not a grammar.
+/// Four contexts have one, and each test below carries its own. The set is open
+/// in principle — a future status definition can name the field the way §15.5.14
+/// does — so this is what is written down today, not a grammar.
 fn status_defines_retry_after(status: u16) -> bool {
-    match status {
-        // The field's own section names two contexts. This is the first.
-        // cite(RFC 9110 § 10.2.3): "When sent with a 503 (Service Unavailable) response, Retry-After indicates how long the service is expected to be unavailable to the client."
-        // cite(RFC 9110 § 15.6.4): "The server MAY send a Retry-After header field (Section 10.2.3) to suggest an appropriate amount of time for the client to wait before retrying the request."
-        503 => true,
-
-        // A 413 asks for the field by name, in its own status definition rather
-        // than in §10.2.3, and asks with a SHOULD — so a temporary 413 carrying
-        // `Retry-After` is a server doing what the same RFC told it to do.
-        // cite(RFC 9110 § 15.5.14): "If the condition is temporary, the server SHOULD generate a Retry-After header field to indicate that it is temporary and after what time the client MAY try again."
-        413 => true,
-
-        // 429 is defined outside RFC 9110, which never mentions that status.
-        // cite(RFC 6585 § 4): "The response representations SHOULD include details explaining the condition, and MAY include a Retry-After header indicating how long to wait before making a new request."
-        429 => true,
-
-        // The second context §10.2.3 names, and it names the whole class rather
-        // than any particular redirect status.
-        // cite(RFC 9110 § 10.2.3): "When sent with any 3xx (Redirection) response, Retry-After indicates the minimum time that the user agent is asked to wait before issuing the redirected request."
-        s => crate::helpers::status::is_redirection_status(s),
+    // One of the two contexts the field's own section names, and it names the
+    // whole class rather than any particular redirect status.
+    // cite(RFC 9110 § 10.2.3): "When sent with any 3xx (Redirection) response, Retry-After indicates the minimum time that the user agent is asked to wait before issuing the redirected request."
+    if crate::helpers::status::is_redirection_status(status) {
+        return true;
     }
+
+    // The other one, with the permission to send it written in the status's own
+    // definition rather than in §10.2.3.
+    // cite(RFC 9110 § 10.2.3): "When sent with a 503 (Service Unavailable) response, Retry-After indicates how long the service is expected to be unavailable to the client."
+    // cite(RFC 9110 § 15.6.4): "The server MAY send a Retry-After header field (Section 10.2.3) to suggest an appropriate amount of time for the client to wait before retrying the request."
+    if status == 503 {
+        return true;
+    }
+
+    // A 413 asks for the field by name, in its own status definition and with a
+    // SHOULD — so a temporary 413 carrying `Retry-After` is a server doing what
+    // the same RFC told it to do.
+    // cite(RFC 9110 § 15.5.14): "If the condition is temporary, the server SHOULD generate a Retry-After header field to indicate that it is temporary and after what time the client MAY try again."
+    if status == 413 {
+        return true;
+    }
+
+    // 429 is defined outside RFC 9110, which never mentions that status.
+    // cite(RFC 6585 § 4): "The response representations SHOULD include details explaining the condition, and MAY include a Retry-After header indicating how long to wait before making a new request."
+    status == 429
 }
 
 impl Rule for ServerRetryAfterStatusValidity {
@@ -55,7 +60,10 @@ impl Rule for ServerRetryAfterStatusValidity {
 
         // `Retry-After` is defined among §10.2's response context fields and its
         // own sentence names the server as the sender, which is why this rule
-        // reads the response and never the request.
+        // reads the response and never the request. A request carrying the field
+        // is not reported: §10.2 places it among response fields but no sentence
+        // forbids a client from sending it, and this rule reports only what a
+        // sentence measures.
         // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
         let resp = tx.response.as_ref()?;
 
@@ -76,19 +84,20 @@ impl Rule for ServerRetryAfterStatusValidity {
         // defines the field generally — a server saying how long to wait before a
         // follow-up request — with no condition on the status code, and its two
         // "When sent with" sentences elaborate two cases rather than closing the
-        // set. So the finding is advisory: it reports a field arriving where no
-        // specification says what a user agent should do with it, which is an
-        // interoperability observation and not a requirement. `description()`
-        // says the same where an operator reads it.
+        // set. So the finding is advisory: it reports a field arriving where
+        // neither RFC 9110 nor RFC 6585 says what a user agent should do with
+        // it, which is an interoperability observation and not a requirement.
+        // `description()` says the same where an operator reads it.
         // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
         Some(Violation {
             rule: self.id().into(),
             severity: config.severity,
             message: format!(
-                "Retry-After arrived on status {status}, where no specification gives it a defined meaning; \
-                 it is defined for any 3xx redirection, 413 Content Too Large, 429 Too Many Requests, \
-                 and 503 Service Unavailable. No requirement forbids sending it here — the field's own \
-                 definition puts no condition on the status code — so a client is simply not told what to do with it"
+                "Retry-After arrived on status {status}, which neither RFC 9110 nor RFC 6585 pairs with \
+                 this field; the two documents pair it with any 3xx redirection, 413 Content Too Large, \
+                 429 Too Many Requests, and 503 Service Unavailable. No requirement forbids sending it \
+                 here — the field's own definition puts no condition on the status code — so a client is \
+                 simply not told what to do with it"
             ),
         })
     }
@@ -98,7 +107,7 @@ impl Rule for ServerRetryAfterStatusValidity {
     }
 
     fn description(&self) -> &'static str {
-        "`Retry-After` tells a user agent how long to wait before making a follow-up request. Four response statuses give it a defined behaviour, and this rule reports the field arriving on any other one.\n\n- any `3xx` redirection — the minimum time to wait before issuing the redirected request (RFC 9110 §10.2.3)\n- `503 Service Unavailable` — how long the service is expected to be unavailable (RFC 9110 §10.2.3, §15.6.4)\n- `413 Content Too Large` — when the condition is temporary, §15.5.14 **asks for the field by name**, with a SHOULD\n- `429 Too Many Requests` — RFC 6585 §4, a status RFC 9110 never mentions\n\n**No requirement is violated by a response this rule reports.** §10.2.3 defines the field with no condition on the status code, and its two \"When sent with\" sentences elaborate two cases rather than closing the set; neither RFC 9110 nor RFC 6585 prohibits `Retry-After` anywhere. The finding is advisory: on a status no specification pairs with the field, what a client does with the value is unspecified, so the instruction is unlikely to be acted on. Configure the severity accordingly.\n\nThe list is what is written down, not a grammar — a future status definition can name the field the way §15.5.14 does, and this rule would have to learn it.\n\nThe status the field arrived on is all this rule reads. The value's syntax (`Retry-After = HTTP-date / delay-seconds`) and a repeated `Retry-After` field line belong to `message_retry_after_date_or_delay`, which reports both."
+        "`Retry-After` tells a user agent how long to wait before making a follow-up request. Four contexts give it a defined behaviour — one of them a whole status class — and this rule reports the field arriving anywhere else.\n\n- any `3xx` redirection — the minimum time to wait before issuing the redirected request (RFC 9110 §10.2.3)\n- `503 Service Unavailable` — how long the service is expected to be unavailable (RFC 9110 §10.2.3, §15.6.4)\n- `413 Content Too Large` — when the condition is temporary, §15.5.14 **asks for the field by name**, with a SHOULD\n- `429 Too Many Requests` — RFC 6585 §4, a status RFC 9110 never mentions\n\n**No requirement is violated by a response this rule reports.** §10.2.3 defines the field with no condition on the status code, and its two \"When sent with\" sentences elaborate two cases rather than closing the set; neither RFC 9110 nor RFC 6585 prohibits `Retry-After` anywhere. The finding is advisory: on a status neither document pairs with the field, what a client does with the value is unspecified, so the instruction is unlikely to be acted on. Configure the severity accordingly.\n\nA `Retry-After` in a **request** is not reported either. §10.2 places the field among response fields and §10.2.3 names the server as its sender, but no sentence forbids a client from sending one.\n\nThe list is what is written down, not a grammar — a future status definition can name the field the way §15.5.14 does, and this rule would have to learn it.\n\nThe status the field arrived on is all this rule reads. The value's syntax (`Retry-After = HTTP-date / delay-seconds`) and a repeated `Retry-After` field line belong to `message_retry_after_date_or_delay`, which reports both."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -147,15 +156,17 @@ impl Rule for ServerRetryAfterStatusValidity {
             },
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("429: defined by RFC 6585, which RFC 9110 does not cover"),
-                snippet: "HTTP/1.1 429 Too Many Requests\nRetry-After: 60",
+                label: Some(
+                    "429: defined by RFC 6585, which RFC 9110 does not cover. Status line and fields as §4 prints them",
+                ),
+                snippet: "HTTP/1.1 429 Too Many Requests\nContent-Type: text/html\nRetry-After: 3600",
             },
             Example {
                 compliance: Compliance::Compliant,
                 label: Some(
                     "413 with a temporary condition: §15.5.14 asks for this field with a SHOULD",
                 ),
-                snippet: "HTTP/1.1 413 Content Too Large\nRetry-After: 3600",
+                snippet: "HTTP/1.1 413 Content Too Large\nRetry-After: 120",
             },
             Example {
                 compliance: Compliance::NonCompliant,
