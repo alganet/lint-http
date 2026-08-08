@@ -259,7 +259,7 @@ mod tests {
             &config,
         );
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Invalid character"));
+        assert!(v.unwrap().message.contains("invalid character"));
     }
 
     #[test]
