@@ -15,17 +15,9 @@
 // cite(RFC 9110 § A): "User-Agent = product *( RWS ( product / comment ) )"
 // cite(RFC 9110 § 10.2.4): "Each product identifier consists of a name and optional version, as defined in Section 10.1.5."
 
+use crate::helpers::comment::scan_comment;
+use crate::helpers::headers::describe_octet as describe;
 use crate::helpers::token::is_tchar;
-
-/// Render a byte for a finding message without letting a raw control or
-/// `obs-text` octet into the output.
-fn describe(b: u8) -> String {
-    if (0x20..0x7f).contains(&b) {
-        format!("'{}'", b as char)
-    } else {
-        format!("0x{:02X}", b)
-    }
-}
 
 /// `token = 1*tchar`, over a single octet.
 ///
@@ -35,75 +27,6 @@ fn describe(b: u8) -> String {
 /// second copy of the character set.
 fn is_tchar_byte(b: u8) -> bool {
     is_tchar(b as char)
-}
-
-/// `ctext` -- the text a comment may hold directly.
-///
-/// The ranges stop either side of the parentheses (%x21-27 ends before `(` at
-/// %x28, %x2A-5B resumes after `)` at %x29) and skip the backslash at %x5C,
-/// which `quoted-pair` covers instead. That exclusion is what makes the
-/// depth counting in `scan_comment` sound: an unescaped parenthesis inside a
-/// comment can only ever be structure, never text.
-fn is_ctext(b: u8) -> bool {
-    // cite(RFC 9110 § 5.6.5): "ctext          = HTAB / SP / %x21-27 / %x2A-5B / %x5D-7E / obs-text"
-    b == b'\t'
-        || b == b' '
-        || (0x21..=0x27).contains(&b)
-        || (0x2a..=0x5b).contains(&b)
-        || (0x5d..=0x7e).contains(&b)
-        || b >= 0x80
-}
-
-/// Consume the `comment` starting at `start` (which must be `(`) and return the
-/// offset just past its closing `)`.
-///
-/// `depth` is not a convenience for tracking parentheses -- it is the production
-/// being self-referential. `comment` appears inside its own definition, so a
-/// comment may contain a comment, and a single "seen an open paren" flag would
-/// be wrong rather than merely coarse: `(a (b) c)` would end at the first `)`
-/// and leave ` c)` to be parsed as products.
-fn scan_comment(v: &[u8], start: usize) -> Result<usize, String> {
-    // cite(RFC 9110 § 5.6.5): "comment        = "(" *( ctext / quoted-pair / comment ) ")""
-    let mut i = start + 1;
-    let mut depth = 1usize;
-
-    while i < v.len() {
-        let b = v[i];
-
-        if b == b'\\' {
-            // cite(RFC 9110 § 5.6.4): "The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs."
-            // cite(RFC 9110 § A): "quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )"
-            let Some(&next) = v.get(i + 1) else {
-                return Err("comment ends with a dangling backslash".into());
-            };
-            if !(next == b'\t' || (0x20..=0x7e).contains(&next) || next >= 0x80) {
-                return Err(format!(
-                    "comment contains an invalid quoted-pair: {}",
-                    describe(next)
-                ));
-            }
-            i += 2;
-            continue;
-        }
-
-        if b == b'(' {
-            depth += 1;
-        } else if b == b')' {
-            depth -= 1;
-            if depth == 0 {
-                return Ok(i + 1);
-            }
-        } else if !is_ctext(b) {
-            return Err(format!(
-                "comment contains invalid character: {}",
-                describe(b)
-            ));
-        }
-
-        i += 1;
-    }
-
-    Err("unterminated parenthesized comment".into())
 }
 
 /// Consume the `product` starting at `start`.
