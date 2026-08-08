@@ -36,6 +36,14 @@ impl Rule for MessageMaxForwardsNumeric {
             })
         };
 
+        // No method gate, and the field is read before anything about the request
+        // line is. The mechanism is defined for TRACE and OPTIONS, and what the
+        // section says about the field on other methods is addressed to the
+        // *recipient*, as a MAY: nothing forbids a client from sending it, so its
+        // presence on a GET is not reported. Its shape still is — a field value is
+        // measured against the field's grammar whatever start-line preceded it.
+        //
+        // cite(RFC 9110 § 7.6.2): "A recipient MAY ignore a Max-Forwards header field received with any other request methods."
         let headers = &tx.request.headers;
 
         // The header section only. Whether *any* field may be sent in a trailer
@@ -57,13 +65,6 @@ impl Rule for MessageMaxForwardsNumeric {
         let value = combined_field_value_as_written(headers, "max-forwards")?;
         let lines = headers.get_all("max-forwards").iter().count();
 
-        // No method gate. The mechanism is defined for TRACE and OPTIONS, and what
-        // the RFC says about the field on other methods is addressed to the
-        // *recipient*, as a MAY: nothing forbids a client from sending it, so its
-        // presence on a GET is not reported. Its shape still is — a field value is
-        // measured against the field's grammar whatever start-line preceded it.
-        //
-        // cite(RFC 9110 § 7.6.2): "A recipient MAY ignore a Max-Forwards header field received with any other request methods."
         if lines > 1 {
             // `Max-Forwards = 1*DIGIT` has no `#(...)` alternative anywhere in it, so
             // § 5.3's exception does not apply and one message carries at most one
