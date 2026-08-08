@@ -38,15 +38,23 @@ Range: bytes=500-999,1000-1499
 GET /big-file HTTP/1.1
 Host: example.com
 Range: bytes=-500
+
+GET /big-file HTTP/1.1
+Host: example.com
+Range: bytes=9500-
+```
+
+### ✅ Good (a range unit this rule does not model)
+
+```http
+GET /catalogue HTTP/1.1
+Host: example.com
+Range: items=0-1
 ```
 
 ### ❌ Bad
 
 ```http
-GET /big-file HTTP/1.1
-Host: example.com
-Range: items=0-1
-
 GET /big-file HTTP/1.1
 Host: example.com
 Range: bytes=abc

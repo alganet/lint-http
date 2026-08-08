@@ -30,23 +30,35 @@ impl Rule for ClientRangeHeaderSyntaxValid {
 
         // cite(RFC 9110 § 14.2): "The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges"
         for hv in hdrs.iter() {
-            match hv.to_str() {
-                Ok(s) => {
-                    if let Err(e) = validate_range_header(s) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!("Invalid Range header '{}': {}", s, e),
-                        });
-                    }
-                }
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Range header contains non-UTF8 value".into(),
-                    });
-                }
+            let Ok(s) = hv.to_str() else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Range header contains non-UTF8 value".into(),
+                });
+            };
+
+            // The split is the shared one, not a second copy of it: the unit is a
+            // token, so the first `=` is the separator whatever follows it, and
+            // the same function answers this question for `Content-Range`.
+            let Some((unit, range_set)) = crate::helpers::content_range::split_ranges_specifier(s)
+            else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "Invalid Range header '{}': not a ranges-specifier (a range-unit token, '=', then a range-set)",
+                        s
+                    ),
+                });
+            };
+
+            if let Err(e) = validate_range_set(&unit, range_set) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!("Invalid Range header '{}': {}", s, e),
+                });
             }
         }
         None
@@ -71,82 +83,111 @@ impl Rule for ClientRangeHeaderSyntaxValid {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "GET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=0-499\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=500-999,1000-1499\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=-500",
+                snippet: "GET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=0-499\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=500-999,1000-1499\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=-500\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=9500-",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a range unit this rule does not model)"),
+                snippet: "GET /catalogue HTTP/1.1\nHost: example.com\nRange: items=0-1",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "GET /big-file HTTP/1.1\nHost: example.com\nRange: items=0-1\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=abc\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=5-3",
+                snippet: "GET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=abc\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=5-3",
             },
         ]
     }
 }
 
-fn validate_range_header(s: &str) -> Result<(), String> {
-    let s = s.trim();
-    if s.is_empty() {
-        return Err("empty header value".into());
+/// Walk a range-set, checking first what holds for every range unit and then, if
+/// the unit is one whose specifiers this rule knows, what holds for that unit.
+///
+/// The two halves used to be one: the rule accepted `bytes` and reported every
+/// other unit as an unsupported one, so `Range: items=0-1` -- a conforming
+/// request to a resource that partitions itself into items -- was published as
+/// this rule's own example of bad syntax. Range units are an open registry and
+/// the specifier grammar is deliberately generic; what an `items` range-spec may
+/// hold is defined by whoever defined `items`, and nothing on the wire tells this
+/// rule. A recipient that does not know the unit is told to *ignore* the field,
+/// not to treat it as malformed.
+///
+/// What survives for an unknown unit is what the generic grammar says: the
+/// field's list structure, and that each range-spec is drawn from `other-range`'s
+/// octets -- which every alternative of `range-spec` is, so a space inside a
+/// specifier is outside the grammar for `bytes` and `items` alike.
+fn validate_range_set(unit: &str, range_set: &str) -> Result<(), String> {
+    if range_set.is_empty() {
+        return Err("no range-spec found".into());
     }
 
-    // Expect unit=ranges
-    let parts: Vec<&str> = s.splitn(2, '=').collect();
-    if parts.len() != 2 {
-        return Err("missing '=' after unit".into());
-    }
-    let unit = parts[0].trim();
-    if !unit.eq_ignore_ascii_case("bytes") {
-        return Err(format!("unsupported unit '{}', expected 'bytes'", unit));
-    }
-    let ranges = parts[1].trim();
-    if ranges.is_empty() {
-        return Err("no byte-range-spec found".into());
-    }
-
-    for spec in ranges.split(',') {
+    for spec in range_set.split(',') {
+        // The list construct puts OWS on either side of each comma, and OWS is
+        // SP / HTAB. `trim` reaches further than that in general and no further
+        // than that here: `to_str` has already refused every octet outside
+        // visible US-ASCII, of which SP and HTAB are the only whitespace.
         let spec = spec.trim();
         if spec.is_empty() {
-            return Err("empty byte-range-spec".into());
+            return Err("empty range-spec".into());
         }
 
-        // Suffix form: -<suffix-length>
-        if let Some(num) = spec.strip_prefix('-') {
-            if num.is_empty() {
-                return Err("invalid suffix-byte-range (missing digits)".into());
-            }
-            if !num.chars().all(|c| c.is_ascii_digit()) {
-                return Err("suffix-byte-range contains non-digit".into());
-            }
-            continue;
+        // Not `parse_list_header`, which drops empty elements: that is the right
+        // reading for the seventy-odd recipients that call it and the wrong one
+        // here, because the empty element is this rule's evidence. By the time
+        // that function answers, what a sender must not have generated is gone.
+        if let Some(c) = spec.chars().find(|c| !c.is_ascii_graphic()) {
+            return Err(format!(
+                "range-spec '{}' holds {:?}, which no range-spec admits",
+                spec, c
+            ));
         }
 
-        // Otherwise expect <first>-<last?> where last may be empty
-        let dash_idx = spec
-            .find('-')
-            .ok_or_else(|| "byte-range-spec missing '-'".to_string())?;
-        let first = spec[..dash_idx].trim();
-        let last = spec[dash_idx + 1..].trim();
-
-        if first.is_empty() {
-            return Err("byte-range-spec missing first position".into());
+        if unit == "bytes" {
+            validate_bytes_range_spec(spec)?;
         }
-        if !first.chars().all(|c| c.is_ascii_digit()) {
-            return Err("first byte-pos contains non-digit".into());
-        }
+    }
+    Ok(())
+}
 
-        if !last.is_empty() {
-            if !last.chars().all(|c| c.is_ascii_digit()) {
-                return Err("last byte-pos contains non-digit".into());
-            }
-            // check ordering first <= last
-            let first_v: u128 = first
-                .parse()
-                .map_err(|_| "first byte-pos overflow".to_string())?;
-            let last_v: u128 = last
-                .parse()
-                .map_err(|_| "last byte-pos overflow".to_string())?;
-            if first_v > last_v {
-                return Err("first byte-pos greater than last".into());
-            }
+/// Check one range-spec against the two forms the `bytes` unit defines.
+fn validate_bytes_range_spec(spec: &str) -> Result<(), String> {
+    // Suffix form: -<suffix-length>
+    if let Some(num) = spec.strip_prefix('-') {
+        if num.is_empty() {
+            return Err("invalid suffix-byte-range (missing digits)".into());
+        }
+        if !num.chars().all(|c| c.is_ascii_digit()) {
+            return Err("suffix-byte-range contains non-digit".into());
+        }
+        return Ok(());
+    }
+
+    // Otherwise expect <first>-<last?> where last may be empty
+    let dash_idx = spec
+        .find('-')
+        .ok_or_else(|| "byte-range-spec missing '-'".to_string())?;
+    let first = spec[..dash_idx].trim();
+    let last = spec[dash_idx + 1..].trim();
+
+    if first.is_empty() {
+        return Err("byte-range-spec missing first position".into());
+    }
+    if !first.chars().all(|c| c.is_ascii_digit()) {
+        return Err("first byte-pos contains non-digit".into());
+    }
+
+    if !last.is_empty() {
+        if !last.chars().all(|c| c.is_ascii_digit()) {
+            return Err("last byte-pos contains non-digit".into());
+        }
+        // check ordering first <= last
+        let first_v: u128 = first
+            .parse()
+            .map_err(|_| "first byte-pos overflow".to_string())?;
+        let last_v: u128 = last
+            .parse()
+            .map_err(|_| "last byte-pos overflow".to_string())?;
+        if first_v > last_v {
+            return Err("first byte-pos greater than last".into());
         }
     }
     Ok(())
@@ -178,7 +219,17 @@ mod tests {
     #[case("bytes=-500", false)]
     #[case("bytes=9500-", false)]
     #[case("bytes=0-0,-1", false)]
-    #[case("items=0-1", true)]
+    // A range unit whose specifiers this rule does not know: the generic grammar
+    // still holds, and nothing beyond it can be asked.
+    #[case("items=0-1", false)]
+    #[case("items=chapter-3", false)]
+    #[case("items=0 1", true)]
+    #[case("items=", true)]
+    #[case("items=1-2,,3-4", true)]
+    // Not a ranges-specifier at all, whatever the unit would have meant.
+    #[case("bytes 0-499", true)]
+    #[case("by(tes=0-1", true)]
+    #[case("=0-1", true)]
     #[case("bytes=abc", true)]
     #[case("bytes=5-3", true)]
     #[case("bytes=", true)]
@@ -214,6 +265,9 @@ mod tests {
         Ok(())
     }
 
+    /// This used to append `bytes=0-1` and `items=0-1` and rest on the second one
+    /// being reported for its unit -- so it asserted the defect above, not the
+    /// claim in its name. The second line is one the `bytes` unit refuses now.
     #[test]
     fn multiple_values_all_checked() -> anyhow::Result<()> {
         let mut tx = make_test_transaction();
@@ -223,7 +277,7 @@ mod tests {
             .append("range", "bytes=0-1".parse::<HeaderValue>()?);
         tx.request
             .headers
-            .append("range", "items=0-1".parse::<HeaderValue>()?);
+            .append("range", "bytes=5-3".parse::<HeaderValue>()?);
 
         let v = judge(&tx);
         assert!(v.is_some());
