@@ -11,6 +11,7 @@ pub mod auth;
 pub mod content_range;
 pub mod cookie;
 pub mod domain;
+pub mod forwarded_node;
 pub mod headers;
 pub mod ipv6;
 pub mod language;
