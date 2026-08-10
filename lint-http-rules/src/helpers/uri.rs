@@ -49,6 +49,44 @@ pub fn contains_whitespace(s: &str) -> bool {
     s.chars().any(|c| c.is_ascii_whitespace())
 }
 
+/// The first character of `s` that no `URI-reference` admits, or `None` when
+/// every character is one a URI may be written with.
+///
+/// The set is the union of `unreserved`, `gen-delims` and `sub-delims` plus the
+/// `"%"` that opens a `pct-encoded` triplet — every terminal reachable from
+/// `URI-reference`, since each component rule of the generic syntax lists a
+/// subset of those characters and nothing outside them. So this answers only the
+/// *alphabet* question; whether a character sits where its component allows it,
+/// and whether a `%` is followed by two `HEXDIG`, are
+/// [`check_percent_encoding`]'s and the component rules' questions.
+///
+/// Deliberately narrower than "is this visible US-ASCII": `<`, `>`, `"`, `{`,
+/// `}`, `|`, `\`, `^`, `` ` `` and SP are all VCHAR or SP and none of them is a
+/// URI character. Every octet outside the set has to be percent-encoded before
+/// the URI is formed, which is what makes the finding actionable.
+// cite(RFC 3986 § 2): "A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols."
+// cite(RFC 3986 § 2.1): "A percent-encoding mechanism is used to represent a data octet in a component when that octet's corresponding character is outside the allowed set or is being used as a delimiter of, or within, the component."
+// cite(RFC 3986 § 2.2): "A component's ABNF syntax rule will not use the reserved or gen-delims rule names directly; instead, each syntax rule lists the characters allowed within that component (i.e., not delimiting it), and any of those characters that are also in the reserved set are "reserved" for use as subcomponent delimiters within the component."
+pub fn find_non_uri_char(s: &str) -> Option<char> {
+    s.chars().find(|&c| !is_uri_char(c))
+}
+
+/// Whether `c` is one of the characters a URI is composed from.
+// cite(RFC 3986 § 2.3): "unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~""
+// cite(RFC 3986 § 2.2): "gen-delims  = ":" / "/" / "?" / "#" / "[" / "]" / "@""
+// cite(RFC 3986 § 2.2): "sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "=""
+// cite(RFC 3986 § 2.1): "pct-encoded = "%" HEXDIG HEXDIG"
+fn is_uri_char(c: char) -> bool {
+    c.is_ascii_alphanumeric()
+        || matches!(c, '-' | '.' | '_' | '~')
+        || matches!(c, ':' | '/' | '?' | '#' | '[' | ']' | '@')
+        || matches!(
+            c,
+            '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '='
+        )
+        || c == '%'
+}
+
 /// Validate a potential scheme (the characters before a scheme-delimiting ':').
 /// Returns `Some(msg)` on invalid scheme, `None` if OK or no scheme present.
 pub fn validate_scheme_if_present(s: &str) -> Option<String> {
