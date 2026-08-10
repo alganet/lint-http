@@ -75,10 +75,12 @@ impl Rule for SemanticOptionsMethodCapabilities {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
-        // Matched exactly, never case-folded. `options` is not the OPTIONS
-        // method, and a method this specification does not define has no
-        // capability-advertising semantics for a response to be measured
-        // against.
+        // Two sentences meet at this gate and both are load-bearing: the first
+        // is why the rule looks at OPTIONS at all, the second is why the
+        // comparison is exact. `options` is not the OPTIONS method, and a method
+        // this specification does not define has no capability-advertising
+        // semantics for a response to be measured against.
+        // cite(RFC 9110 § 9.3.7): "The OPTIONS method requests information about the communication options available for the target resource, at either the origin server or an intervening intermediary."
         // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
         if tx.request.method != "OPTIONS" {
             return None;
