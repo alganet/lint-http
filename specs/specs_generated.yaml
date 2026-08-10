@@ -813,7 +813,7 @@ sources:
     snippet: The most frequent examples of same-document references are relative references that are empty or include only the number sign ("#") separator followed by a fragment identifier.
     cited_by:
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
-      line: 123
+      line: 126
 - label: RFC 4647
   url: https://www.rfc-editor.org/rfc/rfc4647.txt
   type: text/plain
@@ -2044,7 +2044,7 @@ sources:
     - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
       line: 40
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
-      line: 93
+      line: 95
     - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
       line: 41
     - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
@@ -3390,7 +3390,7 @@ sources:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 49
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
-      line: 108
+      line: 111
   - label: message_connection_header_tokens_valid (2)
     section: § 7.6.1
     snippet: A sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content.  For example, Cache-Control is never appropriate as a connection option (Section 5.2 of [CACHING]).
@@ -3446,7 +3446,7 @@ sources:
     - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
       line: 74
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
-      line: 91
+      line: 93
   - label: message_content_encoding_and_type_consistency
     section: § 15.4.5
     snippet: a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates
@@ -4582,13 +4582,13 @@ sources:
     snippet: A Location field value cannot | allow a list of members because the comma list separator is a | valid data character within a URI-reference.
     cited_by:
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
-      line: 94
+      line: 96
   - label: server_location_header_uri_valid (3)
     section: § 10.2.2
     snippet: If an invalid | message is sent with multiple Location field lines, a recipient | along the path might combine those field lines into one value.
     cited_by:
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
-      line: 95
+      line: 97
   - label: Location grammar
     section: § 10.2.2
     snippet: Location = URI-reference
@@ -4604,17 +4604,23 @@ sources:
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 99
   - label: server_location_header_uri_valid (5)
+    section: § 16.3.2.2
+    snippet: because URIs can include commas, it is not possible to reliably distinguish between a single value that includes a comma from two values
+    cited_by:
+    - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
+      line: 98
+  - label: server_location_header_uri_valid (6)
     section: § 2.2
     snippet: A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.
     cited_by:
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 73
-  - label: server_location_header_uri_valid (6)
+  - label: server_location_header_uri_valid (7)
     section: § 5.5
     snippet: Fields that expect to contain a comma within a member, such as within an HTTP-date or URI-reference element, ought to be defined with delimiters around that element to distinguish any comma within that data from potential list separators.
     cited_by:
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
-      line: 92
+      line: 94
   - label: server_no_body_for_1xx_204_304
     section: § 15.4.5
     snippet: A 304 response is terminated by the end of the header section; it cannot contain content or trailers.
