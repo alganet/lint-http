@@ -13,9 +13,9 @@ impl Rule for ServerProblemDetailsContentType {
     }
 
     // No sentence scopes this rule to responses on its own. What does is the
-    // status gate below: the question the rule asks is about a status code and
-    // the representation sent with it, and only a response has either. The cite
-    // lives there, at its narrowest site, rather than being repeated here.
+    // status gate below: the question the rule asks is about a status code, and
+    // only a response has one. The cite lives there, at its narrowest site,
+    // rather than being repeated here.
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -40,6 +40,17 @@ impl Rule for ServerProblemDetailsContentType {
         // A response with no `Content-Type` is `server_content_type_present`'s
         // finding, and a value that is not a media type is
         // `message_content_type_well_formed`'s. Neither is answered here.
+        //
+        // Neither is a second field line: that rule reports it, and this one
+        // cannot advise past it, because `get` reads the first value while the
+        // recipient is likely to act on the last. Advising against a media type
+        // the peer never reads would be advice about a message that does not
+        // exist -- and the last line here may well be `application/problem+json`.
+        // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
+        if resp.headers.get_all("content-type").iter().count() > 1 {
+            return None;
+        }
+
         let ct_str = crate::helpers::headers::get_header_str(&resp.headers, "content-type")?;
         let parsed = crate::helpers::headers::parse_media_type(ct_str).ok()?;
 
@@ -60,9 +71,14 @@ impl Rule for ServerProblemDetailsContentType {
         // Only the three media types that name a syntax and no format on top of
         // it: `application/json` is the media type for JSON text, and RFC 7303
         // names its two XML counterparts in the same breath as "a more specific
-        // media type", which is the distinction this table draws.
+        // media type", which is the distinction this table draws. What the
+        // §4.1 SHOULD requires is not borrowed here -- it is the *document
+        // entities* bullet of a four-way list, and it is quoted for the contrast
+        // it draws, not for its modal. `text/xml` is in the table because its
+        // registration is `application/xml`'s with one field changed.
         // cite(RFC 8259 § 11): "The media type for JSON text is application/json."
         // cite(RFC 7303 § 4.1): "The media types application/xml or text/xml, or a more specific media type (see Section 9.6), SHOULD be used."
+        // cite(RFC 7303 § 9.2): "The registration information for text/xml is in all respects the same as that given for application/xml above (Section 9.1), except that the "Type name" is "text"."
         //
         // A `+json` or `+xml` subtype is a sender naming a format it already
         // has, which is the case the document twice says to leave alone.
@@ -91,7 +107,7 @@ impl Rule for ServerProblemDetailsContentType {
     }
 
     fn description(&self) -> &'static str {
-        "Reports an error response (4xx or 5xx) whose `Content-Type` is one of the three **generic** JSON or XML media types — `application/json`, `application/xml`, `text/xml` — as a candidate for problem details, the format RFC 9457 defines to carry machine-readable details of an error as `application/problem+json` or `application/problem+xml`. RFC 9457 obsoletes RFC 7807.\n\n**The finding is advisory: no RFC requires problem details.** RFC 9457 says they \"can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses\", which is where this rule looks, and it twice says that a sender with a format of its own should keep it: §1 notes that where the response is still a representation of a resource \"it's often preferable to describe the relevant details in that application's format\", and §4 that problem details are \"intended to avoid the necessity of establishing new 'fault' or 'error' document formats, not to replace existing domain-specific formats\". A finding means this error response carries no error format at all, not that its sender did anything wrong.\n\nThat is why the reported set stops at the three generic media types. A subtype ending in `+json` or `+xml` (`application/hal+json`, `application/vnd.api+json`) names a specific format, so the sender has the one RFC 9457 prefers and the rule says nothing. It also says nothing about a `Content-Type` it cannot parse, which is `message_content_type_well_formed`'s finding, nor about a response carrying no `Content-Type` at all, which is `server_content_type_present`'s."
+        "Reports an error response (4xx or 5xx) whose `Content-Type` is one of the three **generic** JSON or XML media types — `application/json`, `application/xml`, `text/xml` — as a candidate for problem details, the format RFC 9457 defines to carry machine-readable details of an error as `application/problem+json` or `application/problem+xml`. RFC 9457 obsoletes RFC 7807.\n\n**The finding is advisory: no RFC requires problem details.** RFC 9457 says they \"can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses\", which is where this rule looks, and it twice says that a sender with a format of its own should keep it: §1 notes that where the response is still a representation of a resource \"it's often preferable to describe the relevant details in that application's format\", and §4 that problem details are \"intended to avoid the necessity of establishing new 'fault' or 'error' document formats, not to replace existing domain-specific formats\". A finding means this error response carries no error format at all, not that its sender did anything wrong.\n\nThat is why the reported set stops at the three generic media types. A subtype ending in `+json` or `+xml` (`application/hal+json`, `application/vnd.api+json`) names a specific format, so the sender has the one RFC 9457 prefers and the rule says nothing. It also says nothing about a `Content-Type` it cannot parse, which is `message_content_type_well_formed`'s finding, nor about a response carrying no `Content-Type` at all, which is `server_content_type_present`'s. A response carrying **two** `Content-Type` field lines is declined for a third reason: RFC 9110 §8.3 says recipients often act on the last syntactically valid member, so which media type the peer reads is not knowable, and `message_content_type_well_formed` reports the duplication itself."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -113,6 +129,12 @@ impl Rule for ServerProblemDetailsContentType {
                 section: Some("B"),
                 url: "https://www.rfc-editor.org/rfc/rfc9457.html#appendix-B",
                 note: "The equivalent XML format and its media type, `application/problem+xml` — the second value this rule accepts is defined in an appendix, not in the body of the document",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+                note: "The field this rule reads: that it is a singleton and what recipients do when it is sent twice (the reason a duplicated field line is declined), and, in §8.3.1, that its type and subtype tokens are case-insensitive",
             },
         ]
     }
@@ -213,6 +235,47 @@ mod tests {
             );
         }
         Ok(())
+    }
+
+    /// Two `Content-Type` field lines: `message_content_type_well_formed`
+    /// reports the duplication, and this rule declines rather than advise
+    /// against a value the recipient is unlikely to be the one acting on. Both
+    /// orders, because reading the first value is what makes the order matter.
+    #[rstest]
+    #[case(&["application/json", "application/problem+json"])]
+    #[case(&["application/problem+json", "application/json"])]
+    fn duplicate_content_type_lines_are_declined(#[case] values: &[&str]) {
+        let rule = ServerProblemDetailsContentType;
+        let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("content-type", *v)).collect();
+        let tx = crate::test_helpers::make_test_transaction_with_response(500, &pairs);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "{values:?}: {v:?}");
+    }
+
+    /// The neighbour named above reports the message this rule declines, so the
+    /// decline costs no coverage. Executed rather than assumed.
+    #[test]
+    fn the_owning_rule_reports_the_duplication_this_rule_declines() {
+        use crate::rules::Rule as _;
+        let owner = crate::rules::message_content_type_well_formed::MessageContentTypeWellFormed;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            500,
+            &[
+                ("content-type", "application/json"),
+                ("content-type", "application/problem+json"),
+            ],
+        );
+        let v = owner.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[owner.id()]),
+        );
+        assert!(v.is_some(), "the owning rule said nothing");
     }
 
     #[test]

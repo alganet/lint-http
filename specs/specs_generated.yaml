@@ -1602,7 +1602,13 @@ sources:
     snippet: The media types application/xml or text/xml, or a more specific media type (see Section 9.6), SHOULD be used.
     cited_by:
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 65
+      line: 80
+  - label: server_problem_details_content_type (2)
+    section: § 9.2
+    snippet: The registration information for text/xml is in all respects the same as that given for application/xml above (Section 9.1), except that the "Type name" is "text".
+    cited_by:
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 81
 - label: RFC 7578
   url: https://www.rfc-editor.org/rfc/rfc7578.txt
   type: text/plain
@@ -1790,7 +1796,7 @@ sources:
     snippet: The media type for JSON text is application/json.
     cited_by:
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 64
+      line: 79
 - label: RFC 8288
   url: https://www.rfc-editor.org/rfc/rfc8288.txt
   type: text/plain
@@ -3031,6 +3037,8 @@ sources:
       line: 65
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 58
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 49
   - label: message_accept_and_content_type_negotiation (15)
     section: § 8.3.1
     snippet: The type and subtype tokens are case-insensitive.
@@ -3052,7 +3060,7 @@ sources:
     - file: lint-http-rules/src/rules/server_charset_specification.rs
       line: 40
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 47
+      line: 58
   - label: message_accept_encoding_parameter_validity
     section: § 12.4.2
     snippet: The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content.
@@ -6012,7 +6020,7 @@ sources:
     snippet: If the response is still a representation of a resource, for example, it's often preferable to describe the relevant details in that application's format.
     cited_by:
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 69
+      line: 85
   - label: server_problem_details_content_type (2)
     section: § 1
     snippet: Problem details can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses.
@@ -6024,25 +6032,25 @@ sources:
     snippet: This specification's aim is to define common error formats for applications that need one so that they aren't required to define their own or, worse, tempted to redefine the semantics of existing HTTP status codes.
     cited_by:
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 82
+      line: 98
   - label: server_problem_details_content_type (4)
     section: § 3
     snippet: When serialized in a JSON document, that format is identified with the "application/problem+json" media type.
     cited_by:
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 54
+      line: 65
   - label: server_problem_details_content_type (5)
     section: § 4
     snippet: Problem details are intended to avoid the necessity of establishing new "fault" or "error" document formats, not to replace existing domain-specific formats.
     cited_by:
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 70
+      line: 86
   - label: server_problem_details_content_type (6)
     section: § B
     snippet: The media type for this format is "application/problem+xml".
     cited_by:
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 55
+      line: 66
 - label: RFC 9530
   url: https://www.rfc-editor.org/rfc/rfc9530.txt
   type: text/plain
