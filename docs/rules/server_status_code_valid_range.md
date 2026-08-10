@@ -20,7 +20,11 @@ The reason-phrase beside the code is not read: RFC 9112 §4 makes it optional an
 
 ## Specifications
 
-- [RFC 9110 §15](https://www.rfc-editor.org/rfc/rfc9110.html#section-15): Status Codes: the three-digit code, the 100..599 range, and the statement that values outside it are invalid
+- [RFC 9110 §15](https://www.rfc-editor.org/rfc/rfc9110.html#section-15): Status Codes: the three-digit code, the 100..599 range, the statement that values outside it are invalid, what 600..999 is used for, and what a client does with an invalid code
+- [RFC 9110 §15.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.1): Overview of Status Codes: additional codes `ought to be` registered — the modal that keeps this rule from checking registration
+- [RFC 9110 §16.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-16.2.2): Considerations for New Status Codes: a new code must fall under one of the five classes §15 defines, so the range cannot widen
+- [RFC 9112 §4](https://www.rfc-editor.org/rfc/rfc9112.html#section-4): Status Line: `status-code = 3DIGIT`, the written form an HTTP/1.1 response can carry, and the optional reason phrase this rule does not read
+- [RFC 9110 §2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2): Conformance: a sender must not generate an element that does not match its ABNF — reached from RFC 9112 §1.1, and the modal behind the one value no `status-code` can express
 
 ## Configuration
 

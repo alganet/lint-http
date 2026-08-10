@@ -23,22 +23,80 @@ impl Rule for ServerStatusCodeValidRange {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+
+        // A status code is something a *response* has. `RuleScope::Server` above is
+        // the engine's dispatch filter and not a sentence; this is the sentence, and
+        // it is the definition the range check below used to be hung on.
+        //
+        // The code and nothing beside it: the reason phrase is not retained by the
+        // canonical transaction model, and there would be little to measure it
+        // against if it were — RFC 9112 § 4 makes it optional and asks the client to
+        // disregard what it says.
+        //
+        // cite(RFC 9110 § 15): "The status code of a response is a three-digit integer code that describes the result of the request and the semantics of the response, including whether the request was successful and what content is enclosed (if any)."
+        // cite(RFC 9112 § 4): "A client SHOULD ignore the reason-phrase content because it is not a reliable channel for information"
         let Some(resp) = &tx.response else {
             return None;
         };
 
         let status = resp.status;
-        // cite(RFC 9110 § 15): "The status code of a response is a three-digit integer code that describes the result of the request"
+
+        // The range, and the sentence that makes a value outside it a finding rather
+        // than an observation. Worth stating which it is, because three rules in this
+        // family have just had a claim shrunk to advice on finding that the rule's own
+        // section merely *defines* its subject (§ 10.2.3's `Retry-After`, § 10.2.2's
+        // placement rule). This is the other answer: "Values outside the range
+        // 100..599 are invalid" is not a definition of a status code, it is a verdict
+        // on a set of them. § 2.2's ABNF MUST NOT is not what carries it either —
+        // `3DIGIT` admits 600 quite happily — and it appears below only on the one arm
+        // where the value cannot be written at all.
+        //
+        // § 16.2.2 is the same sentence aimed at the future: no registration can widen
+        // the range, because a new code must fall into one of § 15's five classes.
+        //
+        // cite(RFC 9110 § 15): "All valid status codes are within the range of 100 to 599, inclusive."
+        // cite(RFC 9110 § 15): "Values outside the range 100..599 are invalid."
+        // cite(RFC 9110 § 16.2.2): "New status codes are required to fall under one of the categories defined in Section 15."
         if (100..=599).contains(&status) {
+            // An in-range code nobody has registered is still well defined: every
+            // recipient is required to read it as the x00 of its class, and § 15.1
+            // asks only that additional codes "ought to be" registered — weaker than
+            // SHOULD, over an open registry. So there is no allowlist of known codes
+            // here, and § 15's own example, a 471, is not a finding.
+            //
+            // cite(RFC 9110 § 15): "However, a client MUST understand the class of any status code, as indicated by the first digit, and treat an unrecognized status code as being equivalent to the x00 status code of that class."
+            // cite(RFC 9110 § 15.1): "All such status codes ought to be registered within the "Hypertext Transfer Protocol (HTTP) Status Code Registry", as described in Section 16.2."
             return None;
         }
 
-        // The message names which kind of out-of-range value this is, because the
-        // three have different causes and only one of them can be written in a
-        // status-line at all.
+        // What the recipient does with it, which is the same for all three arms and is
+        // the part an operator needs: the status is not read and rejected, it is
+        // replaced, so whatever the sender meant by it arrives as a server error.
+        //
+        // The written form bounds two of the three arms, so the grammar sits above
+        // them: three digits, no more and no fewer.
+        //
+        // cite(RFC 9110 § 15): "A client that receives a response with an invalid status code SHOULD process the response as if it had a 5xx (Server Error) status code."
+        // cite(RFC 9112 § 4): "status-code    = 3DIGIT"
         let detail = match status {
+            // Below 100. `3DIGIT` would admit `007`, so the grammar is not what stops
+            // this one and the message does not claim it is; the HTTP/1.1 parser on
+            // the capture path is, which a test below executes rather than assumes.
             0..=99 => "A status-line cannot carry a value below 100 except as a leading-zero code such as `007` (RFC 9112 §4: `status-code = 3DIGIT`), which the HTTP/1.1 parser on the capture path rejects, so this value reached the linter from a capture record rather than from a parsed status-line.",
+            // 600..999: three digits, writable, and § 15 names what is usually being
+            // written — an internal library status that escaped onto the wire.
+            //
+            // cite(RFC 9110 § 15): "Implementations often use three-digit integer values outside of that range (i.e., 600..999) for internal communication of non-HTTP status (e.g., library errors)."
             600..=999 => "RFC 9110 §15 names 600..999 as the range implementations use for internal communication of non-HTTP status, such as library errors — one of those has reached the wire.",
+            // Above 999: the one arm no status-line can express, and so the one arm
+            // where § 2.2's MUST NOT applies. It reaches RFC 9112's grammar through
+            // § 1.1, which hands that document's conformance criteria to RFC 9110 § 2
+            // — the bridge is worth citing, because the modal lives in the other
+            // document from the production it governs.
+            //
+            // cite(RFC 9112 § 4): "The status-code element is a 3-digit integer code describing the result of the server's attempt to understand and satisfy the client's corresponding request."
+            // cite(RFC 9112 § 1.1): "Conformance criteria and considerations regarding error handling are defined in Section 2 of [HTTP]."
+            // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
             _ => "No `status-code` can express a value above 999 at all (RFC 9112 §4: `status-code = 3DIGIT`), so this value reached the linter from a capture record rather than from a parsed status-line.",
         };
 
@@ -56,12 +114,38 @@ impl Rule for ServerStatusCodeValidRange {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("15"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
-            note: "Status Codes: the three-digit code, the 100..599 range, and the statement that values outside it are invalid",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
+                note: "Status Codes: the three-digit code, the 100..599 range, the statement that values outside it are invalid, what 600..999 is used for, and what a client does with an invalid code",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.1",
+                note: "Overview of Status Codes: additional codes `ought to be` registered — the modal that keeps this rule from checking registration",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("16.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.2.2",
+                note: "Considerations for New Status Codes: a new code must fall under one of the five classes §15 defines, so the range cannot widen",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-4",
+                note: "Status Line: `status-code = 3DIGIT`, the written form an HTTP/1.1 response can carry, and the optional reason phrase this rule does not read",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+                note: "Conformance: a sender must not generate an element that does not match its ABNF — reached from RFC 9112 §1.1, and the modal behind the one value no `status-code` can express",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
