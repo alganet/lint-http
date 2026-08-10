@@ -7,6 +7,34 @@ use crate::rules::Rule;
 
 pub struct MessageProblemDetailsStructure;
 
+/// The JSON type of a parsed value, for a finding that has to say what the
+/// content turned out to be instead of an object.
+fn json_kind(v: &serde_json::Value) -> &'static str {
+    match v {
+        serde_json::Value::Null => "null",
+        serde_json::Value::Bool(_) => "boolean",
+        serde_json::Value::Number(_) => "number",
+        serde_json::Value::String(_) => "string",
+        serde_json::Value::Array(_) => "array",
+        serde_json::Value::Object(_) => "object",
+    }
+}
+
+impl MessageProblemDetailsStructure {
+    /// Every finding names the same contradiction — the declared media type
+    /// against the content — and differs only in what the content turned out to
+    /// be. `detail` is that clause, and it is what the tests key on.
+    fn report(&self, severity: crate::lint::Severity, detail: &str) -> Violation {
+        Violation {
+            rule: self.id().into(),
+            severity,
+            message: format!(
+                "Response declares 'application/problem+json' but {detail}; the content is not the problem details JSON object that media type identifies"
+            ),
+        }
+    }
+}
+
 impl Rule for MessageProblemDetailsStructure {
     fn id(&self) -> &'static str {
         "message_problem_details_structure"
@@ -25,95 +53,76 @@ impl Rule for MessageProblemDetailsStructure {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
-        // Only consider responses that indicate an error or problem (4xx/5xx)
-        // cite(RFC 7807 § 3.1): "the following members: o "type" (string) - A URI reference [RFC3986] that identifies the problem type."
-        if resp.status < 400 {
+        // Two field lines: which media type the peer acts on is not knowable, so
+        // there is no message here whose content can be measured against a
+        // declared format. `message_content_type_well_formed` reports the
+        // duplication itself.
+        if resp.headers.get_all("content-type").iter().count() > 1 {
             return None;
         }
 
-        // If Content-Type is application/problem+json, ensure a non-empty body is present
-        if let Some(ct_str) = crate::helpers::headers::get_header_str(&resp.headers, "content-type")
+        let ct_str = crate::helpers::headers::get_header_str(&resp.headers, "content-type")?;
+        let parsed = crate::helpers::headers::parse_media_type(ct_str).ok()?;
+        let t = parsed.type_.to_ascii_lowercase();
+        let sub = parsed.subtype.to_ascii_lowercase();
+        // cite(RFC 9457 § 3): "When serialized in a JSON document, that format is identified with the "application/problem+json" media type."
+        if t != "application" || sub != "problem+json" {
+            return None;
+        }
+
+        // A content coding makes the octets on the wire the coded form, so they
+        // are not a JSON document and were never meant to be. That disqualifies
+        // reading them as one -- and nothing else: how many of them there are is
+        // still evidence, and an empty content is empty either way.
+        let coded = resp.headers.contains_key("content-encoding");
+
+        // Skip byte inspection when the captured body is a truncated prefix
+        // (streaming): a truncated JSON object would mis-parse. The length-based
+        // checks below use the real `body_length`, so coverage degrades
+        // gracefully. An untruncated capture with an empty prefix is an empty
+        // body: the tee marks a capture truncated whenever the total exceeds the
+        // prefix it kept.
+        if let Some(b) = tx
+            .response_body
+            .as_ref()
+            .filter(|_| !tx.response_body_over_limit)
         {
-            if let Ok(parsed) = crate::helpers::headers::parse_media_type(ct_str) {
-                let t = parsed.type_.to_ascii_lowercase();
-                let sub = parsed.subtype.to_ascii_lowercase();
-
-                if t == "application" && sub == "problem+json" {
-                    // If the transaction contains captured body bytes, inspect them
-                    // conservatively. Skip byte inspection when the captured body is a
-                    // truncated prefix (streaming): a truncated JSON object would
-                    // mis-parse. The length-based checks below use the real
-                    // `body_length`, so coverage degrades gracefully.
-                    if let Some(b) = tx
-                        .response_body
-                        .as_ref()
-                        .filter(|_| !tx.response_body_over_limit)
-                    {
-                        // Empty bytes -> violation
-                        if b.is_empty() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: "Problem Details response using 'application/problem+json' must include a non-empty JSON object body".into(),
-                            });
-                        }
-
-                        // Try parsing JSON and ensure it's a non-empty object
-                        if let Ok(serde_json::Value::Object(m)) =
-                            serde_json::from_slice::<serde_json::Value>(b)
-                        {
-                            if m.is_empty() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: "Problem Details response using 'application/problem+json' must include a non-empty JSON object body".into(),
-                                });
-                            } else {
-                                return None;
-                            }
-                        } else {
-                            // Unparseable JSON or not an object -> violation
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: "Problem Details response using 'application/problem+json' must include a non-empty JSON object body".into(),
-                            });
-                        }
-                    }
-
-                    // If we have a captured body length of exactly zero -> violation
-                    if let Some(len) = resp.body_length {
-                        if len == 0 {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: "Problem Details response using 'application/problem+json' must include a non-empty JSON object body".into(),
-                            });
-                        }
-                        // non-zero length -> no violation (we cannot inspect content here)
-                        return None;
-                    }
-
-                    // If Content-Length header explicitly zero -> violation
-                    if let Some(cl) =
-                        crate::helpers::headers::get_header_str(&resp.headers, "content-length")
-                    {
-                        if let Ok(v) = cl.trim().parse::<u64>() {
-                            if v == 0 {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: "Problem Details response using 'application/problem+json' must include a non-empty JSON object body".into(),
-                                });
-                            } else {
-                                return None;
-                            }
-                        }
-                    }
-
-                    // We don't have captured body length nor Content-Length -> be conservative and do not flag
-                }
+            if b.is_empty() {
+                return Some(self.report(config.severity, "its content is empty"));
             }
+            if coded {
+                return None;
+            }
+            return match serde_json::from_slice::<serde_json::Value>(b) {
+                Ok(serde_json::Value::Object(_)) => None,
+                Ok(other) => Some(self.report(
+                    config.severity,
+                    &format!(
+                        "its content is a JSON {}, not a JSON object",
+                        json_kind(&other)
+                    ),
+                )),
+                Err(_) => Some(self.report(config.severity, "its content is not a JSON document")),
+            };
+        }
+
+        // No usable bytes. The capture's own octet count is the next evidence,
+        // and it answers only the emptiness half of the question.
+        if let Some(len) = resp.body_length {
+            return (len == 0)
+                .then(|| self.report(config.severity, "the capture counted zero content octets"));
+        }
+
+        // Nothing counted either -- a transaction deserialized from a capture
+        // file carries no body bytes at all. What the sender declared is the
+        // last evidence, and only when nothing overrides it.
+        if !resp.headers.contains_key("transfer-encoding")
+            && matches!(
+                crate::helpers::headers::validate_content_length(&resp.headers),
+                Ok(Some(0))
+            )
+        {
+            return Some(self.report(config.severity, "it declares a Content-Length of zero"));
         }
 
         None
@@ -158,247 +167,232 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    #[rstest]
-    #[case(400, Some(("application/problem+json", "content-length", "0")), true)]
-    #[case(500, Some(("application/problem+json", "content-length", "10")), false)]
-    #[case(404, Some(("application/problem+json", "content-length", "0")), true)]
-    #[case(400, Some(("application/problem+json", "content-length", "")), false)] // malformed cl -> ignore
-    #[case(400, Some(("application/problem+json", "content-length", " 0 ")), true)]
-    fn problem_details_content_length_cases(
-        #[case] status: u16,
-        #[case] hdr: Option<(&str, &str, &str)>,
-        #[case] expect_violation: bool,
-    ) {
-        let rule = MessageProblemDetailsStructure;
+    /// One constructor for every fixture, so no test is silent about an input
+    /// the rule reads: the status, the field lines, the captured octets and the
+    /// counted length are all named at each call site.
+    fn fixture(
+        status: u16,
+        headers: &[(&str, &str)],
+        body: Option<&'static [u8]>,
+        body_length: Option<u64>,
+    ) -> crate::http_transaction::HttpTransaction {
         let mut tx = crate::test_helpers::make_test_transaction();
-        let mut headers = Vec::new();
-        if let Some((ct, cl_name, cl_val)) = hdr {
-            headers.push(("content-type", ct));
-            if !cl_val.is_empty() {
-                headers.push((cl_name, cl_val));
-            }
-        }
-
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status,
             version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&headers),
-            body_length: None,
+            headers: crate::test_helpers::make_headers_from_pairs(headers),
+            body_length,
             trailers: None,
         });
+        tx.response_body = body.map(bytes::Bytes::from_static);
+        tx
+    }
 
-        let v = rule.check_transaction(
-            &tx,
+    fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<crate::lint::Violation> {
+        let rule = MessageProblemDetailsStructure;
+        rule.check_transaction(
+            tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+    }
+
+    const PJ: (&str, &str) = ("content-type", "application/problem+json");
+
+    /// Every member of a problem details object is optional, so `{}` is a
+    /// conforming one: it means "no semantics beyond the status code". §3.1
+    /// introduces the members with "can have", §3.1.1 supplies "about:blank"
+    /// when "type" is absent, and §4.2.1 closes it by saying that an object
+    /// carrying no explicit "type" implicitly uses that URI.
+    #[test]
+    fn empty_object_is_a_conforming_problem_details_object() {
+        let tx = fixture(500, &[PJ], Some(b"{}"), Some(2));
+        assert!(check(&tx).is_none(), "{:?}", check(&tx));
+    }
+
+    /// The rule asks whether content labelled as problem details is problem
+    /// details. That question does not depend on the status code, and RFC 9457
+    /// says the format can be used with any of them.
+    #[rstest]
+    #[case(200)]
+    #[case(204)]
+    #[case(400)]
+    #[case(500)]
+    fn status_is_not_a_condition(#[case] status: u16) {
+        let tx = fixture(status, &[PJ], Some(b"not json"), Some(8));
+        let v = check(&tx).expect("expected a finding");
+        assert!(v.message.contains("not a JSON document"), "{}", v.message);
+    }
+
+    #[rstest]
+    #[case(b"[1,2]", "JSON array")]
+    #[case(b"\"a\"", "JSON string")]
+    #[case(b"42", "JSON number")]
+    #[case(b"true", "JSON boolean")]
+    #[case(b"null", "JSON null")]
+    fn valid_json_that_is_not_an_object_is_reported(
+        #[case] body: &'static [u8],
+        #[case] clause: &str,
+    ) {
+        let tx = fixture(500, &[PJ], Some(body), Some(body.len() as u64));
+        let v = check(&tx).expect("expected a finding");
+        assert!(v.message.contains(clause), "{}", v.message);
+    }
+
+    #[test]
+    fn a_problem_details_object_is_not_reported() {
+        let tx = fixture(
+            500,
+            &[PJ],
+            Some(b"{\"type\":\"about:blank\",\"title\":\"Internal Server Error\"}"),
+            Some(52),
         );
-        if expect_violation {
-            assert!(v.is_some(), "expected violation for hdr={:?}", hdr);
-            assert!(v.unwrap().message.contains("Problem Details response"));
-        } else {
+        assert!(check(&tx).is_none(), "{:?}", check(&tx));
+    }
+
+    #[test]
+    fn empty_captured_body_is_reported() {
+        let tx = fixture(500, &[PJ], Some(b""), Some(0));
+        let v = check(&tx).expect("expected a finding");
+        assert!(v.message.contains("content is empty"), "{}", v.message);
+    }
+
+    /// A `Content-Encoding` makes the captured octets the coded form, so they
+    /// cannot be parsed as JSON. The four bytes here are a gzip header.
+    #[test]
+    fn content_encoding_suppresses_the_json_parse() {
+        let tx = fixture(
+            500,
+            &[PJ, ("content-encoding", "gzip")],
+            Some(&[0x1f, 0x8b, 0x08, 0x00]),
+            Some(4),
+        );
+        assert!(check(&tx).is_none(), "{:?}", check(&tx));
+    }
+
+    /// ...and nothing else. A coded representation of zero octets is still no
+    /// representation at all.
+    #[test]
+    fn content_encoding_does_not_suppress_the_emptiness_finding() {
+        let tx = fixture(500, &[PJ, ("content-encoding", "gzip")], Some(b""), Some(0));
+        let v = check(&tx).expect("expected a finding");
+        assert!(v.message.contains("content is empty"), "{}", v.message);
+    }
+
+    /// Two `Content-Type` field lines: the media type this message states is
+    /// not the one the recipient is likely to act on, so there is nothing to
+    /// measure the content against. Both orders, because reading the first
+    /// value is what makes the order matter.
+    #[rstest]
+    #[case(&["application/problem+json", "text/html"])]
+    #[case(&["text/html", "application/problem+json"])]
+    fn duplicate_content_type_lines_are_declined(#[case] values: &[&str]) {
+        let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("content-type", *v)).collect();
+        let tx = fixture(500, &pairs, Some(b"not json"), Some(8));
+        assert!(check(&tx).is_none(), "{values:?}: {:?}", check(&tx));
+    }
+
+    /// The neighbour named at the decline reports that message, so the decline
+    /// costs no coverage. Executed rather than assumed.
+    #[test]
+    fn the_owning_rule_reports_the_duplication_this_rule_declines() {
+        let owner = crate::rules::message_content_type_well_formed::MessageContentTypeWellFormed;
+        let tx = fixture(
+            500,
+            &[
+                ("content-type", "application/problem+json"),
+                ("content-type", "text/html"),
+            ],
+            Some(b"not json"),
+            Some(8),
+        );
+        let v = owner.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[owner.id()]),
+        );
+        assert!(v.is_some(), "the owning rule said nothing");
+    }
+
+    /// A truncated prefix of a problem+json body would mis-parse; the rule must
+    /// skip byte inspection and fall back to `body_length` (the real size).
+    #[test]
+    fn truncated_body_prefix_skips_byte_inspection() {
+        let mut tx = fixture(500, &[PJ], Some(b"{\"type\":\"abo"), Some(4096));
+        tx.response_body_over_limit = true;
+        assert!(check(&tx).is_none(), "{:?}", check(&tx));
+    }
+
+    /// No captured bytes: the counted octets are the remaining evidence, and
+    /// they answer only the emptiness half of the question.
+    #[rstest]
+    #[case(0, true)]
+    #[case(10, false)]
+    fn counted_length_cases(#[case] len: u64, #[case] expect_violation: bool) {
+        let tx = fixture(500, &[PJ], None, Some(len));
+        let v = check(&tx);
+        assert_eq!(v.is_some(), expect_violation, "{v:?}");
+        if let Some(v) = v {
             assert!(
-                v.is_none(),
-                "unexpected violation for hdr={:?}: {:?}",
-                hdr,
-                v
+                v.message.contains("counted zero content octets"),
+                "{}",
+                v.message
             );
         }
     }
 
-    #[test]
-    fn body_length_zero_reports_violation() {
-        let rule = MessageProblemDetailsStructure;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 500,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[(
-                "content-type",
-                "application/problem+json",
-            )]),
-            body_length: Some(0),
-            trailers: None,
-        });
+    /// Nothing counted either — a transaction deserialized from a capture file
+    /// carries no body bytes. What the sender declared is the last evidence.
+    #[rstest]
+    #[case(&[], false)]
+    #[case(&[("content-length", "0")], true)]
+    #[case(&[("content-length", " 0 ")], true)]
+    #[case(&[("content-length", "10")], false)]
+    #[case(&[("content-length", "0, 0")], true)]
+    #[case(&[("content-length", "nonsense")], false)]
+    // A declared length is the message's framing only when nothing overrides it.
+    #[case(&[("content-length", "0"), ("transfer-encoding", "chunked")], false)]
+    fn declared_length_cases(#[case] extra: &[(&str, &str)], #[case] expect_violation: bool) {
+        let mut headers = vec![PJ];
+        headers.extend_from_slice(extra);
+        let tx = fixture(500, &headers, None, None);
+        let v = check(&tx);
+        assert_eq!(v.is_some(), expect_violation, "{extra:?}: {v:?}");
+        if let Some(v) = v {
+            assert!(
+                v.message.contains("Content-Length of zero"),
+                "{}",
+                v.message
+            );
+        }
+    }
 
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Problem Details response"));
+    /// The media type is matched case-insensitively, and a parameter on it does
+    /// not change which media type it is.
+    #[rstest]
+    #[case("application/problem+json", true)]
+    #[case("APPLICATION/PROBLEM+JSON", true)]
+    #[case("application/problem+json; charset=utf-8", true)]
+    #[case("application/json", false)]
+    #[case("application/problem+xml", false)]
+    #[case("text/problem+json", false)]
+    #[case("not-a-media-type", false)]
+    fn media_type_gate(#[case] ct: &str, #[case] expect_violation: bool) {
+        let tx = fixture(500, &[("content-type", ct)], Some(b"not json"), Some(8));
+        assert_eq!(check(&tx).is_some(), expect_violation, "{ct}");
     }
 
     #[test]
-    fn non_zero_body_length_no_violation() {
-        let rule = MessageProblemDetailsStructure;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 400,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[(
-                "content-type",
-                "application/problem+json",
-            )]),
-            body_length: Some(10),
-            trailers: None,
-        });
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
+    fn no_content_type_is_not_this_rules_finding() {
+        let tx = fixture(500, &[], Some(b"not json"), Some(8));
+        assert!(check(&tx).is_none());
     }
 
     #[test]
-    fn non_error_status_ignored() {
-        let rule = MessageProblemDetailsStructure;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[(
-                "content-type",
-                "application/problem+json",
-            )]),
-            body_length: Some(0),
-            trailers: None,
-        });
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+    fn scope_is_server() {
+        assert_eq!(
+            MessageProblemDetailsStructure.scope(),
+            crate::rules::RuleScope::Server
         );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn body_bytes_empty_reports_violation() {
-        let rule = MessageProblemDetailsStructure;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 500,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[(
-                "content-type",
-                "application/problem+json",
-            )]),
-            body_length: Some(0),
-            trailers: None,
-        });
-        tx.response_body = Some(bytes::Bytes::from_static(b""));
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn body_bytes_empty_object_reports_violation() {
-        let rule = MessageProblemDetailsStructure;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 500,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[(
-                "content-type",
-                "application/problem+json",
-            )]),
-            body_length: Some(2),
-            trailers: None,
-        });
-        tx.response_body = Some(bytes::Bytes::from_static(b"{}"));
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn body_bytes_non_empty_object_no_violation() {
-        let rule = MessageProblemDetailsStructure;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 500,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[(
-                "content-type",
-                "application/problem+json",
-            )]),
-            body_length: Some(20),
-            trailers: None,
-        });
-        tx.response_body = Some(bytes::Bytes::from_static(b"{\"type\":\"x\"}"));
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn truncated_body_prefix_skips_byte_inspection() {
-        // A truncated prefix of a problem+json body would mis-parse; the rule
-        // must skip byte inspection and fall back to body_length (real size).
-        let rule = MessageProblemDetailsStructure;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 500,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[(
-                "content-type",
-                "application/problem+json",
-            )]),
-            body_length: Some(4096),
-            trailers: None,
-        });
-        // Prefix is a truncated (unparseable) JSON object.
-        tx.response_body = Some(bytes::Bytes::from_static(b"{\"type\":\"abo"));
-        tx.response_body_over_limit = true;
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(
-            v.is_none(),
-            "truncated prefix must not be parsed as a full body"
-        );
-    }
-
-    #[test]
-    fn body_bytes_non_json_reports_violation() {
-        let rule = MessageProblemDetailsStructure;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 500,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[(
-                "content-type",
-                "application/problem+json",
-            )]),
-            body_length: Some(7),
-            trailers: None,
-        });
-        tx.response_body = Some(bytes::Bytes::from_static(b"not json"));
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
     }
 }
