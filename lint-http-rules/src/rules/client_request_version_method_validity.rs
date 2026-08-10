@@ -36,33 +36,33 @@ pub struct ClientRequestVersionMethodValidity;
 // nothing is still nothing, so `Content-Encoding` does not disturb the
 // comparison against zero.
 fn request_carries_content(req: &crate::http_transaction::RequestInfo) -> bool {
-    if let Some(n) = req.body_length {
-        return n > 0;
+    match req.body_length {
+        Some(n) => n > 0,
+        // No body was captured, so the client's own declaration is the only
+        // evidence left.
+        None => declares_positive_content_length(req),
     }
-
-    // No body was captured, so the client's own declaration is the only
-    // evidence left. A `Content-Length` that does not parse leaves no number
-    // and `message_content_length` reports it; a declared length that
-    // disagrees with the captured octets is `message_request_body_length_accuracy`'s
-    // finding, not a method-semantics one.
-    // cite(RFC 9110 § 8.6): "When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing"
-    matches!(
-        crate::helpers::headers::validate_content_length(&req.headers),
-        Ok(Some(n)) if n > 0
-    )
 }
 
 /// Whether the request message declares content in its header section.
 ///
-/// CONNECT's question, and it has to be asked of the headers alone: the octets
-/// after a CONNECT request's header section are tunnel payload, so counting
-/// them would report every tunnel.
+/// CONNECT's question, and it has to be asked of the headers alone. § 9.3.6
+/// gives the octets after a CONNECT request's header section no
+/// version-independent meaning, so a field recorded per transaction cannot say
+/// they are content; where the CONNECT succeeded they are the tunnel's own
+/// traffic, and counting them would report every tunnel.
 // cite(RFC 9110 § 9.3.6): "The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use."
 fn request_declares_content(req: &crate::http_transaction::RequestInfo) -> bool {
-    if req.headers.contains_key("transfer-encoding") {
-        return true;
-    }
-    // cite(RFC 9110 § 8.6): "When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing"
+    req.headers.contains_key("transfer-encoding") || declares_positive_content_length(req)
+}
+
+/// Whether the request's own `Content-Length` claims a non-empty representation.
+///
+/// A value that does not parse leaves no number and `message_content_length`
+/// reports it; a declared length that disagrees with the captured octets is
+/// `message_request_body_length_accuracy`'s finding, not a method-semantics one.
+// cite(RFC 9110 § 8.6): "When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing"
+fn declares_positive_content_length(req: &crate::http_transaction::RequestInfo) -> bool {
     matches!(
         crate::helpers::headers::validate_content_length(&req.headers),
         Ok(Some(n)) if n > 0
@@ -143,7 +143,7 @@ impl Rule for ClientRequestVersionMethodValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a request that carries content under a method whose definition gives content no meaning there. RFC 9110 says it about GET (§9.3.1), HEAD (§9.3.2) and DELETE (§9.3.5) in three identical paragraphs: content in such a request \"has no generally defined semantics, cannot alter the meaning or target of the request, and might lead some implementations to reject the request and close the connection because of its potential as a request smuggling attack\". CONNECT (§9.3.6) is stated differently and reported differently — see below.\n\n**A SHOULD NOT with a condition this rule cannot check.** The GET/HEAD/DELETE sentences end \"unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported\". An agreement reached out of band leaves no trace in the message, so a request under such an agreement is reported like any other. The exemption is not simply ignored, though: the next sentence in each of those three paragraphs says \"An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain\" — and a request this tool observed at a proxy has, by construction, an intermediary in its chain.\n\n**CONNECT is a different kind of finding.** §9.3.6 states \"A CONNECT request message does not have content.\" — a definition, not a modal a sender disobeys. So the report is that the message contradicts its own method's definition. It is also the one method judged on its header section alone: §9.3.6 hands the octets after that section to the version in use, and on a successful CONNECT those octets are tunnel payload rather than content.\n\n**Content, not framing.** Each of the three paragraphs opens \"Although request message framing is independent of the method used\", so a `Transfer-Encoding` is not by itself content: a chunked request whose first chunk is the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured, its octet count is what decides; otherwise the request's own `Content-Length` is.\n\n**Not checked here.** TRACE's §9.3.8 MUST NOT is `semantic_trace_method_echo`'s, so enabling this rule alone leaves TRACE unreported. OPTIONS may carry content (§9.3.7), which comes with a MUST on the `Content-Type` describing it that this rule does not check. Neither does any other method: a method this specification does not define has no content semantics to contradict. And nothing here reads `tx.request.version`, despite the id."
+        "Reports a request that carries content under a method whose definition gives content no meaning there. RFC 9110 says it about GET (§9.3.1), HEAD (§9.3.2) and DELETE (§9.3.5) in three identical paragraphs: content in such a request \"has no generally defined semantics, cannot alter the meaning or target of the request, and might lead some implementations to reject the request and close the connection because of its potential as a request smuggling attack\". CONNECT (§9.3.6) is stated differently and reported differently — see below.\n\n**A SHOULD NOT with a condition this rule cannot check.** The GET/HEAD/DELETE sentences end \"unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported\". An agreement reached out of band leaves no trace in the message, so a request under such an agreement is reported like any other. The exemption is not simply ignored, though: the next sentence in each of those three paragraphs says \"An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain\" — and a request this tool observed at a proxy has, by construction, an intermediary in its chain.\n\n**CONNECT is a different kind of finding.** §9.3.6 states \"A CONNECT request message does not have content.\" — a definition, not a modal a sender disobeys. So the report is that the message contradicts its own method's definition. It is also the one method judged on its header section alone: §9.3.6 says \"The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use\", so a per-transaction octet count carries no version-independent claim that those octets are content — and where the CONNECT succeeded they are the tunnel's own traffic.\n\n**Content, not framing.** Each of the three paragraphs opens \"Although request message framing is independent of the method used\", so a `Transfer-Encoding` is not by itself content: a chunked request whose first chunk is the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured, its octet count is what decides; otherwise the request's own `Content-Length` is.\n\n**Not checked here.** TRACE's §9.3.8 MUST NOT is `semantic_trace_method_echo`'s, so enabling this rule alone leaves TRACE unreported. OPTIONS may carry content (§9.3.7), which comes with a MUST on the `Content-Type` describing it that this rule does not check. Neither does any other method: a method this specification does not define has no content semantics to contradict. And nothing here reads `tx.request.version`, despite the id."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -223,13 +223,6 @@ static REGISTRATION: &dyn crate::rules::Rule = &ClientRequestVersionMethodValidi
 mod tests {
     use super::*;
     use rstest::rstest;
-
-    fn make_tx_with_req(
-        method: &str,
-        headers: Vec<(&str, &str)>,
-    ) -> crate::http_transaction::HttpTransaction {
-        make_tx(method, headers, None)
-    }
 
     /// One constructor for every fixture, so `body_length` — the field that
     /// decides the finding — is always stated rather than defaulted.
@@ -324,69 +317,35 @@ mod tests {
     /// § 5.3 makes several `Content-Length` lines one value, and RFC 9112 § 6.3
     /// makes `5, 5` one value of five. Reading the first line alone missed both.
     #[rstest]
-    #[case(vec![("content-length", "5, 5")])]
-    #[case(vec![("content-length", "0"), ("content-length", "0")])]
-    fn content_length_is_read_as_one_value(#[case] headers: Vec<(&str, &str)>) {
-        let expect = headers[0].1.starts_with('5');
+    #[case(vec![("content-length", "5, 5")], true)]
+    #[case(vec![("content-length", "0"), ("content-length", "0")], false)]
+    fn content_length_is_read_as_one_value(
+        #[case] headers: Vec<(&str, &str)>,
+        #[case] expect_violation: bool,
+    ) {
         let tx = make_tx("GET", headers, None);
-        assert_eq!(check(&tx).is_some(), expect);
+        assert_eq!(check(&tx).is_some(), expect_violation);
     }
 
-    /// A CONNECT is judged on its header section: the octets after it are
-    /// tunnel payload, not content.
+    /// A CONNECT is judged on its header section: § 9.3.6 gives the octets
+    /// after it no version-independent meaning as content.
     #[test]
     fn connect_ignores_captured_octets() {
         let tx = make_tx("CONNECT", vec![], Some(4096));
         assert!(check(&tx).is_none());
     }
 
-    #[test]
-    fn invalid_content_length_is_ignored() {
-        let rule = ClientRequestVersionMethodValidity;
-        let tx = make_tx_with_req("GET", vec![("content-length", "not-a-number")]);
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn content_length_overflow_is_ignored() {
-        let rule = ClientRequestVersionMethodValidity;
-        let huge = "9".repeat(100);
-        let tx = make_tx_with_req("GET", vec![("content-length", huge.as_str())]);
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn empty_or_whitespace_content_length_is_ignored() {
-        let rule = ClientRequestVersionMethodValidity;
-        let tx_empty = make_tx_with_req("GET", vec![("content-length", "")]);
-        let tx_space = make_tx_with_req("GET", vec![("content-length", "   ")]);
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-
-        let v_empty = rule.check_transaction(
-            &tx_empty,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v_empty.is_none());
-
-        let v_space = rule.check_transaction(
-            &tx_space,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v_space.is_none());
+    /// A `Content-Length` that leaves no number leaves this rule nothing to
+    /// measure; `message_content_length` is where the field's own syntax is
+    /// reported.
+    #[rstest]
+    #[case("not-a-number")]
+    #[case("")]
+    #[case("   ")]
+    #[case(&"9".repeat(100))]
+    fn unreadable_content_length_is_ignored(#[case] value: &str) {
+        let tx = make_tx("GET", vec![("content-length", value)], None);
+        assert!(check(&tx).is_none(), "reported on Content-Length {value:?}");
     }
 
     /// The message names the section whose sentence produced it, and the two
