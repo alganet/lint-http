@@ -1050,10 +1050,10 @@ sources:
       line: 51
   - label: semantic_patch_partial_update
     section: § 2
-    snippet: The PATCH method requests that a set of changes described in the request entity be applied to the resource
+    snippet: The PATCH method requests that a set of changes described in the request entity be applied to the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
-      line: 31
+      line: 42
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.txt
   type: text/plain
@@ -2403,6 +2403,8 @@ sources:
       line: 205
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 84
+    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+      line: 41
     - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
       line: 78
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
@@ -4671,6 +4673,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 83
+  - label: semantic_patch_partial_update
+    section: § 8.3
+    snippet: A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+      line: 73
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 101
   - label: semantic_post_creates_resource
     section: § 9.3.3
     snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response
@@ -4944,12 +4954,6 @@ sources:
     - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
       line: 69
   - label: server_content_type_present (2)
-    section: § 8.3
-    snippet: A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_content_type_present.rs
-      line: 101
-  - label: server_content_type_present (3)
     section: § 8.3
     snippet: This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation").
     cited_by:
