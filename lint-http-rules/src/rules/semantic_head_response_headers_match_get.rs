@@ -138,7 +138,9 @@ fn selected_representation_changed(prev: &hyper::HeaderMap, cur: &hyper::HeaderM
 /// captured octets are the same count measured rather than claimed, so the
 /// requirement is still decidable. A GET whose declaration and delivery
 /// disagree is `message_response_body_length_accuracy`'s finding, not this
-/// rule's, and it is left to it.
+/// rule's, and it is left to it — that rule cites this same sentence as the
+/// reason it exempts a HEAD response from its own comparison, and hands the
+/// requirement here by name: it has one transaction and this one has two.
 ///
 // cite(RFC 9110 § 6.4): "HTTP messages often transfer a complete or partial representation as the message "content": a stream of octets sent after the header section, as delineated by the message framing."
 fn content_length_finding(
@@ -309,6 +311,17 @@ impl Rule for SemanticHeadResponseHeadersMatchGet {
                         // the case is part of what was advertised.
                         // cite(RFC 9110 § 12.5.5): "A Vary field value is either the wildcard member "*" or a list of request field names, known as the selecting header fields, that might have had a role in selecting the representation for this response."
                         // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
+                        //
+                        // The sort is what "set" means here, and the field's
+                        // first stated purpose is where it comes from: what a
+                        // recipient does with the value is look each named field
+                        // up, which no ordering changes.
+                        // cite(RFC 9110 § 12.5.5): "To inform cache recipients that they MUST NOT use this response to satisfy a later request unless the later request has the same values for the listed header fields as the original request"
+                        //
+                        // `parse_list_header` drops empty members, which is the
+                        // recipient's reading and the right one for a question
+                        // about what was advertised; a sender that writes
+                        // `Accept, , Accept-Encoding` is `server_vary_header_valid`'s.
                         let members = |v: &str| {
                             let mut m: Vec<String> = crate::helpers::headers::parse_list_header(v)
                                 .map(|s| s.to_ascii_lowercase())
