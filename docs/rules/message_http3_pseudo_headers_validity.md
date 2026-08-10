@@ -12,7 +12,7 @@ HTTP/3 requests encode control data as pseudo-header fields. This rule validates
 
 For schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.
 
-Responses MUST include exactly one `:status` pseudo-header field containing a three-digit integer status code (100-599).
+**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `server_status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3.
 
 ## Specifications
 
@@ -21,7 +21,6 @@ Responses MUST include exactly one `:status` pseudo-header field containing a th
 - [RFC 9114 §4.3.2](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.2): Response Pseudo-Header Fields
 - [RFC 9114 §4.4](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.4): The CONNECT Method
 - [RFC 9110 §7.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1): Determining the Target Resource (asterisk-form request target)
-- [RFC 9110 §15](https://www.rfc-editor.org/rfc/rfc9110.html#section-15): Status Codes: valid codes are in the range 100-599
 
 ## Configuration
 

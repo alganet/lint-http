@@ -133,21 +133,20 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
             }
         }
 
-        // Response: :status must be a three-digit code. Its presence is required by
-        // RFC 9114 § 4.3.2; the 100–599 range it must fall in is defined by RFC 9110
-        // § 15, which is the constraint this branch actually enforces.
-        // cite(RFC 9110 § 15): "All valid status codes are within the range of 100 to 599, inclusive."
-        if let Some(resp) = &tx.response {
-            if resp.version == "HTTP/3" && !(100..=599).contains(&resp.status) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message:
-                        "HTTP/3 response ':status' pseudo-header must be a 3-digit code (100-599)"
-                            .into(),
-                });
-            }
-        }
+        // **The response half is not this rule's.** This branch used to report a
+        // `:status` outside 100–599, and the constraint it enforced was RFC 9110
+        // § 15's, not HTTP/3's: RFC 9114 § 4.3.2 defines the field as carrying "the
+        // HTTP status code; see Section 15 of [HTTP]" and states no range of its
+        // own. Behind the `version == "HTTP/3"` gate above, the same out-of-range
+        // status over HTTP/1.1 or HTTP/2 went unreported here and the HTTP/3 one was
+        // reported twice — `server_status_code_valid_range` asks it of every
+        // version. Same shape as the three checks `server_http3_status_code_validity`
+        // surrendered for RFC 9110 § 15.2.
+        //
+        // What RFC 9114 § 4.3.2 does require of a response — that the field be
+        // present at all — cannot fail in this model: `ResponseInfo.status` is a
+        // `u16` that always holds a value, so a response with no `:status` has no
+        // representation to check.
 
         None
     }
@@ -157,7 +156,7 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
     }
 
     fn description(&self) -> &'static str {
-        "HTTP/3 requests encode control data as pseudo-header fields. This rule validates that every request includes exactly one `:method` pseudo-header field and that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\nResponses MUST include exactly one `:status` pseudo-header field containing a three-digit integer status code (100-599)."
+        "HTTP/3 requests encode control data as pseudo-header fields. This rule validates that every request includes exactly one `:method` pseudo-header field and that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\n**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `server_status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -191,12 +190,6 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
                 section: Some("7.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1",
                 note: "Determining the Target Resource (asterisk-form request target)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
-                note: "Status Codes: valid codes are in the range 100-599",
             },
         ]
     }
@@ -623,32 +616,39 @@ mod tests {
         assert!(v.is_none());
     }
 
-    #[test]
-    fn response_status_zero_is_violation() {
+    /// The status range is RFC 9110 § 15's and holds for every version, so it is
+    /// `server_status_code_valid_range`'s finding and not this rule's. These cases
+    /// pin the decline: each was asserted as a violation here until the branch was
+    /// removed, and each is still reported — over HTTP/3 as over every other
+    /// version — by the rule that owns the question.
+    #[rstest]
+    #[case(0)]
+    #[case(99)]
+    #[case(600)]
+    #[case(1000)]
+    fn out_of_range_status_is_not_this_rules_finding(#[case] status: u16) {
         let rule = MessageHttp3PseudoHeadersValidity;
-        let tx = make_h3_transaction_with_response(0, &[]);
+        let tx = make_h3_transaction_with_response(status, &[]);
+        let history = crate::transaction_history::TransactionHistory::empty();
 
         let v = rule.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
+            &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains(":status"));
-    }
+        assert!(v.is_none(), "{v:?}");
 
-    #[test]
-    fn response_status_above_599_is_violation() {
-        let rule = MessageHttp3PseudoHeadersValidity;
-        let tx = make_h3_transaction_with_response(600, &[]);
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        let owner = crate::rules::server_status_code_valid_range::ServerStatusCodeValidRange;
+        assert!(
+            owner
+                .check_transaction(
+                    &tx,
+                    &history,
+                    &crate::test_helpers::make_test_config_with_enabled_rules(&[owner.id()]),
+                )
+                .is_some(),
+            "status {status} over HTTP/3 is reported by nobody"
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains(":status"));
     }
 
     #[rstest]
@@ -814,20 +814,6 @@ mod tests {
     }
 
     #[test]
-    fn response_status_boundary_99_is_violation() {
-        let rule = MessageHttp3PseudoHeadersValidity;
-        let tx = make_h3_transaction_with_response(99, &[]);
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains(":status"));
-    }
-
-    #[test]
     fn host_present_but_empty_counts_as_present() {
         // An empty Host header still counts as "present" for the authority
         // presence check. Value validation is handled by other rules.
@@ -965,8 +951,10 @@ mod tests {
     }
 
     #[test]
-    fn connect_with_invalid_response_status_is_violation() {
-        // CONNECT request is valid, but response :status is invalid.
+    fn connect_with_invalid_response_status_is_not_this_rules_finding() {
+        // A valid CONNECT request whose response carries an out-of-range status.
+        // The request is what this rule reads, and it is well formed; the status is
+        // `server_status_code_valid_range`'s finding on every version.
         let rule = MessageHttp3PseudoHeadersValidity;
         let mut tx = make_h3_transaction_with_response(0, &[]);
         tx.request.method = "CONNECT".into();
@@ -977,8 +965,7 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains(":status"));
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[test]
