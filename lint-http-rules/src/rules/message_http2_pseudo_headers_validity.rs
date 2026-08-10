@@ -231,6 +231,9 @@ impl Rule for MessageHttp2PseudoHeadersValidity {
         // it of every version. What § 8.3.2 does require — that the field be present
         // in all responses, including interim ones — cannot fail in this model:
         // `ResponseInfo.status` is a `u16` that always holds a value.
+        //
+        // cite(RFC 9113 § 8.3.2): "For HTTP/2 responses, a single ":status" pseudo-header field is defined that carries the HTTP status code field (see Section 15 of [HTTP])."
+        // cite(RFC 9113 § 8.3.2): "This pseudo-header field MUST be included in all responses, including interim responses; otherwise, the response is malformed (Section 8.1.1)."
 
         None
     }
