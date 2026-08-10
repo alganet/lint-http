@@ -77,13 +77,19 @@ pub struct HttpTransaction {
     pub request: RequestInfo,
     pub response: Option<ResponseInfo>,
 
-    /// Captured decoded request body bytes. Skipped during normal serialization; the
-    /// capture writer may include these when configured to do so.
+    /// Captured request body bytes, transfer-decoded (chunked framing removed)
+    /// but **not** content-decoded: any `Content-Encoding` the sender applied is
+    /// still on these octets, so a rule that parses them must read that field
+    /// first. Skipped during normal serialization; the capture writer may
+    /// include these when configured to do so.
     #[serde(skip)]
     pub request_body: Option<Bytes>,
 
-    /// Captured decoded response body bytes. Skipped during normal serialization; the
-    /// capture writer may include these when configured to do so.
+    /// Captured response body bytes, transfer-decoded (chunked framing removed)
+    /// but **not** content-decoded: any `Content-Encoding` the sender applied is
+    /// still on these octets, so a rule that parses them must read that field
+    /// first. Skipped during normal serialization; the capture writer may
+    /// include these when configured to do so.
     #[serde(skip)]
     pub response_body: Option<Bytes>,
 
