@@ -2384,9 +2384,7 @@ sources:
     snippet: When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 48
-    - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 65
+      line: 64
   - label: client_request_version_method_validity (2)
     section: § 9.1
     snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
@@ -2442,7 +2440,7 @@ sources:
     snippet: The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 60
+      line: 54
   - label: client_user_agent_present
     section: § 10.1.5
     snippet: A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.
