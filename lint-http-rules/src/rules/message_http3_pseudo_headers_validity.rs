@@ -147,6 +147,9 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
         // present at all — cannot fail in this model: `ResponseInfo.status` is a
         // `u16` that always holds a value, so a response with no `:status` has no
         // representation to check.
+        //
+        // cite(RFC 9114 § 4.3.2): "For responses, a single ":status" pseudo-header field is defined that carries the HTTP status code; see Section 15 of [HTTP]."
+        // cite(RFC 9114 § 4.3.2): "This pseudo-header field MUST be included in all responses; otherwise, the response is malformed (see Section 4.1.2)."
 
         None
     }

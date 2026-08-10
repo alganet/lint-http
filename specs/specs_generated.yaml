@@ -4610,7 +4610,7 @@ sources:
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 73
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
-      line: 99
+      line: 101
   - label: server_location_header_uri_valid (7)
     section: § 5.5
     snippet: Fields that expect to contain a comma within a member, such as within an HTTP-date or URI-reference element, ought to be defined with delimiters around that element to distinguish any comma within that data from potential list separators.
@@ -4764,7 +4764,7 @@ sources:
     snippet: Implementations often use three-digit integer values outside of that range (i.e., 600..999) for internal communication of non-HTTP status (e.g., library errors).
     cited_by:
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
-      line: 89
+      line: 91
   - label: server_status_code_valid_range (3)
     section: § 15
     snippet: The status code of a response is a three-digit integer code that describes the result of the request and the semantics of the response, including whether the request was successful and what content is enclosed (if any).
@@ -5588,7 +5588,7 @@ sources:
     snippet: Conformance criteria and considerations regarding error handling are defined in Section 2 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
-      line: 98
+      line: 100
   - label: server_status_code_valid_range (2)
     section: § 4
     snippet: A client SHOULD ignore the reason-phrase content because it is not a reliable channel for information
@@ -5600,7 +5600,7 @@ sources:
     snippet: The status-code element is a 3-digit integer code describing the result of the server's attempt to understand and satisfy the client's corresponding request.
     cited_by:
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
-      line: 97
+      line: 99
   - label: server_status_code_valid_range (4)
     section: § 4
     snippet: status-code    = 3DIGIT
@@ -5623,6 +5623,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 33
+  - label: message_http2_pseudo_headers_validity (2)
+    section: § 8.3.2
+    snippet: For HTTP/2 responses, a single ":status" pseudo-header field is defined that carries the HTTP status code field (see Section 15 of [HTTP]).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 235
+  - label: message_http2_pseudo_headers_validity (3)
+    section: § 8.3.2
+    snippet: This pseudo-header field MUST be included in all responses, including interim responses; otherwise, the response is malformed (Section 8.1.1).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 236
   - label: message_te_header_constraints
     section: § 8.2.2
     snippet: An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields.
@@ -5750,6 +5762,18 @@ sources:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
       line: 105
   - label: message_http3_pseudo_headers_validity (4)
+    section: § 4.3.2
+    snippet: For responses, a single ":status" pseudo-header field is defined that carries the HTTP status code; see Section 15 of [HTTP].
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 151
+  - label: message_http3_pseudo_headers_validity (5)
+    section: § 4.3.2
+    snippet: This pseudo-header field MUST be included in all responses; otherwise, the response is malformed (see Section 4.1.2).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 152
+  - label: message_http3_pseudo_headers_validity (6)
     section: § 4.4
     snippet: The :authority pseudo-header field contains the host and port to connect to
     cited_by:
