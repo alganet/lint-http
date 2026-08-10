@@ -23,49 +23,79 @@ impl Rule for SemanticPostCreatesResource {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // only consider POST requests with a response
-        // cite(RFC 9110 § 9.3.3): "If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response"
-        if !tx.request.method.eq_ignore_ascii_case("POST") {
+
+        // The sentence this rule enforces is in the POST method's own section, so the
+        // method is the first gate. It is compared exactly: a request whose method is
+        // `post` is a request with an unrecognized method, and §9.3.3 says nothing
+        // about it. `client_request_method_token_valid` is the rule that reports it.
+        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+        if tx.request.method != "POST" {
             return None;
         }
+
+        // The finding is about a response, and the sentence's subject is the server
+        // that sends it, so a request with no response is out of this rule's subject
+        // entirely — which is what `RuleScope::Server` declares.
+        // cite(RFC 9110 § 9.3.3): "An origin server indicates response semantics by choosing an appropriate status code depending on the result of processing the POST request; almost all of the status codes defined by this specification could be received in a response to POST (the exceptions being 206 (Partial Content), 304 (Not Modified), and 416 (Range Not Satisfiable))."
         let resp = tx.response.as_ref()?;
 
-        let status = resp.status;
-        // only worry about successful (2xx) responses; other statuses have independent semantics
-        if !(200..300).contains(&status) {
+        // §9.3.3's SHOULD opens on a condition nothing in a message states directly —
+        // *"If one or more resources has been created on the origin server"*. The 201
+        // is what makes it observable: the status's own definition says that is what
+        // it indicates, so a server that chose it has asserted the condition holds.
+        // No other status is read here. A 200 or a 204 answering a POST asserts no
+        // creation, and §9.3.3 asks nothing of it — including when it carries a
+        // `Location`, which is `server_redirect_status_and_location_validity`'s
+        // finding on every status rather than this rule's on the 2xx ones.
+        // cite(RFC 9110 § 15.3.2): "The 201 (Created) status code indicates that the request has been fulfilled and has resulted in one or more new resources being created."
+        if resp.status != 201 {
             return None;
         }
 
-        let has_location = resp.headers.contains_key("location");
-
-        if status == 201 && !has_location {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: "201 Created response to POST should include a Location header (RFC 9110 §9.3.3)".into(),
-            });
+        // Presence is the whole test, and the field's own status definition is what
+        // makes presence the right question: the sentence below distinguishes exactly
+        // the two states, received and not received. A value this rule cannot decode
+        // is still a field the message carries, so nothing here reads the value —
+        // whether it is a usable `URI-reference` is `server_location_header_uri_valid`'s
+        // question. The lowercase key is the field name as §5.1 defines names.
+        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1."
+        // cite(RFC 9110 § 15.3.2): "The primary resource created by the request is identified by either a Location header field in the response or, if no Location header field is received, by the target URI."
+        //
+        // Only the header section is read. §10.2.2 defines `Location` without
+        // permitting it in trailers, and a sender may only generate a trailer field
+        // where the field's own definition permits it — so a `Location` written after
+        // the content is not the field §9.3.3 asks for.
+        // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
+        if resp.headers.contains_key("location") {
+            return None;
         }
 
-        if status != 201 && has_location {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: format!(
-                    "POST response with status {} includes a Location header; use 201 Created when a new resource is created (RFC 9110 §9.3.3)",
-                    status
-                ),
-            });
-        }
-
-        None
+        // The SHOULD, quoted whole so the identifier it asks for travels with the
+        // condition that asks for it.
+        // cite(RFC 9110 § 9.3.3): "If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created (Section 10.2.2) and a representation that describes the status of the request while referring to the new resource(s)."
+        // cite(RFC 9110 § 10.2.2): "For 201 (Created) responses, the Location value refers to the primary resource created by the request."
+        Some(Violation {
+            rule: self.id().into(),
+            severity: config.severity,
+            message: format!(
+                "201 Created response to a POST request carries no Location header field. \
+                 RFC 9110 §9.3.3 asks an origin server that has created one or more resources \
+                 to answer with a 201 containing a Location field that provides an identifier \
+                 for the primary resource created, with a SHOULD. Nothing is malformed without \
+                 it — RFC 9110 §15.3.2 says the primary resource created is then identified by \
+                 the target URI ({}) — so what is missing is the identifier being stated rather \
+                 than left to be inferred",
+                tx.request.uri
+            ),
+        })
     }
 
     fn title(&self) -> Option<&'static str> {
-        Some("POST responses should use 201/Location for creations")
+        Some("A 201 that does not say what it created")
     }
 
     fn description(&self) -> &'static str {
-        "When a `POST` request results in the origin server creating one or more new\nresources, the server **should** respond with `201 Created` and include a\n`Location` header field identifying the primary resource that was created.\nSending a `Location` header on any other 2xx response implies a resource was\ncreated, yet the proper status code was not used. Likewise, a `201` response\nwithout a `Location` header fails to provide the identifier of the newly\ncreated resource.\n\nThis rule flags both situations so that implementers are encouraged to align\ntheir responses with the semantics defined in RFC 9110 §9.3.3 and §10.2.2."
+        "RFC 9110 §9.3.3 asks an origin server that has created one or more resources while processing a `POST` request to send a `201 Created` response containing a `Location` header field that provides an identifier for the primary resource created. This rule reports a `201` answering a `POST` that carries no `Location`.\n\n**The status is the evidence for the SHOULD's condition.** The sentence opens *\"If one or more resources has been created on the origin server\"*, which nothing in a message states directly — but §15.3.2 defines the `201` as indicating exactly that, so a server that chose the status has already asserted the condition holds. No other status is read: a `200` or a `204` answering a `POST` asserts no creation, and §9.3.3 asks nothing of it.\n\n**Nothing is malformed without the field.** §15.3.2 says the primary resource created is identified *\"by either a Location header field in the response or, if no Location header field is received, by the target URI\"* — so a `201` with no `Location` does name the created resource, just not explicitly. The finding is that the identifier is left to be inferred, which is what the SHOULD buys.\n\n**The sentence is addressed to the origin server.** A capture taken between a client and a proxy cannot tell an origin server's `201` from one a gateway produced on its behalf, and nothing on the wire records which component chose the status. Read the finding as being about whichever one did.\n\n**Only presence is read.** Field names are case-insensitive (§5.1), so the field is found however it was written, and a value that cannot be decoded still counts as present — the message on the wire carries the field. Whether the value is a usable `URI-reference`, whether it is empty, and whether several field lines were sent are `server_location_header_uri_valid`'s questions. A `Location` in a trailer section is not counted: §6.5.1 permits a trailer field only where the field's own definition permits it, and §10.2.2 does not.\n\n**Not reported: a `Location` on a `POST` response that is not a `201`.** This rule previously reported every other 2xx carrying the field, advising the sender to \"use 201 Created when a new resource is created\" — a claim about what the sender did that no sentence licenses, and one §10.2.2 declines to make by leaving the field's relationship to the response to *\"the combination of request method and status code semantics\"*. `server_redirect_status_and_location_validity` owns that finding, reports it as advice, and reports it on every status rather than only on the 2xx ones; its description names the `202 Accepted` carrying a status-monitor `Location` as the case that shows why it is advice and not a violation.\n\n**Not reported: a `PUT` that created a resource.** §9.3.4 requires the `201` there with a MUST and asks nothing about `Location`, because the target URI of a `PUT` is already the identifier of what it creates. The method is compared exactly, since §9.1 says the method token is case-sensitive: a request whose method is `post` is not a `POST` request, and `client_request_method_token_valid` is the rule that reports it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -74,13 +104,25 @@ impl Rule for SemanticPostCreatesResource {
                 spec: "RFC 9110",
                 section: Some("9.3.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3",
-                note: "POST describes the semantics for `POST` responses and notes that \"If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server **SHOULD** send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created.\"",
+                note: "POST: the SHOULD this rule enforces — an origin server that created one or more resources sends a 201 containing a Location field that provides an identifier for the primary resource created",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("15.3.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.2",
+                note: "201 Created: the status indicates one or more new resources were created, which is what makes §9.3.3's condition observable, and the primary resource is identified by the Location field or, if none is received, by the target URI",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("10.2.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
-                note: "Location specifies that for `201 (Created)` responses the `Location` value refers to the primary resource created by the request",
+                note: "Location: on a 201 (Created) response the value refers to the primary resource created by the request. The field's relationship to any other status is left to \"the combination of request method and status code semantics\", which is why a Location on a non-201 is not reported here",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+                note: "The method token is case-sensitive, which is why `POST` is matched exactly and a lowercase `post` is not a POST",
             },
         ]
     }
@@ -91,22 +133,17 @@ impl Rule for SemanticPostCreatesResource {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 20\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 201 Created\nLocation: /widgets/123\nContent-Type: application/json\n\n{\"id\":123}",
+                snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 17\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 201 Created\nLocation: /widgets/123\nContent-Type: application/json\n\n{\"id\":123}",
             },
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
-                snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 20\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 200 OK\n\n{\"status\":\"ok\"}",
+                label: Some("(no creation is claimed, so §9.3.3 asks for nothing)"),
+                snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 17\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"status\":\"ok\"}",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 20\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 201 Created\nContent-Type: application/json\n\n{\"id\":123}",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 20\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 200 OK\nLocation: /widgets/123\nContent-Type: application/json\n\n{\"status\":\"ok\"}",
+                label: Some("(the created resource is identified by the target URI, but not stated)"),
+                snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 17\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 201 Created\nContent-Type: application/json\n\n{\"id\":123}",
             },
         ]
     }
@@ -131,6 +168,16 @@ mod tests {
         tx
     }
 
+    fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+        let rule = SemanticPostCreatesResource;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        rule.check_transaction(
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+    }
+
     #[test]
     fn id_and_scope() {
         let r = SemanticPostCreatesResource;
@@ -140,9 +187,13 @@ mod tests {
 
     #[rstest::rstest]
     #[case(201, vec![], true)]
-    #[case(201, vec![("location", "/new")] , false)]
-    #[case(200, vec![("location", "/new")], true)]
-    #[case(204, vec![("location", "/new")], true)]
+    #[case(201, vec![("location", "/new")], false)]
+    // A `Location` on a status that is not a 201 rests on no sentence in §9.3.3, and
+    // `server_redirect_status_and_location_validity` reports it on every status.
+    #[case(200, vec![("location", "/new")], false)]
+    #[case(202, vec![("location", "/new")], false)]
+    #[case(204, vec![("location", "/new")], false)]
+    #[case(303, vec![("location", "/new")], false)]
     #[case(200, vec![], false)]
     #[case(204, vec![], false)]
     fn post_creation_cases(
@@ -150,93 +201,85 @@ mod tests {
         #[case] headers: Vec<(&str, &str)>,
         #[case] expect_violation: bool,
     ) {
-        let rule = SemanticPostCreatesResource;
-        let tx = make_tx(status, headers);
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+        let v = run(&make_tx(status, headers));
+        assert_eq!(
+            v.is_some(),
+            expect_violation,
+            "status {} produced {:?}",
+            status,
+            v
         );
-        if expect_violation {
-            assert!(v.is_some(), "expected violation for status {}", status);
-        } else {
-            assert!(
-                v.is_none(),
-                "unexpected violation for status {}: {:?}",
-                status,
-                v
-            );
-        }
     }
 
     #[test]
-    fn location_header_case_insensitive() {
-        let rule = SemanticPostCreatesResource;
-        let tx = make_tx(200, vec![("Location", "/new")]);
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_some());
+    fn location_header_is_found_however_it_is_written() {
+        assert!(run(&make_tx(201, vec![("Location", "/new")])).is_none());
     }
 
     #[test]
-    fn non_utf8_header_value_counts_as_presence() {
-        let rule = SemanticPostCreatesResource;
-        let mut tx = make_tx(200, vec![]);
-        // insert a non-utf8 value for Location
+    fn undecodable_location_value_counts_as_presence() {
+        let mut tx = make_tx(201, vec![]);
         let mut hm = hyper::HeaderMap::new();
         hm.insert(
             "location",
             hyper::header::HeaderValue::from_bytes(&[0xff]).unwrap(),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
         assert!(
-            v.is_some(),
-            "non-UTF8 header value should still count as presence"
+            run(&tx).is_none(),
+            "a value this rule cannot decode is still a field the message carries"
         );
     }
 
     #[test]
-    fn multiple_location_headers_treated_as_presence() {
-        let rule = SemanticPostCreatesResource;
-        // create headers with two Location lines; header-map will collapse but still
-        // presence is what matters
-        let tx = make_tx(200, vec![("location", "/a"), ("location", "/b")]);
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+    fn several_location_field_lines_count_as_presence() {
+        assert!(run(&make_tx(201, vec![("location", "/a"), ("location", "/b")])).is_none());
+    }
+
+    #[test]
+    fn location_in_a_trailer_section_is_not_counted() {
+        let mut tx = make_tx(201, vec![]);
+        tx.response.as_mut().unwrap().trailers = Some(
+            crate::test_helpers::make_headers_from_pairs(&[("location", "/widgets/123")]),
         );
         assert!(
-            v.is_some(),
-            "multiple Location headers should still trigger violation"
+            run(&tx).is_some(),
+            "RFC 9110 §6.5.1 permits a trailer field only where the field's definition does"
+        );
+    }
+
+    #[test]
+    fn lowercase_post_is_not_a_post() {
+        let mut tx = make_tx(201, vec![]);
+        tx.request.method = "post".to_string();
+        assert!(
+            run(&tx).is_none(),
+            "RFC 9110 §9.1: the method token is case-sensitive"
         );
     }
 
     #[test]
     fn non_post_requests_are_ignored() {
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(201, &[]);
+        let mut tx = make_tx(201, vec![]);
         tx.request.method = "PUT".to_string();
-        let rule = SemanticPostCreatesResource;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
+        assert!(run(&tx).is_none());
+    }
+
+    #[test]
+    fn a_request_with_no_response_is_out_of_scope() {
+        let mut tx = make_tx(201, vec![]);
+        tx.response = None;
+        assert!(run(&tx).is_none());
+    }
+
+    #[test]
+    fn the_message_names_the_target_uri_the_created_resource_falls_back_to() {
+        let v = run(&make_tx(201, vec![])).expect("a 201 with no Location is the finding");
+        assert!(
+            v.message.contains("http://example/"),
+            "message should name the target URI: {}",
+            v.message
+        );
     }
 
     #[test]
