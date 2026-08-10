@@ -5,31 +5,77 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-/// Ensure that the request method makes sense for the advertised HTTP version and
-/// that it is appropriate for the presence (or absence) of a message body.
+/// Report a request that carries content under a method whose definition says
+/// content has no meaning there.
 ///
-/// RFC 9110 gives explicit guidance about which methods are allowed to carry a
-/// request body and even obliges clients to avoid sending bodies when the
-/// semantics are undefined or explicitly forbidden (e.g. GET, HEAD, TRACE,
-/// CONNECT).  This rule flags requests that claim to have a body while using a
-/// method whose semantics do not allow it.  It also provides a later extension
-/// point for version-specific method validity checks.
+/// Four methods qualify, and they do not qualify equally. GET, HEAD and DELETE
+/// each close their section with the same SHOULD NOT and the same `unless`
+/// clause; CONNECT is defined as a message that has no content at all. TRACE
+/// belongs to the same family and is *not* checked here — `semantic_trace_method_echo`
+/// already reports § 9.3.8's MUST NOT, and two rules reporting one sentence is
+/// one rule too many.
 ///
-/// For now we only check the body-related semantics because that is the
-/// "HTTP correctness" issue captured in `NEXT.md`.  GET/HEAD/DELETE/TRACE/
-/// CONNECT requests with non-zero content are considered violations.  All other
-/// methods are assumed to permit a body (POST, PUT, PATCH, OPTIONS, etc.).
-///
-/// The rule name includes "version" to leave room for future additions such as
-/// warning about methods that predate or postdate the declared HTTP version.
-///
+/// The rule id carries "version" from an earlier plan to also judge a method
+/// against `tx.request.version`. No such check exists and none is cited; the id
+/// is kept because it is a published identifier, and `description()` says what
+/// the rule actually measures.
 pub struct ClientRequestVersionMethodValidity;
+
+/// Whether the request message carries content.
+///
+/// Not the same question as "does the message declare a body", and the
+/// difference is the finding: the sentences this rule enforces are about
+/// *content*, and each says in its own first clause that framing is a separate
+/// matter.
+// cite(RFC 9110 § 9.3.1): "Although request message framing is independent of the method used, content received in a GET request has no generally defined semantics, cannot alter the meaning or target of the request"
+//
+// So `Transfer-Encoding: chunked` is not evidence of content — a chunked
+// request whose first chunk is the terminator carries none — and over HTTP/2
+// and HTTP/3 content arrives with no framing field at all. The octets that
+// streamed through are the direct measurement, and a coded representation of
+// nothing is still nothing, so `Content-Encoding` does not disturb the
+// comparison against zero.
+fn request_carries_content(req: &crate::http_transaction::RequestInfo) -> bool {
+    if let Some(n) = req.body_length {
+        return n > 0;
+    }
+
+    // No body was captured, so the client's own declaration is the only
+    // evidence left. A `Content-Length` that does not parse leaves no number
+    // and `message_content_length` reports it; a declared length that
+    // disagrees with the captured octets is `message_request_body_length_accuracy`'s
+    // finding, not a method-semantics one.
+    // cite(RFC 9110 § 8.6): "When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing"
+    matches!(
+        crate::helpers::headers::validate_content_length(&req.headers),
+        Ok(Some(n)) if n > 0
+    )
+}
+
+/// Whether the request message declares content in its header section.
+///
+/// CONNECT's question, and it has to be asked of the headers alone: the octets
+/// after a CONNECT request's header section are tunnel payload, so counting
+/// them would report every tunnel.
+// cite(RFC 9110 § 9.3.6): "The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use."
+fn request_declares_content(req: &crate::http_transaction::RequestInfo) -> bool {
+    if req.headers.contains_key("transfer-encoding") {
+        return true;
+    }
+    // cite(RFC 9110 § 8.6): "When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing"
+    matches!(
+        crate::helpers::headers::validate_content_length(&req.headers),
+        Ok(Some(n)) if n > 0
+    )
+}
 
 impl Rule for ClientRequestVersionMethodValidity {
     fn id(&self) -> &'static str {
         "client_request_version_method_validity"
     }
 
+    /// Every sentence this rule enforces addresses the client.
+    // cite(RFC 9110 § 9.3.1): "A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -41,85 +87,102 @@ impl Rule for ClientRequestVersionMethodValidity {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+
+        // Matched exactly, never case-folded. `get` is not the GET method, and
+        // none of the sentences below say anything about it: an unrecognized
+        // method has no defined content semantics, so there is nothing to
+        // measure it against.
+        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
         let method = tx.request.method.as_str();
 
-        // Determine whether the request seems to include a body by looking at
-        // the headers.  We intentionally mirror the logic used by the earlier
-        // `client_request_method_body_consistency` rule for consistency.
-        if !crate::helpers::headers::has_request_body(&tx.request.headers) {
-            return None; // no body claimed, nothing to check
+        // One section per method, because the strength differs and the message
+        // has to say which one it is. GET, HEAD and DELETE carry a SHOULD NOT
+        // with an `unless`; CONNECT is a declaration about the message.
+        // TRACE's MUST NOT is `semantic_trace_method_echo`'s.
+        let sentence = match method {
+            // cite(RFC 9110 § 9.3.1): "A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
+            "GET" => "§ 9.3.1 says a client SHOULD NOT generate content in a GET request",
+            // cite(RFC 9110 § 9.3.2): "A client SHOULD NOT generate content in a HEAD request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
+            "HEAD" => "§ 9.3.2 says a client SHOULD NOT generate content in a HEAD request",
+            // cite(RFC 9110 § 9.3.5): "A client SHOULD NOT generate content in a DELETE request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
+            "DELETE" => "§ 9.3.5 says a client SHOULD NOT generate content in a DELETE request",
+
+            // Not a requirement on the sender but a statement about the
+            // message, so the finding is that the message contradicts its own
+            // method's definition rather than that a modal was disobeyed.
+            // cite(RFC 9110 § 9.3.6): "A CONNECT request message does not have content."
+            "CONNECT" => {
+                return request_declares_content(&tx.request).then(|| Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "CONNECT request declares content in its header section; RFC 9110 § 9.3.6 defines a CONNECT request message as having none".into(),
+                });
+            }
+
+            _ => return None,
+        };
+
+        if !request_carries_content(&tx.request) {
+            return None;
         }
 
-        // Methods that do *not* define request-content semantics and which RFC
-        // 9110 either forbids or discourages from carrying a body. One sentence per
-        // method, because the strength differs: TRACE and CONNECT are prohibitions,
-        // the other three are discouragements, and the rule flattens them into one
-        // violation. These quotes were in the rule's metadata before stage 1 moved
-        // references to typed fields and dropped them; they belong here, next to the
-        // branch, where they can be checked.
-        // cite(RFC 9110 § 9.3.1): "A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server"
-        // cite(RFC 9110 § 9.3.2): "A client SHOULD NOT generate content in a HEAD request"
-        // cite(RFC 9110 § 9.3.5): "A client SHOULD NOT generate content in a DELETE request"
-        // cite(RFC 9110 § 9.3.6): "A CONNECT request message does not have content."
-        // cite(RFC 9110 § 9.3.8): "A client MUST NOT send content in a TRACE request."
-        let method_upper = method.to_ascii_uppercase();
-        if method_upper == "GET"
-            || method_upper == "HEAD"
-            || method_upper == "DELETE"
-            || method_upper == "TRACE"
-            || method_upper == "CONNECT"
-        {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: format!(
-                    "{} request contains an unexpected message body (method does not allow content according to RFC 9110)",
-                    method
-                ),
-            });
-        }
-
-        // Future: could also validate method applicability based on
-        // `tx.request.version` here.
-
-        None
+        // The `unless` clause is a private agreement made "in or out of band",
+        // which no observer of the exchange can confirm — but the sentence that
+        // closes the same paragraph (identically in all three sections) says the
+        // agreement is not something to rely on, and names why: the request
+        // chain. So the finding stands and `description()` states the limit.
+        // cite(RFC 9110 § 9.3.1): "An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain."
+        Some(Violation {
+            rule: self.id().into(),
+            severity: config.severity,
+            message: format!(
+                "{} request carries content; RFC 9110 {}, and content received in one has no generally defined semantics",
+                method, sentence
+            ),
+        })
     }
 
     fn description(&self) -> &'static str {
-        "Clients SHOULD use request methods whose semantics align with the message\ncontent they are sending.  Some methods either forbid or have no defined\nsemantics for a request body; sending content with those methods can lead to\ninteroperability problems or security risks (e.g. request smuggling).  This\nrule flags any request that claims a non-zero body when the method's\nsemantics do not allow it.\n\nThe most obvious examples are GET and HEAD (which have no defined request\npayload semantics) but the same guidance applies to DELETE, TRACE, and\nCONNECT.  By enforcing this rule, users are encouraged to choose methods like\nPOST, PUT, PATCH, or OPTIONS when content is required."
+        "Reports a request that carries content under a method whose definition gives content no meaning there. RFC 9110 says it about GET (§9.3.1), HEAD (§9.3.2) and DELETE (§9.3.5) in three identical paragraphs: content in such a request \"has no generally defined semantics, cannot alter the meaning or target of the request, and might lead some implementations to reject the request and close the connection because of its potential as a request smuggling attack\". CONNECT (§9.3.6) is stated differently and reported differently — see below.\n\n**A SHOULD NOT with a condition this rule cannot check.** The GET/HEAD/DELETE sentences end \"unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported\". An agreement reached out of band leaves no trace in the message, so a request under such an agreement is reported like any other. The exemption is not simply ignored, though: the next sentence in each of those three paragraphs says \"An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain\" — and a request this tool observed at a proxy has, by construction, an intermediary in its chain.\n\n**CONNECT is a different kind of finding.** §9.3.6 states \"A CONNECT request message does not have content.\" — a definition, not a modal a sender disobeys. So the report is that the message contradicts its own method's definition. It is also the one method judged on its header section alone: §9.3.6 hands the octets after that section to the version in use, and on a successful CONNECT those octets are tunnel payload rather than content.\n\n**Content, not framing.** Each of the three paragraphs opens \"Although request message framing is independent of the method used\", so a `Transfer-Encoding` is not by itself content: a chunked request whose first chunk is the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured, its octet count is what decides; otherwise the request's own `Content-Length` is.\n\n**Not checked here.** TRACE's §9.3.8 MUST NOT is `semantic_trace_method_echo`'s, so enabling this rule alone leaves TRACE unreported. OPTIONS may carry content (§9.3.7), which comes with a MUST on the `Content-Type` describing it that this rule does not check. Neither does any other method: a method this specification does not define has no content semantics to contradict. And nothing here reads `tx.request.version`, despite the id."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 9110",
+                section: Some("9.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+                note: "Methods overview — the method token is case-sensitive, which is why the four names below are matched exactly and a lowercase `get` is not a GET",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
                 section: Some("9.3.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.1",
-                note: "GET",
+                note: "GET — the SHOULD NOT, its `unless` clause, and the sentence that declines to rely on the private agreement the clause describes. Also the statement that framing is independent of the method, which is why a Transfer-Encoding alone is not content",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("9.3.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
-                note: "HEAD",
+                note: "HEAD — the same paragraph, word for word",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("9.3.5"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5",
-                note: "DELETE",
+                note: "DELETE — the same paragraph again",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("9.3.6"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
-                note: "CONNECT",
+                note: "CONNECT — a definition rather than a modal, and the sentence that makes the octets after the header section tunnel payload instead of content",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("9.3.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8",
-                note: "TRACE",
+                section: Some("8.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
+                note: "Content-Length as the amount of data enclosed — the fallback evidence when no body was captured",
             },
         ]
     }
@@ -145,8 +208,8 @@ impl Rule for ClientRequestVersionMethodValidity {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("(TRACE with content)"),
-                snippet: "TRACE / HTTP/1.1\nHost: example.com\nContent-Length: 1\n\nx",
+                label: Some("(CONNECT declaring content)"),
+                snippet: "CONNECT server.example.com:443 HTTP/1.1\nHost: server.example.com:443\nContent-Length: 1\n\nx",
             },
         ]
     }
@@ -165,41 +228,116 @@ mod tests {
         method: &str,
         headers: Vec<(&str, &str)>,
     ) -> crate::http_transaction::HttpTransaction {
+        make_tx(method, headers, None)
+    }
+
+    /// One constructor for every fixture, so `body_length` — the field that
+    /// decides the finding — is always stated rather than defaulted.
+    fn make_tx(
+        method: &str,
+        headers: Vec<(&str, &str)>,
+        body_length: Option<u64>,
+    ) -> crate::http_transaction::HttpTransaction {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.method = method.to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&headers);
+        tx.request.body_length = body_length;
         tx
     }
 
+    fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+        let rule = ClientRequestVersionMethodValidity;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        rule.check_transaction(
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+    }
+
     #[rstest]
-    #[case("GET", vec![], false)]
-    #[case("GET", vec![("content-length", "0")], false)]
-    #[case("GET", vec![("content-length", "10")], true)]
-    #[case("HEAD", vec![("content-length", "1")], true)]
-    #[case("DELETE", vec![("transfer-encoding", "chunked")], true)]
-    #[case("TRACE", vec![("content-length", "1")], true)]
-    #[case("CONNECT", vec![("content-length", "1")], true)]
-    #[case("POST", vec![("content-length", "1")], false)]
-    #[case("PUT", vec![("transfer-encoding", "chunked")], false)]
+    #[case("GET", vec![], None, false)]
+    #[case("GET", vec![("content-length", "0")], None, false)]
+    #[case("GET", vec![("content-length", "10")], None, true)]
+    #[case("HEAD", vec![("content-length", "1")], None, true)]
+    #[case("DELETE", vec![("content-length", "1")], None, true)]
+    #[case("CONNECT", vec![("content-length", "1")], None, true)]
+    #[case("CONNECT", vec![("transfer-encoding", "chunked")], None, true)]
+    #[case("CONNECT", vec![("content-length", "0")], None, false)]
+    #[case("POST", vec![("content-length", "1")], Some(1), false)]
+    #[case("PUT", vec![("transfer-encoding", "chunked")], Some(9), false)]
+    #[case("OPTIONS", vec![("content-length", "5")], Some(5), false)]
+    // TRACE is `semantic_trace_method_echo`'s, across all three signals.
+    #[case("TRACE", vec![("content-length", "1")], Some(1), false)]
     fn method_body_cases(
         #[case] method: &str,
         #[case] headers: Vec<(&str, &str)>,
+        #[case] body_length: Option<u64>,
         #[case] expect_violation: bool,
     ) {
-        let rule = ClientRequestVersionMethodValidity;
-        let tx = make_tx_with_req(method, headers);
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
+        let tx = make_tx(method, headers, body_length);
+        let v = check(&tx);
 
         if expect_violation {
             assert!(v.is_some(), "expected violation for {}", method);
         } else {
             assert!(v.is_none(), "unexpected violation for {}: {:?}", method, v);
         }
+    }
+
+    /// § 9.1: the method token is case-sensitive. A lowercase `get` is not the
+    /// GET method, so no sentence in § 9.3 measures its content.
+    #[rstest]
+    #[case("get")]
+    #[case("Get")]
+    #[case("delete")]
+    #[case("connect")]
+    fn lowercase_method_names_are_not_the_methods(#[case] method: &str) {
+        let tx = make_tx(method, vec![("content-length", "10")], Some(10));
+        assert!(check(&tx).is_none(), "reported {} against § 9.3", method);
+    }
+
+    /// Framing is independent of the method: a chunked request whose only chunk
+    /// is the terminator carries no content, and the octet count says so.
+    #[rstest]
+    #[case(Some(0), false)]
+    #[case(Some(5), true)]
+    fn chunked_request_is_judged_by_its_octets(
+        #[case] body_length: Option<u64>,
+        #[case] expect_violation: bool,
+    ) {
+        let tx = make_tx(
+            "DELETE",
+            vec![("transfer-encoding", "chunked")],
+            body_length,
+        );
+        assert_eq!(check(&tx).is_some(), expect_violation);
+    }
+
+    /// Content with no framing field at all — the HTTP/2 and HTTP/3 shape.
+    #[test]
+    fn captured_octets_alone_are_content() {
+        let tx = make_tx("GET", vec![], Some(7));
+        assert!(check(&tx).is_some());
+    }
+
+    /// § 5.3 makes several `Content-Length` lines one value, and RFC 9112 § 6.3
+    /// makes `5, 5` one value of five. Reading the first line alone missed both.
+    #[rstest]
+    #[case(vec![("content-length", "5, 5")])]
+    #[case(vec![("content-length", "0"), ("content-length", "0")])]
+    fn content_length_is_read_as_one_value(#[case] headers: Vec<(&str, &str)>) {
+        let expect = headers[0].1.starts_with('5');
+        let tx = make_tx("GET", headers, None);
+        assert_eq!(check(&tx).is_some(), expect);
+    }
+
+    /// A CONNECT is judged on its header section: the octets after it are
+    /// tunnel payload, not content.
+    #[test]
+    fn connect_ignores_captured_octets() {
+        let tx = make_tx("CONNECT", vec![], Some(4096));
+        assert!(check(&tx).is_none());
     }
 
     #[test]
@@ -251,30 +389,21 @@ mod tests {
         assert!(v_space.is_none());
     }
 
+    /// The message names the section whose sentence produced it, and the two
+    /// kinds of finding read differently — a modal the client disobeyed versus
+    /// a definition the message contradicts.
     #[test]
-    fn violation_messages_are_informative() {
-        let rule = ClientRequestVersionMethodValidity;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+    fn violation_messages_name_their_sentence() {
+        let v = check(&make_tx("GET", vec![("content-length", "10")], None)).unwrap();
+        assert!(v.message.contains("§ 9.3.1"), "{}", v.message);
+        assert!(v.message.contains("SHOULD NOT"), "{}", v.message);
 
-        let tx = make_tx_with_req("GET", vec![("content-length", "10")]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .unwrap();
-        assert!(v.message.contains("GET request"));
+        let v2 = check(&make_tx("HEAD", vec![("content-length", "1")], None)).unwrap();
+        assert!(v2.message.contains("§ 9.3.2"), "{}", v2.message);
 
-        let tx2 = make_tx_with_req("TRACE", vec![("transfer-encoding", "chunked")]);
-        let v2 = rule
-            .check_transaction(
-                &tx2,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .unwrap();
-        assert!(v2.message.contains("TRACE request"));
+        let v3 = check(&make_tx("CONNECT", vec![("content-length", "1")], None)).unwrap();
+        assert!(v3.message.contains("§ 9.3.6"), "{}", v3.message);
+        assert!(!v3.message.contains("SHOULD NOT"), "{}", v3.message);
     }
 
     #[test]
