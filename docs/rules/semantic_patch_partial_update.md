@@ -22,7 +22,13 @@ Reports a `PATCH` request that carries content without a `Content-Type` naming t
 
 ## Specifications
 
-- [RFC 5789 §2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2): Patch method semantics and patch document media types
+- [RFC 5789 §2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2): The PATCH method — a patch document is identified by a media type, the request's fields describe that document rather than the resource, and no patch format is one implementations must support, which is why this rule reports the field's absence and does not judge its value
+- [RFC 5789 §2.2](https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2): Error Handling — a patch format the server does not support is answered with 415, the recipient's side of the media type this rule asks for
+- [RFC 5789 §3.1](https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1): The `Accept-Patch` header — how a server says which patch formats it takes. It is a response field, so a lone request cannot be measured against it; `client_patch_method_content_type_match` is the rule that has one
+- [RFC 9110 §8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3): Content-Type — the SHOULD this rule enforces, the exception excusing a sender that does not know its own media type, and the two guesses a recipient is left with when the field is absent
+- [RFC 9110 §6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4): Content — the octet stream left once framing has been taken off, which is why a `Transfer-Encoding` is not evidence of any and the captured count decides
+- [RFC 9110 §9.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1): Methods overview — the method token is case-sensitive, which is why `PATCH` is matched exactly and a lowercase `patch` is not a PATCH request
+- [RFC 9110 §12.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.3): Request content negotiation — names `Accept-Patch` as the way the acceptable PATCH content types are discovered, rather than inferred from a media type's spelling
 
 ## Configuration
 

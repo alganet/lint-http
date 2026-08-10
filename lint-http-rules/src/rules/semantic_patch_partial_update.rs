@@ -22,6 +22,13 @@ impl Rule for SemanticPatchPartialUpdate {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
+        // The field this rule reads is the request's, and on a PATCH request it
+        // describes the enclosed patch document rather than the resource being
+        // changed -- § 2 says so with a MUST NOT, and adds that a
+        // `Content-Language` on such a request means only that the *patch* has
+        // a language. A response encloses no patch document, so there is
+        // nothing on that side for the sentence to be about.
+        // cite(RFC 5789 § 2): "Note that entity-headers contained in the request apply only to the contained patch document and MUST NOT be applied to the resource being modified."
         crate::rules::RuleScope::Client
     }
 
@@ -44,12 +51,15 @@ impl Rule for SemanticPatchPartialUpdate {
             return None;
         }
 
-        // Whether the request carries content, on the evidence the capture
-        // holds. A framing field is not the answer: `Transfer-Encoding` says how
-        // the octets were delimited, not that there were any, and over HTTP/2
-        // and HTTP/3 content arrives with no framing field at all. The shared
-        // helper reads the captured count first and falls back to the sender's
-        // declared length only where nothing was captured.
+        // The requirement's condition is that the message *contains content*,
+        // which is what makes this the gate rather than a header check. A
+        // framing field is not the answer: `Transfer-Encoding` says how the
+        // octets were delimited, not that there were any, and over HTTP/2 and
+        // HTTP/3 content arrives with no framing field at all. The shared
+        // helper carries § 6.4's definition of content and reads the captured
+        // count first, falling back to the sender's declared length only where
+        // nothing was captured.
+        // cite(RFC 9110 § 8.3): "A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender."
         let evidence =
             crate::helpers::headers::content_evidence(&tx.request.headers, tx.request.body_length)?;
 
@@ -58,19 +68,31 @@ impl Rule for SemanticPatchPartialUpdate {
         // is a field that is *there*; what is wrong with it is
         // `message_content_type_well_formed`'s finding, not this rule's.
         if tx.request.headers.contains_key("content-type") {
-            // The rule stops here. Whether the named media type is a patch
-            // format is a question no sentence in RFC 5789 answers from the
-            // request alone — there is no naming convention and no registry of
-            // patch formats, and the document's own examples are
-            // `application/example` and `text/example`. What a particular
-            // server accepts is discovered from its `Accept-Patch`, which is
-            // `client_patch_method_content_type_match`'s subject.
+            // The rule stops here, and this is where it stops. Whether the
+            // named media type is a *patch* format is a question no sentence
+            // answers from a lone request: § 2 says there is no format
+            // implementations must support, so there is no set to compare
+            // against, and nothing defines a naming convention -- the document's
+            // own examples are `application/example` and `text/example`. What a
+            // particular server accepts is discovered rather than spelled, and
+            // RFC 9110 names the mechanism, which is a *response* field.
+            // `client_patch_method_content_type_match` is the rule that holds
+            // one and can therefore ask the question.
+            // cite(RFC 5789 § 2): "Therefore, there is no single default patch document format that implementations are required to support."
+            // cite(RFC 9110 § 12.3): "Similarly, Section 3.1 of [RFC5789] defines the "Accept-Patch" response header field, which allows discovery of which content types are accepted in PATCH requests."
             return None;
         }
 
-        // The requirement, and it is a SHOULD carrying an exception this rule
-        // cannot evaluate.
-        // cite(RFC 9110 § 8.3): "A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender."
+        // What the absence costs. § 2 makes the media type the thing that says
+        // which instructions the server is holding -- it is how the patch
+        // document is identified, and the server is required to judge whether
+        // the one it received fits the resource. § 2.2 gives it a status code
+        // for the answer "no". Without the field, § 8.3 leaves it two ways to
+        // proceed, and both are guesses.
+        // cite(RFC 5789 § 2): "The set of changes is represented in a format called a "patch document" identified by a media type."
+        // cite(RFC 5789 § 2): "Servers MUST ensure that a received patch document is appropriate for the type of resource identified by the Request-URI."
+        // cite(RFC 5789 § 2.2): "Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI."
+        // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
         Some(Violation {
             rule: self.id().into(),
             severity: config.severity,
@@ -85,12 +107,50 @@ impl Rule for SemanticPatchPartialUpdate {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 5789",
-            section: Some("2"),
-            url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2",
-            note: "Patch method semantics and patch document media types",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 5789",
+                section: Some("2"),
+                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2",
+                note: "The PATCH method — a patch document is identified by a media type, the request's fields describe that document rather than the resource, and no patch format is one implementations must support, which is why this rule reports the field's absence and does not judge its value",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 5789",
+                section: Some("2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2",
+                note: "Error Handling — a patch format the server does not support is answered with 415, the recipient's side of the media type this rule asks for",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 5789",
+                section: Some("3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
+                note: "The `Accept-Patch` header — how a server says which patch formats it takes. It is a response field, so a lone request cannot be measured against it; `client_patch_method_content_type_match` is the rule that has one",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+                note: "Content-Type — the SHOULD this rule enforces, the exception excusing a sender that does not know its own media type, and the two guesses a recipient is left with when the field is absent",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("6.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
+                note: "Content — the octet stream left once framing has been taken off, which is why a `Transfer-Encoding` is not evidence of any and the captured count decides",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+                note: "Methods overview — the method token is case-sensitive, which is why `PATCH` is matched exactly and a lowercase `patch` is not a PATCH request",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("12.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.3",
+                note: "Request content negotiation — names `Accept-Patch` as the way the acceptable PATCH content types are discovered, rather than inferred from a media type's spelling",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
