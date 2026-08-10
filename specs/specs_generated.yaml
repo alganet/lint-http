@@ -2392,7 +2392,7 @@ sources:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
       line: 75
     - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 64
+      line: 78
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 70
     - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
@@ -2767,6 +2767,8 @@ sources:
       line: 232
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 234
+    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
+      line: 46
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 11.6.3
     snippet: Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
@@ -4628,15 +4630,15 @@ sources:
     snippet: A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 89
+      line: 103
   - label: semantic_trace_method_echo (4)
     section: § 9.3.8
     snippet: A client MUST NOT send content in a TRACE request.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 47
+      line: 61
     - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 73
+      line: 87
   - label: semantic_trace_method_echo (5)
     section: § 9.3.8
     snippet: For example, it would be foolish for a user agent to send stored user credentials (Section 11) or cookies [COOKIE] in a TRACE request.

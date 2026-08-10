@@ -37,6 +37,20 @@ const SENSITIVE_FIELDS: [(&str, &str); 3] = [
     ("cookie", "Cookie"),
 ];
 
+/// Whether the request carries `name` with anything in it.
+///
+/// § 9.3.8's MUST NOT is about a field *containing* sensitive data, so an empty
+/// field line is outside it: there is nothing in it for the reflection to
+/// disclose, and whichever rule owns that field's grammar reports the emptiness.
+/// The whitespace comes off first because a field value never included it.
+// cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
+fn carries_a_value(headers: &hyper::HeaderMap, name: &str) -> bool {
+    headers
+        .get_all(name)
+        .iter()
+        .any(|v| v.as_bytes().iter().any(|b| !matches!(b, b' ' | b'\t')))
+}
+
 impl Rule for SemanticTraceMethodEcho {
     fn id(&self) -> &'static str {
         "semantic_trace_method_echo"
@@ -89,7 +103,7 @@ impl Rule for SemanticTraceMethodEcho {
         // cite(RFC 9110 § 9.3.8): "A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response."
         let present: Vec<&str> = SENSITIVE_FIELDS
             .iter()
-            .filter(|(lowercase, _)| tx.request.headers.contains_key(*lowercase))
+            .filter(|(lowercase, _)| carries_a_value(&tx.request.headers, lowercase))
             .map(|(_, name)| *name)
             .collect();
 
@@ -98,7 +112,7 @@ impl Rule for SemanticTraceMethodEcho {
                 rule: self.id().into(),
                 severity: config.severity,
                 message: format!(
-                    "TRACE request carries {}; RFC 9110 § 9.3.8 says a client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response, and names the contents of these fields as its example",
+                    "TRACE request carries {}; RFC 9110 § 9.3.8 says a client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response, and names credentials and cookies as its example",
                     present.join(", ")
                 ),
             });
@@ -112,7 +126,7 @@ impl Rule for SemanticTraceMethodEcho {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a TRACE request that carries content, and a TRACE request that carries one of the fields RFC 9110 §9.3.8 names when it forbids handing sensitive data to a loop-back. A TRACE asks the final recipient to \"reflect the message received, excluding some fields described below, back to the client as the content of a 200 (OK) response\", so what a TRACE request contains is what a TRACE response discloses.\n\n**Content.** §9.3.8: \"A client MUST NOT send content in a TRACE request.\" Content is §6.4's — the stream of octets after the header section, counted once framing has been taken off — so a `Transfer-Encoding: chunked` is not by itself content, a chunked TRACE whose only chunk is the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured its octet count decides; otherwise the request's own `Content-Length` does.\n\n**Sensitive fields.** §9.3.8 also says \"A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response.\" Whether a value is sensitive is not something a message states, so this rule reports exactly the two kinds of data the section names as its example — stored user credentials (`Authorization`, `Proxy-Authorization`) and cookies (`Cookie`). Sensitive data under any other field name is not reported, and cannot be: the sentence leaves the class open on purpose.\n\n**Not checked: the response's media type.** RFC 7231 §4.3.8 required `message/http` on a TRACE response; RFC 9110 does not. §9.3.8 now calls that format one way to do so, and Appendix B.3 records the change — \"The normative requirement to use the \"message/http\" media type in TRACE responses has been removed.\" A TRACE response in another media type is reported by nothing here. A response that carries content with no `Content-Type` at all is `server_content_type_present`'s finding.\n\n**Not checked: whether the response reflected the request.** The reflection is a SHOULD addressed to \"the final recipient\" — the origin server, or the first server to receive a `Max-Forwards` of zero — and no field of a message says which recipient answered it."
+        "Reports a TRACE request that carries content, and a TRACE request that carries one of the fields RFC 9110 §9.3.8 names when it forbids handing sensitive data to a loop-back. A TRACE asks the final recipient to \"reflect the message received, excluding some fields described below, back to the client as the content of a 200 (OK) response\", so what a TRACE request contains is what a TRACE response discloses.\n\n**Content.** §9.3.8: \"A client MUST NOT send content in a TRACE request.\" Content is §6.4's — the stream of octets after the header section, counted once framing has been taken off — so a `Transfer-Encoding: chunked` is not by itself content, a chunked TRACE whose only chunk is the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured its octet count decides; otherwise the request's own `Content-Length` does — which leaves one case unmeasurable, a chunked request whose octets were not captured, since it declares no length to fall back to.\n\n**Sensitive fields.** §9.3.8 also says \"A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response.\" Whether a value is sensitive is not something a message states, so this rule reports exactly the two kinds of data the section names as its example — stored user credentials (`Authorization`, `Proxy-Authorization`) and cookies (`Cookie`), and only where the field carries a value. Sensitive data under any other field name is not reported: the sentence leaves the class open, and a message does not say which of its values are sensitive.\n\n**Not checked: the response's media type.** RFC 7231 §4.3.8 required `message/http` on a TRACE response; RFC 9110 does not. §9.3.8 now calls that format one way to do so, and Appendix B.3 records the change — \"The normative requirement to use the \"message/http\" media type in TRACE responses has been removed.\" A TRACE response in another media type is reported by nothing here. A response that carries content with no `Content-Type` at all is `server_content_type_present`'s finding.\n\n**Not checked: whether the response reflected the request.** The reflection is a SHOULD addressed to \"the final recipient\" — the origin server, or the first server to receive a `Max-Forwards` of zero — and no field of a message says which recipient answered it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -270,6 +284,32 @@ mod tests {
     fn an_unnamed_field_is_not_reported() {
         let v = check(&make_tx("TRACE", vec![("x-api-key", "s3cr3t")], Some(0)));
         assert!(v.is_none(), "{v:?}");
+    }
+
+    /// The sentence forbids a field *containing* sensitive data, so an empty
+    /// one is not this rule's finding however unusual it is.
+    #[rstest]
+    #[case("")]
+    #[case(" ")]
+    #[case("\t ")]
+    fn an_empty_named_field_is_not_reported(#[case] value: &str) {
+        let v = check(&make_tx("TRACE", vec![("cookie", value)], Some(0)));
+        assert!(v.is_none(), "{v:?}");
+    }
+
+    /// …and a value on any of the field's lines is still a value.
+    #[test]
+    fn a_second_field_line_carrying_a_value_is_reported() {
+        let mut tx = make_tx("TRACE", vec![], Some(0));
+        tx.request
+            .headers
+            .append("cookie", hyper::header::HeaderValue::from_static(""));
+        tx.request.headers.append(
+            "cookie",
+            hyper::header::HeaderValue::from_static("session=8f1c2b"),
+        );
+        let v = check(&tx).unwrap();
+        assert!(v.message.contains("Cookie"), "{v:?}");
     }
 
     #[test]
