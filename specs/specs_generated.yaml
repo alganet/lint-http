@@ -1781,6 +1781,20 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc8259.txt
   type: text/plain
   fragments:
+  - label: message_problem_details_structure
+    section: § 2
+    snippet: A JSON text is a serialized value.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 132
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 161
+  - label: message_problem_details_structure (2)
+    section: § 8.1
+    snippet: JSON text exchanged between systems that are not part of a closed ecosystem MUST be encoded using UTF-8
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 162
   - label: server_problem_details_content_type
     section: § 11
     snippet: The media type for JSON text is application/json.
@@ -3027,6 +3041,8 @@ sources:
       line: 65
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 58
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 79
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
       line: 49
   - label: message_accept_and_content_type_negotiation (15)
@@ -3045,6 +3061,8 @@ sources:
       line: 138
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
       line: 180
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 93
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 76
     - file: lint-http-rules/src/rules/server_charset_specification.rs
@@ -3491,6 +3509,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_content_length.rs
       line: 32
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 185
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 103
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
@@ -3813,6 +3833,48 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_content_type_and_body_consistency.rs
       line: 208
+  - label: message_problem_details_structure
+    section: § 6.4
+    snippet: This abstract definition of content reflects the data after it has been extracted from the message framing.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 171
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 130
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 79
+  - label: message_problem_details_structure (2)
+    section: § 8.1
+    snippet: The representation data is in a format and encoding defined by the representation metadata header fields.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 36
+  - label: message_problem_details_structure (3)
+    section: § 8.3
+    snippet: If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 88
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 108
+  - label: message_problem_details_structure (4)
+    section: § 8.3
+    snippet: In practice, resource owners do not always properly configure their origin server to provide the correct Content-Type for a given representation.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 38
+  - label: message_problem_details_structure (5)
+    section: § 8.3
+    snippet: The indicated media type defines both the data format and how that data is intended to be processed by a recipient, within the scope of the received message semantics, after any content codings indicated by Content-Encoding are decoded.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 37
+  - label: message_problem_details_structure (6)
+    section: § 8.4
+    snippet: The "Content-Encoding" header field indicates what content codings have been applied to the representation, beyond those inherent in the media type, and thus what decoding mechanisms have to be applied in order to obtain data in the media type referenced by the Content-Type header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 115
   - label: message_range_and_content_range_consistency
     section: § 14.1.2
     snippet: If the representation data has a content coding applied, each byte range is calculated with respect to the encoded sequence of bytes, not the sequence of underlying bytes that would be obtained after decoding.
@@ -4406,26 +4468,18 @@ sources:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 26
   - label: server_200_vs_204_body_consistency (7)
-    section: § 6.4
-    snippet: This abstract definition of content reflects the data after it has been extracted from the message framing.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 130
-    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
-      line: 79
-  - label: server_200_vs_204_body_consistency (8)
     section: § 6.4.1
     snippet: 2xx (Successful) responses to a CONNECT request method (Section 9.3.6) switch the connection to tunnel mode instead of having content.
     cited_by:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 91
-  - label: server_200_vs_204_body_consistency (9)
+  - label: server_200_vs_204_body_consistency (8)
     section: § 6.4.1
     snippet: Responses to the HEAD request method (Section 9.3.2) never include content; the associated response header fields indicate only what their values would have been if the request method had been GET (Section 9.3.1).
     cited_by:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 75
-  - label: server_200_vs_204_body_consistency (10)
+  - label: server_200_vs_204_body_consistency (9)
     section: § 9.1
     snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
     cited_by:
@@ -4435,7 +4489,7 @@ sources:
       line: 93
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
       line: 81
-  - label: server_200_vs_204_body_consistency (11)
+  - label: server_200_vs_204_body_consistency (10)
     section: § 9.3.2
     snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
     cited_by:
@@ -4548,12 +4602,6 @@ sources:
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 101
   - label: server_content_type_present (3)
-    section: § 8.3
-    snippet: If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_content_type_present.rs
-      line: 108
-  - label: server_content_type_present (4)
     section: § 8.3
     snippet: This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation").
     cited_by:
@@ -5377,6 +5425,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_content_length_vs_transfer_encoding.rs
       line: 36
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 183
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 58
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
@@ -5401,6 +5451,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
       line: 27
+  - label: message_problem_details_structure
+    section: § 6.3
+    snippet: If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 184
+    - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
+      line: 53
+    - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
+      line: 121
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 108
   - label: message_request_body_length_accuracy
     section: § 6.2
     snippet: For messages that do include content, the Content-Length field value provides the framing information necessary for determining where the data (and message) ends.
@@ -5423,21 +5485,11 @@ sources:
       line: 59
   - label: message_request_body_length_accuracy (4)
     section: § 6.3
-    snippet: If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
-      line: 53
-    - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 121
-    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 108
-  - label: message_request_body_length_accuracy (5)
-    section: § 6.3
     snippet: If the sender closes the connection or the recipient times out before the indicated number of octets are received, the recipient MUST consider the message to be incomplete and close the connection.
     cited_by:
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 87
-  - label: message_request_body_length_accuracy (6)
+  - label: message_request_body_length_accuracy (5)
     section: § 6.3
     snippet: The length of a message body is determined by one of the following (in order of precedence)
     cited_by:
@@ -6007,12 +6059,44 @@ sources:
   fragments:
   - label: message_problem_details_structure
     section: § 3
+    snippet: The canonical model for problem details is a JSON [JSON] object.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 150
+  - label: message_problem_details_structure (2)
+    section: § 3
     snippet: When serialized in a JSON document, that format is identified with the "application/problem+json" media type.
     cited_by:
     - file: lint-http-rules/src/rules/message_problem_details_structure.rs
-      line: 68
+      line: 102
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
       line: 65
+  - label: message_problem_details_structure (3)
+    section: § 3.1
+    snippet: Problem detail objects can have the following members.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 145
+  - label: message_problem_details_structure (4)
+    section: § 3.1.1
+    snippet: When this member is not present, its value is assumed to be "about:blank".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 146
+  - label: message_problem_details_structure (5)
+    section: § 4.2.1
+    snippet: Consequently, any problem details object not carrying an explicit "type" member implicitly uses this URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 147
+  - label: message_problem_details_structure (6)
+    section: § B
+    snippet: The media type for this format is "application/problem+xml".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 103
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 66
   - label: server_problem_details_content_type
     section: § 1
     snippet: If the response is still a representation of a resource, for example, it's often preferable to describe the relevant details in that application's format.
@@ -6037,12 +6121,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
       line: 86
-  - label: server_problem_details_content_type (5)
-    section: § B
-    snippet: The media type for this format is "application/problem+xml".
-    cited_by:
-    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 66
 - label: RFC 9530
   url: https://www.rfc-editor.org/rfc/rfc9530.txt
   type: text/plain
