@@ -497,10 +497,6 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
         QueryType::ByResource,
     ),
     (
-        &stateful_redirect_chain_validity::StatefulRedirectChainValidity,
-        QueryType::ByResource,
-    ),
-    (
         &stateful_s_max_age_enforcement::StatefulSMaxAgeEnforcement,
         QueryType::ByResource,
     ),

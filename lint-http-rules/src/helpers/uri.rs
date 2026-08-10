@@ -201,6 +201,48 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
     Some("Origin is not a valid serialized origin".into())
 }
 
+/// The authority component of the **target URI**, which is not always in the
+/// request-target.
+///
+/// [`extract_authority_from_request_target`] answers the narrower question of
+/// what the target *string* carries; only two of its four forms carry an
+/// authority at all. The reconstruction is where the missing one comes from:
+/// an origin-form or asterisk-form target leaves the authority in `Host`, which
+/// is the entire reason that field exists.
+///
+/// Returns `None` when neither source has one — a target with no authority and
+/// no usable `Host` field, where nothing about *which* host was addressed can be
+/// concluded and a caller comparing authorities has to say so. Over HTTP/2 and
+/// HTTP/3 the question does not arise: `:authority` reaches the capture inside
+/// the request-target, so the first branch answers.
+///
+/// `Host` is a singleton, and §3.3's *"empty or invalid"* is where two field
+/// lines land: a message carrying them is one a server must answer with a 400,
+/// and reading the first of the two would pick a host by position rather than by
+/// anything the sender said. `client_host_header` reports the message; this
+/// helper reports that the authority is unknown, which is what it is.
+// cite(RFC 9110 § 7.1): "A URI reference is resolved to its absolute form in order to obtain the "target URI"."
+// cite(RFC 9110 § 7.2): "The "Host" header field in a request provides the host and port information from the target URI, enabling the origin server to distinguish among resources while servicing requests for multiple host names."
+// cite(RFC 9110 § 7.2): "In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data."
+// cite(RFC 9112 § 3.3): "The target URI is the request-target when the request-target is in absolute-form."
+// cite(RFC 9112 § 3.3): "If the request-target is in authority-form, the target URI's authority component is the request-target.  Otherwise, the target URI's authority component is the field value of the Host header field."
+// cite(RFC 9112 § 3.3): "If there is no Host header field or if its field value is empty or invalid, the target URI's authority component is empty."
+// cite(RFC 9112 § 3.2): "A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value."
+pub fn target_uri_authority(
+    request_target: &str,
+    request_headers: &hyper::HeaderMap,
+) -> Option<String> {
+    if let Some(from_target) = extract_authority_from_request_target(request_target) {
+        return Some(from_target);
+    }
+    if request_headers.get_all("host").iter().count() != 1 {
+        return None;
+    }
+    crate::helpers::headers::get_header_str(request_headers, "host")
+        .map(|h| h.trim().to_string())
+        .filter(|h| !h.is_empty())
+}
+
 /// Extract the authority component (host\[:port\]) from a request-target.
 ///
 /// Handles all four request-target forms (RFC 9112 §3.2):
@@ -1166,6 +1208,49 @@ mod tests {
         assert_eq!(extract_authority_from_request_target("http://"), None);
         assert_eq!(extract_authority_from_request_target(""), None);
         assert_eq!(extract_authority_from_request_target("  "), None);
+    }
+
+    #[test]
+    fn target_uri_authority_reconstructs_from_host_when_the_target_has_none() {
+        let host = |lines: &[&str]| {
+            let mut h = hyper::HeaderMap::new();
+            for l in lines {
+                h.append(
+                    hyper::header::HeaderName::from_static("host"),
+                    hyper::header::HeaderValue::from_str(l).expect("a test Host value"),
+                );
+            }
+            h
+        };
+
+        // Origin-form and asterisk-form carry no authority; Host does.
+        assert_eq!(
+            target_uri_authority("/path", &host(&["example.com:8080"])),
+            Some("example.com:8080".into())
+        );
+        assert_eq!(
+            target_uri_authority("*", &host(&["example.com"])),
+            Some("example.com".into())
+        );
+
+        // The request-target wins when it has one, whatever Host says — that is
+        // the order §3.3 states, and it is how an HTTP/2 `:authority` arrives.
+        assert_eq!(
+            target_uri_authority("http://origin.example/path", &host(&["other.example"])),
+            Some("origin.example".into())
+        );
+
+        // Nothing to reconstruct from.
+        assert_eq!(target_uri_authority("/path", &host(&[])), None);
+        assert_eq!(target_uri_authority("/path", &host(&[""])), None);
+        assert_eq!(target_uri_authority("/path", &host(&["   "])), None);
+
+        // A singleton written twice: §3.2 makes the message one a server answers
+        // with a 400, and neither line is the authority.
+        assert_eq!(
+            target_uri_authority("/path", &host(&["a.example", "b.example"])),
+            None
+        );
     }
 
     #[test]

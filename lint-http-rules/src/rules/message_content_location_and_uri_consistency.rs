@@ -155,13 +155,13 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 // Host. Without this fallback the path decides alone, which is
                 // wrong in both directions at once — a Content-Location naming a
                 // different host but the same path passes silently, while a
-                // network-path reference naming *this* host is reported.
+                // network-path reference naming *this* host is reported. The
+                // reconstruction and the sentences licensing it live in the
+                // helper: `stateful_redirect_chain_validity` needed the same
+                // three lines, and a second copy of them is a second place for
+                // the answer to drift.
                 let req_authority =
-                    crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri)
-                        .or_else(|| {
-                            crate::helpers::headers::get_header_str(&tx.request.headers, "host")
-                                .map(|h| h.trim().to_string())
-                        });
+                    crate::helpers::uri::target_uri_authority(&tx.request.uri, &tx.request.headers);
                 let cl_authority = crate::helpers::uri::reference_authority(s);
 
                 let mut matches = false;

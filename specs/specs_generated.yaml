@@ -673,7 +673,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 77
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 605
+      line: 647
   - label: lint-http-rules/src/helpers/uri.rs (8)
     section: § 2.3
     snippet: unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~"
@@ -681,13 +681,13 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 75
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 604
+      line: 646
   - label: lint-http-rules/src/helpers/uri.rs (9)
     section: § 3.1
     snippet: Scheme names consist of a sequence of characters beginning with a letter and followed by any combination of letters, digits, plus ("+"), period ("."), or hyphen ("-").
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 578
+      line: 620
   - label: lint-http-rules/src/helpers/uri.rs (10)
     section: § 3.1
     snippet: scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
@@ -695,7 +695,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 123
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 577
+      line: 619
   - label: lint-http-rules/src/helpers/uri.rs (11)
     section: § 3.2
     snippet: The authority component is preceded by a double slash ("//") and is terminated by the next slash ("/"), question mark ("?"), or number sign ("#") character, or by the end of the URI.
@@ -703,37 +703,37 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 142
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 470
+      line: 512
   - label: lint-http-rules/src/helpers/uri.rs (12)
     section: § 3.2.2
     snippet: IP-literal = "[" ( IPv6address / IPvFuture  ) "]"
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 608
+      line: 650
   - label: lint-http-rules/src/helpers/uri.rs (13)
     section: § 3.2.2
     snippet: IPvFuture  = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 652
+      line: 694
   - label: lint-http-rules/src/helpers/uri.rs (14)
     section: § 3.2.2
     snippet: host        = IP-literal / IPv4address / reg-name
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 602
+      line: 644
   - label: lint-http-rules/src/helpers/uri.rs (15)
     section: § 3.2.2
     snippet: reg-name    = *( unreserved / pct-encoded / sub-delims )
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 603
+      line: 645
   - label: lint-http-rules/src/helpers/uri.rs (16)
     section: § 3.2.3
     snippet: The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 683
+      line: 725
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 393
   - label: lint-http-rules/src/helpers/uri.rs (17)
@@ -741,7 +741,7 @@ sources:
     snippet: URI producers and normalizers should omit the port component and its ":" delimiter if port is empty or if its value would be the same as that of the scheme's default.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 684
+      line: 726
   - label: lint-http-rules/src/helpers/uri.rs (18)
     section: § 3.3
     snippet: pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
@@ -759,31 +759,31 @@ sources:
     snippet: A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 463
+      line: 505
   - label: lint-http-rules/src/helpers/uri.rs (21)
     section: § 5.2.3
     snippet: If the base URI has a defined authority component and an empty path, then return a string consisting of "/" concatenated with the reference's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 445
+      line: 487
   - label: lint-http-rules/src/helpers/uri.rs (22)
     section: § 5.2.3
     snippet: return a string consisting of the reference's path component appended to all but the last segment of the base URI's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 449
+      line: 491
   - label: lint-http-rules/src/helpers/uri.rs (23)
     section: § 5.2.4
     snippet: This is done after the path is extracted from a reference, whether or not the path was relative, in order to remove any invalid or extraneous dot-segments prior to forming the target URI.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 387
+      line: 429
   - label: lint-http-rules/src/helpers/uri.rs (24)
     section: § 6.2.2.3
     snippet: URI normalizers should remove dot-segments by applying the remove_dot_segments algorithm to the path, as described in Section 5.2.4.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 436
+      line: 478
   - label: message_content_location_and_uri_consistency
     section: § 6.2.2.1
     snippet: The other generic syntax components are assumed to be case-sensitive unless specifically defined otherwise by the scheme (see Section 6.2.3).
@@ -796,6 +796,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 171
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 193
   - label: message_http3_host_authority_consistency
     section: § 3.2.2
     snippet: Although host is case-insensitive, producers and normalizers should use lowercase for registered names and hexadecimal addresses for the sake of uniformity
@@ -2111,12 +2113,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 54
-  - label: client_host_header (2)
-    section: § 7.2
-    snippet: In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_host_header.rs
-      line: 22
   - label: client_range_header_syntax_valid
     section: § 14.1.1
     snippet: A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit.
@@ -2916,7 +2912,7 @@ sources:
     - file: lint-http-rules/src/helpers/status.rs
       line: 7
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 41
+      line: 79
   - label: lint-http-rules/src/helpers/token.rs
     section: § 5.6.2
     snippet: token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
@@ -2931,18 +2927,40 @@ sources:
       line: 174
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 212
+  - label: lint-http-rules/src/helpers/uri.rs
+    section: § 7.1
+    snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 224
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 161
   - label: Host grammar
     section: § 7.2
     snippet: Host = uri-host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 682
+      line: 724
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 157
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 54
     - file: lint-http-rules/src/rules/message_x_forwarded_consistency.rs
       line: 112
+  - label: lint-http-rules/src/helpers/uri.rs (2)
+    section: § 7.2
+    snippet: In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data.
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 226
+    - file: lint-http-rules/src/rules/client_host_header.rs
+      line: 22
+  - label: lint-http-rules/src/helpers/uri.rs (3)
+    section: § 7.2
+    snippet: The "Host" header field in a request provides the host and port information from the target URI, enabling the origin server to distinguish among resources while servicing requests for multiple host names.
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 225
   - label: message_accept_and_content_type_negotiation
     section: § 12.1
     snippet: A user agent cannot rely on proactive negotiation preferences being consistently honored, since the origin server might not implement proactive negotiation for the requested resource or might decide that sending a response that doesn't conform to the user agent's preferences is better than sending a 406 (Not Acceptable) response.
@@ -3423,6 +3441,8 @@ sources:
       line: 49
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 111
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 138
   - label: message_connection_header_tokens_valid (2)
     section: § 7.6.1
     snippet: A sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content.  For example, Cache-Control is never appropriate as a connection option (Section 5.2 of [CACHING]).
@@ -4513,6 +4533,8 @@ sources:
       line: 45
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 121
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 78
   - label: server_3xx_vs_request_method (3)
     section: § 15.4.2
     snippet: historical reasons, a user agent MAY change the | request method from POST to GET for the subsequent request. If | this behavior is undesired, the 308 (Permanent Redirect) status | code can be used instead.
@@ -4533,12 +4555,16 @@ sources:
       line: 45
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 58
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 47
   - label: server_3xx_vs_request_method (6)
     section: § 15.4.8
     snippet: The 307 (Temporary Redirect) status code indicates that the target resource resides temporarily under a different URI and the user agent MUST NOT change the request method if it performs an automatic redirection to that URI.
     cited_by:
     - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
       line: 44
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 52
   - label: server_3xx_vs_request_method (7)
     section: § 9.3.3
     snippet: If the result of processing a POST would be equivalent to a representation of an existing resource, an origin server MAY redirect the user agent to that resource by sending a 303 (See Other) response with the existing resource's identifier in the Location field.
@@ -4633,6 +4659,8 @@ sources:
       line: 20
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 76
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 103
   - label: server_location_header_uri_valid (2)
     section: § 10.2.2
     snippet: A Location field value cannot | allow a list of members because the comma list separator is a | valid data character within a URI-reference.
@@ -4705,6 +4733,8 @@ sources:
       line: 33
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 28
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 88
   - label: server_redirect_status_and_location_validity (2)
     section: § 10.2.2
     snippet: For 3xx (Redirection) responses, the Location value refers to the preferred target resource for automatically redirecting the request.
@@ -4713,6 +4743,8 @@ sources:
       line: 43
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 112
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 30
   - label: server_redirect_status_and_location_validity (3)
     section: § 10.2.2
     snippet: The type of relationship is defined by the combination of request method and status code semantics.
@@ -4735,6 +4767,8 @@ sources:
       line: 44
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
       line: 67
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 77
   - label: server_redirect_status_and_location_validity (6)
     section: § 15.3.2
     snippet: The primary resource created by the request is identified by either a Location header field in the response or, if no Location header field is received, by the target URI.
@@ -4743,6 +4777,8 @@ sources:
       line: 34
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 27
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 89
   - label: server_response_405_allow
     section: § 15.5.6
     snippet: The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods.
@@ -4761,6 +4797,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 37
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 34
   - label: server_response_location_on_redirect (3)
     section: § 15.4.2
     snippet: The server SHOULD generate a Location header field in the response containing a preferred URI reference for the new permanent URI.
@@ -4959,6 +4997,72 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
       line: 134
+  - label: stateful_redirect_chain_validity
+    section: § 10.2.2
+    snippet: If the Location value provided in a 3xx (Redirection) response does not have a fragment component, a user agent MUST process the redirection as if the value inherits the fragment component of the URI reference used to generate the target URI (i.e., the redirection inherits the original reference's fragment, if any).
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 171
+  - label: stateful_redirect_chain_validity (2)
+    section: § 10.2.2
+    snippet: When it has the form of a relative reference ([URI], Section 4.2), the final value is computed by resolving it against the target URI ([URI], Section 5).
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 162
+  - label: stateful_redirect_chain_validity (3)
+    section: § 15.4
+    snippet: A client SHOULD detect and intervene in cyclical redirections (i.e., "infinite" redirection loops).
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 229
+  - label: stateful_redirect_chain_validity (4)
+    section: § 15.4.1
+    snippet: the target resource has more than one representation, each with its own more specific identifier
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 33
+  - label: stateful_redirect_chain_validity (5)
+    section: § 15.4.2
+    snippet: The 301 (Moved Permanently) status code indicates that the target resource has been assigned a new permanent URI and any future references to this resource ought to use one of the enclosed URIs.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 38
+  - label: stateful_redirect_chain_validity (6)
+    section: § 15.4.3
+    snippet: The 302 (Found) status code indicates that the target resource resides temporarily under a different URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 42
+  - label: stateful_redirect_chain_validity (7)
+    section: § 15.4.4
+    snippet: Note that the new URI in the Location header field is not considered equivalent to the target URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 48
+  - label: stateful_redirect_chain_validity (8)
+    section: § 15.4.5
+    snippet: the server is therefore redirecting the client to make use of that stored representation as if it were the content of a 200 (OK) response
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 67
+  - label: stateful_redirect_chain_validity (9)
+    section: § 15.4.6
+    snippet: The 305 (Use Proxy) status code was defined in a previous version of this specification and is now deprecated (Appendix B of [RFC7231]).
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 69
+  - label: stateful_redirect_chain_validity (10)
+    section: § 15.4.7
+    snippet: The 306 status code was defined in a previous version of this specification, is no longer used, and the code is reserved.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 71
+  - label: stateful_redirect_chain_validity (11)
+    section: § 15.4.9
+    snippet: The 308 (Permanent Redirect) status code indicates that the target resource has been assigned a new permanent URI and any future references to this resource ought to use one of the enclosed URIs.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 56
 - label: RFC 9111
   url: https://www.rfc-editor.org/rfc/rfc9111.txt
   type: text/plain
@@ -5323,17 +5427,11 @@ sources:
       line: 55
   - label: client_host_header (2)
     section: § 3.2
-    snippet: A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_host_header.rs
-      line: 73
-  - label: client_host_header (3)
-    section: § 3.2
     snippet: If the authority component is missing or undefined for the target URI, then a client MUST send a Host header field with an empty field value.
     cited_by:
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 112
-  - label: client_host_header (4)
+  - label: client_host_header (3)
     section: § 3.2
     snippet: If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its "@" delimiter (Section 4.2 of [HTTP]).
     cited_by:
@@ -5353,16 +5451,44 @@ sources:
       line: 48
     - file: lint-http-rules/src/rules/message_request_body_length_accuracy.rs
       line: 41
+  - label: lint-http-rules/src/helpers/uri.rs
+    section: § 3.2
+    snippet: A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value.
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 230
+    - file: lint-http-rules/src/rules/client_host_header.rs
+      line: 73
   - label: request-target forms
     section: § 3.2
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 220
+      line: 262
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 283
+      line: 325
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 30
+  - label: lint-http-rules/src/helpers/uri.rs (2)
+    section: § 3.3
+    snippet: If the request-target is in authority-form, the target URI's authority component is the request-target.  Otherwise, the target URI's authority component is the field value of the Host header field.
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 228
+  - label: lint-http-rules/src/helpers/uri.rs (3)
+    section: § 3.3
+    snippet: If there is no Host header field or if its field value is empty or invalid, the target URI's authority component is empty.
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 229
+  - label: lint-http-rules/src/helpers/uri.rs (4)
+    section: § 3.3
+    snippet: The target URI is the request-target when the request-target is in absolute-form.
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 227
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 217
   - label: message_compression_and_transfer_encoding_consistency
     section: § 6.1
     snippet: If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.
@@ -5673,6 +5799,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
       line: 80
+  - label: stateful_redirect_chain_validity
+    section: § 3.3
+    snippet: Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http".
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 218
 - label: RFC 9113
   url: https://www.rfc-editor.org/rfc/rfc9113.txt
   type: text/plain
