@@ -4609,6 +4609,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 73
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 99
   - label: server_location_header_uri_valid (7)
     section: § 5.5
     snippet: Fields that expect to contain a comma within a member, such as within an HTTP-date or URI-reference element, ought to be defined with delimiters around that element to distinguish any comma within that data from potential list separators.
@@ -4661,12 +4663,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 53
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 79
   - label: server_redirect_status_and_location_validity (5)
     section: § 15
     snippet: However, a client MUST understand the class of any status code, as indicated by the first digit, and treat an unrecognized status code as being equivalent to the x00 status code of that class.
     cited_by:
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 44
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 67
   - label: server_redirect_status_and_location_validity (6)
     section: § 15.3.2
     snippet: The primary resource created by the request is identified by either a Location header field in the response or, if no Location header field is received, by the target URI.
@@ -4749,10 +4755,40 @@ sources:
       line: 36
   - label: server_status_code_valid_range
     section: § 15
-    snippet: The status code of a response is a three-digit integer code that describes the result of the request
+    snippet: All valid status codes are within the range of 100 to 599, inclusive.
     cited_by:
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
-      line: 31
+      line: 57
+  - label: server_status_code_valid_range (2)
+    section: § 15
+    snippet: Implementations often use three-digit integer values outside of that range (i.e., 600..999) for internal communication of non-HTTP status (e.g., library errors).
+    cited_by:
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 89
+  - label: server_status_code_valid_range (3)
+    section: § 15
+    snippet: The status code of a response is a three-digit integer code that describes the result of the request and the semantics of the response, including whether the request was successful and what content is enclosed (if any).
+    cited_by:
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 36
+  - label: server_status_code_valid_range (4)
+    section: § 15
+    snippet: Values outside the range 100..599 are invalid.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 58
+  - label: server_status_code_valid_range (5)
+    section: § 15.1
+    snippet: All such status codes ought to be registered within the "Hypertext Transfer Protocol (HTTP) Status Code Registry", as described in Section 16.2.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 68
+  - label: server_status_code_valid_range (6)
+    section: § 16.2.2
+    snippet: New status codes are required to fall under one of the categories defined in Section 15.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 59
   - label: server_vary_header_valid
     section: § 12.5.5
     snippet: The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response.
@@ -5547,6 +5583,30 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
       line: 172
+  - label: server_status_code_valid_range
+    section: § 1.1
+    snippet: Conformance criteria and considerations regarding error handling are defined in Section 2 of [HTTP].
+    cited_by:
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 98
+  - label: server_status_code_valid_range (2)
+    section: § 4
+    snippet: A client SHOULD ignore the reason-phrase content because it is not a reliable channel for information
+    cited_by:
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 37
+  - label: server_status_code_valid_range (3)
+    section: § 4
+    snippet: The status-code element is a 3-digit integer code describing the result of the server's attempt to understand and satisfy the client's corresponding request.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 97
+  - label: server_status_code_valid_range (4)
+    section: § 4
+    snippet: status-code    = 3DIGIT
+    cited_by:
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 80
 - label: RFC 9113
   url: https://www.rfc-editor.org/rfc/rfc9113.txt
   type: text/plain
