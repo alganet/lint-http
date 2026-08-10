@@ -5,15 +5,48 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
+/// Report a TRACE request that carries what § 9.3.8 forbids it to carry:
+/// content, or a field holding the data that section names when it says a
+/// loop-back must not be handed anything sensitive.
+///
+/// Both sentences address the client, and both are about the request, so
+/// nothing here reads the response.
+///
+/// **What this rule used to check and no longer does.** It required a TRACE
+/// response carrying content to use `message/http`. RFC 7231 § 4.3.8 did
+/// require that; RFC 9110 does not, and says so twice — § 9.3.8 calls the
+/// format one way to do so, and Appendix B.3 lists the removal among the
+/// changes from RFC 7231 by name. The checks that rested on it are gone rather
+/// than softened: a TRACE response in some other media type is a server taking
+/// another way, not a server disobeying anything.
 pub struct SemanticTraceMethodEcho;
+
+/// The request fields § 9.3.8's example names, each with the sentence that says
+/// the field is where that data travels.
+///
+/// The MUST NOT above them is about *data*, and no field says whether its value
+/// is sensitive; these three are reported because the section itself names
+/// their contents as the example of what a loop-back would disclose.
+// cite(RFC 9110 § 9.3.8): "For example, it would be foolish for a user agent to send stored user credentials (Section 11) or cookies [COOKIE] in a TRACE request."
+const SENSITIVE_FIELDS: [(&str, &str); 3] = [
+    // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested."
+    ("authorization", "Authorization"),
+    // cite(RFC 9110 § 11.7.2): "Its value consists of credentials containing the authentication information of the client for the proxy and/or realm of the resource being requested."
+    ("proxy-authorization", "Proxy-Authorization"),
+    // cite(RFC 6265 § 4.2.1): "The user agent sends stored cookies to the origin server in the Cookie header."
+    ("cookie", "Cookie"),
+];
 
 impl Rule for SemanticTraceMethodEcho {
     fn id(&self) -> &'static str {
         "semantic_trace_method_echo"
     }
 
+    /// Both sentences this rule enforces are requirements on the client, and a
+    /// request that never drew a response has broken them or not already.
+    // cite(RFC 9110 § 9.3.8): "A client MUST NOT send content in a TRACE request."
     fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
+        crate::rules::RuleScope::Client
     }
 
     fn check_transaction(
@@ -23,108 +56,50 @@ impl Rule for SemanticTraceMethodEcho {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+
+        // Matched exactly, never case-folded: `trace` is not the TRACE method,
+        // and § 9.3.8 says nothing about it. A method this specification does
+        // not define has no loop-back semantics for content to be measured
+        // against.
+        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+        if tx.request.method != "TRACE" {
+            return None;
+        }
+
+        // Content, not framing: the shared measurement reads § 6.4's octet
+        // stream, so a chunked TRACE whose only chunk is the terminator carries
+        // nothing to report, and a TRACE carrying an HTTP/2 DATA frame — which
+        // declares no framing field at all — does.
         // cite(RFC 9110 § 9.3.8): "A client MUST NOT send content in a TRACE request."
-        if !tx.request.method.eq_ignore_ascii_case("TRACE") {
-            return None;
-        }
-
-        // RFC 9110: client MUST NOT generate content in a TRACE request.
-        if tx.request.headers.contains_key("transfer-encoding") {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: "TRACE request MUST NOT include content (Transfer-Encoding present)"
-                    .into(),
-            });
-        }
-
-        if let Ok(Some(n)) = crate::helpers::headers::validate_content_length(&tx.request.headers) {
-            if n > 0 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "TRACE request MUST NOT include content (Content-Length {})",
-                        n
-                    ),
-                });
-            }
-        }
-
-        if matches!(tx.request.body_length, Some(n) if n > 0) {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message:
-                    "TRACE request MUST NOT include content (captured request body length > 0)"
-                        .into(),
-            });
-        }
-
-        let resp = tx.response.as_ref()?;
-
-        // RFC 9110 §9.3.8 uses SHOULD for successful TRACE responses.
-        // Do not enforce message/http for non-success responses.
-        if !(200..300).contains(&resp.status) {
-            return None;
-        }
-
-        // For TRACE responses that appear to carry content, expect message/http media type.
-        let has_response_content = matches!(resp.body_length, Some(n) if n > 0)
-            || resp.headers.contains_key("transfer-encoding")
-            || matches!(
-                crate::helpers::headers::validate_content_length(&resp.headers),
-                Ok(Some(n)) if n > 0
-            );
-
-        if !has_response_content {
-            return None;
-        }
-
-        let ct = match resp.headers.get("content-type") {
-            None => {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: "TRACE response with content should use Content-Type: message/http"
-                        .into(),
-                });
-            }
-            Some(raw) => match raw.to_str() {
-                Ok(v) => v,
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "TRACE response Content-Type contains non-UTF-8 bytes; expected message/http".into(),
-                    });
-                }
-            },
-        };
-
-        let parsed = match crate::helpers::headers::parse_media_type(ct) {
-            Ok(p) => p,
-            Err(_) => {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "TRACE response Content-Type '{}' is invalid; expected message/http",
-                        ct
-                    ),
-                });
-            }
-        };
-
-        if !(parsed.type_.eq_ignore_ascii_case("message")
-            && parsed.subtype.eq_ignore_ascii_case("http"))
+        if let Some(evidence) =
+            crate::helpers::headers::content_evidence(&tx.request.headers, tx.request.body_length)
         {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
                 message: format!(
-                    "TRACE response Content-Type '{}' should be message/http",
-                    ct
+                    "TRACE request carries content ({evidence}); RFC 9110 § 9.3.8 says a client MUST NOT send content in a TRACE request"
+                ),
+            });
+        }
+
+        // The response is a loop-back of this request, so a field is disclosed
+        // by having been sent — which is why the finding is about the request
+        // and does not wait for the response to arrive.
+        // cite(RFC 9110 § 9.3.8): "A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response."
+        let present: Vec<&str> = SENSITIVE_FIELDS
+            .iter()
+            .filter(|(lowercase, _)| tx.request.headers.contains_key(*lowercase))
+            .map(|(_, name)| *name)
+            .collect();
+
+        if !present.is_empty() {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: format!(
+                    "TRACE request carries {}; RFC 9110 § 9.3.8 says a client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response, and names the contents of these fields as its example",
+                    present.join(", ")
                 ),
             });
         }
@@ -137,7 +112,7 @@ impl Rule for SemanticTraceMethodEcho {
     }
 
     fn description(&self) -> &'static str {
-        "Validate TRACE method semantics with two pragmatic checks:\n1. A TRACE request must not carry content.\n2. If a TRACE response carries content, it should use `Content-Type: message/http`.\n\nThese checks help catch incorrect TRACE handling and improve interoperability for diagnostics tooling."
+        "Reports a TRACE request that carries content, and a TRACE request that carries one of the fields RFC 9110 §9.3.8 names when it forbids handing sensitive data to a loop-back. A TRACE asks the final recipient to \"reflect the message received, excluding some fields described below, back to the client as the content of a 200 (OK) response\", so what a TRACE request contains is what a TRACE response discloses.\n\n**Content.** §9.3.8: \"A client MUST NOT send content in a TRACE request.\" Content is §6.4's — the stream of octets after the header section, counted once framing has been taken off — so a `Transfer-Encoding: chunked` is not by itself content, a chunked TRACE whose only chunk is the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured its octet count decides; otherwise the request's own `Content-Length` does.\n\n**Sensitive fields.** §9.3.8 also says \"A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response.\" Whether a value is sensitive is not something a message states, so this rule reports exactly the two kinds of data the section names as its example — stored user credentials (`Authorization`, `Proxy-Authorization`) and cookies (`Cookie`). Sensitive data under any other field name is not reported, and cannot be: the sentence leaves the class open on purpose.\n\n**Not checked: the response's media type.** RFC 7231 §4.3.8 required `message/http` on a TRACE response; RFC 9110 does not. §9.3.8 now calls that format one way to do so, and Appendix B.3 records the change — \"The normative requirement to use the \"message/http\" media type in TRACE responses has been removed.\" A TRACE response in another media type is reported by nothing here. A response that carries content with no `Content-Type` at all is `server_content_type_present`'s finding.\n\n**Not checked: whether the response reflected the request.** The reflection is a SHOULD addressed to \"the final recipient\" — the origin server, or the first server to receive a `Max-Forwards` of zero — and no field of a message says which recipient answered it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -146,13 +121,37 @@ impl Rule for SemanticTraceMethodEcho {
                 spec: "RFC 9110",
                 section: Some("9.3.8"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8",
-                note: "TRACE semantics; clients `MUST NOT` send content in TRACE requests, and successful TRACE responses `SHOULD` use `message/http`",
+                note: "TRACE — the two client `MUST NOT`s this rule reports, the example naming credentials and cookies, and the `SHOULD` to reflect the message, which is addressed to a recipient no message identifies",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
-                section: Some("8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-                note: "`Content-Type` field semantics",
+                section: Some("9.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+                note: "The method token is case-sensitive, which is why `TRACE` is matched exactly and a lowercase `trace` is not a TRACE",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("6.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
+                note: "Content — the octet stream left after framing is removed, which is what the content check measures instead of the presence of a framing field",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("11.6.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2",
+                note: "`Authorization` carries the user agent's credentials; §11.7.2 says the same of `Proxy-Authorization` for a proxy",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6265",
+                section: Some("4.2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-4.2.1",
+                note: "`Cookie` is the field a user agent returns stored cookies in — the second kind of data §9.3.8's example names",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("B.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-B.3",
+                note: "Changes from RFC 7231 — the normative requirement to use `message/http` in TRACE responses was removed, which is why this rule no longer asks for it",
             },
         ]
     }
@@ -162,18 +161,18 @@ impl Rule for SemanticTraceMethodEcho {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
-                snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: message/http\nContent-Length: 29\n\nTRACE /diagnostics HTTP/1.1",
+                label: Some("A loop-back carrying nothing to reflect"),
+                snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\nMax-Forwards: 3",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
+                label: Some("Content in a TRACE request"),
                 snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\nContent-Length: 4\n\nping",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 29\n\nTRACE /diagnostics HTTP/1.1",
+                label: Some("Credentials and cookies, which the reflection would echo back"),
+                snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\nAuthorization: Basic dXNlcjpwYXNzd29yZA==\nCookie: session=8f1c2b",
             },
         ]
     }
@@ -186,340 +185,217 @@ static REGISTRATION: &dyn crate::rules::Rule = &SemanticTraceMethodEcho;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    fn make_trace_tx() -> crate::http_transaction::HttpTransaction {
+    /// One constructor for every fixture, so `body_length` — the field that
+    /// decides the content finding — is always stated rather than defaulted.
+    fn make_tx(
+        method: &str,
+        headers: Vec<(&str, &str)>,
+        body_length: Option<u64>,
+    ) -> crate::http_transaction::HttpTransaction {
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.method = "TRACE".to_string();
+        tx.request.method = method.to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&headers);
+        tx.request.body_length = body_length;
         tx
+    }
+
+    fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+        let rule = SemanticTraceMethodEcho;
+        rule.check_transaction(
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
     }
 
     #[test]
     fn id_and_scope() {
         let r = SemanticTraceMethodEcho;
         assert_eq!(r.id(), "semantic_trace_method_echo");
-        assert_eq!(r.scope(), crate::rules::RuleScope::Server);
+        assert_eq!(r.scope(), crate::rules::RuleScope::Client);
+    }
+
+    #[rstest]
+    // Nothing to reflect.
+    #[case("TRACE", vec![], None, false)]
+    #[case("TRACE", vec![("content-length", "0")], None, false)]
+    #[case("TRACE", vec![], Some(0), false)]
+    // Captured octets are the direct measurement.
+    #[case("TRACE", vec![], Some(4), true)]
+    // Declared, with no body captured to measure instead.
+    #[case("TRACE", vec![("content-length", "4")], None, true)]
+    // One value of five, written as a list on one line (RFC 9112 § 6.3).
+    #[case("TRACE", vec![("content-length", "5, 5")], None, true)]
+    // A Content-Length that does not parse leaves no number, and the rule that
+    // owns the field reports the value.
+    #[case("TRACE", vec![("content-length", "abc")], None, false)]
+    // Framing is not content: the terminator chunk is all that streamed.
+    #[case("TRACE", vec![("transfer-encoding", "chunked")], Some(0), false)]
+    #[case("TRACE", vec![("transfer-encoding", "chunked")], Some(9), true)]
+    // A framing field with nothing captured says nothing about content either.
+    #[case("TRACE", vec![("transfer-encoding", "chunked")], None, false)]
+    // The method token is case-sensitive.
+    #[case("trace", vec![("content-length", "4")], Some(4), false)]
+    #[case("Trace", vec![], Some(4), false)]
+    // Another method carrying content is another rule's finding.
+    #[case("POST", vec![("content-length", "4")], Some(4), false)]
+    fn content_findings(
+        #[case] method: &str,
+        #[case] headers: Vec<(&str, &str)>,
+        #[case] body_length: Option<u64>,
+        #[case] expected: bool,
+    ) {
+        let v = check(&make_tx(method, headers, body_length));
+        assert_eq!(v.is_some(), expected, "{v:?}");
+        if let Some(v) = v {
+            assert!(v.message.contains("MUST NOT send content"), "{v:?}");
+        }
+    }
+
+    #[rstest]
+    #[case(vec![("authorization", "Basic dXNlcjpwYXNz")], "Authorization")]
+    #[case(vec![("proxy-authorization", "Basic dXNlcjpwYXNz")], "Proxy-Authorization")]
+    #[case(vec![("cookie", "session=8f1c2b")], "Cookie")]
+    fn sensitive_field_findings(#[case] headers: Vec<(&str, &str)>, #[case] named: &str) {
+        let v = check(&make_tx("TRACE", headers, Some(0))).unwrap();
+        assert!(v.message.contains(named), "{v:?}");
+        assert!(v.message.contains("sensitive data"), "{v:?}");
+    }
+
+    /// A field carrying sensitive data under a name § 9.3.8 does not mention is
+    /// outside what the rule can judge, and `description()` says so.
+    #[test]
+    fn an_unnamed_field_is_not_reported() {
+        let v = check(&make_tx("TRACE", vec![("x-api-key", "s3cr3t")], Some(0)));
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[test]
-    fn non_trace_request_is_ignored() {
-        let rule = SemanticTraceMethodEcho;
-        let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+    fn every_sensitive_field_present_is_named_once() {
+        let v = check(&make_tx(
+            "TRACE",
+            vec![
+                ("authorization", "Basic dXNlcjpwYXNz"),
+                ("proxy-authorization", "Basic dXNlcjpwYXNz"),
+                ("cookie", "session=8f1c2b"),
+            ],
+            Some(0),
+        ))
+        .unwrap();
+        assert!(
+            v.message
+                .contains("Authorization, Proxy-Authorization, Cookie"),
+            "{v:?}"
         );
-        assert!(v.is_none());
     }
 
+    /// Content is reported first, because that sentence needs no example read
+    /// into it to say what is wrong with the message.
     #[test]
-    fn trace_request_with_transfer_encoding_is_violation() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("transfer-encoding", "chunked")]);
-
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
-        assert!(v.message.contains("MUST NOT include content"));
+    fn content_is_reported_before_the_fields() {
+        let v = check(&make_tx(
+            "TRACE",
+            vec![("cookie", "session=8f1c2b"), ("content-length", "4")],
+            None,
+        ))
+        .unwrap();
+        assert!(v.message.contains("MUST NOT send content"), "{v:?}");
     }
 
-    #[test]
-    fn trace_request_with_positive_content_length_is_violation() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("content-length", "1")]);
-
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
-        assert!(v.message.contains("Content-Length 1"));
-    }
-
-    #[test]
-    fn trace_request_with_captured_body_is_violation() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
-        tx.request.body_length = Some(4);
-
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
-        assert!(v.message.contains("captured request body"));
-    }
-
-    #[test]
-    fn trace_request_with_zero_content_length_is_ok() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("content-length", "0")]);
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn trace_request_with_invalid_content_length_is_ignored_by_this_rule() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("content-length", "abc")]);
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn trace_response_with_content_and_message_http_is_ok() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[(
-                "content-type",
-                "message/http; charset=utf-8",
-            )]),
-            body_length: Some(10),
-            trailers: None,
-        });
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn trace_response_with_content_and_missing_content_type_is_violation() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[]),
-            body_length: Some(10),
-            trailers: None,
-        });
-
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
-        assert!(v.message.contains("message/http"));
-    }
-
-    #[test]
-    fn trace_response_with_content_and_non_utf8_content_type_is_violation() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
-        let mut headers = hyper::HeaderMap::new();
-        headers.insert(
-            "content-type",
-            hyper::header::HeaderValue::from_bytes(&[0xff]).unwrap(),
-        );
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers,
-            body_length: Some(10),
-            trailers: None,
-        });
-
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
-        assert!(v.message.contains("message/http"));
-    }
-
-    #[test]
-    fn trace_response_with_content_and_non_message_http_is_violation() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[(
-                "content-type",
-                "text/plain",
-            )]),
-            body_length: Some(10),
-            trailers: None,
-        });
-
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
-        assert!(v.message.contains("should be message/http"));
-    }
-
-    #[test]
-    fn trace_response_with_invalid_content_type_syntax_is_violation() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[("content-type", "text")]),
-            body_length: Some(10),
-            trailers: None,
-        });
-
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
-        assert!(v.message.contains("is invalid"));
-    }
-
-    #[test]
-    fn trace_response_without_content_is_ignored() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[]),
-            body_length: Some(0),
-            trailers: None,
-        });
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn trace_response_transfer_encoding_implies_content_and_requires_message_http() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[(
-                "transfer-encoding",
-                "chunked",
-            )]),
-            body_length: None,
-            trailers: None,
-        });
-
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
-        assert!(v.message.contains("message/http"));
-    }
-
-    #[test]
-    fn trace_response_content_length_implies_content() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
+    /// The media type of a TRACE response stopped being a requirement in
+    /// RFC 9110, so a response says nothing here at all.
+    #[rstest]
+    #[case("text/plain")]
+    #[case("message/http")]
+    #[case("application/json")]
+    fn response_media_type_is_not_judged(#[case] content_type: &str) {
+        let mut tx = make_tx("TRACE", vec![], Some(0));
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[
-                ("content-length", "7"),
-                ("content-type", "message/http"),
+                ("content-type", content_type),
+                ("content-length", "29"),
             ]),
-            body_length: None,
+            body_length: Some(29),
             trailers: None,
         });
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
+        assert!(check(&tx).is_none());
     }
 
+    /// A TRACE response with content and no `Content-Type` belongs to
+    /// `server_content_type_present`, which reports it under RFC 9110 § 8.3 —
+    /// asserted by running that rule, not by reading it.
     #[test]
-    fn non_2xx_trace_response_with_regular_error_content_type_is_allowed() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 405,
-            version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[
-                ("content-type", "application/json"),
-                ("content-length", "32"),
-            ]),
-            body_length: Some(32),
-            trailers: None,
-        });
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn trace_response_with_invalid_content_length_does_not_imply_content() {
-        let rule = SemanticTraceMethodEcho;
-        let mut tx = make_trace_tx();
+    fn response_without_content_type_is_the_neighbours_finding() {
+        let mut tx = make_tx("TRACE", vec![], Some(0));
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
             version: "HTTP/1.1".into(),
-            headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "abc")]),
-            body_length: None,
+            headers: crate::test_helpers::make_headers_from_pairs(&[("content-length", "29")]),
+            body_length: Some(29),
             trailers: None,
         });
+        assert!(check(&tx).is_none());
 
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
+        let neighbour = crate::rules::REGISTERED_RULES
+            .iter()
+            .find(|r| r.id() == "server_content_type_present")
+            .expect("the neighbour is registered");
+        assert!(neighbour
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[neighbour.id()]),
+            )
+            .is_some());
+    }
+
+    /// Every published snippet is run through the rule.
+    #[test]
+    fn published_examples_are_judged_by_this_rule() {
+        use crate::rules::{Compliance, Rule as _};
+        let rule = SemanticTraceMethodEcho;
+
+        for ex in rule.examples() {
+            let mut lines = ex.snippet.lines();
+            let request_line = lines.next().expect("an example starts with a request line");
+            assert!(
+                request_line.starts_with("TRACE ") && request_line.ends_with(" HTTP/1.1"),
+                "the first line of an example is its request line: {request_line:?}"
+            );
+
+            let mut pairs: Vec<(&str, &str)> = Vec::new();
+            let mut body = String::new();
+            let mut in_body = false;
+            for line in lines {
+                if line.is_empty() && !in_body {
+                    in_body = true;
+                    continue;
+                }
+                if in_body {
+                    body.push_str(line);
+                    continue;
+                }
+                let (name, value) = line.split_once(':').unwrap_or_else(|| {
+                    panic!("example header line is not `Name: value`: {line:?}")
+                });
+                pairs.push((name, value.trim()));
+            }
+
+            let tx = make_tx(
+                "TRACE",
+                pairs,
+                Some(u64::try_from(body.len()).expect("example bodies are small")),
+            );
+            let v = check(&tx);
+            match ex.compliance {
+                Compliance::Compliant => assert!(v.is_none(), "{}: {v:?}", ex.snippet),
+                Compliance::NonCompliant => assert!(v.is_some(), "{}", ex.snippet),
+            }
+        }
     }
 
     #[test]

@@ -17,17 +17,17 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1438
+      line: 1489
   - label: lint-http-rules/src/helpers/headers.rs (2)
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1433
+      line: 1484
   - label: lint-http-rules/src/helpers/headers.rs (3)
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1432
+      line: 1483
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -977,25 +977,25 @@ sources:
     snippet: 'Normally, a mailbox is composed of two parts: (1) an optional display name that indicates the name of the recipient (which can be a person or a system) that could be displayed to the user of a mail application, and (2) an addr-spec address enclosed in angle brackets'
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1182
+      line: 1233
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.4
     snippet: There is an alternate simple form of a mailbox where the addr-spec address appears alone, without the recipient's name or the angle brackets.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1195
+      line: 1246
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.4.1
     snippet: An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1213
+      line: 1264
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.4.1
     snippet: The locally interpreted string is either a quoted-string or a dot-atom.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1216
+      line: 1267
 - label: RFC 5646
   url: https://www.rfc-editor.org/rfc/rfc5646.txt
   type: text/plain
@@ -1162,6 +1162,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_cookie_domain_validity.rs
       line: 65
+  - label: semantic_trace_method_echo
+    section: § 4.2.1
+    snippet: The user agent sends stored cookies to the origin server in the Cookie header.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
+      line: 36
   - label: stateful_cookie_domain_matching
     section: § 5.4
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
@@ -1251,7 +1257,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1434
+      line: 1485
     - file: lint-http-rules/src/helpers/uri.rs
       line: 177
   - label: lint-http-rules/src/helpers/uri.rs
@@ -1850,25 +1856,25 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1112
+      line: 1163
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1053
+      line: 1104
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1091
+      line: 1142
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1084
+      line: 1135
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
@@ -2380,67 +2386,63 @@ sources:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 54
   - label: client_request_version_method_validity
-    section: § 8.6
-    snippet: When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 64
-  - label: client_request_version_method_validity (2)
     section: § 9.1
     snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 95
+      line: 75
+    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
+      line: 64
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 70
     - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
       line: 93
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
       line: 81
-  - label: client_request_version_method_validity (3)
+  - label: client_request_version_method_validity (2)
     section: § 9.3.1
     snippet: A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 78
+      line: 58
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 103
-  - label: client_request_version_method_validity (4)
+      line: 83
+  - label: client_request_version_method_validity (3)
     section: § 9.3.1
     snippet: Although request message framing is independent of the method used, content received in a GET request has no generally defined semantics, cannot alter the meaning or target of the request
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
       line: 30
-  - label: client_request_version_method_validity (5)
+  - label: client_request_version_method_validity (4)
     section: § 9.3.1
     snippet: An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 134
-  - label: client_request_version_method_validity (6)
+      line: 114
+  - label: client_request_version_method_validity (5)
     section: § 9.3.2
     snippet: A client SHOULD NOT generate content in a HEAD request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 105
-  - label: client_request_version_method_validity (7)
+      line: 85
+  - label: client_request_version_method_validity (6)
     section: § 9.3.5
     snippet: A client SHOULD NOT generate content in a DELETE request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 107
-  - label: client_request_version_method_validity (8)
+      line: 87
+  - label: client_request_version_method_validity (7)
     section: § 9.3.6
     snippet: A CONNECT request message does not have content.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 113
-  - label: client_request_version_method_validity (9)
+      line: 93
+  - label: client_request_version_method_validity (8)
     section: § 9.3.6
     snippet: The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 54
+      line: 46
   - label: client_user_agent_present
     section: § 10.1.5
     snippet: A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.
@@ -2528,7 +2530,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 20
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 741
+      line: 792
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
       line: 16
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (6)
@@ -2538,7 +2540,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 85
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 768
+      line: 819
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
       line: 116
   - label: lint-http-proxy/src/proxy/websocket.rs
@@ -2604,7 +2606,7 @@ sources:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
       line: 92
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 334
+      line: 385
     - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
       line: 61
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
@@ -2770,19 +2772,19 @@ sources:
     snippet: Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 725
+      line: 776
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 11.7.3
     snippet: Proxy-Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 726
+      line: 777
   - label: qvalue grammar
     section: § 12.4.2
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1021
+      line: 1072
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 171
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
@@ -2792,19 +2794,19 @@ sources:
     snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 239
+      line: 290
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 16.3.2
     snippet: If the field is allowable in trailers; by default, it will not be (see Section 6.5.1).
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 662
+      line: 713
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 5.2
     snippet: When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 160
+      line: 211
     - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
       line: 64
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
@@ -2816,7 +2818,7 @@ sources:
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 129
+      line: 180
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 81
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
@@ -2828,13 +2830,13 @@ sources:
     snippet: Since it cannot be combined into a single field value, | recipients ought to handle "Set-Cookie" as a special case while | processing fields.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 130
+      line: 181
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.5
     snippet: A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 161
+      line: 212
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
       line: 249
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
@@ -2854,7 +2856,7 @@ sources:
     snippet: '#element => [ element ] *( OWS "," OWS [ element ] )'
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 335
+      line: 386
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 49
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
@@ -2866,7 +2868,7 @@ sources:
     snippet: OWS            = *( SP / HTAB )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 211
+      line: 262
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 105
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
@@ -2880,19 +2882,19 @@ sources:
     snippet: The OWS rule is used where zero or more linear whitespace octets might appear.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 210
+      line: 261
   - label: lint-http-rules/src/helpers/headers.rs (10)
     section: § 5.6.4
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 974
+      line: 1025
   - label: lint-http-rules/src/helpers/headers.rs (11)
     section: § 5.6.4
     snippet: qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 905
+      line: 956
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 33
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
@@ -2902,9 +2904,9 @@ sources:
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 884
+      line: 935
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 922
+      line: 973
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 422
   - label: lint-http-rules/src/helpers/headers.rs (13)
@@ -2912,7 +2914,7 @@ sources:
     snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 904
+      line: 955
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 313
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
@@ -2926,7 +2928,7 @@ sources:
     snippet: Parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1387
+      line: 1438
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 156
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
@@ -2938,17 +2940,29 @@ sources:
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1377
+      line: 1428
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 296
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
       line: 203
   - label: lint-http-rules/src/helpers/headers.rs (16)
+    section: § 6.4
+    snippet: For example, an HTTP/1.1 message body (Section 6 of [HTTP/1.1]) might consist of a stream of data encoded with the chunked transfer coding -- a sequence of data chunks, one zero-length chunk, and a trailer section -- whereas the content of that same message includes only the data stream after the transfer coding has been decoded; it does not include the chunk lengths, chunked framing syntax, nor the trailer fields (Section 6.5).
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 120
+  - label: lint-http-rules/src/helpers/headers.rs (17)
+    section: § 6.4
+    snippet: 'HTTP messages often transfer a complete or partial representation as the message "content": a stream of octets sent after the header section, as delineated by the message framing.'
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 119
+  - label: lint-http-rules/src/helpers/headers.rs (18)
     section: § 6.5.1
     snippet: A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 661
+      line: 712
     - file: lint-http-rules/src/rules/client_user_agent_present.rs
       line: 46
     - file: lint-http-rules/src/rules/message_server_header_product_valid.rs
@@ -2961,36 +2975,42 @@ sources:
       line: 97
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
       line: 56
-  - label: lint-http-rules/src/helpers/headers.rs (17)
+  - label: lint-http-rules/src/helpers/headers.rs (19)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 660
+      line: 711
   - label: media-type grammar
     section: § 8.3.1
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1336
+      line: 1387
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 53
+  - label: lint-http-rules/src/helpers/headers.rs (20)
+    section: § 8.6
+    snippet: When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 140
   - label: entity-tag grammar
     section: § 8.8.3
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1295
-  - label: lint-http-rules/src/helpers/headers.rs (18)
+      line: 1346
+  - label: lint-http-rules/src/helpers/headers.rs (21)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 419
+      line: 470
   - label: lint-http-rules/src/helpers/product.rs
     section: § 10.1.5
     snippet: The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts.
@@ -4592,11 +4612,37 @@ sources:
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
       line: 100
   - label: semantic_trace_method_echo
+    section: § 11.6.2
+    snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
+      line: 32
+  - label: semantic_trace_method_echo (2)
+    section: § 11.7.2
+    snippet: Its value consists of credentials containing the authentication information of the client for the proxy and/or realm of the resource being requested.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
+      line: 34
+  - label: semantic_trace_method_echo (3)
+    section: § 9.3.8
+    snippet: A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
+      line: 89
+  - label: semantic_trace_method_echo (4)
     section: § 9.3.8
     snippet: A client MUST NOT send content in a TRACE request.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 26
+      line: 47
+    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
+      line: 73
+  - label: semantic_trace_method_echo (5)
+    section: § 9.3.8
+    snippet: For example, it would be foolish for a user agent to send stored user credentials (Section 11) or cookies [COOKIE] in a TRACE request.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
+      line: 30
   - label: server_200_vs_204_body_consistency
     section: § 15.3.1
     snippet: Aside from responses to CONNECT, a 200 response is expected to contain message content unless the message framing explicitly indicates that the content has zero length.
@@ -5210,13 +5256,13 @@ sources:
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or * If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 500
+      line: 551
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 4.2.1
     snippet: Note that this calculation is intended to reduce clock skew by using the clock information provided by the origin server whenever possible.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 510
+      line: 561
   - label: message_age_header_numeric
     section: § 1.2.2
     snippet: If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648 (2^31) or the greatest positive integer it can conveniently represent.

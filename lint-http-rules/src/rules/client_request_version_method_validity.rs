@@ -29,19 +29,11 @@ pub struct ClientRequestVersionMethodValidity;
 /// matter.
 // cite(RFC 9110 § 9.3.1): "Although request message framing is independent of the method used, content received in a GET request has no generally defined semantics, cannot alter the meaning or target of the request"
 //
-// So `Transfer-Encoding: chunked` is not evidence of content — a chunked
-// request whose first chunk is the terminator carries none — and over HTTP/2
-// and HTTP/3 content arrives with no framing field at all. The octets that
-// streamed through are the direct measurement, and a coded representation of
-// nothing is still nothing, so `Content-Encoding` does not disturb the
-// comparison against zero.
+// So `Transfer-Encoding: chunked` is not evidence of content. What that leaves
+// is § 6.4's octet stream, measured once for every rule that asks this
+// question — `semantic_trace_method_echo` asks it of the same paragraph family.
 fn request_carries_content(req: &crate::http_transaction::RequestInfo) -> bool {
-    match req.body_length {
-        Some(n) => n > 0,
-        // No body was captured, so the client's own declaration is the only
-        // evidence left.
-        None => declares_positive_content_length(req),
-    }
+    crate::helpers::headers::content_evidence(&req.headers, req.body_length).is_some()
 }
 
 /// Whether the request message declares content in its header section.
@@ -53,20 +45,8 @@ fn request_carries_content(req: &crate::http_transaction::RequestInfo) -> bool {
 /// traffic, and counting them would report every tunnel.
 // cite(RFC 9110 § 9.3.6): "The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use."
 fn request_declares_content(req: &crate::http_transaction::RequestInfo) -> bool {
-    req.headers.contains_key("transfer-encoding") || declares_positive_content_length(req)
-}
-
-/// Whether the request's own `Content-Length` claims a non-empty representation.
-///
-/// A value that does not parse leaves no number and `message_content_length`
-/// reports it; a declared length that disagrees with the captured octets is
-/// `message_request_body_length_accuracy`'s finding, not a method-semantics one.
-// cite(RFC 9110 § 8.6): "When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing"
-fn declares_positive_content_length(req: &crate::http_transaction::RequestInfo) -> bool {
-    matches!(
-        crate::helpers::headers::validate_content_length(&req.headers),
-        Ok(Some(n)) if n > 0
-    )
+    req.headers.contains_key("transfer-encoding")
+        || crate::helpers::headers::declared_content_length(&req.headers).is_some_and(|n| n > 0)
 }
 
 impl Rule for ClientRequestVersionMethodValidity {
