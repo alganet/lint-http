@@ -163,11 +163,11 @@ impl Rule for SemanticPatchPartialUpdate {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "PATCH /widgets/123 HTTP/1.1\nHost: example.com\nContent-Type: application/json-patch+json\nContent-Length: 48\n\n[ { \"op\": \"replace\", \"path\": \"/qty\", \"value\": 20 } ]",
+                snippet: "PATCH /widgets/123 HTTP/1.1\nHost: example.com\nContent-Type: application/json-patch+json\nContent-Length: 52\n\n[ { \"op\": \"replace\", \"path\": \"/qty\", \"value\": 20 } ]",
             },
             Example {
                 compliance: Compliance::Compliant,
-                label: Some("— a patch format need not be *named* like one; this is RFC 5789 §2.1's own example"),
+                label: Some("— a patch format need not be *named* like one. RFC 5789 §2.1's own example, printed here as the document prints it: `[description of changes]` stands in for a patch document of the declared length"),
                 snippet: "PATCH /file.txt HTTP/1.1\nHost: www.example.com\nContent-Type: application/example\nIf-Match: \"e0023aa4e\"\nContent-Length: 100\n\n[description of changes]",
             },
             Example {

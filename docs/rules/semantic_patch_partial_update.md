@@ -46,12 +46,12 @@ severity = "warn"
 PATCH /widgets/123 HTTP/1.1
 Host: example.com
 Content-Type: application/json-patch+json
-Content-Length: 48
+Content-Length: 52
 
 [ { "op": "replace", "path": "/qty", "value": 20 } ]
 ```
 
-### ✅ Good — a patch format need not be *named* like one; this is RFC 5789 §2.1's own example
+### ✅ Good — a patch format need not be *named* like one. RFC 5789 §2.1's own example, printed here as the document prints it: `[description of changes]` stands in for a patch document of the declared length
 
 ```http
 PATCH /file.txt HTTP/1.1
