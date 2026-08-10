@@ -216,24 +216,27 @@ impl Rule for MessageHttp2PseudoHeadersValidity {
             }
         }
 
-        // Validate response pseudo-header semantics using canonical response fields.
-        if let Some(resp) = &tx.response {
-            // Ensure status in range 100..=599 (valid HTTP status codes are 100-599)
-            if !(100..=599).contains(&resp.status) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: "':status' equivalent in response must be a valid 3-digit status code"
-                        .into(),
-                });
-            }
-        }
+        // **The response half is not this rule's.** This branch used to report a
+        // status outside 100–599 as a `:status` defect, and it ran on *every*
+        // transaction: this rule has no version gate, so an out-of-range status in
+        // an HTTP/1.1 status-line was reported here, as a pseudo-header the message
+        // never carried, on top of the report from the rule that owns the question.
+        // Two of this rule's own tests asserted it, both built on
+        // `make_test_transaction_with_response`, whose responses are HTTP/1.1.
+        //
+        // The range is RFC 9110 § 15's and holds for every version. RFC 9113
+        // § 8.3.2 defines `:status` as carrying "the HTTP status code field (see
+        // Section 15 of [HTTP])" and states no range of its own, so there was never
+        // an HTTP/2 sentence under the check; `server_status_code_valid_range` asks
+        // it of every version. What § 8.3.2 does require — that the field be present
+        // in all responses, including interim ones — cannot fail in this model:
+        // `ResponseInfo.status` is a `u16` that always holds a value.
 
         None
     }
 
     fn description(&self) -> &'static str {
-        "Validate HTTP/2 pseudo-header fields used in requests and responses. Requests that include pseudo-headers must include the appropriate fields (e.g., `:method` and `:path` for most requests, `:authority` for CONNECT), and response pseudo-headers must be limited to `:status`. Values are validated for basic syntax (tokens, percent-encoding, numeric status) to detect malformed or protocol-inconsistent headers. The rule also accepts the asterisk-form (`*`) only when the method is `OPTIONS` (see specifications)."
+        "Validate HTTP/2 request pseudo-header fields. Requests must carry the appropriate fields (e.g., `:method` and `:path` for most requests, `:authority` for CONNECT), and their values are validated for basic syntax (tokens, percent-encoding) to detect malformed or protocol-inconsistent headers. The rule also accepts the asterisk-form (`*`) only when the method is `OPTIONS` (see specifications).\n\n**Nothing here reads the response.** RFC 9113 §8.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation to check; and the range that value must fall in is RFC 9110 §15's, which is the same for every HTTP version and is reported by `server_status_code_valid_range`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -273,19 +276,9 @@ impl Rule for MessageHttp2PseudoHeadersValidity {
                 snippet: ":method: OPTIONS\n:path: *",
             },
             Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: ":status: 200",
-            },
-            Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
                 snippet: ":method: GET",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: ":status: OK",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -320,32 +313,6 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.method = method.to_string();
         tx.request.uri = uri.to_string();
-        let rule = MessageHttp2PseudoHeadersValidity;
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        if expect_violation {
-            assert!(v.is_some());
-            if let Some(sub) = expected_contains {
-                assert!(v.unwrap().message.contains(sub));
-            }
-        } else {
-            assert!(v.is_none());
-        }
-        Ok(())
-    }
-
-    #[rstest]
-    #[case(200, false, None)]
-    #[case(0, true, Some("3-digit"))]
-    fn response_pseudo_cases(
-        #[case] status: u16,
-        #[case] expect_violation: bool,
-        #[case] expected_contains: Option<&str>,
-    ) -> anyhow::Result<()> {
-        let tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
         let rule = MessageHttp2PseudoHeadersValidity;
         let v = rule.check_transaction(
             &tx,
@@ -618,18 +585,37 @@ mod tests {
         assert!(v.unwrap().message.contains("Invalid token"));
     }
 
-    #[test]
-    fn response_status_low_out_of_range_is_violation() {
-        let tx = crate::test_helpers::make_test_transaction_with_response(99, &[]);
+    /// The status range is RFC 9110 § 15's, is the same for every HTTP version, and
+    /// is `server_status_code_valid_range`'s finding. Both statuses here were
+    /// asserted as violations of *this* rule until the branch was removed — on
+    /// HTTP/1.1 responses, which is what `make_test_transaction_with_response`
+    /// builds and what this ungated rule was reporting.
+    #[rstest]
+    #[case(99)]
+    #[case(700)]
+    fn out_of_range_status_is_not_this_rules_finding(#[case] status: u16) {
+        let tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
+        let history = crate::transaction_history::TransactionHistory::empty();
         let v = MessageHttp2PseudoHeadersValidity.check_transaction(
             &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
+            &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "message_http2_pseudo_headers_validity",
             ]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("3-digit"));
+        assert!(v.is_none(), "{v:?}");
+
+        let owner = crate::rules::server_status_code_valid_range::ServerStatusCodeValidRange;
+        assert!(
+            owner
+                .check_transaction(
+                    &tx,
+                    &history,
+                    &crate::test_helpers::make_test_config_with_enabled_rules(&[owner.id()]),
+                )
+                .is_some(),
+            "status {status} is reported by nobody"
+        );
     }
 
     #[test]
@@ -696,19 +682,5 @@ mod tests {
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Asterisk ('*')"));
-    }
-
-    #[test]
-    fn response_status_out_of_range_is_violation() {
-        let tx = crate::test_helpers::make_test_transaction_with_response(700, &[]);
-        let v = MessageHttp2PseudoHeadersValidity.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                "message_http2_pseudo_headers_validity",
-            ]),
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("3-digit"));
     }
 }

@@ -3654,18 +3654,12 @@ sources:
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
       line: 83
   - label: message_http3_pseudo_headers_validity
-    section: § 15
-    snippet: All valid status codes are within the range of 100 to 599, inclusive.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 139
-  - label: message_http3_pseudo_headers_validity (2)
     section: § 7.1
     snippet: For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*").
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
       line: 91
-  - label: message_http3_pseudo_headers_validity (3)
+  - label: message_http3_pseudo_headers_validity (2)
     section: § 7.1
     snippet: These forms MUST NOT be used with other methods.
     cited_by:

@@ -8,7 +8,9 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate HTTP/2 pseudo-header fields used in requests and responses. Requests that include pseudo-headers must include the appropriate fields (e.g., `:method` and `:path` for most requests, `:authority` for CONNECT), and response pseudo-headers must be limited to `:status`. Values are validated for basic syntax (tokens, percent-encoding, numeric status) to detect malformed or protocol-inconsistent headers. The rule also accepts the asterisk-form (`*`) only when the method is `OPTIONS` (see specifications).
+Validate HTTP/2 request pseudo-header fields. Requests must carry the appropriate fields (e.g., `:method` and `:path` for most requests, `:authority` for CONNECT), and their values are validated for basic syntax (tokens, percent-encoding) to detect malformed or protocol-inconsistent headers. The rule also accepts the asterisk-form (`*`) only when the method is `OPTIONS` (see specifications).
+
+**Nothing here reads the response.** RFC 9113 §8.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation to check; and the range that value must fall in is RFC 9110 §15's, which is the same for every HTTP version and is reported by `server_status_code_valid_range`.
 
 ## Specifications
 
@@ -40,18 +42,10 @@ severity = "error"
 :path: *
 ```
 
-```http
-:status: 200
-```
-
 ### ❌ Bad
 
 ```http
 :method: GET
-```
-
-```http
-:status: OK
 ```
 
 ```http

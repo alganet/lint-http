@@ -128,6 +128,30 @@ mod tests {
         }
     }
 
+    /// The range is RFC 9110 § 15's and holds for every version, which is why this
+    /// rule has no version gate — and why the two pseudo-header rules that used to
+    /// make the same check no longer do. `message_http2_pseudo_headers_validity`
+    /// made it on every transaction, HTTP/1.1 included; `message_http3_pseudo_headers_validity`
+    /// made it behind an HTTP/3 gate. Both now decline, so these are the only
+    /// reports left.
+    #[rstest]
+    #[case("HTTP/1.1")]
+    #[case("HTTP/2")]
+    #[case("HTTP/3")]
+    fn out_of_range_is_reported_on_every_version(#[case] version: &str) {
+        let rule = ServerStatusCodeValidRange;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(600, &[]);
+        tx.request.version = version.into();
+        tx.response.as_mut().expect("response").version = version.into();
+
+        let violation = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(violation.is_some(), "{version}");
+    }
+
     #[test]
     fn check_missing_response() {
         let rule = ServerStatusCodeValidRange;
