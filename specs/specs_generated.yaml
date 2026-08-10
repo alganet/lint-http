@@ -1593,6 +1593,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 29
+- label: RFC 7303
+  url: https://www.rfc-editor.org/rfc/rfc7303.txt
+  type: text/plain
+  fragments:
+  - label: server_problem_details_content_type
+    section: § 4.1
+    snippet: The media types application/xml or text/xml, or a more specific media type (see Section 9.6), SHOULD be used.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 65
 - label: RFC 7578
   url: https://www.rfc-editor.org/rfc/rfc7578.txt
   type: text/plain
@@ -1693,12 +1703,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_problem_details_structure.rs
       line: 29
-  - label: server_problem_details_content_type
-    section: § 3
-    snippet: When serialized as a JSON document, that format is identified with the "application/problem+json" media type.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 29
 - label: RFC 7838
   url: https://www.rfc-editor.org/rfc/rfc7838.txt
   type: text/plain
@@ -1777,6 +1781,16 @@ sources:
       line: 105
     - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
       line: 108
+- label: RFC 8259
+  url: https://www.rfc-editor.org/rfc/rfc8259.txt
+  type: text/plain
+  fragments:
+  - label: server_problem_details_content_type
+    section: § 11
+    snippet: The media type for JSON text is application/json.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 64
 - label: RFC 8288
   url: https://www.rfc-editor.org/rfc/rfc8288.txt
   type: text/plain
@@ -3037,6 +3051,8 @@ sources:
       line: 76
     - file: lint-http-rules/src/rules/server_charset_specification.rs
       line: 40
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 47
   - label: message_accept_encoding_parameter_validity
     section: § 12.4.2
     snippet: The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content.
@@ -5987,6 +6003,46 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_priority_and_cacheability_consistency.rs
       line: 70
+- label: RFC 9457
+  url: https://www.rfc-editor.org/rfc/rfc9457.txt
+  type: text/plain
+  fragments:
+  - label: server_problem_details_content_type
+    section: § 1
+    snippet: If the response is still a representation of a resource, for example, it's often preferable to describe the relevant details in that application's format.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 69
+  - label: server_problem_details_content_type (2)
+    section: § 1
+    snippet: Problem details can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 35
+  - label: server_problem_details_content_type (3)
+    section: § 1
+    snippet: This specification's aim is to define common error formats for applications that need one so that they aren't required to define their own or, worse, tempted to redefine the semantics of existing HTTP status codes.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 82
+  - label: server_problem_details_content_type (4)
+    section: § 3
+    snippet: When serialized in a JSON document, that format is identified with the "application/problem+json" media type.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 54
+  - label: server_problem_details_content_type (5)
+    section: § 4
+    snippet: Problem details are intended to avoid the necessity of establishing new "fault" or "error" document formats, not to replace existing domain-specific formats.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 70
+  - label: server_problem_details_content_type (6)
+    section: § B
+    snippet: The media type for this format is "application/problem+xml".
+    cited_by:
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 55
 - label: RFC 9530
   url: https://www.rfc-editor.org/rfc/rfc9530.txt
   type: text/plain
