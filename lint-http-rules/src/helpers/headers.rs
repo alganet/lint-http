@@ -91,6 +91,57 @@ pub fn validate_content_length(headers: &HeaderMap) -> Result<Option<u128>, Cont
     Ok(first_val)
 }
 
+/// What a captured message shows of its own content, for the rules whose
+/// sentence is about content rather than about framing.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ContentEvidence {
+    /// Octets that streamed through, counted after framing was removed.
+    Captured(u64),
+    /// No body was captured, so the sender's own declaration is what is left.
+    Declared(u128),
+}
+
+impl std::fmt::Display for ContentEvidence {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ContentEvidence::Captured(n) => write!(f, "{n} octets captured"),
+            ContentEvidence::Declared(n) => write!(f, "Content-Length: {n}"),
+        }
+    }
+}
+
+/// Whether a message carries content, and on what evidence.
+///
+/// Content is the octet stream left once framing has been taken off, so a
+/// framing field is not itself an answer: a chunked message whose only chunk is
+/// the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with
+/// no framing field at all.
+// cite(RFC 9110 § 6.4): "HTTP messages often transfer a complete or partial representation as the message "content": a stream of octets sent after the header section, as delineated by the message framing."
+// cite(RFC 9110 § 6.4): "For example, an HTTP/1.1 message body (Section 6 of [HTTP/1.1]) might consist of a stream of data encoded with the chunked transfer coding -- a sequence of data chunks, one zero-length chunk, and a trailer section -- whereas the content of that same message includes only the data stream after the transfer coding has been decoded; it does not include the chunk lengths, chunked framing syntax, nor the trailer fields (Section 6.5)."
+//
+// The captured count is that stream measured directly, so it answers first; a
+// coded representation of nothing is still nothing, which is why a
+// `Content-Encoding` does not disturb the comparison against zero.
+pub fn content_evidence(headers: &HeaderMap, body_length: Option<u64>) -> Option<ContentEvidence> {
+    match body_length {
+        Some(n) => (n > 0).then_some(ContentEvidence::Captured(n)),
+        None => declared_content_length(headers)
+            .filter(|n| *n > 0)
+            .map(ContentEvidence::Declared),
+    }
+}
+
+/// The sender's own claim about how much content it enclosed, where that claim
+/// parses.
+///
+/// A value that does not parse leaves no number and `message_content_length`
+/// reports it; a declared length that disagrees with the captured octets is
+/// `message_request_body_length_accuracy`'s finding.
+// cite(RFC 9110 § 8.6): "When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing"
+pub fn declared_content_length(headers: &HeaderMap) -> Option<u128> {
+    validate_content_length(headers).ok().flatten()
+}
+
 /// Retrieve a header value as a string, if it exists and contains only visible ASCII.
 ///
 /// Returns `None` if the header is missing or contains non-visible ASCII characters

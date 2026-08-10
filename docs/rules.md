@@ -176,7 +176,7 @@ Generated index of every rule in the catalogue. Each entry links to the per-rule
 - [semantic_patch_partial_update](rules/semantic_patch_partial_update.md) — The `PATCH` method is defined for applying partial modifications to an
 - [semantic_post_creates_resource](rules/semantic_post_creates_resource.md) — When a `POST` request results in the origin server creating one or more new
 - [semantic_status_code_semantics](rules/semantic_status_code_semantics.md) — Two status codes are defined in terms of a field the response has to carry, and this rule reports the responses that do not carry it — plus, advisorily, a `Proxy-Authenticate` arriving on any other status.
-- [semantic_trace_method_echo](rules/semantic_trace_method_echo.md) — Validate TRACE method semantics with two pragmatic checks:
+- [semantic_trace_method_echo](rules/semantic_trace_method_echo.md) — Reports a TRACE request that carries content, and a TRACE request that carries one of the fields RFC 9110 §9.3.8 names when it forbids handing sensitive data to a loop-back. A TRACE asks the final recipient to "reflect the message received, excluding some fields described below, back to the client as the content of a 200 (OK) response", so what a TRACE request contains is what a TRACE response discloses.
 
 ## Stateful Rules
 
