@@ -1042,6 +1042,12 @@ sources:
       line: 41
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 37
+  - label: semantic_options_method_capabilities
+    section: § 3.1
+    snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 45
   - label: semantic_patch_partial_update
     section: § 2
     snippet: The PATCH method requests that a set of changes described in the request entity be applied to the resource
@@ -2135,6 +2141,8 @@ sources:
       line: 95
     - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
       line: 31
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 43
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 23
   - label: client_accept_ranges_on_partial_content (9)
@@ -2391,6 +2399,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
       line: 75
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 76
     - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
       line: 78
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
@@ -3449,6 +3459,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
       line: 28
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 41
   - label: message_auth_scheme_iana_registered
     section: § 11.1
     snippet: New and existing authentication schemes are specified independently and ought to be registered
@@ -4522,11 +4534,51 @@ sources:
     - file: lint-http-rules/src/rules/semantic_cache_coherence.rs
       line: 54
   - label: semantic_options_method_capabilities
-    section: § 9.3.7
-    snippet: The OPTIONS method requests information about the communication options available for the target resource
+    section: § 10.2.1
+    snippet: An empty Allow field value indicates that the resource allows no methods, which might occur in a 405 response if the resource has been temporarily disabled by configuration.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
-      line: 27
+      line: 39
+  - label: semantic_options_method_capabilities (2)
+    section: § 10.2.1
+    snippet: An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 127
+  - label: semantic_options_method_capabilities (3)
+    section: § 15.3
+    snippet: The 2xx (Successful) class of status code indicates that the client's request was successfully received, understood, and accepted.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 118
+  - label: semantic_options_method_capabilities (4)
+    section: § 9.3.7
+    snippet: A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 59
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 90
+  - label: semantic_options_method_capabilities (5)
+    section: § 9.3.7
+    snippet: A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 38
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 128
+  - label: semantic_options_method_capabilities (6)
+    section: § 9.3.7
+    snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 111
+  - label: semantic_options_method_capabilities (7)
+    section: § 9.3.7
+    snippet: If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 112
   - label: semantic_post_creates_resource
     section: § 9.3.3
     snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response
