@@ -35,15 +35,21 @@ pub struct SemanticOptionsMethodCapabilities;
 /// Presence is the whole test, for `Allow` by name: § 10.2.1 gives an empty
 /// value a meaning — the resource allows no methods — so a server that sends
 /// one has answered the question rather than declined it.
+///
+/// The third element is which field *sections* to look in, and it is per field
+/// definition rather than per category: § 6.5.1 forbids a trailer field unless
+/// the field's own definition permits it, and of these three only § 14.3 does.
 // cite(RFC 9110 § 9.3.7): "A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification."
 // cite(RFC 9110 § 10.2.1): "An empty Allow field value indicates that the resource allows no methods, which might occur in a 405 response if the resource has been temporarily disabled by configuration."
-const ADVERTISED_CAPABILITIES: [(&str, &str); 3] = [
+// cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
+const ADVERTISED_CAPABILITIES: [(&str, &str, bool); 3] = [
     // cite(RFC 9110 § 10.2.1): "The "Allow" header field lists the set of methods advertised as supported by the target resource."
-    ("allow", "Allow"),
+    ("allow", "Allow", false),
     // cite(RFC 9110 § 14.3): "The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource."
-    ("accept-ranges", "Accept-Ranges"),
+    // cite(RFC 9110 § 14.3): "The Accept-Ranges field MAY be sent in a trailer section, but is preferred to be sent as a header field because the information is particularly useful for restarting large information transfers that have failed in mid-content (before the trailer section is received)."
+    ("accept-ranges", "Accept-Ranges", true),
     // cite(RFC 5789 § 3.1): "Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method."
-    ("accept-patch", "Accept-Patch"),
+    ("accept-patch", "Accept-Patch", false),
 ];
 
 impl Rule for SemanticOptionsMethodCapabilities {
@@ -108,6 +114,16 @@ impl Rule for SemanticOptionsMethodCapabilities {
         // headers "applicable to the target resource". There is nothing for such
         // a response to advertise: `Allow` lists the methods of a target
         // resource this request does not have.
+        //
+        // This reaches the asterisk over HTTP/1.1 only, and the limit is in the
+        // capture rather than here: `proxy/http3.rs` records
+        // `req.uri().to_string()` of a URI the h3 crate rebuilds from `:scheme`,
+        // `:authority` and `:path`, so a `:path` of `*` is recorded as
+        // `https://example.com*` — a string that does not even reparse to the
+        // same target (the authority swallows the asterisk). Widening the
+        // comparison would be guessing; recovering the form needs the capture to
+        // keep it. Stated in `description()` because it costs an operator a
+        // finding.
         // cite(RFC 9110 § 9.3.7): "An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource."
         // cite(RFC 9110 § 9.3.7): "If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource."
         if tx.request.uri == "*" {
@@ -128,9 +144,16 @@ impl Rule for SemanticOptionsMethodCapabilities {
         // cite(RFC 9110 § 9.3.7): "A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification."
         if !ADVERTISED_CAPABILITIES
             .iter()
-            .any(|(lowercase, _)| resp.headers.contains_key(*lowercase))
+            .any(|(lowercase, _, in_trailers)| {
+                resp.headers.contains_key(*lowercase)
+                    || (*in_trailers
+                        && resp
+                            .trailers
+                            .as_ref()
+                            .is_some_and(|t| t.contains_key(*lowercase)))
+            })
         {
-            let named: Vec<&str> = ADVERTISED_CAPABILITIES.iter().map(|(_, n)| *n).collect();
+            let named: Vec<&str> = ADVERTISED_CAPABILITIES.iter().map(|(_, n, _)| *n).collect();
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
@@ -150,7 +173,7 @@ impl Rule for SemanticOptionsMethodCapabilities {
     }
 
     fn description(&self) -> &'static str {
-        "Reports the two requirements RFC 9110 §9.3.7 places on an OPTIONS exchange that a captured message can answer. An OPTIONS request asks \"about the communication options available for the target resource\", so what the exchange is for is the advertisement in the response.\n\n**A request carrying content must say what it is.** §9.3.7: \"A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.\" Content is §6.4's — the stream of octets after the header section, counted once framing has been taken off — so a `Transfer-Encoding: chunked` is not by itself content, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured its octet count decides; otherwise the request's own `Content-Length` does, which leaves a chunked request whose octets were not captured unmeasurable. Only the field's *absence* is reported here: a `Content-Type` that is empty or is not a media type is `message_content_type_well_formed`'s finding. The section adds that \"this specification does not define any use for such content\", so the requirement is about labelling what was sent, not about sending it.\n\n**A successful response should advertise something.** §9.3.7: \"A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.\" That names a class, not a field, so this rule does not ask for `Allow` — §10.2.1 makes `Allow` a **MAY** on every response other than a 405, and the 405 that requires it is `server_response_405_allow`'s. The finding is a successful response carrying none of the three fields a specification names as advertising an optional feature applicable to the target resource: `Allow` (§10.2.1), `Accept-Ranges` (§14.3), and `Accept-Patch` (RFC 5789 §3.1, which asks for it in an OPTIONS response by name). Presence is the whole test — §10.2.1 gives an empty `Allow` value the meaning \"the resource allows no methods\", which is an answer.\n\n**The limit of that finding.** The sentence ends by including \"potential extensions not defined by this specification\", so the class is open and no list can close it. A server advertising a capability under a field name this rule does not know reads here exactly like a server advertising nothing. Read the finding as \"nothing recognizable was advertised\", not as a violation of the SHOULD.\n\n**Not checked: an asterisk target.** §9.3.7 says an OPTIONS request with `*` as the request target \"applies to the server in general rather than to a specific resource\", and the SHOULD asks for headers applicable to the target resource. Such a response is not measured.\n\n**Not checked: where `Max-Forwards` came from.** §9.3.7's \"A proxy MUST NOT generate a Max-Forwards header field while forwarding a request unless that request was received with a Max-Forwards field\" is about who wrote a field, and no field of a message records its author. A capture cannot distinguish a client's `Max-Forwards` from one an intermediary invented."
+        "Reports the two requirements RFC 9110 §9.3.7 places on an OPTIONS exchange that a captured message can answer. An OPTIONS request asks \"about the communication options available for the target resource\", so what the exchange is for is the advertisement in the response.\n\n**A request carrying content must say what it is.** §9.3.7: \"A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.\" Content is §6.4's — the stream of octets after the header section, counted once framing has been taken off — so a `Transfer-Encoding: chunked` is not by itself content, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured its octet count decides; otherwise the request's own `Content-Length` does, which leaves a chunked request whose octets were not captured unmeasurable. Only the field's *absence* is reported here: a `Content-Type` that is empty or is not a media type is `message_content_type_well_formed`'s finding. The section adds that \"this specification does not define any use for such content\", so the requirement is about labelling what was sent, not about sending it.\n\n**A successful response should advertise something.** §9.3.7: \"A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.\" That names a class, not a field, so this rule does not ask for `Allow` — §10.2.1 makes `Allow` a **MAY** on every response other than a 405, and the 405 that requires it is `server_response_405_allow`'s. The finding is a successful response carrying none of the three fields a specification names as advertising an optional feature applicable to the target resource: `Allow` (§10.2.1), `Accept-Ranges` (§14.3), and `Accept-Patch` (RFC 5789 §3.1, which asks for it in an OPTIONS response by name). Presence is the whole test — §10.2.1 gives an empty `Allow` value the meaning \"the resource allows no methods\", which is an answer. `Accept-Ranges` also counts when it arrives in the trailer section, because §14.3 says it MAY be sent there; the other two are read from the header section only, since §6.5.1 forbids a trailer field unless the field's own definition permits it and neither definition does.\n\n**The limit of that finding.** The sentence ends by including \"potential extensions not defined by this specification\", so the class is open and no list can close it. A server advertising a capability under a field name this rule does not know reads here exactly like a server advertising nothing. Read the finding as \"nothing recognizable was advertised\", not as a violation of the SHOULD.\n\n**Not checked: an asterisk target.** §9.3.7 says an OPTIONS request with `*` as the request target \"applies to the server in general rather than to a specific resource\", and the SHOULD asks for headers applicable to the target resource. Such a response is not measured — **over HTTP/1.1**. Over HTTP/3 the capture does not keep the form: the request target is recorded as the string form of a URI rebuilt from `:scheme`, `:authority` and `:path`, so a `:path` of `*` arrives as `https://example.com*` and the asterisk is no longer distinguishable from part of the authority. An `OPTIONS *` over HTTP/3 is therefore measured, and may be reported for advertising nothing when there was nothing to advertise.\n\n**Not checked: where `Max-Forwards` came from.** §9.3.7's \"A proxy MUST NOT generate a Max-Forwards header field while forwarding a request unless that request was received with a Max-Forwards field\" is about who wrote a field, and no field of a message records its author. A capture cannot distinguish a client's `Max-Forwards` from one an intermediary invented."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -326,6 +349,31 @@ mod tests {
             Some((200, &[("allow", "")])),
         );
         assert!(run(&tx).is_none());
+    }
+
+    /// § 14.3's `Accept-Ranges` MAY arrive in the trailer section, and what the
+    /// response advertised is one question asked across both sections. The other
+    /// two field definitions permit no such thing, so § 6.5.1 keeps them out.
+    #[rstest]
+    #[case("accept-ranges", false)]
+    #[case("allow", true)]
+    #[case("accept-patch", true)]
+    fn a_trailer_advertises_only_where_the_field_definition_permits_it(
+        #[case] field: &str,
+        #[case] expect_violation: bool,
+    ) {
+        let mut tx = make_tx(
+            "OPTIONS",
+            "/r",
+            &[("host", "example.com")],
+            None,
+            Some((200, &[])),
+        );
+        tx.response.as_mut().unwrap().trailers = Some(
+            crate::test_helpers::make_headers_from_pairs(&[(field, "bytes")]),
+        );
+        let v = run(&tx);
+        assert_eq!(v.is_some(), expect_violation, "{field} in a trailer: {v:?}");
     }
 
     /// The defect this rule was written with: a server taking RFC 5789 § 3.1's
