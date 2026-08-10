@@ -5,11 +5,15 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-/// PATCH applies partial modifications; the request body is a "patch document" whose
-/// media type identifies the format.  A PATCH request containing content MUST include a
-/// `Content-Type` header and the media type should indicate a patch format (e.g. the
-/// subtype contains "patch" or begins with "patch").  Otherwise, the request is
-/// unlikely to be interpretable by a server.  (RFC 5789 §2)
+/// A PATCH request's content is a patch document, and RFC 5789 § 2 says a patch document
+/// is identified by a media type. This rule reports a PATCH request that carries content
+/// with no `Content-Type` naming that format — RFC 9110 § 8.3's SHOULD, read at the one
+/// method whose content is processing instructions rather than a representation.
+///
+/// It does not judge the media type's *value*. No document defines a naming convention
+/// for patch formats; RFC 5789's own examples use `application/example` and `text/example`,
+/// and which formats a server accepts is discovered from `Accept-Patch`
+/// (`client_patch_method_content_type_match`).
 pub struct SemanticPatchPartialUpdate;
 
 impl Rule for SemanticPatchPartialUpdate {
@@ -28,99 +32,56 @@ impl Rule for SemanticPatchPartialUpdate {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // cite(RFC 5789 § 2): "The PATCH method requests that a set of changes described in the request entity be applied to the resource"
-        if !tx.request.method.eq_ignore_ascii_case("PATCH") {
+
+        // The method token is case-sensitive, so the comparison is exact: a
+        // request whose method is `patch` did not use PATCH, it used a method
+        // with no defined semantics, and RFC 5789 § 2 is not a sentence about
+        // it. `client_request_method_token_valid` is the rule that reports the
+        // spelling.
+        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+        // cite(RFC 5789 § 2): "The PATCH method requests that a set of changes described in the request entity be applied to the resource identified by the Request-URI."
+        if tx.request.method != "PATCH" {
             return None;
         }
 
-        // Determine whether the request has a body.  In addition to the
-        // traditional framing headers we also look at the captured body length
-        // or actual bytes, which may be populated for HTTP/2 where no content-
-        // length or transfer-encoding exists.
-        let mut has_body = false;
-        if tx.request.headers.contains_key("transfer-encoding") {
-            has_body = true;
-        } else if let Some(cl_raw) =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "content-length")
-        {
-            let cl = cl_raw.trim();
-            if !cl.is_empty() && cl.chars().all(|c| c.is_ascii_digit()) {
-                if let Ok(n) = cl.parse::<u128>() {
-                    has_body = n > 0;
-                }
-            }
-        }
-        if !has_body {
-            if let Some(n) = tx.request.body_length {
-                has_body = n > 0;
-            }
-        }
-        if !has_body {
-            if let Some(ref bytes) = tx.request_body {
-                has_body = !bytes.is_empty();
-            }
-        }
+        // Whether the request carries content, on the evidence the capture
+        // holds. A framing field is not the answer: `Transfer-Encoding` says how
+        // the octets were delimited, not that there were any, and over HTTP/2
+        // and HTTP/3 content arrives with no framing field at all. The shared
+        // helper reads the captured count first and falls back to the sender's
+        // declared length only where nothing was captured.
+        let evidence =
+            crate::helpers::headers::content_evidence(&tx.request.headers, tx.request.body_length)?;
 
-        if !has_body {
-            // If there's no body, nothing to validate for patch semantics.
+        // Presence is the whole test, so `contains_key` answers it and no
+        // decode is needed. A `Content-Type` whose octets are not visible ASCII
+        // is a field that is *there*; what is wrong with it is
+        // `message_content_type_well_formed`'s finding, not this rule's.
+        if tx.request.headers.contains_key("content-type") {
+            // The rule stops here. Whether the named media type is a patch
+            // format is a question no sentence in RFC 5789 answers from the
+            // request alone — there is no naming convention and no registry of
+            // patch formats, and the document's own examples are
+            // `application/example` and `text/example`. What a particular
+            // server accepts is discovered from its `Accept-Patch`, which is
+            // `client_patch_method_content_type_match`'s subject.
             return None;
         }
 
-        // Check for the presence of a Content-Type header first.  `get_header_str`
-        // returns `None` when the header is missing *or* when the value contains
-        // non-visible ASCII (including invalid UTF-8).  We need to treat those
-        // cases differently: a missing header should yield a violation, whereas an
-        // unparseable value is handled by other rules and should not trigger us.
-        let has_ct = tx.request.headers.contains_key("content-type");
-        if !has_ct {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: "PATCH request with message body is missing Content-Type header".into(),
-            });
-        }
-
-        let ct_val_opt =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "content-type");
-
-        // If the header was present but `get_header_str` returned `None`, it means
-        // the bytes were not visible ASCII / not valid UTF-8.  Other rules will
-        // report the malformed header; we intentionally ignore it here.
-        let ct_val = match ct_val_opt {
-            Some(v) => v,
-            None => {
-                return None;
-            }
-        };
-
-        let parsed = match crate::helpers::headers::parse_media_type(ct_val) {
-            Ok(p) => p,
-            Err(_) => {
-                // invalid media type is reported by other rules; ignore here
-                return None;
-            }
-        };
-
-        let t = parsed.type_.to_ascii_lowercase();
-        let s = parsed.subtype.to_ascii_lowercase();
-
-        let is_patch = s.contains("patch") || t.contains("patch");
-        if !is_patch {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: format!(
-                    "PATCH request Content-Type '{}' does not indicate a patch document media type",
-                    ct_val
-                ),
-            });
-        }
-
-        None
+        // The requirement, and it is a SHOULD carrying an exception this rule
+        // cannot evaluate.
+        // cite(RFC 9110 § 8.3): "A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender."
+        Some(Violation {
+            rule: self.id().into(),
+            severity: config.severity,
+            message: format!(
+                "PATCH request carries content ({evidence}) with no Content-Type naming the patch document format"
+            ),
+        })
     }
 
     fn description(&self) -> &'static str {
-        "The `PATCH` method is defined for applying partial modifications to an\nexisting resource.  The request entity is not the new resource state, but a\n\"patch document\" whose semantics are dictated by its media type.  If a\nclient sends a body with a `PATCH` request, the corresponding `Content-Type`\nheader field MUST describe a patch format; otherwise, the server cannot\ninterpret the change instructions and the request is likely to fail or cause\nunexpected effects.\n\nThis rule flags `PATCH` requests that include a body but either lack a\n`Content-Type` header altogether or use a media type that does not indicate a\npatch document (for example, a type or subtype that does not contain the\ntoken `patch`).  If a `Content-Type` header is present but cannot be\ninterpreted as UTF-8 or is otherwise syntactically invalid, the rule does not\nraise a violation; such problems are covered by the general\n`message_content_type_well_formed` rule."
+        "Reports a `PATCH` request that carries content without a `Content-Type` naming the patch document format.\n\n**Why the field is load-bearing here.** A `PATCH` request's content is not a new representation of the resource — it is a set of instructions for changing one, and RFC 5789 §2 says that set \"is represented in a format called a *patch document* identified by a media type\". The media type is what tells the server which instructions it is holding, which is why §2 can require that \"[s]ervers MUST ensure that a received patch document is appropriate for the type of resource identified by the Request-URI\" and why §2.2 answers an unsupported one with `415 (Unsupported Media Type)`.\n\n**This is a SHOULD, and it has a stated exception.** The requirement is RFC 9110 §8.3's: a sender generating a message containing content \"SHOULD generate a Content-Type header field in that message *unless the intended media type of the enclosed representation is unknown to the sender*\". Nothing on the wire separates a sender that did not know from one that did not bother — but a client that built a patch document chose its format, so the exception is at its least plausible on this method. Without the field, §8.3 leaves the recipient two ways to proceed: assume `application/octet-stream`, or sniff the data.\n\n**The value is not judged.** A media type does not have to be *named* like a patch format to be one: RFC 5789's own examples are `application/example` and `text/example`, and §2 says outright that \"there is no single default patch document format that implementations are required to support\". There is no registry of patch formats and no naming convention, so nothing in a lone request says whether the type is one. What a particular server accepts is *discovered*, from the `Accept-Patch` it advertises (RFC 5789 §3.1) — `client_patch_method_content_type_match` is the rule that compares a request against it. This rule previously reported any media type whose type or subtype did not contain the string `patch`, which reported RFC 5789's own example.\n\n**Content, not framing.** The condition is that the message *contains content*, so the captured octet count decides it; a `Transfer-Encoding` is how octets were delimited, not evidence that there were any, and a chunked request whose only chunk is the terminator carries none. Only where nothing was captured does the rule fall back to the sender's declared `Content-Length`.\n\n**The method is compared exactly**, because RFC 9110 §9.1 says the method token is case-sensitive: a request whose method is `patch` is not a `PATCH` request, and `client_request_method_token_valid` is the rule that reports the spelling. A `Content-Type` whose octets are not visible ASCII counts as present here; `message_content_type_well_formed` reports what is wrong with it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -142,18 +103,18 @@ impl Rule for SemanticPatchPartialUpdate {
             },
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
+                label: Some("— a patch format need not be *named* like one; this is RFC 5789 §2.1's own example"),
+                snippet: "PATCH /file.txt HTTP/1.1\nHost: www.example.com\nContent-Type: application/example\nIf-Match: \"e0023aa4e\"\nContent-Length: 100\n\n[description of changes]",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— no content, so there is no patch document to identify"),
                 snippet: "PATCH /widgets/123 HTTP/1.1\nHost: example.com",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("— no `Content-Type` while body is present"),
+                label: Some("— content with no `Content-Type`, leaving the server to guess the patch format"),
                 snippet: "PATCH /widgets/123 HTTP/1.1\nHost: example.com\nContent-Length: 5\n\nhello",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— `Content-Type` not a patch media type"),
-                snippet: "PATCH /widgets/123 HTTP/1.1\nHost: example.com\nContent-Type: text/plain\nContent-Length: 7\n\nupdate!",
             },
         ]
     }
@@ -179,15 +140,17 @@ mod tests {
     #[rstest]
     #[case(vec![("content-type", "application/json-patch+json"), ("content-length", "5")], false)]
     #[case(vec![("content-type", "application/merge-patch+json"), ("content-length", "1")], false)]
-    #[case(vec![("content-type", "application/patch+xml"), ("content-length", "2")], false)]
-    #[case(vec![("content-type", "patch/foo"), ("content-length", "1")], false)] // patch token in type
-    #[case(vec![("content-type", "text/plain"), ("content-length", "3")], true)]
-    #[case(vec![("content-type", "*/*"), ("content-length", "2")], true)] // wildcard not a patch
+    // RFC 5789 §2.1's own example, and §2's "no single default patch document
+    // format": a media type is not disqualified by not being spelled "patch".
+    #[case(vec![("content-type", "application/example"), ("content-length", "100")], false)]
+    #[case(vec![("content-type", "text/plain"), ("content-length", "3")], false)]
+    #[case(vec![("content-type", "bad/type"), ("content-length", "1")], false)]
     #[case(vec![("content-length", "10")], true)]
-    #[case(vec![], false)] // no body
-    #[case(vec![("transfer-encoding", "chunked")], true)]
-    #[case(vec![("content-type", "   text/plain  "), ("content-length", "1")], true)]
-    #[case(vec![("content-type", "bad/type"), ("content-length", "1")], true)] // media type not indicating patch
+    #[case(vec![], false)]
+    // no content declared and none captured
+    // A framing field is not content: a chunked request whose only chunk is the
+    // terminator carries none, and this fixture declares no length either.
+    #[case(vec![("transfer-encoding", "chunked")], false)]
     fn patch_content_type_cases(
         #[case] headers: Vec<(&str, &str)>,
         #[case] expect_violation: bool,
@@ -212,12 +175,12 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_content_type_is_ignored() {
+    fn non_utf8_content_type_counts_as_present() {
         use hyper::header::HeaderValue;
         let rule = SemanticPatchPartialUpdate;
         let mut tx = make_tx_with_req(vec![("content-length", "1")]);
-        tx.request.method = "PATCH".into();
-        // header name present but invalid bytes
+        // The field is on the wire; its octets are not visible ASCII.
+        // `message_content_type_well_formed` owns what is wrong with it.
         tx.request.headers.append(
             "content-type",
             HeaderValue::from_bytes(b"text/plain\xFF").unwrap(),
@@ -229,33 +192,16 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        // rule should not produce a violation; malformed header handled elsewhere
-        assert!(v.is_none());
+        assert!(v.is_none(), "unexpected violation: {v:?}");
     }
 
+    /// The HTTP/2 and HTTP/3 shape: content arrives with no framing field, and
+    /// the captured octet count is the only evidence there is.
     #[test]
-    fn body_length_without_headers_triggers_violation() {
+    fn captured_content_without_framing_fields_is_reported() {
         let rule = SemanticPatchPartialUpdate;
         let mut tx = make_tx_with_req(vec![]);
-        tx.request.method = "PATCH".into();
         tx.request.body_length = Some(5);
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(
-            v.is_some(),
-            "expected violation when body_length>0 without header"
-        );
-    }
-
-    #[test]
-    fn request_body_bytes_without_headers_triggers_violation() {
-        let rule = SemanticPatchPartialUpdate;
-        let mut tx = make_tx_with_req(vec![]);
-        tx.request.method = "PATCH".into();
         tx.request_body = Some(Bytes::from("hello"));
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let v = rule.check_transaction(
@@ -263,10 +209,78 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(
-            v.is_some(),
-            "expected violation when request_body present without header"
+        let msg = v.expect("expected a violation").message;
+        assert!(msg.contains("5 octets captured"), "message was: {msg}");
+    }
+
+    /// A captured count of zero outranks a `Content-Length` that claims
+    /// otherwise: the octets are what the sentence is about, and the
+    /// disagreement is `message_request_body_length_accuracy`'s finding.
+    #[test]
+    fn captured_zero_length_outranks_a_declared_length() {
+        let rule = SemanticPatchPartialUpdate;
+        let mut tx = make_tx_with_req(vec![("content-length", "5")]);
+        tx.request.body_length = Some(0);
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
         );
+        assert!(v.is_none(), "unexpected violation: {v:?}");
+    }
+
+    /// § 9.1: the method token is case-sensitive. A lowercase `patch` is a
+    /// method with no defined semantics, so RFC 5789 § 2 does not measure it.
+    #[test]
+    fn lowercase_patch_is_not_patch() {
+        let rule = SemanticPatchPartialUpdate;
+        let mut tx = make_tx_with_req(vec![("content-length", "5")]);
+        tx.request.method = "patch".into();
+        tx.request.body_length = Some(5);
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none(), "unexpected violation: {v:?}");
+    }
+
+    /// `Transfer-Encoding` says how the octets were delimited, not that there
+    /// were any: a chunked request whose only chunk is the terminator carries
+    /// no content, and § 8.3's SHOULD is about a message that contains some.
+    #[test]
+    fn chunked_request_with_no_content_is_not_reported() {
+        let rule = SemanticPatchPartialUpdate;
+        let mut tx = make_tx_with_req(vec![("transfer-encoding", "chunked")]);
+        tx.request.body_length = Some(0);
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none(), "unexpected violation: {v:?}");
+    }
+
+    /// Where nothing was captured, the sender's own declaration is what is
+    /// left. This is the `lint` subcommand's shape: `request_body` is
+    /// `#[serde(skip)]`, so a capture file carries neither the octets nor,
+    /// where the proxy rejected an over-limit body, a length.
+    #[test]
+    fn declared_length_without_a_capture_is_reported() {
+        let rule = SemanticPatchPartialUpdate;
+        let tx = make_tx_with_req(vec![("content-length", "10")]);
+        assert!(tx.request.body_length.is_none());
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let msg = v.expect("expected a violation").message;
+        assert!(msg.contains("Content-Length: 10"), "message was: {msg}");
     }
 
     #[test]
