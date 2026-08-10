@@ -2400,7 +2400,7 @@ sources:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
       line: 75
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 203
+      line: 205
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 84
     - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
@@ -2974,7 +2974,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 119
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 143
+      line: 145
   - label: lint-http-rules/src/helpers/headers.rs (18)
     section: § 6.5.1
     snippet: A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers.
@@ -3866,7 +3866,7 @@ sources:
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
       line: 56
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 311
+      line: 313
   - label: message_extension_headers_registered (6)
     section: § 5.1
     snippet: Other recipients SHOULD ignore unrecognized header and trailer fields
@@ -4216,7 +4216,7 @@ sources:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 67
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 197
+      line: 199
   - label: message_retry_after_date_or_delay
     section: § 10.2.3
     snippet: A delay-seconds value is a non-negative decimal integer, representing time in seconds.
@@ -4552,63 +4552,69 @@ sources:
     snippet: A Vary field value is either the wildcard member "*" or a list of request field names, known as the selecting header fields, that might have had a role in selecting the representation for this response.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 310
+      line: 312
   - label: semantic_head_response_headers_match_get (2)
+    section: § 12.5.5
+    snippet: To inform cache recipients that they MUST NOT use this response to satisfy a later request unless the later request has the same values for the listed header fields as the original request
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
+      line: 319
+  - label: semantic_head_response_headers_match_get (3)
     section: § 15
     snippet: The status code of a response is a three-digit integer code that describes the result of the request and the semantics of the response, including whether the request was successful and what content is enclosed (if any).
     cited_by:
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 231
+      line: 233
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
       line: 36
-  - label: semantic_head_response_headers_match_get (3)
+  - label: semantic_head_response_headers_match_get (4)
     section: § 15.3.1
     snippet: The content sent in a 200 response depends on the request method.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 162
-  - label: semantic_head_response_headers_match_get (4)
+      line: 164
+  - label: semantic_head_response_headers_match_get (5)
     section: § 8.8
     snippet: In responses to safe requests, validator fields describe the selected representation chosen by the origin server while handling the response.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
       line: 101
-  - label: semantic_head_response_headers_match_get (5)
+  - label: semantic_head_response_headers_match_get (6)
     section: § 8.8.1
     snippet: A "strong validator" is representation metadata that changes value whenever a change occurs to the representation data that would be observable in the content of a 200 (OK) response to GET.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
       line: 102
-  - label: semantic_head_response_headers_match_get (6)
+  - label: semantic_head_response_headers_match_get (7)
     section: § 8.8.2
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified, as determined at the conclusion of handling the request.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
       line: 103
-  - label: semantic_head_response_headers_match_get (7)
+  - label: semantic_head_response_headers_match_get (8)
     section: § 9.2.1
     snippet: Of the request methods defined by this specification, the GET, HEAD, OPTIONS, and TRACE methods are defined to be safe.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
       line: 100
-  - label: semantic_head_response_headers_match_get (8)
+  - label: semantic_head_response_headers_match_get (9)
     section: § 9.3.2
     snippet: However, a server MAY omit header fields for which a value is determined only while generating the content.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
       line: 78
-  - label: semantic_head_response_headers_match_get (9)
+  - label: semantic_head_response_headers_match_get (10)
     section: § 9.3.2
     snippet: Such a response to GET might contain Content-Length and Vary fields, for example, that are not generated within a HEAD response.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
       line: 79
-  - label: semantic_head_response_headers_match_get (10)
+  - label: semantic_head_response_headers_match_get (11)
     section: § 9.3.2
     snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 202
+      line: 204
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 74
     - file: lint-http-rules/src/rules/server_content_type_present.rs
@@ -6066,7 +6072,7 @@ sources:
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 209
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 261
+      line: 263
     - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
       line: 173
   - label: message_transfer_encoding_chunked_final (4)
@@ -6086,7 +6092,7 @@ sources:
     snippet: This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 262
+      line: 264
   - label: server_no_body_for_1xx_204_304
     section: § 6.1
     snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
