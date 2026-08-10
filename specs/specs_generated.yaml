@@ -1699,16 +1699,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_basic_auth_base64_validity.rs
       line: 46
-- label: RFC 7807
-  url: https://www.rfc-editor.org/rfc/rfc7807.txt
-  type: text/plain
-  fragments:
-  - label: message_problem_details_structure
-    section: § 3.1
-    snippet: 'the following members: o "type" (string) - A URI reference [RFC3986] that identifies the problem type.'
-    cited_by:
-    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
-      line: 29
 - label: RFC 7838
   url: https://www.rfc-editor.org/rfc/rfc7838.txt
   type: text/plain
@@ -6015,6 +6005,14 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc9457.txt
   type: text/plain
   fragments:
+  - label: message_problem_details_structure
+    section: § 3
+    snippet: When serialized in a JSON document, that format is identified with the "application/problem+json" media type.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 68
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 65
   - label: server_problem_details_content_type
     section: § 1
     snippet: If the response is still a representation of a resource, for example, it's often preferable to describe the relevant details in that application's format.
@@ -6034,18 +6032,12 @@ sources:
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
       line: 98
   - label: server_problem_details_content_type (4)
-    section: § 3
-    snippet: When serialized in a JSON document, that format is identified with the "application/problem+json" media type.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 65
-  - label: server_problem_details_content_type (5)
     section: § 4
     snippet: Problem details are intended to avoid the necessity of establishing new "fault" or "error" document formats, not to replace existing domain-specific formats.
     cited_by:
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
       line: 86
-  - label: server_problem_details_content_type (6)
+  - label: server_problem_details_content_type (5)
     section: § B
     snippet: The media type for this format is "application/problem+xml".
     cited_by:
