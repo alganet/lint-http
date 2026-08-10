@@ -50,6 +50,10 @@ fn parse_headers_config(
         let s = item.as_str().ok_or_else(|| {
             anyhow::anyhow!("'headers' array item at index {} must be a string", i)
         })?;
+        // The configured names are folded once here so the rest of the rule can
+        // compare them as strings; the fold is the field name's own rule, not a
+        // convenience.
+        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
         out.push(s.to_ascii_lowercase());
     }
 
@@ -57,6 +61,113 @@ fn parse_headers_config(
         enabled,
         severity,
         headers: out,
+    })
+}
+
+/// Whether a difference in *presence* of this field between the two responses
+/// is licensed, in either direction.
+///
+/// § 9.3.2 excuses omission by naming a class rather than a set of fields, and
+/// the class is one no message answers: nothing on the wire says whether a
+/// value was determined while the content was being generated. What can be
+/// recognised is the fields a specification names as belonging to it — and the
+/// section names two, of which `Vary` is the one still reaching this comparison
+/// (`Content-Length` and `Transfer-Encoding` are answered above by the
+/// documents that define them).
+///
+// cite(RFC 9110 § 9.3.2): "However, a server MAY omit header fields for which a value is determined only while generating the content."
+// cite(RFC 9110 § 9.3.2): "Such a response to GET might contain Content-Length and Vary fields, for example, that are not generated within a HEAD response."
+///
+/// The permission runs in both directions here, which the MAY on its own does
+/// not say: it excuses the HEAD response for omitting a field, not for carrying
+/// one the GET lacked. The other direction is licensed by what the comparison
+/// rests on — the GET is a *previously observed* response, not the counterfactual
+/// one § 9.3.2 names, so a field present only on the HEAD is as easily the
+/// earlier GET having exercised this same MAY.
+fn presence_difference_is_permitted(name: &str) -> bool {
+    matches!(name, "vary")
+}
+
+/// Whether the two responses' validator fields say the selected representation
+/// changed between the observed GET and this HEAD.
+///
+/// § 9.3.2's sentence is a counterfactual: the same request, at the same
+/// moment, with GET in place of HEAD. A previously observed GET stands in for
+/// it, and a resource is free to change in between — so a difference between
+/// the two responses is only evidence of a server disobeying § 9.3.2 while the
+/// representation held still. Both messages say whether it did.
+///
+// cite(RFC 9110 § 9.2.1): "Of the request methods defined by this specification, the GET, HEAD, OPTIONS, and TRACE methods are defined to be safe."
+// cite(RFC 9110 § 8.8): "In responses to safe requests, validator fields describe the selected representation chosen by the origin server while handling the response."
+// cite(RFC 9110 § 8.8.1): "A "strong validator" is representation metadata that changes value whenever a change occurs to the representation data that would be observable in the content of a 200 (OK) response to GET."
+// cite(RFC 9110 § 8.8.2): "The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified, as determined at the conclusion of handling the request."
+///
+/// A weak entity tag is compared the same way, and § 8.8.1 licenses that too:
+/// it changes when "the origin server wants caches to invalidate old
+/// responses". Only a *difference* is read here, never a match — equal weak
+/// tags do not prove the data is identical, and nothing below needs them to.
+fn selected_representation_changed(prev: &hyper::HeaderMap, cur: &hyper::HeaderMap) -> bool {
+    let differs = |name: &str, normalize: fn(&str) -> String| {
+        let a = crate::helpers::headers::combined_field_value_as_written(prev, name);
+        let b = crate::helpers::headers::combined_field_value_as_written(cur, name);
+        match (a, b) {
+            // Only both-present decides. A validator on one response alone says
+            // nothing about the other's representation, and its absence from the
+            // HEAD is § 9.3.2's finding rather than a reason to stop looking.
+            (Some(a), Some(b)) => normalize(&a) != normalize(&b),
+            _ => false,
+        }
+    };
+
+    // Entity tags compare by opaque-tag, which is `normalize_etag`'s § 8.8.3.2
+    // weak comparison; `Last-Modified` is an HTTP-date and compares as written.
+    differs("etag", crate::helpers::headers::normalize_etag)
+        || differs("last-modified", str::to_string)
+}
+
+/// The `Content-Length` half, which is the one requirement here that is not
+/// § 9.3.2's SHOULD.
+///
+// cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method."
+///
+/// The number the MUST NOT names is a count of octets, and the previous GET
+/// holds two pieces of evidence about it: what it declared, and what it
+/// actually delivered. The declaration answers first, because that is the
+/// number a `Content-Length` is; where the GET declared none — it was chunked,
+/// or it is HTTP/2 or HTTP/3, where there is no framing field to declare — the
+/// captured octets are the same count measured rather than claimed, so the
+/// requirement is still decidable. A GET whose declaration and delivery
+/// disagree is `message_response_body_length_accuracy`'s finding, not this
+/// rule's, and it is left to it.
+///
+// cite(RFC 9110 § 6.4): "HTTP messages often transfer a complete or partial representation as the message "content": a stream of octets sent after the header section, as delineated by the message framing."
+fn content_length_finding(
+    prev_resp: &crate::http_transaction::ResponseInfo,
+    resp: &crate::http_transaction::ResponseInfo,
+) -> Option<String> {
+    let cur_len = crate::helpers::headers::declared_content_length(&resp.headers)?;
+
+    if let Some(declared) = crate::helpers::headers::declared_content_length(&prev_resp.headers) {
+        return (declared != cur_len).then(|| {
+            format!(
+                "Content-Length in HEAD ({}) differs from GET ({})",
+                cur_len, declared
+            )
+        });
+    }
+
+    // Only where the content of that response *is* the selected representation
+    // the HEAD is asking about; a 304 declares the length of a 200 it did not
+    // send, so its captured zero says nothing.
+    // cite(RFC 9110 § 15.3.1): "The content sent in a 200 response depends on the request method."
+    let captured = (prev_resp.status == 200)
+        .then_some(prev_resp.body_length)
+        .flatten()?;
+    (u128::from(captured) != cur_len).then(|| {
+        format!(
+            "Content-Length in HEAD ({}) differs from the {} octets of content the GET response delivered",
+            cur_len, captured
+        )
     })
 }
 
@@ -82,150 +193,152 @@ impl Rule for SemanticHeadResponseHeadersMatchGet {
         history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
-        // Only applies to HEAD responses with a previous GET on the same URI
+        // The sentence the whole rule enforces, and the response it is about.
         // cite(RFC 9110 § 9.3.2): "The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET."
-        if !tx.request.method.eq_ignore_ascii_case("HEAD") {
+        //
+        // Which response that is, and why the comparison is exact rather than
+        // case-insensitive: a lowercase `head` is a different method token, and
+        // an unrecognized method has no defined relationship to GET at all.
+        // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+        if tx.request.method != "HEAD" {
             return None;
         }
 
         let resp = tx.response.as_ref()?;
 
-        let prev = history.previous()?;
-        if !prev.request.method.eq_ignore_ascii_case("GET") {
-            return None;
-        }
-
-        // Ensure previous transaction targets the same resource (stateful match)
-        if prev.request.uri != tx.request.uri {
-            return None;
-        }
+        // The counterfactual the sentence names is a GET, by the same token —
+        // the most recent one, since the further back the evidence is, the less
+        // it says about what the server would send now. Taking only the
+        // immediately preceding transaction would leave a GET followed by two
+        // HEADs measuring the first of them and nothing else.
+        //
+        // The request-target comparison is not a requirement of any document:
+        // the engine dispatches this rule with a `ByResource` history, already
+        // keyed on this client and this target, so in the proxy and in `lint` it
+        // cannot fail. It guards histories assembled by hand in tests.
+        let prev = history
+            .iter()
+            .find(|t| t.request.method == "GET" && t.request.uri == tx.request.uri)?;
 
         let prev_resp = prev.response.as_ref()?;
+
+        // Two responses that report different results are not each other's
+        // counterfactual: the fields of a 404 describe the explanation it
+        // encloses, and the fields of a 200 describe the selected
+        // representation. Comparing them measures the resource's state changing,
+        // not the server's answer to § 9.3.2.
+        // cite(RFC 9110 § 15): "The status code of a response is a three-digit integer code that describes the result of the request and the semantics of the response, including whether the request was successful and what content is enclosed (if any)."
+        if prev_resp.status != resp.status {
+            return None;
+        }
+
+        // And a resource may simply have changed between the two exchanges.
+        if selected_representation_changed(&prev_resp.headers, &resp.headers) {
+            return None;
+        }
 
         // Parse config only after the cheap method/response/history guards above —
         // non-HEAD transactions (the common case) skip the allocation entirely.
         let config = parse_headers_config(cfg, self.id()).ok()?;
 
+        let report = |message: String| {
+            Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message,
+            })
+        };
+
         // For each configured header, enforce presence/value equivalence between GET and HEAD
         for name in &config.headers {
             let name_str = name.as_str();
 
-            let prev_has = prev_resp.headers.contains_key(name_str);
-            let head_has = resp.headers.contains_key(name_str);
-
-            // RFC-permitted exceptions: omission or presence of these headers on HEAD
-            // is allowed (see RFC 9110 §9.3.2 and §8.6 for Content-Length semantics).
-            let is_allowed_omission =
-                |n: &str| matches!(n, "content-length" | "transfer-encoding" | "vary");
-
-            if prev_has && !head_has {
-                if is_allowed_omission(name_str) {
-                    // allowed to be omitted on HEAD
-                } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!(
-                            "HEAD response missing header field that GET had: '{}'",
-                            name_str
-                        ),
-                    });
-                }
+            // `Transfer-Encoding` is answered by its own document, in both
+            // directions and for the value as well: it may be sent, it need not
+            // be, and what it names can be taken off the message by anyone on
+            // the way. Nothing about the two responses' framing is comparable.
+            // cite(RFC 9112 § 6.1): "Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response (Section 15.4.5 of [HTTP]) to a GET request, neither of which includes a message body, to indicate that the origin server would have applied a transfer coding to the message body if the request had been an unconditional GET."
+            // cite(RFC 9112 § 6.1): "This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed."
+            if name_str == "transfer-encoding" {
+                continue;
             }
 
-            if head_has && !prev_has {
-                if is_allowed_omission(name_str) {
-                    // allowed to appear on HEAD even if GET didn't
-                } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!(
-                            "HEAD response includes header field not present on GET: '{}'",
-                            name_str
-                        ),
-                    });
+            // `Content-Length` is answered whole by § 8.6 and not by the
+            // presence comparison below: its absence from either response is
+            // permitted, and its *value* is governed whenever the HEAD carries
+            // one — including when the GET declared none at all.
+            if name_str == "content-length" {
+                if let Some(m) = content_length_finding(prev_resp, resp) {
+                    return report(m);
                 }
+                continue;
             }
 
-            if prev_has && head_has {
-                // Special-case: content-length must match if both present and parseable.
-                if name_str.eq_ignore_ascii_case("content-length") {
-                    let prev_len = match crate::helpers::headers::validate_content_length(
-                        &prev_resp.headers,
-                    ) {
-                        Ok(Some(n)) => Some(n),
-                        _ => None,
-                    };
-                    let cur_len =
-                        match crate::helpers::headers::validate_content_length(&resp.headers) {
-                            Ok(Some(n)) => Some(n),
-                            _ => None,
+            // Both values as their sender wrote them: every field line of the
+            // section, joined, as octets. Reading one line would measure a field
+            // written across two against a field written across one, and
+            // decoding would refuse the `obs-text` § 5.5 admits — while equality
+            // of two field values is equality of two octet strings and needs no
+            // decode at all.
+            let prev_val = crate::helpers::headers::combined_field_value_as_written(
+                &prev_resp.headers,
+                name_str,
+            );
+            let head_val =
+                crate::helpers::headers::combined_field_value_as_written(&resp.headers, name_str);
+
+            match (prev_val, head_val) {
+                (Some(_), None) if !presence_difference_is_permitted(name_str) => {
+                    return report(format!(
+                        "HEAD response missing header field that GET had: '{}'",
+                        name_str
+                    ));
+                }
+                (None, Some(_)) if !presence_difference_is_permitted(name_str) => {
+                    return report(format!(
+                        "HEAD response includes header field not present on GET: '{}'",
+                        name_str
+                    ));
+                }
+                (Some(av), Some(bv)) => {
+                    if name_str == "vary" {
+                        // The field value is a set of field names, and field
+                        // names are case-insensitive — so two spellings of one
+                        // set are one advertisement, and neither the order nor
+                        // the case is part of what was advertised.
+                        // cite(RFC 9110 § 12.5.5): "A Vary field value is either the wildcard member "*" or a list of request field names, known as the selecting header fields, that might have had a role in selecting the representation for this response."
+                        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
+                        let members = |v: &str| {
+                            let mut m: Vec<String> = crate::helpers::headers::parse_list_header(v)
+                                .map(|s| s.to_ascii_lowercase())
+                                .collect();
+                            m.sort_unstable();
+                            m
                         };
-
-                    if let (Some(p), Some(c)) = (prev_len, cur_len) {
-                        if p != c {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "Content-Length in HEAD ({}) differs from GET ({})",
-                                    c, p
-                                ),
-                            });
+                        if members(&av) != members(&bv) {
+                            return report(format!(
+                                "Vary header in HEAD differs from GET: '{}' vs '{}'",
+                                bv, av
+                            ));
                         }
+                        continue;
                     }
-                    continue;
-                }
 
-                // For list-like headers where ordering may differ, normalize 'Vary' specially
-                if name_str.eq_ignore_ascii_case("vary") {
-                    let a = crate::helpers::headers::get_header_str(&prev_resp.headers, name_str);
-                    let b = crate::helpers::headers::get_header_str(&resp.headers, name_str);
-                    if let (Some(av), Some(bv)) = (a, b) {
-                        // normalize members to lowercase before sorting/comparison so
-                        // token-case differences (e.g. "Accept" vs "accept") do not
-                        // cause false positives.
-                        let mut a_members: Vec<String> =
-                            crate::helpers::headers::parse_list_header(av)
-                                .map(|s| s.to_ascii_lowercase())
-                                .collect();
-                        let mut b_members: Vec<String> =
-                            crate::helpers::headers::parse_list_header(bv)
-                                .map(|s| s.to_ascii_lowercase())
-                                .collect();
-                        a_members.sort_unstable();
-                        b_members.sort_unstable();
-                        if a_members != b_members {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "Vary header in HEAD differs from GET: '{}' vs '{}'",
-                                    bv, av
-                                ),
-                            });
-                        }
-                    }
-                    continue;
-                }
-
-                // Default: compare UTF-8 header values when available
-                let a = crate::helpers::headers::get_header_str(&prev_resp.headers, name_str);
-                let b = crate::helpers::headers::get_header_str(&resp.headers, name_str);
-                if let (Some(av), Some(bv)) = (a, b) {
+                    // Every other field is compared as written. A deployment
+                    // that adds a list-typed field to `headers` buys the one
+                    // divergence in this comparison: § 5.3 lets a sender spell
+                    // the separator `,` or `, `, and one list written across two
+                    // field lines joins with the first while the same list on one
+                    // line usually carries the second.
                     if av != bv {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!(
-                                "Header '{}' value differs between HEAD and GET ('{}' vs '{}')",
-                                name_str, bv, av
-                            ),
-                        });
+                        return report(format!(
+                            "Header '{}' value differs between HEAD and GET ('{}' vs '{}')",
+                            name_str, bv, av
+                        ));
                     }
                 }
-                // If either value is not valid UTF-8 we are lenient and do not compare contents.
+                _ => {}
             }
         }
 
@@ -237,7 +350,7 @@ impl Rule for SemanticHeadResponseHeadersMatchGet {
     }
 
     fn description(&self) -> &'static str {
-        "Ensure responses to `HEAD` mirror the header fields that would have been sent for a `GET` on the same resource. A `HEAD` response MUST omit the message body but SHOULD include the same representation metadata and header fields as the corresponding `GET` response. The rule flags cases where the observed `HEAD` response omits or adds header fields compared with a previously observed `GET` for the same request-target, with a small set of RFC-permitted exceptions (see Specifications)."
+        "Ensure responses to `HEAD` carry the header fields the server would have sent for a `GET` on the same resource. RFC 9110 §9.3.2 asks this with a SHOULD, and the configured `headers` array names the fields to compare; `Content-Length` is the exception, governed by §8.6's MUST NOT unless its value equals the octet count a `GET` would have delivered.\n\n**The comparison is evidence, not the sentence.** §9.3.2 is about the response the server *would have sent* for a `GET` at that moment, and what this rule has is a `GET` it observed earlier. It therefore declines whenever the two responses say they describe different things — a different status code, or a different `ETag` or `Last-Modified`. What it cannot see is a representation that changed with no validator to show it, so every finding assumes the resource held still between the two exchanges.\n\n**The exceptions are an open class.** §9.3.2 permits a server to omit any header field whose value is determined only while generating the content, and no field announces its membership — so the rule can only excuse the ones a specification names: `Content-Length` (§8.6), `Vary` (§9.3.2's own example) and `Transfer-Encoding` (RFC 9112 §6.1, which also makes its value incomparable). A field outside that set which the server legitimately omitted is still reported; configure `headers` accordingly."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -246,13 +359,25 @@ impl Rule for SemanticHeadResponseHeadersMatchGet {
                 spec: "RFC 9110",
                 section: Some("9.3.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
-                note: "The HEAD method and header-field equivalence: \"The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.\" (exceptions allowed for headers whose values are determined only while generating content.)",
+                note: "The rule's sentence, quoted whole: \"The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET. However, a server MAY omit header fields for which a value is determined only while generating the content.\" The MAY names a class, and the section prints Content-Length and Vary as examples of it rather than as its membership",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("8.6"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
-                note: "Content-Length: a server MAY send Content-Length in a `HEAD` response but if present its value MUST equal the decimal number of octets that would have been sent in the content of the corresponding `GET` response",
+                note: "Content-Length is the one requirement here that is not a SHOULD: \"a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method\". The same sentence opens with the MAY that lets a HEAD response omit it",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("8.8"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8",
+                note: "Why a difference between the two responses is not automatically a finding: validator fields \"describe the selected representation chosen by the origin server while handling the response\", so an ETag or Last-Modified that moved between the observed GET and this HEAD says the resource changed, and the rule declines",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9112",
+                section: Some("6.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
+                note: "Transfer-Encoding is excluded outright: it \"MAY be sent in a response to a HEAD request\", the indication \"is not required\", and any recipient on the response chain \"can remove transfer codings when they are not needed\" — so neither its presence nor its value is comparable across the two messages",
             },
         ]
     }
@@ -260,20 +385,38 @@ impl Rule for SemanticHeadResponseHeadersMatchGet {
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
+            // Each snippet is the observed GET exchange followed by the HEAD
+            // exchange measured against it, on one resource.
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
-                snippet: "# Previous GET\nGET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 42\n\n...body...\n\n# Later HEAD for same resource (headers match)\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 42",
+                label: Some("(the HEAD carries the fields the GET carried)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 42\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 42",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(§9.3.2's own example: a value determined while generating the content need not be generated for a HEAD)",
+                ),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 42\nVary: Accept-Encoding\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(the representation changed between the two exchanges, and the entity tags say so)",
+                ),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v1\"\nContent-Type: text/plain\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/html",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "# Previous GET\nGET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\n\n...body...\n\n# Later HEAD for same resource (missing ETag)\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain",
+                label: Some("(the HEAD omits a field the GET sent)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "# Previous GET\nGET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 100\n\n...body...\n\n# Later HEAD for same resource (Content-Length differs)\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 50",
+                label: Some(
+                    "(§8.6: a Content-Length that is not the octet count a GET would have delivered)",
+                ),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 100\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 50",
             },
         ]
     }
@@ -435,6 +578,28 @@ mod tests {
         assert!(v.is_none());
     }
 
+    // A GET followed by two HEADs: the second HEAD's immediately preceding
+    // transaction is the first HEAD, and the GET is still the evidence.
+    #[test]
+    fn the_most_recent_get_is_found_past_an_intervening_head() {
+        let get = make_prev_with_headers(&[("etag", "\"v1\"")]);
+        let mut earlier_head = make_head_with_headers(&[]);
+        earlier_head.request.uri = get.request.uri.clone();
+        let mut head = make_head_with_headers(&[]);
+        head.request.uri = get.request.uri.clone();
+
+        let v = SemanticHeadResponseHeadersMatchGet.check_transaction(
+            &head,
+            // newest first
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![
+                earlier_head,
+                get,
+            ]),
+            &make_cfg_with_headers(vec!["etag"]),
+        );
+        assert!(v.is_some());
+    }
+
     #[test]
     fn no_previous_does_nothing() {
         let rule = SemanticHeadResponseHeadersMatchGet;
@@ -481,68 +646,12 @@ mod tests {
 
     #[test]
     fn non_utf8_header_value_counts_as_presence() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
-        let mut prev = make_prev_with_headers(&[]);
-        // prev has a non-utf8 value for 'etag' — presence should be detected even if value cannot be compared
-        let mut hm = prev.response.as_ref().unwrap().headers.clone();
-        hm.insert("etag", HeaderValue::from_bytes(&[0xff]).unwrap());
-        prev.response = Some(crate::http_transaction::ResponseInfo {
-            status: prev.response.as_ref().unwrap().status,
-            version: prev.response.as_ref().unwrap().version.clone(),
-            headers: hm,
-            body_length: None,
-            trailers: None,
-        });
+        // A value `to_str` refuses is still a field the GET sent, and the HEAD
+        // omitting it is the finding.
+        let prev = with_raw_header(&make_prev_with_headers(&[]), "etag", &[0xff]);
+        let head = make_head_with_headers(&[]);
 
-        let mut head = make_head_with_headers(&[]);
-        head.request.uri = prev.request.uri.clone();
-
-        // prev had non-utf8 'etag' -> treated as present -> HEAD missing it should be a violation
-        let v = rule.check_transaction(
-            &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
-            &make_cfg_with_headers(vec!["etag"]),
-        );
-        assert!(v.is_some());
-    }
-
-    #[test]
-    fn both_non_utf8_values_are_lenient() {
-        // When both GET and HEAD have non-UTF8 header *values*, we treat them as present
-        // but we do not attempt to compare their contents — be lenient.
-        let rule = SemanticHeadResponseHeadersMatchGet;
-
-        let mut prev = make_prev_with_headers(&[]);
-        let mut phm = prev.response.as_ref().unwrap().headers.clone();
-        phm.insert("etag", HeaderValue::from_bytes(&[0xff]).unwrap());
-        prev.response = Some(crate::http_transaction::ResponseInfo {
-            status: prev.response.as_ref().unwrap().status,
-            version: prev.response.as_ref().unwrap().version.clone(),
-            headers: phm,
-            body_length: None,
-            trailers: None,
-        });
-
-        let mut head = make_head_with_headers(&[]);
-        let mut hhm = head.response.as_ref().unwrap().headers.clone();
-        hhm.insert("etag", HeaderValue::from_bytes(&[0xfe]).unwrap());
-        head.response = Some(crate::http_transaction::ResponseInfo {
-            status: head.response.as_ref().unwrap().status,
-            version: head.response.as_ref().unwrap().version.clone(),
-            headers: hhm,
-            body_length: None,
-            trailers: None,
-        });
-
-        head.request.uri = prev.request.uri.clone();
-
-        // Both present but non-UTF8 -> rule should be lenient and not report a violation
-        let v = rule.check_transaction(
-            &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
-            &make_cfg_with_headers(vec!["etag"]),
-        );
-        assert!(v.is_none());
+        assert!(check(&prev, &head, vec!["etag"]).is_some());
     }
 
     #[test]
@@ -637,20 +746,185 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn header_value_mismatch_reports_violation() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
-        let prev = make_prev_with_headers(&[("etag", "\"v1\"")]);
-        let mut head = make_head_with_headers(&[("etag", "\"v2\"")]);
+    /// Run the rule over a GET/HEAD pair on one resource.
+    ///
+    /// Every case needs the two transactions to name the same request-target,
+    /// and writing that line per test is what let one of them assert a verdict
+    /// the rule reached for a reason the test never named.
+    fn check(
+        prev: &crate::http_transaction::HttpTransaction,
+        head: &crate::http_transaction::HttpTransaction,
+        headers: Vec<&str>,
+    ) -> Option<Violation> {
+        let mut head = head.clone();
         head.request.uri = prev.request.uri.clone();
-
-        let v = rule.check_transaction(
+        SemanticHeadResponseHeadersMatchGet.check_transaction(
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
-            &make_cfg_with_headers(vec!["etag"]),
-        );
+            &make_cfg_with_headers(headers),
+        )
+    }
+
+    /// Replace a response's headers with raw octets a `&str` cannot carry.
+    fn with_raw_header(
+        tx: &crate::http_transaction::HttpTransaction,
+        name: &'static str,
+        bytes: &[u8],
+    ) -> crate::http_transaction::HttpTransaction {
+        let mut tx = tx.clone();
+        let resp = tx.response.as_ref().unwrap();
+        let mut hm = resp.headers.clone();
+        hm.insert(name, HeaderValue::from_bytes(bytes).unwrap());
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: resp.status,
+            version: resp.version.clone(),
+            headers: hm,
+            body_length: resp.body_length,
+            trailers: None,
+        });
+        tx
+    }
+
+    #[test]
+    fn header_value_mismatch_reports_violation() {
+        let prev = make_prev_with_headers(&[("content-type", "text/plain")]);
+        let head = make_head_with_headers(&[("content-type", "text/html")]);
+
+        let v = check(&prev, &head, vec!["content-type"]);
+        assert!(v.is_some());
+        assert!(v
+            .unwrap()
+            .message
+            .contains("Header 'content-type' value differs"));
+    }
+
+    // The representation is free to change between the two exchanges, and both
+    // validators say when it did — §8.8's sentence is why a difference in
+    // anything else is then not this rule's finding.
+    #[test]
+    fn etag_difference_declines_the_whole_comparison() {
+        let prev = make_prev_with_headers(&[("etag", "\"v1\""), ("content-type", "text/plain")]);
+        let head = make_head_with_headers(&[("etag", "\"v2\""), ("content-type", "text/html")]);
+
+        assert!(check(&prev, &head, vec!["etag", "content-type"]).is_none());
+    }
+
+    #[test]
+    fn last_modified_difference_declines_the_whole_comparison() {
+        let prev = make_prev_with_headers(&[
+            ("last-modified", "Tue, 15 Nov 1994 12:45:26 GMT"),
+            ("content-type", "text/plain"),
+        ]);
+        let head = make_head_with_headers(&[
+            ("last-modified", "Wed, 16 Nov 1994 12:45:26 GMT"),
+            ("content-type", "text/html"),
+        ]);
+
+        assert!(check(&prev, &head, vec!["content-type"]).is_none());
+    }
+
+    // A weak tag and its strong twin name one representation (§8.8.3.2's weak
+    // comparison), so the comparison runs — and the field values still differ,
+    // which is §9.3.2's finding.
+    #[test]
+    fn weak_and_strong_form_of_one_tag_is_still_compared() {
+        let prev = make_prev_with_headers(&[("etag", "W/\"v1\"")]);
+        let head = make_head_with_headers(&[("etag", "\"v1\"")]);
+
+        let v = check(&prev, &head, vec!["etag"]);
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Header 'etag' value differs"));
+    }
+
+    // §15: two responses reporting different results are not each other's
+    // counterfactual.
+    #[test]
+    fn different_status_codes_decline() {
+        let prev = make_prev_with_headers(&[("content-type", "text/plain")]);
+        let mut head = make_head_with_headers(&[("content-type", "text/html")]);
+        head.response.as_mut().unwrap().status = 404;
+
+        assert!(check(&prev, &head, vec!["content-type"]).is_none());
+    }
+
+    // §9.1: the method token is case-sensitive, in both positions.
+    #[test]
+    fn lowercase_head_is_not_the_head_method() {
+        let prev = make_prev_with_headers(&[("etag", "\"v1\"")]);
+        let mut head = make_head_with_headers(&[]);
+        head.request.method = "head".to_string();
+
+        assert!(check(&prev, &head, vec!["etag"]).is_none());
+    }
+
+    #[test]
+    fn lowercase_get_is_not_the_get_method() {
+        let mut prev = make_prev_with_headers(&[("etag", "\"v1\"")]);
+        prev.request.method = "get".to_string();
+        let head = make_head_with_headers(&[]);
+
+        assert!(check(&prev, &head, vec!["etag"]).is_none());
+    }
+
+    // Equality of two field values is equality of two octet strings; `to_str`
+    // refusing `obs-text` is not a reason to stop comparing.
+    #[test]
+    fn non_utf8_values_that_differ_are_reported() {
+        let prev = with_raw_header(&make_prev_with_headers(&[]), "content-type", &[0xff]);
+        let head = with_raw_header(&make_head_with_headers(&[]), "content-type", &[0xfe]);
+
+        assert!(check(&prev, &head, vec!["content-type"]).is_some());
+    }
+
+    #[test]
+    fn non_utf8_values_that_match_are_not_reported() {
+        let prev = with_raw_header(&make_prev_with_headers(&[]), "content-type", &[0xff]);
+        let head = with_raw_header(&make_head_with_headers(&[]), "content-type", &[0xff]);
+
+        assert!(check(&prev, &head, vec!["content-type"]).is_none());
+    }
+
+    // §5.2: several field lines are one value, so reading the first measures
+    // half of it.
+    #[test]
+    fn field_written_across_two_lines_is_compared_whole() {
+        let prev =
+            make_prev_with_headers(&[("cache-control", "no-cache"), ("cache-control", "private")]);
+        let head = make_head_with_headers(&[("cache-control", "no-cache")]);
+
+        assert!(check(&prev, &head, vec!["cache-control"]).is_some());
+    }
+
+    // RFC 9112 §6.1: the indication is not required and any recipient may
+    // remove the codings, so its value is not comparable either.
+    #[test]
+    fn transfer_encoding_value_difference_is_not_reported() {
+        let prev = make_prev_with_headers(&[("transfer-encoding", "gzip, chunked")]);
+        let head = make_head_with_headers(&[("transfer-encoding", "chunked")]);
+
+        assert!(check(&prev, &head, vec!["transfer-encoding"]).is_none());
+    }
+
+    // §8.6's MUST NOT is about a count of octets, and a chunked GET declares
+    // none — the octets it delivered are the same count, measured.
+    #[test]
+    fn content_length_compared_against_the_octets_a_chunked_get_delivered() {
+        let mut prev = make_prev_with_headers(&[("transfer-encoding", "chunked")]);
+        prev.response.as_mut().unwrap().body_length = Some(7);
+        let head = make_head_with_headers(&[("content-length", "42")]);
+
+        let v = check(&prev, &head, vec!["content-length"]);
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("7 octets"));
+    }
+
+    #[test]
+    fn content_length_matching_a_chunked_gets_octets_is_not_reported() {
+        let mut prev = make_prev_with_headers(&[("transfer-encoding", "chunked")]);
+        prev.response.as_mut().unwrap().body_length = Some(42);
+        let head = make_head_with_headers(&[("content-length", "42")]);
+
+        assert!(check(&prev, &head, vec!["content-length"]).is_none());
     }
 
     #[test]
@@ -755,33 +1029,6 @@ mod tests {
         let mut head = make_head_with_headers(&[("etag", "\"v1\"")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
-            &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
-            &make_cfg_with_headers(vec!["etag"]),
-        );
-        assert!(v.is_none());
-    }
-
-    #[test]
-    fn prev_non_utf8_and_head_utf8_is_lenient() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
-
-        let mut prev = make_prev_with_headers(&[]);
-        let mut phm = prev.response.as_ref().unwrap().headers.clone();
-        phm.insert("etag", HeaderValue::from_bytes(&[0xff]).unwrap());
-        prev.response = Some(crate::http_transaction::ResponseInfo {
-            status: prev.response.as_ref().unwrap().status,
-            version: prev.response.as_ref().unwrap().version.clone(),
-            headers: phm,
-            body_length: None,
-            trailers: None,
-        });
-
-        let mut head = make_head_with_headers(&[("etag", "\"v1\"")]);
-        head.request.uri = prev.request.uri.clone();
-
-        // presence detected, but values are not compared when one side is non-UTF8
         let v = rule.check_transaction(
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
@@ -927,6 +1174,74 @@ mod tests {
             &make_cfg_with_headers(vec!["etag"]),
         );
         assert!(v.is_none());
+    }
+
+    /// Nothing else runs a rule's published examples through it. Each snippet
+    /// is four blocks — the observed GET's request and response, then the
+    /// HEAD's — and the fields config_example.toml ships are what judge them.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::Compliance;
+
+        fn exchange(request: &str, response: &str) -> crate::http_transaction::HttpTransaction {
+            let mut lines = request.lines();
+            let request_line = lines.next().expect("a request has a request line");
+            let parts: Vec<&str> = request_line.split(' ').collect();
+            let [method, target, "HTTP/1.1"] = parts.as_slice() else {
+                panic!("not a request line: {request_line:?}");
+            };
+
+            let mut lines = response.lines();
+            let status_line = lines.next().expect("a response has a status line");
+            let status: u16 = status_line
+                .strip_prefix("HTTP/1.1 ")
+                .and_then(|rest| rest.split(' ').next())
+                .and_then(|code| code.parse().ok())
+                .unwrap_or_else(|| panic!("not a status line: {status_line:?}"));
+            let fields: Vec<(&str, &str)> = lines
+                .map(|line| {
+                    line.split_once(": ")
+                        .unwrap_or_else(|| panic!("not a field line: {line:?}"))
+                })
+                .collect();
+
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &fields);
+            tx.request.method = (*method).to_string();
+            tx.request.uri = (*target).to_string();
+            tx
+        }
+
+        let mut saw_a_finding = false;
+        for ex in SemanticHeadResponseHeadersMatchGet.examples() {
+            let blocks: Vec<&str> = ex.snippet.split("\n\n").collect();
+            let [get_req, get_resp, head_req, head_resp] = blocks.as_slice() else {
+                panic!("not two exchanges: {:?}", ex.snippet);
+            };
+
+            let found = check(
+                &exchange(get_req, get_resp),
+                &exchange(head_req, head_resp),
+                vec!["etag", "content-type", "content-length"],
+            );
+
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "example labelled Compliant is reported: {:?} -> {:?}",
+                    ex.snippet,
+                    found.map(|v| v.message)
+                ),
+                Compliance::NonCompliant => {
+                    assert!(
+                        found.is_some(),
+                        "example labelled NonCompliant is not reported: {:?}",
+                        ex.snippet
+                    );
+                    saw_a_finding = true;
+                }
+            }
+        }
+        assert!(saw_a_finding, "the guard ran without reaching a finding");
     }
 
     #[test]
