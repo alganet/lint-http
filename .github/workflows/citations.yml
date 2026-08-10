@@ -10,8 +10,9 @@ permissions:
 # Two jobs, two cadences. `citations` is offline — it fetches nothing and only
 # asks whether the tree and the committed citations file agree — so it runs on
 # every push and pull request to main. `verify` fetches the real documents, so it
-# runs nightly, and on manual dispatch. `pip install apycite` brings apycite and
-# its apysource dependency from PyPI.
+# runs nightly, and on manual dispatch. Both jobs install from
+# specs/requirements.txt, which pins apycite and apysource together; the argument
+# for pinning both is in that file.
 on:
   push:
     branches: [ main ]
@@ -34,8 +35,8 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install apycite
-        run: pip install apycite
+      - name: Install the citation toolchain
+        run: pip install -r specs/requirements.txt
 
       # The committed specs/specs_generated.yaml is what the tree actually says.
       # --frozen re-derives it and diffs; it never writes.
@@ -64,8 +65,8 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install apycite
-        run: pip install apycite
+      - name: Install the citation toolchain
+        run: pip install -r specs/requirements.txt
 
       - name: Cache fetched documents
         uses: actions/cache@v6

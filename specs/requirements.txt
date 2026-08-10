@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+
+# The citation toolchain, pinned — and pinned in both halves deliberately.
+#
+# specs/specs_generated.yaml is a generated file that lives in the tree, and
+# `apycite extract --frozen` compares it byte for byte. Those bytes are a
+# function of the reader's version: apysource decides each source's URL and
+# media type, apycite decides the ordering and the labels. An unpinned reader
+# therefore makes every upstream release a silent, unreviewed change to a
+# committed file — the diff lands on whichever pull request happens to run
+# first, blamed on an author who touched nothing near it.
+#
+# Pinning apycite alone does not close this. apycite floors apysource with no
+# ceiling, so `pip install apycite` pulls a new apysource the moment one is
+# published, even when apycite itself has not moved. Both lines are load-bearing.
+#
+# This is not a migration shim. When the toolchain moves forward, the pin moves
+# forward in a commit of its own, alongside the regenerated file it produces —
+# which is exactly the review the unpinned form skipped. APYCITE.md's A10 is the
+# precedent: 0.8.0 fixed one extraction defect and shipped another in the same
+# tag, so for one release the tool lost section labels it had just gained.
+
+apycite==0.4.2
+apysource==0.8.1
