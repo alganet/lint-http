@@ -1053,37 +1053,37 @@ sources:
     snippet: Note that entity-headers contained in the request apply only to the contained patch document and MUST NOT be applied to the resource being modified.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
-      line: 31
+      line: 33
   - label: semantic_patch_partial_update (2)
     section: § 2
     snippet: Servers MUST ensure that a received patch document is appropriate for the type of resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
-      line: 93
+      line: 97
   - label: semantic_patch_partial_update (3)
     section: § 2
     snippet: The PATCH method requests that a set of changes described in the request entity be applied to the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
-      line: 49
+      line: 51
   - label: semantic_patch_partial_update (4)
     section: § 2
     snippet: The set of changes is represented in a format called a "patch document" identified by a media type.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
-      line: 92
+      line: 96
   - label: semantic_patch_partial_update (5)
     section: § 2
     snippet: Therefore, there is no single default patch document format that implementations are required to support.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
-      line: 81
+      line: 84
   - label: semantic_patch_partial_update (6)
     section: § 2.2
     snippet: Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
-      line: 94
+      line: 98
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.txt
   type: text/plain
@@ -2434,7 +2434,7 @@ sources:
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 84
     - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
-      line: 48
+      line: 50
     - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
       line: 78
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
@@ -4096,7 +4096,7 @@ sources:
     - file: lint-http-rules/src/rules/message_problem_details_structure.rs
       line: 88
     - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
-      line: 95
+      line: 99
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 108
   - label: message_problem_details_structure (4)
@@ -4710,13 +4710,13 @@ sources:
     snippet: Similarly, Section 3.1 of [RFC5789] defines the "Accept-Patch" response header field, which allows discovery of which content types are accepted in PATCH requests.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
-      line: 82
+      line: 85
   - label: semantic_patch_partial_update (2)
     section: § 8.3
     snippet: A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
-      line: 62
+      line: 64
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 101
   - label: semantic_post_creates_resource
