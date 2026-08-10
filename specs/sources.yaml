@@ -50,6 +50,47 @@ sources:
   - label: HTML Speculative Loading
     url: https://html.spec.whatwg.org/multipage/speculative-loading.html
     type: text/html
+    # § 7.7 X-Frame-Options and § 7.8 Refresh live here too, which is why two
+    # rules that have nothing to do with speculative loading name this page.
+    # § 7.8 defines the `Refresh` header by reference only — it says the value is
+    # the `meta` pragma's and hands the processing model to the two pages below.
+
+  - label: HTML Semantics
+    url: https://html.spec.whatwg.org/multipage/semantics.html
+    type: text/html
+    # § 4.2.5.3's pragma directives: the Refresh state's authoring conformance
+    # requirement — the only sentence in HTML that states what a conforming
+    # `Refresh` value looks like — and the shared declarative refresh steps that
+    # say what a recipient does with a non-conforming one.
+
+  - label: HTML Common Microsyntaxes
+    url: https://html.spec.whatwg.org/multipage/common-microsyntaxes.html
+    type: text/html
+    # § 2.3 defines the datatypes the conformance requirements above are written
+    # in — "valid non-negative integer" is one ASCII production, and `u64::from_str`
+    # is not it (that one accepts a leading U+002B).
+
+  - label: HTML Document Lifecycle
+    url: https://html.spec.whatwg.org/multipage/document-lifecycle.html
+    type: text/html
+    # § 7.5.1 "create and initialize a Document object" is where the `Refresh`
+    # header enters the processing model: it is isomorphic-decoded, not UTF-8
+    # decoded, and the note there says multiple field lines are unspecified.
+
+  - label: URL
+    url: https://url.spec.whatwg.org/
+    type: text/html
+    # The WHATWG URL Standard, not RFC 3986. HTML values that carry a URL are
+    # defined as a "valid URL string", whose alphabet (§ 4.3, URL units) differs
+    # from `URI-reference`'s in both directions — it admits U+00A0 to U+10FFFD
+    # and refuses nothing RFC 3986 admits — so `helpers::uri`, which transcribes
+    # RFC 3986, is the wrong reader for one of these.
+
+  - label: Infra
+    url: https://infra.spec.whatwg.org/
+    type: text/html
+    # Cited only for the primitives the other WHATWG documents invoke by name:
+    # isomorphic decoding, ASCII whitespace.
 
   # ── W3C ───────────────────────────────────────────────────────────────
 

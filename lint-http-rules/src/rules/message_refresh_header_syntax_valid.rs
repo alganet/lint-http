@@ -7,13 +7,175 @@ use crate::rules::Rule;
 
 pub struct MessageRefreshHeaderSyntaxValid;
 
+/// Whether `c` is one of the code points a URL may be written with.
+///
+/// Transcribed from the WHATWG URL Standard § 4.3, not from RFC 3986 — the two
+/// alphabets differ in both directions, and this is the one HTML's "valid URL
+/// string" is defined against. `helpers::uri::find_non_uri_char` is RFC 3986's
+/// and would refuse every code point above U+007F, which this one admits.
+///
+/// The sentence excludes surrogates and noncharacters. Neither is reachable
+/// here: the caller's input is isomorphic-decoded field octets, so every code
+/// point is U+0000 to U+00FF.
+fn is_url_code_point(c: char) -> bool {
+    // cite(URL): "The URL code points are ASCII alphanumeric, U+0021 (!), U+0024 ($), U+0026 (&), U+0027 ('), U+0028 LEFT PARENTHESIS, U+0029 RIGHT PARENTHESIS, U+002A (*), U+002B (+), U+002C (,), U+002D (-), U+002E (.), U+002F (/), U+003A (:), U+003B (;), U+003D (=), U+003F (?), U+0040 (@), U+005F (_), U+007E (~), and code points in the range U+00A0 to U+10FFFD, inclusive, excluding surrogates and noncharacters."
+    c.is_ascii_alphanumeric()
+        || matches!(
+            c,
+            '!' | '$'
+                | '&'
+                | '\''
+                | '('
+                | ')'
+                | '*'
+                | '+'
+                | ','
+                | '-'
+                | '.'
+                | '/'
+                | ':'
+                | ';'
+                | '='
+                | '?'
+                | '@'
+                | '_'
+                | '~'
+        )
+        || ('\u{A0}'..='\u{10FFFD}').contains(&c)
+}
+
+/// The reason `s` cannot be a *valid URL string*, or `None`.
+///
+/// This answers the alphabet half of that question and nothing else: whether the
+/// components are in a legal order, and whether a host parses, are the URL
+/// parser's questions and are not decided here.
+///
+/// Three ASCII code points that are not URL code points are still admitted,
+/// because the grammar spends them as delimiters rather than as data — each is
+/// cited at its exclusion below.
+fn find_invalid_url_unit(s: &str) -> Option<String> {
+    for (i, c) in s.char_indices() {
+        if c == '%' {
+            // cite(URL): "URL units are URL code points and percent-encoded bytes."
+            // A percent-encoded byte is `%` and exactly two hex digits, so a `%`
+            // that does not open one is the code point itself, unescaped.
+            let mut rest = s[i + 1..].chars();
+            let two_hex = matches!((rest.next(), rest.next()),
+                (Some(a), Some(b)) if a.is_ascii_hexdigit() && b.is_ascii_hexdigit());
+            if !two_hex {
+                return Some(
+                    "has a '%' not followed by two hex digits, so it is not a percent-encoded byte"
+                        .into(),
+                );
+            }
+            continue;
+        }
+        // cite(URL): "An absolute-URL-with-fragment string must be an absolute-URL string, optionally followed by U+0023 (#) and a URL-fragment string."
+        // cite(URL): "A valid host string must be a valid domain string, a valid IPv4-address string, or: U+005B ([), followed by a valid IPv6-address string, followed by U+005D (])."
+        // `#`, `[` and `]` are named by the grammar as the delimiters they are;
+        // no other code point outside the set above has a sentence like these.
+        if is_url_code_point(c) || matches!(c, '#' | '[' | ']') {
+            continue;
+        }
+        // cite(URL): "A code point is found that is not a URL unit."
+        return Some(format!("contains {c:?}, which is not a URL unit"));
+    }
+    None
+}
+
+/// Whether `c` is ASCII whitespace, as the WHATWG documents above use the term.
+fn is_ascii_whitespace(c: char) -> bool {
+    // cite(Infra): "ASCII whitespace is U+0009 TAB, U+000A LF, U+000C FF, U+000D CR, or U+0020 SPACE."
+    matches!(c, '\t' | '\n' | '\u{C}' | '\r' | ' ')
+}
+
+/// The reason `s` is not a conforming `Refresh` value, or `None`.
+///
+/// `s` is the whole field value, isomorphic-decoded and with HTTP's leading and
+/// trailing whitespace already removed. The production is the authoring
+/// conformance requirement for the `meta` pragma, which § 7.8 makes this field's
+/// too — two forms, and everything else is a finding.
+fn refresh_value_error(s: &str) -> Option<String> {
+    // cite(HTML Semantics): "For meta elements with an http-equiv attribute in the Refresh state, the content attribute must have a value consisting either of:"
+    // cite(HTML Semantics): "just a valid non-negative integer, or"
+    // cite(HTML Semantics): "a valid non-negative integer, followed by a U+003B SEMICOLON character (;), followed by one or more ASCII whitespace, followed by a substring that is an ASCII case-insensitive match for the string "URL", followed by a U+003D EQUALS SIGN character (=), followed by a valid URL string"
+    // The sentence runs on into the quote clause, which is cited at the check
+    // that enforces it below: the trailing `(")` leaves this fragment's
+    // quotation marks unpaired, and the cite grammar has no escape for that.
+    //
+    // The `;` is the only structural delimiter in either form, and the URL runs
+    // from `URL=` to the end of the value. So this splits once, at the first
+    // `;`, and never again — a `;` or a `,` further along is data inside the URL,
+    // which the second form admits.
+    let (time, after_semicolon) = match s.find(';') {
+        Some(i) => (&s[..i], Some(&s[i + 1..])),
+        None => (s, None),
+    };
+
+    // cite(HTML Common Microsyntaxes): "A string is a valid non-negative integer if it consists of one or more ASCII digits."
+    // One or more ASCII digits and nothing else — no sign, no radix point. This
+    // is why the check is not `parse::<u64>()`, which accepts a leading `+`.
+    if time.is_empty() || !time.chars().all(|c| c.is_ascii_digit()) {
+        return Some(format!(
+            "'{time}' is not a valid non-negative integer; the value is a delay in seconds, \
+             optionally followed by `; URL=<url>`"
+        ));
+    }
+
+    // No `;`: the value is the first form, and the first form is complete.
+    let after_semicolon = after_semicolon?;
+
+    let after_ws = after_semicolon.trim_start_matches(is_ascii_whitespace);
+    if after_ws.is_empty() {
+        return Some(
+            "the ';' is followed by nothing; the second form is `<seconds>; URL=<url>`".into(),
+        );
+    }
+    if after_ws.len() == after_semicolon.len() {
+        return Some(format!(
+            "the ';' is not followed by whitespace; the second form is `<seconds>; URL=<url>`, \
+             not `;{after_ws}`"
+        ));
+    }
+
+    let mut it = after_ws.chars();
+    let keyword = (it.next(), it.next(), it.next(), it.next());
+    let is_url_eq = matches!(keyword, (Some(u), Some(r), Some(l), Some('='))
+        if u.eq_ignore_ascii_case(&'U') && r.eq_ignore_ascii_case(&'R') && l.eq_ignore_ascii_case(&'L'));
+    if !is_url_eq {
+        return Some(format!(
+            "'{after_ws}' is not a `URL=` parameter; `URL` is the only name the second form \
+             admits, and no whitespace is permitted around its '='"
+        ));
+    }
+
+    let url: String = it.collect();
+    if url.is_empty() {
+        return Some("`URL=` carries no URL".into());
+    }
+    // cite(HTML Semantics): "that does not start with a literal U+0027 APOSTROPHE (') or U+0022 QUOTATION MARK"
+    // The rest of the second form's sentence, above. A quoted URL is not a
+    // conforming value even though the processing model reads one: the shared
+    // declarative refresh steps strip a leading quote and truncate at its match.
+    if url.starts_with('\'') || url.starts_with('"') {
+        return Some(format!(
+            "the URL {url:?} starts with a quote character, which the value may not do"
+        ));
+    }
+    // cite(URL): "A valid URL string must be either a relative-URL-with-fragment string or an absolute-URL-with-fragment string."
+    // Relative is a conforming form, which is why nothing here asks for a
+    // scheme: `1http://example/` names none and is an ordinary relative path,
+    // not a malformed absolute URL.
+    find_invalid_url_unit(&url).map(|why| format!("the URL {url:?} {why}"))
+}
+
 impl Rule for MessageRefreshHeaderSyntaxValid {
     fn id(&self) -> &'static str {
         "message_refresh_header_syntax_valid"
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
-        // Refresh is a response header (non-standard but commonly seen)
+        // cite(HTML Speculative Loading): "The `Refresh` HTTP response header is the HTTP-equivalent to a meta element with an http-equiv attribute in the Refresh state."
         crate::rules::RuleScope::Server
     }
 
@@ -26,111 +188,53 @@ impl Rule for MessageRefreshHeaderSyntaxValid {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
-        for hv in resp.headers.get_all("refresh").iter() {
-            let s = match hv.to_str() {
-                Ok(s) => s.trim(),
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Refresh header contains non-UTF8 value".into(),
-                    })
-                }
-            };
-
-            // Common error: comma-separated values (multi-value in single field) is invalid.
-            // `Refresh` takes the value of the `meta` http-equiv it mirrors, and that is a
-            // single time-and-URL, not a list.
-            // cite(HTML Speculative Loading): "The `Refresh` HTTP response header is the HTTP-equivalent to a meta element with an http-equiv attribute in the Refresh state."
-            if s.contains(',') {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "Refresh header value '{}' must not be a comma-separated list",
-                        s
-                    ),
-                });
-            }
-
-            let parts: Vec<&str> = s.split(';').map(|p| p.trim()).collect();
-            if parts.is_empty() || parts[0].is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "Refresh header value '{}' is invalid: missing delta-seconds",
-                        s
-                    ),
-                });
-            }
-
-            // First part must be a non-negative integer (delta-seconds)
-            if parts[0].parse::<u64>().is_err() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "Refresh delta-seconds '{}' is not a non-negative integer",
-                        parts[0]
-                    ),
-                });
-            }
-
-            // Optional parameters: only support `url=` parameter (case-insensitive)
-            for param in parts.iter().skip(1) {
-                if param.is_empty() {
-                    continue;
-                }
-                let lower = param.to_ascii_lowercase();
-                if lower.starts_with("url=") {
-                    // Extract value after '=' preserving original case for URI checks
-                    let idx = param.find('=').unwrap();
-                    let v = param[(idx + 1)..].trim();
-                    if v.is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: "Refresh 'url' parameter requires a non-empty value".into(),
-                        });
-                    }
-                    // Validate URI-like value using existing helpers
-                    if crate::helpers::uri::contains_whitespace(v) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!("Refresh url '{}' contains whitespace", v),
-                        });
-                    }
-                    if let Some(msg) = crate::helpers::uri::check_percent_encoding(v) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!(
-                                "Refresh url '{}' invalid percent-encoding: {}",
-                                v, msg
-                            ),
-                        });
-                    }
-                    if let Some(msg) = crate::helpers::uri::validate_scheme_if_present(v) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!("Refresh url '{}' invalid scheme: {}", v, msg),
-                        });
-                    }
-                    continue;
-                }
-
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!("Unrecognized Refresh parameter: '{}'", param),
-                });
-            }
+        let lines = resp.headers.get_all("refresh");
+        let count = lines.iter().count();
+        if count == 0 {
+            return None;
         }
 
-        None
+        // cite(HTML Document Lifecycle): "We do not currently have a spec for how to handle multiple `Refresh` headers."
+        // The processing model is handed one string, so several field lines are
+        // read as their combination — and HTML says outright that it does not
+        // define what happens next. Nothing is measured after this: the value a
+        // recipient parses is not any of the lines that were sent.
+        if count > 1 {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: format!(
+                    "Response carries {count} Refresh header field lines; HTML specifies no \
+                     handling for more than one, so what a recipient does with them is not \
+                     interoperable"
+                ),
+            });
+        }
+
+        let raw = lines.iter().next()?.as_bytes();
+        // cite(HTML Document Lifecycle): "Let value be the isomorphic decoding of the value of the header."
+        // cite(Infra): "To isomorphic decode a byte sequence input, return a string whose code point length is equal to input’s length and whose code points have the same values as the values of input’s bytes, in the same order."
+        // Not `to_str()`. Every octet becomes the code point of the same value,
+        // so an `obs-text` byte reaches the check that owns it — `%xE9` is a URL
+        // code point and `%x85` is not, and a UTF-8 decode cannot tell them
+        // apart because it refuses both.
+        let decoded: String = raw.iter().map(|&b| b as char).collect();
+
+        // cite(RFC 9110 §5.5): "A field value does not include leading or trailing whitespace."
+        // HTTP's whitespace, not Infra's: the octets a sender may pad with are
+        // SP and HTAB, and `str::trim` would also eat `%xA0`, which is `obs-text`
+        // and belongs to the value.
+        let value = decoded.trim_matches(|c| c == ' ' || c == '\t');
+
+        // cite(HTML Speculative Loading): "It takes the same value and works largely the same."
+        // The conformance requirement `refresh_value_error` implements is written
+        // for the `meta` pragma's content attribute; this is the sentence that
+        // makes it this field's requirement too.
+        refresh_value_error(value).map(|why| Violation {
+            rule: self.id().into(),
+            severity: config.severity,
+            message: format!("Refresh header value '{value}': {why}"),
+        })
     }
 
     fn title(&self) -> Option<&'static str> {
@@ -138,16 +242,34 @@ impl Rule for MessageRefreshHeaderSyntaxValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validate syntax of the `Refresh` response header. Long treated as non-standard, it is now specified by the HTML Standard as the HTTP equivalent of a `meta` element in the Refresh state, and takes the same value: a `delta-seconds` value optionally followed by a `url=<URI>` parameter (e.g., `5; url=/new`). This rule flags malformed values such as non-numeric delays, missing `url` values, unrecognized parameters, and invalid URI syntax in the `url` parameter.\n\nNote: this rule rejects comma-separated field-values (i.e., the header must be a single value). As a consequence, URLs containing commas will be flagged because commas are treated as list separators by this check."
+        "Validate the syntax of the `Refresh` response header. Long treated as non-standard, it is now specified by the HTML Standard (§ 7.8), which says it is the HTTP equivalent of a `meta` element with `http-equiv=\"refresh\"` and *takes the same value*. That value has exactly two conforming forms: a delay in seconds on its own, or a delay followed by `;`, one or more spaces, `URL=` (in any case), and a valid URL string that does not begin with a quote. This rule reports a value matching neither.\n\nWhere the verdicts come from, since § 7.8 states no requirement of its own: the `must` is the authoring conformance requirement written for the `meta` pragma's content attribute, and \"takes the same value\" is the sentence that carries it to the field. The URL is judged against the WHATWG URL Standard's alphabet — its *URL units* — rather than RFC 3986's, so a non-ASCII octet is a URL code point here, and a relative reference such as `1http://x` is a conforming URL rather than a malformed scheme.\n\nOnly the URL's alphabet is checked. Whether its components are in a legal order, and whether its host parses, are the URL parser's questions and are not asked.\n\nMore than one `Refresh` field line is reported on its own terms: HTML records that it has no specification for that case, so the finding is an interoperability report rather than a violation of a stated requirement, and nothing further is measured — the string a recipient parses is the combination of the lines, not any one of them."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
                 spec: "HTML Speculative Loading",
-                section: None,
-                url: "https://html.spec.whatwg.org/multipage/speculative-loading.html",
-                note: "The `Refresh` header — the HTTP equivalent of a `meta` element in the Refresh state. The standard caught up with the header; this reference had not",
+                section: Some("§ 7.8"),
+                url: "https://html.spec.whatwg.org/multipage/speculative-loading.html#the-refresh-header",
+                note: "The `Refresh` header. Three sentences: it is the `meta` pragma's HTTP equivalent, it takes the same value, and its processing model is elsewhere. It states no requirement of its own",
+            },
+            crate::rules::SpecRef {
+                spec: "HTML Semantics",
+                section: Some("§ 4.2.5.3"),
+                url: "https://html.spec.whatwg.org/multipage/semantics.html#attr-meta-http-equiv-refresh",
+                note: "Refresh state: the shared declarative refresh steps, and the authoring conformance requirement this rule enforces — the only sentence in HTML that says what a conforming value looks like",
+            },
+            crate::rules::SpecRef {
+                spec: "HTML Document Lifecycle",
+                section: Some("§ 7.5.1"),
+                url: "https://html.spec.whatwg.org/multipage/document-lifecycle.html#initialise-the-document-object",
+                note: "Create and initialize a Document object: the field is isomorphic-decoded before parsing, and a note records that multiple field lines are unspecified",
+            },
+            crate::rules::SpecRef {
+                spec: "URL",
+                section: Some("§ 4.3"),
+                url: "https://url.spec.whatwg.org/#url-writing",
+                note: "URL writing: valid URL string, URL code points and URL units — the alphabet the `URL=` value is judged against, which is not RFC 3986's",
             },
             crate::rules::SpecRef {
                 spec: "MDN Refresh",
@@ -164,12 +286,12 @@ impl Rule for MessageRefreshHeaderSyntaxValid {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "HTTP/1.1 200 OK\nRefresh: 5\n\nHTTP/1.1 200 OK\nRefresh: 10; url=/new",
+                snippet: "HTTP/1.1 200 OK\nRefresh: 5\n\nHTTP/1.1 200 OK\nRefresh: 10; url=/new\n\nHTTP/1.1 200 OK\nRefresh: 0; URL=/report?from=a,b;to=c",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: "HTTP/1.1 200 OK\nRefresh: bad\n\nHTTP/1.1 200 OK\nRefresh: 5; url=\n\nHTTP/1.1 200 OK\nRefresh: 5; foo=bar\n\nHTTP/1.1 200 OK\nRefresh: 5, 10  # comma-separated values are not valid",
+                snippet: "HTTP/1.1 200 OK\nRefresh: bad\n\nHTTP/1.1 200 OK\nRefresh: +5\n\nHTTP/1.1 200 OK\nRefresh: 10;url=/new\n\nHTTP/1.1 200 OK\nRefresh: 5; url=\n\nHTTP/1.1 200 OK\nRefresh: 5; url=\"/new\"\n\nHTTP/1.1 200 OK\nRefresh: 5; foo=bar\n\nHTTP/1.1 200 OK\nRefresh: 5, 10",
             },
         ]
     }
@@ -184,190 +306,152 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
-    #[rstest]
-    #[case(&[("refresh", "5")], false)]
-    #[case(&[("refresh", "0")], false)]
-    #[case(&[("refresh", "10; url=/new")], false)]
-    #[case(&[("refresh", "10; url=http://example/")], false)]
-    #[case(&[("refresh", "10;URL=/x")], false)]
-    #[case(&[("refresh", "bad")], true)]
-    #[case(&[("refresh", "10; url=")], true)]
-    #[case(&[("refresh", "10; foo=bar")], true)]
-    #[case(&[("refresh", "10, 20")], true)]
-    fn cases(#[case] hdrs: &[(&str, &str)], #[case] expect_violation: bool) -> anyhow::Result<()> {
-        let rule = MessageRefreshHeaderSyntaxValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(200, hdrs);
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        if expect_violation {
-            assert!(v.is_some(), "expected violation for {:?}", hdrs);
-        } else {
-            assert!(v.is_none(), "unexpected violation for {:?}: {:?}", hdrs, v);
-        }
-        Ok(())
-    }
+    /// One constructor for every fixture, taking the field's octets as written.
+    /// The rule reads the raw bytes, so a fixture that can only carry a `&str`
+    /// cannot express the values the isomorphic decode exists for.
+    fn make_tx_with_refresh(values: &[&[u8]]) -> crate::http_transaction::HttpTransaction {
+        use hyper::header::{HeaderName, HeaderValue};
 
-    #[test]
-    fn non_utf8_header_is_violation() -> anyhow::Result<()> {
-        use hyper::header::HeaderValue;
-        use hyper::HeaderMap;
-
-        let rule = MessageRefreshHeaderSyntaxValid;
         let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = HeaderMap::new();
-        let bad = HeaderValue::from_bytes(&[0xff]).expect("should construct non-utf8 value");
-        hm.insert("refresh", bad);
+        let mut hm = hyper::HeaderMap::new();
+        for v in values {
+            hm.append(
+                HeaderName::from_static("refresh"),
+                HeaderValue::from_bytes(v).expect("fixture value is a legal field value"),
+            );
+        }
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
             version: "HTTP/1.1".into(),
             headers: hm,
-
             body_length: None,
             trailers: None,
         });
+        tx
+    }
 
-        let v = rule.check_transaction(
-            &tx,
+    fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+        let rule = MessageRefreshHeaderSyntaxValid;
+        rule.check_transaction(
+            tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("non-UTF8"));
-        Ok(())
+        )
+    }
+
+    #[rstest]
+    // Form one: a valid non-negative integer on its own.
+    #[case(b"5")]
+    #[case(b"0")]
+    #[case(b"007")]
+    // Form two, in both cases of the keyword and with each ASCII whitespace.
+    #[case(b"10; url=/new")]
+    #[case(b"10; URL=/new")]
+    #[case(b"10;\turl=/new")]
+    #[case(b"10;   url=/new")]
+    #[case(b"10; url=http://example/")]
+    // A `,` and a `;` further along are data inside the URL; the value is split
+    // once, at the first `;`, and the URL runs to the end of it.
+    #[case(b"5; url=/a,b")]
+    #[case(b"5; url=/a;b")]
+    #[case(b"0; URL=/report?from=a,b;to=c")]
+    // No scheme is required: a relative reference is a valid URL string.
+    #[case(b"5; url=1http://example/")]
+    // `%xE9` is a URL code point. `to_str()` refused the whole field for this.
+    #[case(b"5; url=/caf\xe9")]
+    fn conforming_values_are_not_reported(#[case] value: &[u8]) {
+        let v = judge(&make_tx_with_refresh(&[value]));
+        assert!(v.is_none(), "{:?}: {v:?}", String::from_utf8_lossy(value));
+    }
+
+    #[rstest]
+    #[case(b"bad", "not a valid non-negative integer")]
+    #[case(b"", "not a valid non-negative integer")]
+    #[case(b"   ", "not a valid non-negative integer")]
+    #[case(b"5.5; url=/x", "not a valid non-negative integer")]
+    // `u64::from_str` accepts a leading `+`; `1*ASCII digit` does not.
+    #[case(b"+5", "not a valid non-negative integer")]
+    // Neither form admits a `,` where the `;` belongs.
+    #[case(b"5, 10", "not a valid non-negative integer")]
+    // The second form is missing entirely, so the `;` delimits nothing.
+    #[case(b"5;", "followed by nothing")]
+    #[case(b"5;   ", "followed by nothing")]
+    // "followed by one or more ASCII whitespace" is part of the requirement.
+    #[case(b"10;url=/new", "not followed by whitespace")]
+    #[case(b"5; foo=bar", "is not a `URL=` parameter")]
+    #[case(b"5; url =/new", "is not a `URL=` parameter")]
+    #[case(b"5; url= /new", "is not a URL unit")]
+    #[case(b"5; url=", "carries no URL")]
+    // "a valid URL string that does not start with a literal U+0027 … or U+0022".
+    #[case(b"5; url=\"/new\"", "starts with a quote")]
+    #[case(b"5; url='/new'", "starts with a quote")]
+    #[case(b"5; url=/in valid", "is not a URL unit")]
+    #[case(b"5; url=/x<y>", "is not a URL unit")]
+    // `%x85` is `obs-text` and is not a URL code point; `%xE9` (above) is.
+    #[case(b"5; url=/x\x85", "is not a URL unit")]
+    #[case(b"5; url=/x%G1", "not followed by two hex digits")]
+    #[case(b"5; url=/x%2", "not followed by two hex digits")]
+    fn non_conforming_values_are_reported(#[case] value: &[u8], #[case] expected: &str) {
+        let v = judge(&make_tx_with_refresh(&[value])).unwrap_or_else(|| {
+            panic!(
+                "expected a finding for {:?}",
+                String::from_utf8_lossy(value)
+            )
+        });
+        assert!(v.message.contains(expected), "{}", v.message);
     }
 
     #[test]
-    fn multiple_header_fields_all_valid() -> anyhow::Result<()> {
-        let rule = MessageRefreshHeaderSyntaxValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("refresh", "5"), ("refresh", "10; url=/x")],
-        );
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-        Ok(())
+    fn no_refresh_field_is_not_a_finding() {
+        assert!(judge(&make_tx_with_refresh(&[])).is_none());
     }
 
     #[test]
-    fn multiple_header_fields_one_invalid_reports_violation() -> anyhow::Result<()> {
-        let rule = MessageRefreshHeaderSyntaxValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("refresh", "5"), ("refresh", "bad")],
+    fn several_field_lines_are_reported_even_when_each_would_pass() {
+        // Both lines are conforming on their own. What a recipient parses is
+        // neither of them, and HTML does not say what it is.
+        let v = judge(&make_tx_with_refresh(&[b"5", b"10; url=/x"])).expect("expected a finding");
+        assert!(
+            v.message.contains("2 Refresh header field lines"),
+            "{}",
+            v.message
         );
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        Ok(())
     }
 
     #[test]
-    fn whitespace_only_value_reports_missing_delta_seconds() -> anyhow::Result<()> {
+    fn published_examples_are_judged_by_this_rule() {
+        use crate::rules::{Compliance, Rule as _};
         let rule = MessageRefreshHeaderSyntaxValid;
-        let tx =
-            crate::test_helpers::make_test_transaction_with_response(200, &[("refresh", "   ")]);
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("missing delta-seconds"));
-        Ok(())
-    }
 
-    #[test]
-    fn trailing_semicolon_is_accepted() -> anyhow::Result<()> {
-        // Trailing semicolon should be ignored (no parameter present)
-        let rule = MessageRefreshHeaderSyntaxValid;
-        let tx =
-            crate::test_helpers::make_test_transaction_with_response(200, &[("refresh", "5;")]);
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
-        Ok(())
-    }
+        for ex in rule.examples() {
+            for block in ex.snippet.split("\n\n") {
+                let mut values: Vec<&[u8]> = Vec::new();
+                for (i, line) in block.lines().enumerate() {
+                    if i == 0 {
+                        assert!(
+                            line.starts_with("HTTP/1.1 "),
+                            "the first line of an example message is its status line: {line:?}"
+                        );
+                        continue;
+                    }
+                    let (name, value) = line.split_once(':').unwrap_or_else(|| {
+                        panic!("example header line is not `Name: value`: {line:?}")
+                    });
+                    assert_eq!(name.to_ascii_lowercase(), "refresh", "{line:?}");
+                    values.push(value.trim_start_matches(' ').as_bytes());
+                }
+                assert!(
+                    !values.is_empty(),
+                    "example message carries no field: {block:?}"
+                );
 
-    #[test]
-    fn url_with_comma_is_reported() -> anyhow::Result<()> {
-        // Because the rule treats commas as list separators, a URL containing a comma is flagged
-        let rule = MessageRefreshHeaderSyntaxValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("refresh", "5; url=/a,b")],
-        );
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn url_whitespace_percent_encoding_and_scheme_are_reported() -> anyhow::Result<()> {
-        // whitespace in url
-        let rule = MessageRefreshHeaderSyntaxValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("refresh", "5; url=/in valid")],
-        );
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("contains whitespace"));
-
-        // invalid percent-encoding
-        let tx2 = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("refresh", "5; url=/x%G1")],
-        );
-        let v2 = rule.check_transaction(
-            &tx2,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v2.is_some());
-        let msg2 = v2.unwrap().message;
-        assert!(msg2.contains("percent-encoding"));
-
-        // invalid scheme (starts with digit)
-        let tx3 = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("refresh", "5; url=1http://example/")],
-        );
-        let v3 = rule.check_transaction(
-            &tx3,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v3.is_some());
-        let msg3 = v3.unwrap().message;
-        assert!(msg3.contains("invalid scheme"));
-
-        Ok(())
+                let v = judge(&make_tx_with_refresh(&values));
+                match ex.compliance {
+                    Compliance::Compliant => assert!(v.is_none(), "{block}: {v:?}"),
+                    Compliance::NonCompliant => assert!(v.is_some(), "{block}"),
+                }
+            }
+        }
     }
 
     #[test]
