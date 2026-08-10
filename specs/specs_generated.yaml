@@ -2435,6 +2435,8 @@ sources:
       line: 84
     - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
       line: 50
+    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+      line: 31
     - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
       line: 78
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
@@ -3027,6 +3029,8 @@ sources:
       line: 56
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 44
+    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+      line: 68
   - label: lint-http-rules/src/helpers/headers.rs (19)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
@@ -4389,6 +4393,8 @@ sources:
       line: 205
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
       line: 100
+    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+      line: 61
   - label: message_trailer_fields_validity (2)
     section: § 5.6.1.2
     snippet: 'A recipient MUST parse and ignore a reasonable number of empty list elements:'
@@ -4720,11 +4726,47 @@ sources:
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 101
   - label: semantic_post_creates_resource
-    section: § 9.3.3
-    snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response
+    section: § 10.2.2
+    snippet: For 201 (Created) responses, the Location value refers to the primary resource created by the request.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+      line: 76
+    - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
+      line: 33
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 28
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 88
+  - label: semantic_post_creates_resource (2)
+    section: § 15.3.2
+    snippet: The 201 (Created) status code indicates that the request has been fulfilled and has resulted in one or more new resources being created.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+      line: 50
+  - label: semantic_post_creates_resource (3)
+    section: § 15.3.2
+    snippet: The primary resource created by the request is identified by either a Location header field in the response or, if no Location header field is received, by the target URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+      line: 62
+    - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
+      line: 34
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 27
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 89
+  - label: semantic_post_creates_resource (4)
+    section: § 9.3.3
+    snippet: An origin server indicates response semantics by choosing an appropriate status code depending on the result of processing the POST request; almost all of the status codes defined by this specification could be received in a response to POST (the exceptions being 206 (Partial Content), 304 (Not Modified), and 416 (Range Not Satisfiable)).
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+      line: 39
+  - label: semantic_post_creates_resource (5)
+    section: § 9.3.3
+    snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created (Section 10.2.2) and a representation that describes the status of the request while referring to the new resource(s).
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+      line: 75
   - label: semantic_status_code_semantics
     section: § 11.6.1
     snippet: A proxy forwarding a response MUST NOT modify any WWW-Authenticate header fields in that response.
@@ -5091,16 +5133,6 @@ sources:
       line: 132
   - label: server_redirect_status_and_location_validity
     section: § 10.2.2
-    snippet: For 201 (Created) responses, the Location value refers to the primary resource created by the request.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
-      line: 33
-    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
-      line: 28
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 88
-  - label: server_redirect_status_and_location_validity (2)
-    section: § 10.2.2
     snippet: For 3xx (Redirection) responses, the Location value refers to the preferred target resource for automatically redirecting the request.
     cited_by:
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
@@ -5109,13 +5141,13 @@ sources:
       line: 112
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 30
-  - label: server_redirect_status_and_location_validity (3)
+  - label: server_redirect_status_and_location_validity (2)
     section: § 10.2.2
     snippet: The type of relationship is defined by the combination of request method and status code semantics.
     cited_by:
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 83
-  - label: server_redirect_status_and_location_validity (4)
+  - label: server_redirect_status_and_location_validity (3)
     section: § 15
     snippet: A client that receives a response with an invalid status code SHOULD process the response as if it had a 5xx (Server Error) status code.
     cited_by:
@@ -5123,7 +5155,7 @@ sources:
       line: 53
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
       line: 79
-  - label: server_redirect_status_and_location_validity (5)
+  - label: server_redirect_status_and_location_validity (4)
     section: § 15
     snippet: However, a client MUST understand the class of any status code, as indicated by the first digit, and treat an unrecognized status code as being equivalent to the x00 status code of that class.
     cited_by:
@@ -5133,16 +5165,6 @@ sources:
       line: 67
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 77
-  - label: server_redirect_status_and_location_validity (6)
-    section: § 15.3.2
-    snippet: The primary resource created by the request is identified by either a Location header field in the response or, if no Location header field is received, by the target URI.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
-      line: 34
-    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
-      line: 27
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 89
   - label: server_response_405_allow
     section: § 15.5.6
     snippet: The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods.
