@@ -51,8 +51,9 @@ fn is_url_code_point(c: char) -> bool {
 /// parser's questions and are not decided here.
 ///
 /// Three ASCII code points that are not URL code points are still admitted,
-/// because the grammar spends them as delimiters rather than as data — each is
-/// cited at its exclusion below.
+/// because the grammar spends them as delimiters rather than as data. The two
+/// sentences that name them are cited at the exclusion below; no other code
+/// point outside the set has one.
 fn find_invalid_url_unit(s: &str) -> Option<String> {
     for (i, c) in s.char_indices() {
         if c == '%' {
@@ -72,8 +73,7 @@ fn find_invalid_url_unit(s: &str) -> Option<String> {
         }
         // cite(URL): "An absolute-URL-with-fragment string must be an absolute-URL string, optionally followed by U+0023 (#) and a URL-fragment string."
         // cite(URL): "A valid host string must be a valid domain string, a valid IPv4-address string, or: U+005B ([), followed by a valid IPv6-address string, followed by U+005D (])."
-        // `#`, `[` and `]` are named by the grammar as the delimiters they are;
-        // no other code point outside the set above has a sentence like these.
+        // `#`, `[` and `]` are named by the grammar as the delimiters they are.
         if is_url_code_point(c) || matches!(c, '#' | '[' | ']') {
             continue;
         }
@@ -84,6 +84,11 @@ fn find_invalid_url_unit(s: &str) -> Option<String> {
 }
 
 /// Whether `c` is ASCII whitespace, as the WHATWG documents above use the term.
+///
+/// `char::is_ascii_whitespace` is the same five code points today, and
+/// `std_agrees_on_ascii_whitespace` pins that. This exists anyway because the
+/// sentence has to have somewhere to attach: a call to std carries no
+/// transcription, so there would be nothing for the cite to sit on.
 fn is_ascii_whitespace(c: char) -> bool {
     // cite(Infra): "ASCII whitespace is U+0009 TAB, U+000A LF, U+000C FF, U+000D CR, or U+0020 SPACE."
     matches!(c, '\t' | '\n' | '\u{C}' | '\r' | ' ')
@@ -131,7 +136,7 @@ fn refresh_value_error(s: &str) -> Option<String> {
             "the ';' is followed by nothing; the second form is `<seconds>; URL=<url>`".into(),
         );
     }
-    if after_ws.len() == after_semicolon.len() {
+    if !after_semicolon.starts_with(is_ascii_whitespace) {
         return Some(format!(
             "the ';' is not followed by whitespace; the second form is `<seconds>; URL=<url>`, \
              not `;{after_ws}`"
@@ -155,8 +160,10 @@ fn refresh_value_error(s: &str) -> Option<String> {
     }
     // cite(HTML Semantics): "that does not start with a literal U+0027 APOSTROPHE (') or U+0022 QUOTATION MARK"
     // The rest of the second form's sentence, above. A quoted URL is not a
-    // conforming value even though the processing model reads one: the shared
-    // declarative refresh steps strip a leading quote and truncate at its match.
+    // conforming value even though the processing model reads one, and the
+    // reading is why: the closing quote and everything after it are discarded,
+    // so a sender who quotes a URL loses whatever followed the second mark.
+    // cite(HTML Semantics): "If quote is not the empty string, and there is a code point in urlString equal to quote, then truncate urlString at that code point, so that it and all subsequent code points are removed."
     if url.starts_with('\'') || url.starts_with('"') {
         return Some(format!(
             "the URL {url:?} starts with a quote character, which the value may not do"
@@ -195,10 +202,12 @@ impl Rule for MessageRefreshHeaderSyntaxValid {
         }
 
         // cite(HTML Document Lifecycle): "We do not currently have a spec for how to handle multiple `Refresh` headers."
-        // The processing model is handed one string, so several field lines are
-        // read as their combination — and HTML says outright that it does not
-        // define what happens next. Nothing is measured after this: the value a
-        // recipient parses is not any of the lines that were sent.
+        // cite(Fetch): "Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20"
+        // The processing model is handed one string, and that string is the
+        // combination of every field line — so HTML's note is not about a choice
+        // between the lines, it is about a value none of them carries. Nothing is
+        // measured after this: judging the first line would judge something no
+        // recipient reads.
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
@@ -399,6 +408,17 @@ mod tests {
             )
         });
         assert!(v.message.contains(expected), "{}", v.message);
+    }
+
+    #[test]
+    fn std_agrees_on_ascii_whitespace() {
+        // The doc comment on `is_ascii_whitespace` says std's set is the same
+        // five code points. That is a claim about another crate, so it is pinned
+        // here rather than trusted.
+        for b in 0u8..=0x7F {
+            let c = b as char;
+            assert_eq!(is_ascii_whitespace(c), c.is_ascii_whitespace(), "{c:?}");
+        }
     }
 
     #[test]

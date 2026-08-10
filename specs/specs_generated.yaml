@@ -57,6 +57,11 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_cross_origin_resource_policy_valid.rs
       line: 79
+  - label: message_refresh_header_syntax_valid
+    snippet: Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20
+    cited_by:
+    - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
+      line: 205
   - label: message_sec_fetch_dest_value_valid
     snippet: 'A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt".'
     cited_by:
@@ -129,12 +134,12 @@ sources:
     snippet: It takes the same value and works largely the same.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 229
+      line: 238
   - label: message_refresh_header_syntax_valid (2)
     snippet: The `Refresh` HTTP response header is the HTTP-equivalent to a meta element with an http-equiv attribute in the Refresh state.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 178
+      line: 185
   - label: server_x_frame_options_value_valid
     snippet: For each value of rawXFrameOptions, append value, converted to ASCII lowercase, to xFrameOptions.
     cited_by:
@@ -168,22 +173,27 @@ sources:
     snippet: 'For meta elements with an http-equiv attribute in the Refresh state, the content attribute must have a value consisting either of:'
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 99
+      line: 104
   - label: message_refresh_header_syntax_valid (2)
+    snippet: If quote is not the empty string, and there is a code point in urlString equal to quote, then truncate urlString at that code point, so that it and all subsequent code points are removed.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
+      line: 166
+  - label: message_refresh_header_syntax_valid (3)
     snippet: a valid non-negative integer, followed by a U+003B SEMICOLON character (;), followed by one or more ASCII whitespace, followed by a substring that is an ASCII case-insensitive match for the string "URL", followed by a U+003D EQUALS SIGN character (=), followed by a valid URL string
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 101
-  - label: message_refresh_header_syntax_valid (3)
+      line: 106
+  - label: message_refresh_header_syntax_valid (4)
     snippet: just a valid non-negative integer, or
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 100
-  - label: message_refresh_header_syntax_valid (4)
+      line: 105
+  - label: message_refresh_header_syntax_valid (5)
     snippet: that does not start with a literal U+0027 APOSTROPHE (') or U+0022 QUOTATION MARK
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 156
+      line: 161
 - label: HTML Common Microsyntaxes
   url: https://html.spec.whatwg.org/multipage/common-microsyntaxes.html
   type: text/html
@@ -192,7 +202,7 @@ sources:
     snippet: A string is a valid non-negative integer if it consists of one or more ASCII digits.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 115
+      line: 120
 - label: HTML Document Lifecycle
   url: https://html.spec.whatwg.org/multipage/document-lifecycle.html
   type: text/html
@@ -201,12 +211,12 @@ sources:
     snippet: Let value be the isomorphic decoding of the value of the header.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 215
+      line: 224
   - label: message_refresh_header_syntax_valid (2)
     snippet: We do not currently have a spec for how to handle multiple `Refresh` headers.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 197
+      line: 204
 - label: URL
   url: https://url.spec.whatwg.org/
   type: text/html
@@ -220,17 +230,17 @@ sources:
     snippet: A valid URL string must be either a relative-URL-with-fragment string or an absolute-URL-with-fragment string.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 165
+      line: 172
   - label: message_refresh_header_syntax_valid (3)
     snippet: 'A valid host string must be a valid domain string, a valid IPv4-address string, or: U+005B ([), followed by a valid IPv6-address string, followed by U+005D (]).'
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 74
+      line: 75
   - label: message_refresh_header_syntax_valid (4)
     snippet: An absolute-URL-with-fragment string must be an absolute-URL string, optionally followed by U+0023 (#) and a URL-fragment string.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 73
+      line: 74
   - label: message_refresh_header_syntax_valid (5)
     snippet: The URL code points are ASCII alphanumeric, U+0021 (!), U+0024 ($), U+0026 (&), U+0027 ('), U+0028 LEFT PARENTHESIS, U+0029 RIGHT PARENTHESIS, U+002A (*), U+002B (+), U+002C (,), U+002D (-), U+002E (.), U+002F (/), U+003A (:), U+003B (;), U+003D (=), U+003F (?), U+0040 (@), U+005F (_), U+007E (~), and code points in the range U+00A0 to U+10FFFD, inclusive, excluding surrogates and noncharacters.
     cited_by:
@@ -240,7 +250,7 @@ sources:
     snippet: URL units are URL code points and percent-encoded bytes.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 59
+      line: 60
 - label: Infra
   url: https://infra.spec.whatwg.org/
   type: text/html
@@ -249,12 +259,12 @@ sources:
     snippet: ASCII whitespace is U+0009 TAB, U+000A LF, U+000C FF, U+000D CR, or U+0020 SPACE.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 88
+      line: 93
   - label: message_refresh_header_syntax_valid (2)
     snippet: To isomorphic decode a byte sequence input, return a string whose code point length is equal to input’s length and whose code points have the same values as the values of input’s bytes, in the same order.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 216
+      line: 225
 - label: CSP3
   url: https://www.w3.org/TR/CSP3/
   type: text/html
@@ -2722,7 +2732,7 @@ sources:
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 106
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 223
+      line: 232
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 234
   - label: lint-http-rules/src/helpers/headers.rs
