@@ -5867,6 +5867,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 227
+    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+      line: 86
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 217
   - label: message_compression_and_transfer_encoding_consistency
@@ -6157,6 +6159,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
       line: 264
+  - label: semantic_post_creates_resource
+    section: § 3.3
+    snippet: Otherwise, the target URI's combined path and query component is the request-target.
+    cited_by:
+    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+      line: 87
   - label: server_no_body_for_1xx_204_304
     section: § 6.1
     snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
