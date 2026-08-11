@@ -1985,12 +1985,64 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 767
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 133
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 233
   - label: message_early_data_header_safe_method
     section: § 4
     snippet: Absent other information, clients MAY send requests with safe HTTP methods ([RFC7231], Section 4.2.1) in early data when it is available and MUST NOT send unsafe methods (or methods whose safety is not known) in early data.
     cited_by:
     - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
-      line: 33
+      line: 176
+  - label: message_early_data_header_safe_method (2)
+    section: § 5.1
+    snippet: A request that is marked with Early-Data was sent in early data on a previous hop.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 164
+  - label: message_early_data_header_safe_method (3)
+    section: § 5.1
+    snippet: An intermediary MUST NOT remove this header field if it is present in a request.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 226
+  - label: message_early_data_header_safe_method (4)
+    section: § 5.1
+    snippet: An intermediary that forwards a request prior to the completion of the TLS handshake with its client MUST send it with the Early-Data header field set to "1" (i.e., it adds it if not present in the request).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 190
+  - label: message_early_data_header_safe_method (5)
+    section: § 5.1
+    snippet: Early-Data MUST NOT appear in a Connection header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 227
+  - label: message_early_data_header_safe_method (6)
+    section: § 5.1
+    snippet: 'It has just one valid value: "1".'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 205
+  - label: message_early_data_header_safe_method (7)
+    section: § 5.1
+    snippet: Multiple or invalid instances of the header field MUST be treated as equivalent to a single instance with a value of 1 by a server.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 163
+  - label: message_early_data_header_safe_method (8)
+    section: § 5.1
+    snippet: The Early-Data header field carries a single bit of information, and clients MUST include at most one instance.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 154
+  - label: message_early_data_header_safe_method (9)
+    section: § 5.1
+    snippet: The Early-Data request header field indicates that the request has been conveyed in early data and that a client understands the 425 (Too Early) status code.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 165
 - label: RFC 8594
   url: https://www.rfc-editor.org/rfc/rfc8594.txt
   type: text/plain
@@ -2435,6 +2487,10 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
       line: 75
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 76
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 170
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
       line: 205
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
@@ -3859,6 +3915,36 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
       line: 93
+  - label: message_early_data_header_safe_method
+    section: § 16.1.1
+    snippet: 'HTTP method registrations MUST include the following fields:'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 28
+  - label: message_early_data_header_safe_method (2)
+    section: § 16.1.1
+    snippet: Safe ("yes" or "no", see Section 9.2.1)
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 29
+  - label: message_early_data_header_safe_method (3)
+    section: § 16.1.1
+    snippet: The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 27
+  - label: message_early_data_header_safe_method (4)
+    section: § 16.1.1
+    snippet: Values to be added to this namespace require IETF Review
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 30
+  - label: message_early_data_header_safe_method (5)
+    section: § 9.2.1
+    snippet: Request methods are considered "safe" if their defined semantics are essentially read-only; i.e., the client does not request, and does not expect, any state change on the origin server as a result of applying a safe method to a target resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 177
   - label: message_etag_syntax
     section: § 8.8.3
     snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
