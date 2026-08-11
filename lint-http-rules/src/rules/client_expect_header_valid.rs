@@ -85,7 +85,7 @@ impl Rule for ClientExpectHeaderValid {
         let Some(members) = members_of(&value) else {
             return report(format!(
                 "Expect has a quoted-string that is never terminated: '{}'",
-                shown(&value)
+                crate::helpers::headers::shown_in_finding(&value)
             ));
         };
 
@@ -98,7 +98,7 @@ impl Rule for ClientExpectHeaderValid {
                     "Expect writes an empty list element (member {} of {}): '{}'",
                     i + 1,
                     members.len(),
-                    shown(&value)
+                    crate::helpers::headers::shown_in_finding(&value)
                 ));
             }
             let e = match parse_expectation(member) {
@@ -172,7 +172,7 @@ impl Rule for ClientExpectHeaderValid {
                      specification defines no value or parameters for it, so a recipient matching \
                      the member against 100-continue sees a different expectation and may answer \
                      417 (Expectation Failed). This is advice: the grammar admits the argument",
-                    shown(e.member)
+                    crate::helpers::headers::shown_in_finding(e.member)
                 ));
             }
         }
@@ -294,22 +294,6 @@ fn members_of(value: &str) -> Option<Vec<&str>> {
     })
 }
 
-/// Render a field value, or one member of it, into a finding.
-///
-/// The value was read octet by octet, so it can carry octets that would corrupt
-/// the message rather than appear in it -- an HTAB inside a `quoted-string` is
-/// legal and reachable, and a lone backslash reads as an escape to whoever sees
-/// the finding next. The sibling rules that read values as written escape them
-/// the same way.
-///
-/// It is not the answer for `obs-text`: `escape_debug` leaves a printable code
-/// point alone, so %xE9 arrives in the message as `é`. That is legible and
-/// deliberate -- naming the offending octet is [`describe_octet`]'s job, and the
-/// findings that turn on one call it.
-fn shown(s: &str) -> String {
-    s.escape_debug().to_string()
-}
-
 /// Parse one OWS-trimmed, non-empty list member against `expectation`.
 ///
 /// The member arrives one `char` per octet, so every octet no production admits
@@ -332,7 +316,7 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, String>
     if name.is_empty() {
         return Err(format!(
             "Expect member '{}' does not begin with a token: found {}",
-            shown(member),
+            crate::helpers::headers::shown_in_finding(member),
             first_octet_of(member)
         ));
     }
@@ -346,7 +330,7 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, String>
             "Invalid octet {} after the Expect expectation name '{}': the production admits only \
              '=' there, and `parameters` are inside the group the '=' opens",
             describe_octet(stopper as u8),
-            shown(name)
+            crate::helpers::headers::shown_in_finding(name)
         ));
     }
     let rest = &tail[1..];
@@ -357,13 +341,13 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, String>
         let Some(end) = quoted_string_end(rest) else {
             return Err(format!(
                 "Expect member '{}' has a quoted-string that is never terminated",
-                shown(member)
+                crate::helpers::headers::shown_in_finding(member)
             ));
         };
         validate_quoted_string(&rest[..=end]).map_err(|e| {
             format!(
                 "Invalid quoted-string in Expect member '{}': {}",
-                shown(member),
+                crate::helpers::headers::shown_in_finding(member),
                 e
             )
         })?;
@@ -375,7 +359,7 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, String>
         if end == 0 {
             return Err(format!(
                 "Expect member '{}' has '=' with no token or quoted-string after it: found {}",
-                shown(member),
+                crate::helpers::headers::shown_in_finding(member),
                 first_octet_of(rest)
             ));
         }
@@ -421,8 +405,8 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
     if !segments[0].is_empty() {
         return Err(format!(
             "Expect member '{}' has octets after its value that are not parameters: '{}'",
-            shown(member),
-            shown(segments[0])
+            crate::helpers::headers::shown_in_finding(member),
+            crate::helpers::headers::shown_in_finding(segments[0])
         ));
     }
 
@@ -440,8 +424,8 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
         let Some((pname, pvalue)) = seg.split_once('=') else {
             return Err(format!(
                 "Expect member '{}' has a parameter with no value: '{}'",
-                shown(member),
-                shown(seg)
+                crate::helpers::headers::shown_in_finding(member),
+                crate::helpers::headers::shown_in_finding(seg)
             ));
         };
         // No `OWS` is written around a parameter's `=`, and the section says so
@@ -453,15 +437,15 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
         if pname.is_empty() {
             return Err(format!(
                 "Expect member '{}' has a parameter with no name: '{}'",
-                shown(member),
-                shown(seg)
+                crate::helpers::headers::shown_in_finding(member),
+                crate::helpers::headers::shown_in_finding(seg)
             ));
         }
         if let Some(c) = find_invalid_token_char(pname) {
             return Err(format!(
                 "Invalid octet {} in Expect parameter name '{}'",
                 describe_octet(c as u8),
-                shown(pname)
+                crate::helpers::headers::shown_in_finding(pname)
             ));
         }
         if pvalue.starts_with('"') {
@@ -474,21 +458,21 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
             validate_quoted_string(pvalue).map_err(|e| {
                 format!(
                     "Invalid quoted-string in Expect parameter '{}': {}",
-                    shown(seg),
+                    crate::helpers::headers::shown_in_finding(seg),
                     e
                 )
             })?;
         } else if pvalue.is_empty() {
             return Err(format!(
                 "Expect member '{}' has a parameter with an empty value: '{}'",
-                shown(member),
-                shown(seg)
+                crate::helpers::headers::shown_in_finding(member),
+                crate::helpers::headers::shown_in_finding(seg)
             ));
         } else if let Some(c) = find_invalid_token_char(pvalue) {
             return Err(format!(
                 "Invalid octet {} in Expect parameter value '{}'",
                 describe_octet(c as u8),
-                shown(pvalue)
+                crate::helpers::headers::shown_in_finding(pvalue)
             ));
         }
     }

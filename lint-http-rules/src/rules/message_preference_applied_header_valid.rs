@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, parse_token_bws_word, quoting_is_balanced,
+    combined_field_value_as_written, parse_token_bws_word, quoting_is_balanced, shown_in_finding,
     split_commas_respecting_quotes, split_semicolons_respecting_quotes, trim_ows,
 };
 use crate::lint::Violation;
@@ -172,7 +172,7 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
         if members.iter().any(|m| m.is_empty()) {
             return violation(format!(
                 "Preference-Applied header contains an empty list element: '{}'",
-                applied
+                shown_in_finding(&applied)
             ));
         }
 
@@ -189,7 +189,7 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
             if split_semicolons_respecting_quotes(member).len() > 1 {
                 return violation(format!(
                     "Preference-Applied member '{}' carries parameters, which its grammar does not include",
-                    member
+                    shown_in_finding(member)
                 ));
             }
 
@@ -199,7 +199,8 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
                 Err(e) => {
                     return violation(format!(
                         "Preference-Applied member '{}' does not match applied-pref: {}",
-                        member, e
+                        shown_in_finding(member),
+                        e
                     ))
                 }
             };
@@ -214,7 +215,7 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
             if parsed.bws {
                 return violation(format!(
                     "Preference-Applied member '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
-                    member
+                    shown_in_finding(member)
                 ));
             }
 
@@ -240,6 +241,11 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
             // server cannot have honored a preference that was not asked for.
             //
             // cite(RFC 7240 § 3): "The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server and applied to the processing of a request."
+            // `parsed.name` needs no escaping where the values around it do: the
+            // parse returns a name only after finding every octet in it to be a
+            // `tchar`, which is visible US-ASCII. A `word`'s content has no such
+            // guarantee — `qdtext` admits HTAB and `obs-text` — so the two
+            // values below go through [`shown_in_finding`] and the name does not.
             let Some(requested) = prefer.prefs.get(&name) else {
                 return violation(format!(
                     "Preference-Applied names '{}', which the request's Prefer header did not ask for",
@@ -256,7 +262,9 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
                 if applied_value != requested_value {
                     return violation(format!(
                         "Preference-Applied reports '{}' applied with value '{}', where the request asked for '{}'",
-                        parsed.name, applied_value, requested_value
+                        parsed.name,
+                        shown_in_finding(applied_value),
+                        shown_in_finding(requested_value)
                     ));
                 }
             }
@@ -517,6 +525,19 @@ mod tests {
         ))
         .expect("finding");
         assert!(v.message.contains("BWS"), "{}", v.message);
+    }
+
+    /// `qdtext` admits HTAB, so a conforming value can carry an octet that would
+    /// break the line of a finding rather than appear in it. The message is
+    /// derived data and gets its own test.
+    #[test]
+    fn a_value_reaching_a_finding_is_escaped_into_it() {
+        let v = check(&tx_with(&[b"foo=bar"], &[b"foo=\"a\tb\""])).expect("finding");
+        assert!(
+            v.message.contains("a\\tb") && !v.message.contains('\t'),
+            "{}",
+            v.message
+        );
     }
 
     /// The neighbour named in `description()` is the one that judges what the
