@@ -90,26 +90,10 @@ fn check_warning_value_str(val: &str) -> Option<String> {
         }
 
         // find end of quoted-string (respecting backslash escapes)
-        let bytes = s.as_bytes();
-        let mut i = idx + 1;
-        let mut prev_backslash = false;
-        let mut found_end = None;
-        while i < bytes.len() {
-            let b = bytes[i];
-            if prev_backslash {
-                prev_backslash = false;
-            } else if b == b'\\' {
-                prev_backslash = true;
-            } else if b == b'"' {
-                found_end = Some(i);
-                break;
-            }
-            i += 1;
-        }
-        if found_end.is_none() {
+        let Some(rel_end) = crate::helpers::headers::quoted_string_end(&s[idx..]) else {
             return Some("Warning warn-text quoted-string not terminated".into());
-        }
-        let qend = found_end.unwrap();
+        };
+        let qend = idx + rel_end;
         let qstr = &s[idx..=qend];
         if let Err(e) = crate::helpers::headers::validate_quoted_string(qstr) {
             return Some(format!("Invalid quoted-string in warn-text: {}", e));
@@ -127,25 +111,10 @@ fn check_warning_value_str(val: &str) -> Option<String> {
                 return Some("Warning warn-date must be a quoted-string if present".into());
             }
             // find end of date quoted-string
-            let mut k = j + 1;
-            let mut prev_bs = false;
-            let mut end_date = None;
-            while k < s.len() {
-                let b = s.as_bytes()[k];
-                if prev_bs {
-                    prev_bs = false;
-                } else if b == b'\\' {
-                    prev_bs = true;
-                } else if b == b'"' {
-                    end_date = Some(k);
-                    break;
-                }
-                k += 1;
-            }
-            if end_date.is_none() {
+            let Some(rel_date_end) = crate::helpers::headers::quoted_string_end(&s[j..]) else {
                 return Some("Warning warn-date quoted-string not terminated".into());
-            }
-            let date_q = &s[j..=end_date.unwrap()];
+            };
+            let date_q = &s[j..=j + rel_date_end];
             match crate::helpers::headers::unescape_quoted_string(date_q) {
                 Ok(inner) => {
                     if !crate::http_date::is_valid_http_date(&inner) {
@@ -156,7 +125,7 @@ fn check_warning_value_str(val: &str) -> Option<String> {
             }
 
             // ensure nothing else after date except whitespace
-            let mut rem_idx = end_date.unwrap() + 1;
+            let mut rem_idx = j + rel_date_end + 1;
             while rem_idx < s.len() {
                 if !(s.as_bytes()[rem_idx] as char).is_ascii_whitespace() {
                     return Some("Extra characters after warn-date".into());

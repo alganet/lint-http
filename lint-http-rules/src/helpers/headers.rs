@@ -949,6 +949,46 @@ pub fn quoting_is_balanced(s: &str) -> bool {
     !in_quote
 }
 
+/// The index of the DQUOTE that closes the `quoted-string` starting at `s[0]`,
+/// or `None` when nothing closes it.
+///
+/// Grammars that put a `quoted-string` in the middle of a construct --
+/// `expectation`'s value with `parameters` behind it, `Warning`'s `warn-text`
+/// with a `warn-date` behind it -- have to know where the construct ends before
+/// they can look at what follows. [`validate_quoted_string`] judges a slice
+/// someone else has already cut, which is the question after this one.
+///
+/// The escape rule is the splitters' and [`quoting_is_balanced`]'s: a backslash
+/// inside the string suppresses the next octet. Both call sites had transcribed
+/// this loop by hand, identically, which is two copies of a decision that has to
+/// agree with three other functions in this file.
+///
+/// Returns `None` when `s` does not open with a DQUOTE either -- there is no
+/// `quoted-string` to find the end of.
+///
+/// cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
+/// cite(RFC 9110 § 5.6.4): "quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )"
+pub fn quoted_string_end(s: &str) -> Option<usize> {
+    let bytes = s.as_bytes();
+    if bytes.first() != Some(&b'"') {
+        return None;
+    }
+    let mut i = 1usize;
+    let mut prev_backslash = false;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if prev_backslash {
+            prev_backslash = false;
+        } else if b == b'\\' {
+            prev_backslash = true;
+        } else if b == b'"' {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
 /// Validate a quoted-string per HTTP rules: must start and end with DQUOTE, support backslash escapes,
 /// must not contain unescaped control characters (except HTAB). Returns Ok(()) on success, Err(msg)
 /// on failure.
