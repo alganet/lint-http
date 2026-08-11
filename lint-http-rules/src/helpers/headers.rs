@@ -1099,6 +1099,21 @@ pub fn unescape_quoted_string(val: &str) -> Result<String, String> {
     Ok(out)
 }
 
+/// Render a field value, or one member of it, into a finding.
+///
+/// A value read through [`combined_field_value_as_written`] carries one `char`
+/// per octet, so it can hold octets that would corrupt the message rather than
+/// appear in it -- an HTAB inside a `quoted-string` is legal and reachable, and
+/// a lone backslash reads as an escape to whoever sees the finding next.
+///
+/// It is not the answer for `obs-text`: `escape_debug` leaves a printable code
+/// point alone, so %xE9 arrives in the message as `é`. That is legible and
+/// deliberate -- naming the offending octet is [`describe_octet`]'s job, and the
+/// findings that turn on one call it.
+pub fn shown_in_finding(s: &str) -> String {
+    s.escape_debug().to_string()
+}
+
 /// One `token [ BWS "=" BWS word ]` pair, parsed.
 ///
 /// RFC 7240 writes that production three times — `preference`, `parameter` and

@@ -17,17 +17,17 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1630
+      line: 1645
   - label: lint-http-rules/src/helpers/headers.rs (2)
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1625
+      line: 1640
   - label: lint-http-rules/src/helpers/headers.rs (3)
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1624
+      line: 1639
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -977,25 +977,25 @@ sources:
     snippet: 'Normally, a mailbox is composed of two parts: (1) an optional display name that indicates the name of the recipient (which can be a person or a system) that could be displayed to the user of a mail application, and (2) an addr-spec address enclosed in angle brackets'
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1374
+      line: 1389
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.4
     snippet: There is an alternate simple form of a mailbox where the addr-spec address appears alone, without the recipient's name or the angle brackets.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1387
+      line: 1402
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.4.1
     snippet: An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1405
+      line: 1420
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.4.1
     snippet: The locally interpreted string is either a quoted-string or a dot-atom.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1408
+      line: 1423
 - label: RFC 5646
   url: https://www.rfc-editor.org/rfc/rfc5646.txt
   type: text/plain
@@ -1317,7 +1317,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1626
+      line: 1641
     - file: lint-http-rules/src/helpers/uri.rs
       line: 177
   - label: lint-http-rules/src/helpers/uri.rs
@@ -1782,13 +1782,13 @@ sources:
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
       line: 22
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
-      line: 229
+      line: 230
   - label: message_preference_applied_header_valid (3)
     section: § 2
     snippet: For both preference token names and parameter names, comparison is case insensitive while values are case sensitive regardless of whether token or quoted-string values are used.
     cited_by:
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
-      line: 224
+      line: 225
   - label: message_preference_applied_header_valid (4)
     section: § 2
     snippet: If any preference is specified more than once, only the first instance is to be considered.
@@ -1814,7 +1814,7 @@ sources:
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
       line: 113
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
-      line: 242
+      line: 243
   - label: message_preference_applied_header_valid (8)
     section: § 3
     snippet: The syntax of the Preference-Applied header differs from that of the Prefer header in that parameters are not included.
@@ -1972,25 +1972,25 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1304
+      line: 1319
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1245
+      line: 1260
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1283
+      line: 1298
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1276
+      line: 1291
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
@@ -2450,7 +2450,7 @@ sources:
     snippet: expectation = token [ "=" ( token / quoted-string ) parameters ]
     cited_by:
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
-      line: 325
+      line: 309
   - label: client_expect_header_valid (10)
     section: § 15.5.18
     snippet: The 417 (Expectation Failed) status code indicates that the expectation given in the request's Expect header field (Section 10.1.1) could not be met by at least one of the inbound servers.
@@ -2462,7 +2462,7 @@ sources:
     snippet: A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.
     cited_by:
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
-      line: 326
+      line: 310
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 73
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
@@ -2506,7 +2506,7 @@ sources:
     snippet: parameter       = parameter-name "=" parameter-value
     cited_by:
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
-      line: 401
+      line: 385
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 209
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
@@ -2518,7 +2518,7 @@ sources:
     snippet: parameter-name  = token
     cited_by:
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
-      line: 402
+      line: 386
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 231
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
@@ -2528,7 +2528,7 @@ sources:
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
-      line: 403
+      line: 387
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
       line: 89
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
@@ -2544,7 +2544,7 @@ sources:
     snippet: '|  *Note:* Parameters do not allow whitespace (not even "bad" |  whitespace) around the "=" character.'
     cited_by:
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
-      line: 452
+      line: 436
   - label: client_expect_header_valid (16)
     section: § A
     snippet: Expect = [ expectation *( OWS "," OWS expectation ) ]
@@ -2562,7 +2562,7 @@ sources:
     snippet: Parameters in media type, media range, and expectation can be empty via one or more trailing semicolons.
     cited_by:
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
-      line: 436
+      line: 420
   - label: client_host_header
     section: § 7.2
     snippet: A user agent MUST generate a Host header field in a request unless it sends that information as an ":authority" pseudo-header field.
@@ -3214,7 +3214,7 @@ sources:
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1213
+      line: 1228
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 171
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
@@ -3314,7 +3314,7 @@ sources:
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1145
+      line: 1160
   - label: lint-http-rules/src/helpers/headers.rs (10)
     section: § 5.6.3
     snippet: The OWS rule is used where zero or more linear whitespace octets might appear.
@@ -3358,7 +3358,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1002
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1144
+      line: 1159
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 313
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
@@ -3372,7 +3372,7 @@ sources:
     snippet: Parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1579
+      line: 1594
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 156
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
@@ -3384,9 +3384,9 @@ sources:
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1569
+      line: 1584
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
-      line: 400
+      line: 384
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 296
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
@@ -3438,7 +3438,7 @@ sources:
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1528
+      line: 1543
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
@@ -3456,7 +3456,7 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1487
+      line: 1502
   - label: lint-http-rules/src/helpers/headers.rs (22)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
@@ -4420,13 +4420,13 @@ sources:
     snippet: A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
     cited_by:
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
-      line: 213
+      line: 214
   - label: message_preference_applied_header_valid (3)
     section: § 5.6.3
     snippet: A sender MUST NOT generate BWS in messages.
     cited_by:
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
-      line: 212
+      line: 213
   - label: message_problem_details_structure
     section: § 6.4
     snippet: This abstract definition of content reflects the data after it has been extracted from the message framing.
