@@ -130,6 +130,13 @@ sources:
     # The cited http-field-names/http-field-names.xhtml is a 404. RFC 9110 § 18.4
     # renamed the registry, and the catalogue kept the old name.
 
+  - label: IANA HTTP Method Registry
+    url: https://www.iana.org/assignments/http-methods/http-methods.xhtml
+    type: text/html
+    # RFC 9110 § 16.1.1 makes `Safe ("yes" or "no")` a required field of every
+    # registration, so this page — not RFC 9110 § 9.2.1's four methods — is where the
+    # set of safe methods actually lives.
+
   - label: IANA HTTP Parameters
     url: https://www.iana.org/assignments/http-parameters/http-parameters.xhtml
     type: text/html
