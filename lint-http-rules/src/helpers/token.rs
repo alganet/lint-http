@@ -40,6 +40,22 @@ pub fn find_invalid_token_char(s: &str) -> Option<char> {
     s.chars().find(|&c| !is_tchar(c))
 }
 
+/// The byte index at which the leading `token` in `s` ends -- `s.len()` when the
+/// whole string is one.
+///
+/// A grammar that writes `token` followed by a delimiter (`expectation`'s `"="`,
+/// a media type's `"/"`) has to cut the token off before it can judge either
+/// half, and the cut and the character class have to be the same decision.
+/// Asking [`find_invalid_token_char`] instead answers a different question: it
+/// says the string is not *entirely* a token, which is the wrong verdict when
+/// the grammar expects it not to be.
+///
+/// Every `tchar` is one octet, so the index is a `char` boundary and safe to
+/// slice on.
+pub fn token_run_end(s: &str) -> usize {
+    s.find(|c| !is_tchar(c)).unwrap_or(s.len())
+}
+
 /// Return the first ASCII lowercase alphabetic character in `s` if any.
 pub fn find_first_lowercase(s: &str) -> Option<char> {
     s.chars()
@@ -69,6 +85,20 @@ mod tests {
     #[case("G@T", Some('@'))]
     fn test_find_invalid_token_char(#[case] s: &str, #[case] expected: Option<char>) {
         assert_eq!(find_invalid_token_char(s), expected);
+    }
+
+    #[rstest]
+    #[case("100-continue", 12)]
+    #[case("a=b", 1)]
+    #[case("=b", 0)]
+    #[case("", 0)]
+    #[case("wait;level", 4)]
+    // `obs-text` is not a `tchar`, and the index is still a `char` boundary to
+    // slice on because everything before it was one octet each.
+    #[case("caf\u{E9}", 3)]
+    fn test_token_run_end(#[case] s: &str, #[case] expected: usize) {
+        assert_eq!(token_run_end(s), expected);
+        assert!(s.is_char_boundary(token_run_end(s)));
     }
 
     #[rstest]
