@@ -759,6 +759,13 @@ pub static PROHIBITED_TRAILER_FIELDS: &[&str] = &[
     "connection",
     "keep-alive",
     "upgrade",
+    // The cleanest member of this list: § 6.5.1 asks whether the field's own
+    // definition permits the usage, and this field's definition answers by name.
+    // The same sentence forbids it in a response, which is
+    // `message_early_data_header_safe_method`'s finding — a response *trailer* is
+    // both, and is reported here.
+    // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
+    "early-data",
 ];
 
 /// Whether `name` cannot appear in a trailer section because of what it is.
