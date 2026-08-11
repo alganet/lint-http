@@ -1035,13 +1035,37 @@ sources:
   type: text/plain
   fragments:
   - label: client_patch_method_content_type_match
-    section: § 3.1
-    snippet: This specification introduces a new response header Accept-Patch used to specify the patch document formats accepted by the server.
+    section: § 2.2
+    snippet: Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 41
-    - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
-      line: 37
+      line: 210
+    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+      line: 98
+  - label: Accept-Patch grammar
+    section: § 3.1
+    snippet: Accept-Patch = "Accept-Patch" ":" 1#media-type
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 86
+  - label: client_patch_method_content_type_match (2)
+    section: § 3.1
+    snippet: The Accept-Patch header specifies a comma-separated listing of media-types (with optional parameters) as defined by [RFC2616], Section 3.7.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 87
+  - label: client_patch_method_content_type_match (3)
+    section: § 3.1
+    snippet: The presence of a specific patch document format in this header indicates that that specific format is allowed on the resource identified by the Request-URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 179
+  - label: client_patch_method_content_type_match (4)
+    section: § 3.1
+    snippet: The presence of the Accept-Patch header in response to any method is an implicit indication that PATCH is allowed on the resource identified by the Request-URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 171
   - label: semantic_options_method_capabilities
     section: § 3.1
     snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
@@ -1078,12 +1102,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
       line: 84
-  - label: semantic_patch_partial_update (6)
-    section: § 2.2
-    snippet: Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI.
+  - label: server_patch_accept_patch_header
+    section: § 3.1
+    snippet: This specification introduces a new response header Accept-Patch used to specify the patch document formats accepted by the server.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
-      line: 98
+    - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
+      line: 37
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.txt
   type: text/plain
@@ -2325,6 +2349,148 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 54
+  - label: client_patch_method_content_type_match
+    section: § 12.3
+    snippet: When content negotiation preferences are sent in a server's response, the listed preferences are called "request content negotiation" because they intend to influence selection of an appropriate content for subsequent requests to that resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 208
+  - label: client_patch_method_content_type_match (2)
+    section: § 12.4.3
+    snippet: If no wildcard is present, values that are not explicitly mentioned in the field are considered unacceptable.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 209
+  - label: client_patch_method_content_type_match (3)
+    section: § 12.4.3
+    snippet: Most of these header fields, where indicated, define a wildcard value ("*") to select unspecified values.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 190
+  - label: client_patch_method_content_type_match (4)
+    section: § 12.5.1
+    snippet: The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 191
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 144
+    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
+      line: 94
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 244
+  - label: parameter-value grammar
+    section: § 5.6.6
+    snippet: parameter-value = ( token / quoted-string )
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 89
+    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
+      line: 278
+    - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
+      line: 127
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 340
+    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
+      line: 224
+  - label: client_patch_method_content_type_match (5)
+    section: § 8.3
+    snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 139
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 57
+  - label: client_patch_method_content_type_match (6)
+    section: § 8.3
+    snippet: Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 140
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 65
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 58
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 79
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 49
+  - label: client_patch_method_content_type_match (7)
+    section: § 8.3.1
+    snippet: The presence or absence of a parameter might be significant to the processing of a media type, depending on its definition within the media type registry.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 43
+  - label: client_patch_method_content_type_match (8)
+    section: § 8.3.1
+    snippet: The type and subtype tokens are case-insensitive.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 44
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 203
+    - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
+      line: 98
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 261
+    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
+      line: 48
+    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
+      line: 138
+    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
+      line: 180
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 93
+    - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
+      line: 76
+    - file: lint-http-rules/src/rules/server_charset_specification.rs
+      line: 40
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 58
+  - label: client_patch_method_content_type_match (9)
+    section: § 8.3.1
+    snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 88
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 287
+  - label: client_patch_method_content_type_match (10)
+    section: § 8.3.1
+    snippet: media-type = type "/" subtype parameters type       = token subtype    = token
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 42
+    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
+      line: 123
+  - label: client_patch_method_content_type_match (11)
+    section: § 9.1
+    snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 125
+    - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
+      line: 75
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 76
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 170
+    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
+      line: 205
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 84
+    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+      line: 50
+    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+      line: 31
+    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
+      line: 78
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 70
+    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
+      line: 93
+    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
+      line: 81
   - label: client_range_header_syntax_valid
     section: § 14.1.1
     snippet: A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit.
@@ -2482,32 +2648,6 @@ sources:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 54
   - label: client_request_version_method_validity
-    section: § 9.1
-    snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 75
-    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
-      line: 76
-    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
-      line: 170
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 205
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
-      line: 84
-    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
-      line: 50
-    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
-      line: 31
-    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 78
-    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 70
-    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
-      line: 93
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 81
-  - label: client_request_version_method_validity (2)
     section: § 9.3.1
     snippet: A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
     cited_by:
@@ -2515,37 +2655,37 @@ sources:
       line: 58
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
       line: 83
-  - label: client_request_version_method_validity (3)
+  - label: client_request_version_method_validity (2)
     section: § 9.3.1
     snippet: Although request message framing is independent of the method used, content received in a GET request has no generally defined semantics, cannot alter the meaning or target of the request
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
       line: 30
-  - label: client_request_version_method_validity (4)
+  - label: client_request_version_method_validity (3)
     section: § 9.3.1
     snippet: An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
       line: 114
-  - label: client_request_version_method_validity (5)
+  - label: client_request_version_method_validity (4)
     section: § 9.3.2
     snippet: A client SHOULD NOT generate content in a HEAD request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
       line: 85
-  - label: client_request_version_method_validity (6)
+  - label: client_request_version_method_validity (5)
     section: § 9.3.5
     snippet: A client SHOULD NOT generate content in a DELETE request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
       line: 87
-  - label: client_request_version_method_validity (7)
+  - label: client_request_version_method_validity (6)
     section: § 9.3.6
     snippet: A CONNECT request message does not have content.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
       line: 93
-  - label: client_request_version_method_validity (8)
+  - label: client_request_version_method_validity (7)
     section: § 9.3.6
     snippet: The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use.
     cited_by:
@@ -2949,6 +3089,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 212
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 156
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
       line: 249
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
@@ -3303,21 +3445,11 @@ sources:
       line: 20
   - label: message_accept_and_content_type_negotiation (10)
     section: § 12.5.1
-    snippet: The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 144
-    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 94
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 244
-  - label: message_accept_and_content_type_negotiation (11)
-    section: § 12.5.1
     snippet: The media-range can include media type parameters that are applicable to that range.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 201
-  - label: message_accept_and_content_type_negotiation (12)
+  - label: message_accept_and_content_type_negotiation (11)
     section: § 12.5.1
     snippet: media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters
     cited_by:
@@ -3325,48 +3457,12 @@ sources:
       line: 143
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 93
-  - label: message_accept_and_content_type_negotiation (13)
+  - label: message_accept_and_content_type_negotiation (12)
     section: § 15.5.7
     snippet: The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 76
-  - label: message_accept_and_content_type_negotiation (14)
-    section: § 8.3
-    snippet: Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 65
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 58
-    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
-      line: 79
-    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 49
-  - label: message_accept_and_content_type_negotiation (15)
-    section: § 8.3.1
-    snippet: The type and subtype tokens are case-insensitive.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 203
-    - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
-      line: 98
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 261
-    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
-      line: 48
-    - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
-      line: 138
-    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 180
-    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
-      line: 93
-    - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
-      line: 76
-    - file: lint-http-rules/src/rules/server_charset_specification.rs
-      line: 40
-    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 58
   - label: message_accept_encoding_parameter_validity
     section: § 12.4.2
     snippet: The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content.
@@ -3497,24 +3593,6 @@ sources:
       line: 231
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 311
-  - label: message_accept_header_media_type_syntax (9)
-    section: § 5.6.6
-    snippet: parameter-value = ( token / quoted-string )
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 278
-    - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
-      line: 127
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 340
-    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 224
-  - label: message_accept_header_media_type_syntax (10)
-    section: § 8.3.1
-    snippet: media-type = type "/" subtype parameters type       = token subtype    = token
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 123
   - label: message_accept_language_weight_validity
     section: § 12.5.4
     snippet: 'Accept-Language = #( language-range [ weight ] )'
@@ -3875,25 +3953,13 @@ sources:
       line: 112
   - label: message_content_type_well_formed
     section: § 8.3
-    snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 57
-  - label: message_content_type_well_formed (2)
-    section: § 8.3
     snippet: Content-Type = media-type
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 56
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 102
-  - label: message_content_type_well_formed (3)
-    section: § 8.3.1
-    snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 287
-  - label: message_content_type_well_formed (4)
+  - label: message_content_type_well_formed (2)
     section: § 8.3.1
     snippet: type       = token subtype    = token
     cited_by:
