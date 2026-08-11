@@ -2338,11 +2338,173 @@ sources:
     - file: lint-http-rules/src/rules/client_cache_respect.rs
       line: 67
   - label: client_expect_header_valid
-    section: § 10.1.1
-    snippet: The "Expect" header field in a request indicates a certain set of behaviors (expectations) that need to be supported by the server
+    section: § 10.1
+    snippet: The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request.
     cited_by:
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
-      line: 27
+      line: 32
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 383
+  - label: client_expect_header_valid (2)
+    section: § 10.1.1
+    snippet: A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 127
+  - label: client_expect_header_valid (3)
+    section: § 10.1.1
+    snippet: A client MUST NOT generate a 100-continue expectation in a request that does not include content.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 126
+  - label: client_expect_header_valid (4)
+    section: § 10.1.1
+    snippet: A client that receives a 417 (Expectation Failed) status code in response to a request containing a 100-continue expectation SHOULD repeat that request without a 100-continue expectation, since the 417 response merely indicates that the response chain does not support expectations (e.g., it passes through an HTTP/1.0 server).
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 145
+  - label: client_expect_header_valid (5)
+    section: § 10.1.1
+    snippet: A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 168
+  - label: client_expect_header_valid (6)
+    section: § 10.1.1
+    snippet: The "Expect" header field in a request indicates a certain set of behaviors (expectations) that need to be supported by the server in order to properly handle this request.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 45
+  - label: client_expect_header_valid (7)
+    section: § 10.1.1
+    snippet: The Expect field value is case-insensitive.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 19
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 92
+  - label: client_expect_header_valid (8)
+    section: § 10.1.1
+    snippet: The only expectation defined by this specification is "100-continue" (with no defined parameters).
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 18
+  - label: client_expect_header_valid (9)
+    section: § 10.1.1
+    snippet: expectation = token [ "=" ( token / quoted-string ) parameters ]
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 325
+  - label: client_expect_header_valid (10)
+    section: § 15.5.18
+    snippet: The 417 (Expectation Failed) status code indicates that the expectation given in the request's Expect header field (Section 10.1.1) could not be met by at least one of the inbound servers.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 144
+  - label: client_expect_header_valid (11)
+    section: § 2.2
+    snippet: A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 326
+    - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
+      line: 73
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 101
+  - label: client_expect_header_valid (12)
+    section: § 5.6.1.1
+    snippet: In any production that uses the list construct, a sender MUST NOT generate empty list elements.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 96
+    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
+      line: 250
+    - file: lint-http-rules/src/rules/message_cache_control_directive_validity.rs
+      line: 116
+    - file: lint-http-rules/src/rules/message_cache_control_token_valid.rs
+      line: 117
+    - file: lint-http-rules/src/rules/message_caching_directive_interaction.rs
+      line: 64
+    - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
+      line: 72
+    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
+      line: 235
+    - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
+      line: 135
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 72
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 77
+    - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
+      line: 75
+    - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
+      line: 259
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 289
+    - file: lint-http-rules/src/rules/server_vary_header_valid.rs
+      line: 59
+  - label: client_expect_header_valid (13)
+    section: § 5.6.6
+    snippet: parameter       = parameter-name "=" parameter-value
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 401
+    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
+      line: 209
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 352
+    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
+      line: 213
+  - label: client_expect_header_valid (14)
+    section: § 5.6.6
+    snippet: parameter-name  = token
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 402
+    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
+      line: 231
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 311
+  - label: parameter-value grammar
+    section: § 5.6.6
+    snippet: parameter-value = ( token / quoted-string )
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 403
+    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+      line: 89
+    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
+      line: 278
+    - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
+      line: 127
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 340
+    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
+      line: 224
+  - label: client_expect_header_valid (15)
+    section: § 5.6.6
+    snippet: '|  *Note:* Parameters do not allow whitespace (not even "bad" |  whitespace) around the "=" character.'
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 452
+  - label: client_expect_header_valid (16)
+    section: § A
+    snippet: Expect = [ expectation *( OWS "," OWS expectation ) ]
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 80
+  - label: client_expect_header_valid (17)
+    section: § B.3
+    snippet: List-based grammar for Expect has been restored for compatibility with RFC 2616.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 60
+  - label: client_expect_header_valid (18)
+    section: § B.3
+    snippet: Parameters in media type, media range, and expectation can be empty via one or more trailing semicolons.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 436
   - label: client_host_header
     section: § 7.2
     snippet: A user agent MUST generate a Host header field in a request unless it sends that information as an ":authority" pseudo-header field.
@@ -2379,20 +2541,6 @@ sources:
       line: 94
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 244
-  - label: parameter-value grammar
-    section: § 5.6.6
-    snippet: parameter-value = ( token / quoted-string )
-    cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 89
-    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 278
-    - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
-      line: 127
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 340
-    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 224
   - label: client_patch_method_content_type_match (5)
     section: § 8.3
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
@@ -2612,36 +2760,6 @@ sources:
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 285
   - label: client_range_header_syntax_valid (11)
-    section: § 5.6.1.1
-    snippet: In any production that uses the list construct, a sender MUST NOT generate empty list elements.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 250
-    - file: lint-http-rules/src/rules/message_cache_control_directive_validity.rs
-      line: 116
-    - file: lint-http-rules/src/rules/message_cache_control_token_valid.rs
-      line: 117
-    - file: lint-http-rules/src/rules/message_caching_directive_interaction.rs
-      line: 64
-    - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
-      line: 72
-    - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
-      line: 235
-    - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
-      line: 135
-    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 72
-    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
-      line: 77
-    - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
-      line: 75
-    - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
-      line: 259
-    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
-      line: 289
-    - file: lint-http-rules/src/rules/server_vary_header_valid.rs
-      line: 59
-  - label: client_range_header_syntax_valid (12)
     section: § 5.6.2
     snippet: Delimiters are chosen from the set of US-ASCII visual characters not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}").
     cited_by:
@@ -3199,6 +3317,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1475
+    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+      line: 400
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 296
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
@@ -3579,24 +3699,6 @@ sources:
       line: 83
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 71
-  - label: message_accept_header_media_type_syntax (7)
-    section: § 5.6.6
-    snippet: parameter       = parameter-name "=" parameter-value
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 209
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 352
-    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 213
-  - label: message_accept_header_media_type_syntax (8)
-    section: § 5.6.6
-    snippet: parameter-name  = token
-    cited_by:
-    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 231
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 311
   - label: message_accept_language_weight_validity
     section: § 12.5.4
     snippet: 'Accept-Language = #( language-range [ weight ] )'
@@ -4472,18 +4574,12 @@ sources:
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
       line: 65
   - label: message_te_header_constraints
-    section: § 10.1
-    snippet: The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 383
-  - label: message_te_header_constraints (2)
     section: § 10.1.4
     snippet: A sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 178
-  - label: message_te_header_constraints (3)
+  - label: message_te_header_constraints (2)
     section: § 10.1.4
     snippet: The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections.
     cited_by:
@@ -4491,7 +4587,7 @@ sources:
       line: 359
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 384
-  - label: message_te_header_constraints (4)
+  - label: message_te_header_constraints (3)
     section: § 10.1.4
     snippet: The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding.
     cited_by:
@@ -4499,31 +4595,31 @@ sources:
       line: 26
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 364
-  - label: message_te_header_constraints (5)
+  - label: message_te_header_constraints (4)
     section: § 5.6.3
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.  A sender MUST NOT generate BWS in messages.  A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 233
-  - label: message_te_header_constraints (6)
+  - label: message_te_header_constraints (5)
     section: § 7.6.1
     snippet: Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field.
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 158
-  - label: message_te_header_constraints (7)
+  - label: message_te_header_constraints (6)
     section: § A
     snippet: TE = [ t-codings *( OWS "," OWS t-codings ) ]
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 47
-  - label: message_te_header_constraints (8)
+  - label: message_te_header_constraints (7)
     section: § A
     snippet: t-codings = "trailers" / ( transfer-coding [ weight ] )
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 104
-  - label: message_te_header_constraints (9)
+  - label: message_te_header_constraints (8)
     section: § A
     snippet: transfer-coding = token *( OWS ";" OWS transfer-parameter )
     cited_by:
@@ -4531,7 +4627,7 @@ sources:
       line: 86
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 127
-  - label: message_te_header_constraints (10)
+  - label: message_te_header_constraints (9)
     section: § A
     snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
     cited_by:
@@ -5262,14 +5358,6 @@ sources:
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 98
   - label: server_location_header_uri_valid (6)
-    section: § 2.2
-    snippet: A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
-      line: 73
-    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
-      line: 101
-  - label: server_location_header_uri_valid (7)
     section: § 5.5
     snippet: Fields that expect to contain a comma within a member, such as within an HTTP-date or URI-reference element, ought to be defined with delimiters around that element to distinguish any comma within that data from potential list separators.
     cited_by:

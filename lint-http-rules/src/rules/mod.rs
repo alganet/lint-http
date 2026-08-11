@@ -441,6 +441,10 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
         QueryType::ByResource,
     ),
     (
+        &client_expect_header_valid::ClientExpectHeaderValid,
+        QueryType::ByResource,
+    ),
+    (
         &client_patch_method_content_type_match::ClientPatchMethodContentTypeMatch,
         QueryType::ByResource,
     ),
