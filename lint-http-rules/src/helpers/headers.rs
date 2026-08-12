@@ -1526,20 +1526,40 @@ pub struct ParsedMediaType<'a> {
 /// Parse a Media Type string into type, subtype, and optional params.
 ///
 /// This does NOT fully validate the tokens (e.g. wildcards or invalid chars),
-/// but it separates the structure.
+/// but it separates the structure. [`media_type_parts_defect`] below is the
+/// other half.
 /// Returns an error message if the structure is invalid (missing slash, empty parts).
+///
+/// Every trim here is [`trim_ows`] and none of them is `str::trim`, which trims
+/// Unicode whitespace: a caller reading a field through
+/// [`combined_field_value_as_written`] hands this one `char` per octet, so %xA0
+/// arrives as U+00A0 and %x85 as U+0085 — both `obs-text`, which no part of
+/// `media-type` admits and both of which `str::trim` silently removed. That
+/// erased the one unambiguous defect in `application/example%xA0`, which came
+/// back as a clean `subtype` of `example`. The same reasoning is written out at
+/// [`split_semicolons_respecting_quotes`], which had already been fixed.
+///
+/// The two halves of `type "/" subtype` are **not** trimmed at all, because the
+/// production prints no `OWS` between them: `application / example` derives from
+/// nothing, and trimming each side handed the character scan two clean tokens.
+/// What is trimmed is the whole value (§ 5.5) and the run before the first
+/// semicolon, where `parameters` does print `OWS`.
+///
+/// cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
+/// cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
 pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
-    let trimmed = val.trim();
+    let trimmed = trim_ows(val);
     if trimmed.is_empty() {
         return Err("Empty media-type".into());
     }
 
     let mut parts = trimmed.splitn(2, ';');
-    let media = parts
-        .next()
-        .expect("splitn always yields at least one element")
-        .trim();
-    let params = parts.next().map(|p| p.trim()).filter(|p| !p.is_empty());
+    let media = trim_ows(
+        parts
+            .next()
+            .expect("splitn always yields at least one element"),
+    );
+    let params = parts.next().map(trim_ows).filter(|p| !p.is_empty());
 
     // cite(RFC 9110 § 8.3.1, label: media-type grammar): "media-type = type "/" subtype parameters"
     if !media.contains('/') {
@@ -1550,8 +1570,8 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
     }
 
     let mut ts = media.splitn(2, '/');
-    let type_ = ts.next().unwrap_or("").trim();
-    let subtype = ts.next().unwrap_or("").trim();
+    let type_ = ts.next().unwrap_or("");
+    let subtype = ts.next().unwrap_or("");
 
     if type_.is_empty() || subtype.is_empty() {
         return Err(format!(
@@ -1565,6 +1585,140 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
         subtype,
         params,
     })
+}
+
+/// The half of `media-type` that `parse_media_type` above deliberately leaves:
+/// having separated the parts, what each of them must *be*.
+///
+/// `None` where the parts derive from the production; otherwise the reason they
+/// do not, phrased as a clause a caller prints after naming its own field. That
+/// shape is what lets the two rules measuring a `media-type` — one reading
+/// `Content-Type`, one reading each member of `Accept-Patch`'s `1#media-type` —
+/// share one transcription of § 8.3.1 and § 5.6.6 while each says which field
+/// the defect was found in. Written when the second caller arrived; before that
+/// these four checks lived inside the first rule, where a second copy was the
+/// only way to ask the same question of another field.
+///
+/// **The asterisk is not judged here.** `*` is a `tchar`, so `*/plain` and
+/// `*/*` both derive from `media-type`; what an asterisk *means* is each
+/// field's own question — `Content-Type` states one representation's media
+/// type, while `Accept-Patch` is a list of them with no `media-range` anywhere
+/// in its grammar — and the two rules answer it separately, at different
+/// strengths, from different sentences.
+///
+/// **Every value this interpolates is escaped for display**, and it has to be:
+/// the octets a `tchar` test rejects include the ones that print as nothing, so
+/// a raw HTAB or CR reaching a finding breaks the line it is printed on rather
+/// than appearing in it. `escape_debug` is not the `obs-text` answer — a
+/// printable code point survives it, so %xC9 still shows as `É` — and naming an
+/// octet is [`describe_octet`]'s job; the `#token` walks in this tree that do
+/// name it are measuring a value whose every octet is one `char`, which a
+/// `media-type` reaching this function is not guaranteed to be.
+///
+/// **One inherited leniency, and it is the fourth copy of it.** `parameter` is
+/// `parameter-name "=" parameter-value` with no `OWS` anywhere in it, and
+/// § 5.6.6 says so again in prose — yet the whitespace beside the `=` is trimmed
+/// here, so `text/example; charset = utf-8` passes. That is the reading the
+/// `Content-Type`, multipart-boundary and charset rules already publish as a
+/// known leniency; it moved in with the code rather than being decided here, and
+/// changing it changes those rules' verdicts. Recorded at the shared site so the
+/// next reader does not take it for the grammar.
+///
+/// cite(RFC 9110 § 8.3.1): "type       = token subtype    = token"
+/// cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
+pub fn media_type_parts_defect(parsed: &ParsedMediaType<'_>) -> Option<String> {
+    // Case is not checked because there is nothing to check: both halves are
+    // case-insensitive, so no spelling of them is wrong.
+    if let Some(c) = crate::helpers::token::find_invalid_token_char(parsed.type_) {
+        return Some(format!("invalid character '{}' in type", c.escape_debug()));
+    }
+
+    // Same production, other half; the quote above covers both lines of it.
+    if let Some(c) = crate::helpers::token::find_invalid_token_char(parsed.subtype) {
+        return Some(format!(
+            "invalid character '{}' in subtype",
+            c.escape_debug()
+        ));
+    }
+
+    // A media type with no parameters is a media type: the term is `parameters`,
+    // whose whole expansion is starred, so a value that stops after the subtype
+    // has satisfied it and there is nothing below to run.
+    // cite(RFC 9110 § 8.3.1): "The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs."
+    let params = parsed.params?;
+
+    // Quote-aware, because a `;` inside a `quoted-string` parameter value does
+    // not start the next parameter. Each segment comes back already trimmed of
+    // the `OWS` the production prints beside its semicolons -- re-trimming it
+    // with `str::trim` here undid that helper's own fix and put %xA0 and %x85
+    // back out of reach.
+    for p in split_semicolons_respecting_quotes(params) {
+        // `[ parameter ]` is bracketed, so a semicolon with nothing after it is
+        // a conforming zero-parameter repetition rather than a defect --
+        // `text/plain; charset=utf-8;` is well formed.
+        // cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
+        if p.is_empty() {
+            continue;
+        }
+
+        let Some(eq) = p.find('=') else {
+            // The "=" is not optional inside `parameter`, so a bare token among
+            // the parameters is not a valueless flag.
+            // cite(RFC 9110 § 5.6.6): "parameter       = parameter-name "=" parameter-value"
+            return Some(format!("parameter '{}' missing '='", p.escape_debug()));
+        };
+
+        // The two trims are the leniency named above, bounded to `OWS` so that
+        // an `obs-text` octet beside the `=` is not mistaken for whitespace and
+        // removed.
+        let (name, value) = p.split_at(eq);
+        let name = trim_ows(name);
+        let value = trim_ows(&value[1..]); // skip '='
+
+        if name.is_empty() {
+            return Some("empty parameter name".to_string());
+        }
+        // cite(RFC 9110 § 5.6.6): "parameter-name  = token"
+        if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
+            return Some(format!(
+                "invalid character '{}' in parameter name '{}'",
+                c.escape_debug(),
+                name.escape_debug()
+            ));
+        }
+
+        if value.starts_with('"') {
+            // The `quoted-string` production belongs to the shared helper, which
+            // walks the interior; asking only that the value start and end with
+            // DQUOTE accepts `foo="a\"`, whose closing quote is escaped, and
+            // `foo="a"b"`.
+            if let Err(e) = validate_quoted_string(value) {
+                // The helper's reason quotes the value it was handed, so the
+                // escape goes around the whole clause rather than around the
+                // name alone -- a control octet inside the quoted-string is
+                // exactly what that reason is about, and it arrived raw.
+                return Some(format!(
+                    "parameter '{}' has invalid quoted-string: {}",
+                    name.escape_debug(),
+                    e.escape_debug()
+                ));
+            }
+        } else {
+            // The alternation is exclusive: a value that does not open with
+            // DQUOTE has to satisfy `token`, which is why an unquoted `utf 8` is
+            // a defect rather than a curiosity.
+            // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
+            if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
+                return Some(format!(
+                    "invalid character '{}' in parameter value '{}'",
+                    c.escape_debug(),
+                    value.escape_debug()
+                ));
+            }
+        }
+    }
+
+    None
 }
 
 /// Extract the value of a `boundary` parameter from a `multipart/*` Content-Type header.

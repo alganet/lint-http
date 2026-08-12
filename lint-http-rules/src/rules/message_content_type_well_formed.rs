@@ -254,112 +254,22 @@ fn check_content_type(
     }
 
     // The helper split on "/" and rejected an empty half; what each half must
-    // *be* is these two productions, and `token` itself is the token helper's.
-    // Case is not checked because there is nothing to check: both are
-    // case-insensitive, so no spelling is wrong.
-    // cite(RFC 9110 § 8.3.1): "type       = token subtype    = token"
-    // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
-    if let Some(c) = crate::helpers::token::find_invalid_token_char(parsed.type_) {
+    // *be*, and what the parameters after them must be, is the other half of
+    // `media-type` — four checks that used to stand here and now live beside the
+    // split, with § 8.3.1's and § 5.6.6's productions on them. They moved when a
+    // second field turned out to need the same question asked: `Accept-Patch` is
+    // `1#media-type`, so `server_patch_accept_patch_header` measures every one of
+    // its members against this production, and a copy here would have been the
+    // grammar transcribed twice.
+    //
+    // The helper returns the reason rather than a message, so this rule still
+    // names its own field in the finding.
+    if let Some(reason) = crate::helpers::headers::media_type_parts_defect(&parsed) {
         return Some(Violation {
             rule: MessageContentTypeWellFormed.id().into(),
             severity: config.severity,
-            message: format!(
-                "Invalid Content-Type '{}': invalid character '{}' in type",
-                val, c
-            ),
+            message: format!("Invalid Content-Type '{}': {}", val, reason),
         });
-    }
-
-    // Same production, other half; the quote above covers both lines of it.
-    if let Some(c) = crate::helpers::token::find_invalid_token_char(parsed.subtype) {
-        return Some(Violation {
-            rule: MessageContentTypeWellFormed.id().into(),
-            severity: config.severity,
-            message: format!(
-                "Invalid Content-Type '{}': invalid character '{}' in subtype",
-                val, c
-            ),
-        });
-    }
-
-    // Parameters are optional after the type/subtype, and each one is a
-    // name/value pair; the two productions below carry the whole check.
-    // cite(RFC 9110 § 8.3.1): "The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs."
-    if let Some(params) = parsed.params {
-        for p_raw in crate::helpers::headers::split_semicolons_respecting_quotes(params) {
-            let p = p_raw.trim();
-            // `[ parameter ]` is bracketed, so a semicolon with nothing after it
-            // is a conforming zero-parameter repetition rather than a defect --
-            // `text/plain; charset=utf-8;` is well formed. This is the same
-            // empty-element shape that produced four false positives in the
-            // caching family; here the code already had it right.
-            // cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
-            if p.is_empty() {
-                continue;
-            }
-            if let Some(eq) = p.find('=') {
-                let (name, value) = p.split_at(eq);
-                let name = name.trim();
-                let value = value[1..].trim(); // skip '='
-                if name.is_empty() {
-                    return Some(Violation {
-                        rule: MessageContentTypeWellFormed.id().into(),
-                        severity: config.severity,
-                        message: format!("Invalid Content-Type '{}': empty parameter name", val),
-                    });
-                }
-                // cite(RFC 9110 § 5.6.6): "parameter-name  = token"
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-                    return Some(Violation {
-                        rule: MessageContentTypeWellFormed.id().into(),
-                        severity: config.severity,
-                        message: format!("Invalid Content-Type '{}': invalid character '{}' in parameter name '{}'", val, c, name),
-                    });
-                }
-                if value.starts_with('"') {
-                    // The `quoted-string` production belongs to the shared
-                    // helper, which walks the interior. The check that stood here
-                    // was a second, weaker copy: it asked only that the value
-                    // start and end with DQUOTE, so a value whose closing quote
-                    // was itself escaped — `foo="a\"` — looked terminated, as did
-                    // `foo="a"b"` with an unescaped quote in the middle.
-                    if let Err(e) = crate::helpers::headers::validate_quoted_string(value) {
-                        return Some(Violation {
-                            rule: MessageContentTypeWellFormed.id().into(),
-                            severity: config.severity,
-                            message: format!(
-                                "Invalid Content-Type '{}': parameter '{}' has invalid quoted-string: {}",
-                                val, name, e
-                            ),
-                        });
-                    }
-                } else {
-                    // The alternation is exclusive: a value that does not open
-                    // with DQUOTE has to satisfy `token`, which is why an
-                    // unquoted `utf 8` is a defect rather than a curiosity.
-                    // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
-                        return Some(Violation {
-                            rule: MessageContentTypeWellFormed.id().into(),
-                            severity: config.severity,
-                            message: format!("Invalid Content-Type '{}': invalid character '{}' in parameter value '{}'", val, c, value),
-                        });
-                    }
-                }
-            } else {
-                // The "=" is not optional inside `parameter`, so a bare token
-                // among the parameters is not a valueless flag.
-                // cite(RFC 9110 § 5.6.6): "parameter       = parameter-name "=" parameter-value"
-                return Some(Violation {
-                    rule: MessageContentTypeWellFormed.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "Invalid Content-Type '{}': parameter '{}' missing '='",
-                        val, p
-                    ),
-                });
-            }
-        }
     }
 
     None
