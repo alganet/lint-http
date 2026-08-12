@@ -129,8 +129,16 @@ pub fn validate_scheme_if_present(s: &str) -> Option<String> {
 /// `?next=`, `?url=`) is the everyday case — and reading an authority out of it
 /// invents an origin the message never had. Everything before a real marker is
 /// the scheme, which admits no component delimiter and is never empty.
+///
+/// Public because a caller that wants the *question* — is this value in
+/// absolute form — and not the origin cannot ask
+/// [`extract_origin_if_absolute`]: that function answers `None` both for a
+/// value with no scheme and for an absolute-form value whose scheme or
+/// authority is the finding, and the two need opposite treatment. Reaching for
+/// `contains("://")` instead is what the paragraph above is about, and it was
+/// written twice in one rule before this was exposed.
 // cite(RFC 3986 § 3.1): "scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )"
-fn scheme_authority_marker(s: &str) -> Option<usize> {
+pub fn scheme_authority_marker(s: &str) -> Option<usize> {
     let idx = s.find("://")?;
     if idx == 0 || s[..idx].contains(['/', '?', '#']) {
         return None;
