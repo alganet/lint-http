@@ -2,18 +2,108 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::headers::{
+    combined_field_value_as_written, parse_token_bws_word, shown_in_finding,
+    split_commas_respecting_quotes, trim_ows,
+};
 use crate::lint::Violation;
 use crate::rules::Rule;
 
 pub struct ClientPreferHeaderAndPreferenceApplied;
+
+/// Why applying `name` changes what a cache would hand the next client — for the
+/// four preferences RFC 7240 defines, and for no other name.
+///
+/// RFC 7240 § 2 conditions its `Vary` requirement on a preference *"that might
+/// result in a variance to a cache's handling of a response entity"*, and it is
+/// each preference's own definition that says whether it is one. All four of
+/// this document's are: two of them decide what the response entity contains,
+/// and two decide whether the entity is the result at all or an acknowledgement
+/// standing in for it.
+///
+/// A name this function does not know is a preference registered elsewhere. § 5.1
+/// puts what a registration does in the registration itself, so whether applying
+/// it varies the entity is not readable from RFC 7240 — and a rule that guessed
+/// would be inventing the antecedent of a MUST.
+///
+/// cite(RFC 7240 § 2): "If a server supports the optional application of a preference that might result in a variance to a cache's handling of a response entity, a Vary header field MUST be included in the response listing the Prefer header field regardless of whether the client actually used Prefer in the request."
+/// cite(RFC 7240 § 5.1): "Value: (An enumeration or description of possible values for the"
+fn varies_the_response_entity(name: &str) -> Option<&'static str> {
+    // The comparison folds case because § 2 says a preference token name is
+    // compared that way -- and here the question really is § 2's, since it is
+    // whether the name in this message is the name the document defines.
+    //
+    // cite(RFC 7240 § 2): "For both preference token names and parameter names, comparison is case insensitive while values are case sensitive regardless of whether token or quoted-string values are used."
+    let known = |literal: &str| name.eq_ignore_ascii_case(literal);
+
+    if known("return") {
+        // The clearest of the four: one value asks for the resource's current
+        // state in the response and the other asks for as little as the server
+        // can send, so the same target URI answers with two different entities
+        // depending on what the request preferred.
+        //
+        // cite(RFC 7240 § 4.2): "The "return=representation" preference indicates that the client prefers that the server include an entity representing the current state of the resource in the response to a successful request."
+        // cite(RFC 7240 § 4.2): "The "return=minimal" preference, on the other hand, indicates that the client wishes the server to return only a minimal response to a successful request."
+        return Some(
+            "its two values decide whether the response carries a representation of the resource or as little as the server can send",
+        );
+    }
+    if known("respond-async") {
+        // cite(RFC 7240 § 4.1): "the server can honor the "respond-async" preference by returning a 202 (Accepted) response."
+        return Some(
+            "a server honoring it answers 202 (Accepted) instead of with the result of the request",
+        );
+    }
+    if known("wait") {
+        // cite(RFC 7240 § 4.3): "the server, or proxy, can choose to utilize an asynchronous processing model by returning -- for example -- a 202 (Accepted) response."
+        return Some(
+            "a server that would exceed the stated time answers 202 (Accepted) instead of with the result of the request",
+        );
+    }
+    if known("handling") {
+        // cite(RFC 7240 § 4.4): "a decision must be made to either reject the request with an appropriate "4xx" error response or go ahead with processing."
+        return Some(
+            "it decides whether a request the server could still process is rejected with a 4xx instead",
+        );
+    }
+    None
+}
+
+/// Whether the response's `Vary` nominates `Prefer`, in either of the two
+/// spellings RFC 7240 § 2 admits.
+///
+/// `Vary` is a list-based field, so it is read across its lines before its
+/// members are counted: the `*` may be written on a second field line. A
+/// `field-name` is a `token` and admits no DQUOTE, so the quote-aware split
+/// agrees with a plain one here; it is the shared reader every list field uses.
+///
+/// cite(RFC 9110 § 12.5.5, label: Vary grammar): "Vary = #( "*" / field-name )"
+/// cite(RFC 9110 § 5.1): "Field names are case-insensitive"
+/// cite(RFC 7240 § 2): "Alternatively, the server MAY include a Vary header with the special value "*""
+fn vary_nominates_prefer(headers: &hyper::HeaderMap) -> bool {
+    let Some(value) = combined_field_value_as_written(headers, "vary") else {
+        return false;
+    };
+    split_commas_respecting_quotes(&value)
+        .into_iter()
+        .map(trim_ows)
+        .any(|member| member == "*" || member.eq_ignore_ascii_case("prefer"))
+}
 
 impl Rule for ClientPreferHeaderAndPreferenceApplied {
     fn id(&self) -> &'static str {
         "client_prefer_header_and_preference_applied"
     }
 
+    /// The evidence is a field the server wrote and the finding is a field it
+    /// omitted, so the rule has nothing to measure on a capture whose upstream
+    /// never answered. The id keeps its `client_` prefix because it is the
+    /// rule's name in every configuration file that already enables it; the
+    /// sentences it applies address the server.
+    ///
+    /// cite(RFC 7240 § 3): "The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server and applied to the processing of a request."
     fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
+        crate::rules::RuleScope::Server
     }
 
     fn check_transaction(
@@ -23,56 +113,144 @@ impl Rule for ClientPreferHeaderAndPreferenceApplied {
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Only meaningful when request includes Prefer and response is present
-        let saw_prefer = tx
-            .request
-            .headers
-            .get_all("prefer")
-            .iter()
-            // If the Prefer header contains at least one non-empty UTF-8 member, consider it present
-            .any(|h| h.to_str().map(|s| !s.trim().is_empty()).unwrap_or(false));
-
-        // cite(RFC 7240 § 3): "The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server"
-        if !saw_prefer {
-            return None;
-        }
-
         let resp = tx.response.as_ref()?;
 
-        // If a Preference-Applied header exists (even if non-UTF8), treat as present
-        if resp
-            .headers
-            .get_all("preference-applied")
-            .iter()
-            .next()
-            .is_some()
-        {
+        // § 2's requirement is conditioned on a variance to *a cache's* handling
+        // of the entity, and a captured exchange establishes that only where a
+        // cache would store the response under the target URI alone. GET and
+        // HEAD are those methods. POST is cacheable too and is deliberately out:
+        // its responses become storable only with explicit freshness information
+        // and a `Content-Location`, so a `Preference-Applied` on a POST is not by
+        // itself evidence that any cache is holding anything -- which is why
+        // § 4.2's own `POST /collection` example, a 201 carrying only a
+        // `Location`, is not a finding here. Neither is § 3's `PATCH` example.
+        //
+        // The comparison is against the octets as written: an unrecognized method
+        // is not GET however it is spelled, so folding case would put a request
+        // this document says nothing about inside the gate.
+        //
+        // cite(RFC 9110 § 9.2.3): "This specification defines caching semantics for GET, HEAD, and POST, although the overwhelming majority of cache implementations only support GET and HEAD."
+        // cite(RFC 9110 § 9.3.3): "Responses to POST requests are only cacheable when they include explicit freshness information"
+        // cite(RFC 9110 § 9.1): "The method token is case-sensitive"
+        if !matches!(tx.request.method.as_str(), "GET" | "HEAD") {
             return None;
         }
 
-        // If Prefer present but no Preference-Applied in response, warn
+        // The one thing a captured message says about the antecedent. A request's
+        // `Prefer` says what a client asked for and nothing about the server, but
+        // a response naming a preference applied is the server stating it applies
+        // that preference -- which is why the trigger is this field and not the
+        // request's, exactly as the sentence's "regardless of whether the client
+        // actually used Prefer in the request" says it should be.
+        //
+        // Read as octets and joined across the field's lines, for the reasons
+        // `message_preference_applied_header_valid` reads the same field the same
+        // way: a `word` may be a `quoted-string`, `qdtext` admits `obs-text`, and
+        // a member may be written at a line boundary.
+        //
+        // cite(RFC 7240 § 3, label: Preference-Applied grammar): "Preference-Applied = "Preference-Applied" ":" 1#applied-pref"
+        let applied = combined_field_value_as_written(&resp.headers, "preference-applied")?;
+
+        // The first member naming a preference whose application varies the
+        // entity. A member this cannot parse is one whose name is not readable,
+        // so it cannot establish the antecedent either -- the finding below is
+        // that a field is *absent*, and a claim of absence rests on the rest of
+        // the message being legible. Its syntax is the neighbouring rule's
+        // finding, reported there rather than twice.
+        //
+        // cite(RFC 7240 § 3): "applied-pref = token [ BWS "=" BWS word ]"
+        let varying = split_commas_respecting_quotes(&applied)
+            .into_iter()
+            .map(trim_ows)
+            .filter(|member| !member.is_empty())
+            .filter_map(|member| parse_token_bws_word(member).ok())
+            .find_map(|parsed| {
+                varies_the_response_entity(parsed.name).map(|why| (parsed.name, why))
+            });
+
+        let (name, why) = varying?;
+
+        if vary_nominates_prefer(&resp.headers) {
+            return None;
+        }
+
+        // The name reached here through `parse_token_bws_word`, which admits only
+        // `tchar`, so it is safe in a message as written; the `Vary` value is
+        // whatever the server sent.
+        let vary_state = match combined_field_value_as_written(&resp.headers, "vary") {
+            Some(v) => format!("its Vary field is '{}'", shown_in_finding(&v)),
+            None => "it carries no Vary field".to_string(),
+        };
+
         Some(Violation {
             rule: self.id().into(),
             severity: config.severity,
-            message: "Request included Prefer header but response did not include Preference-Applied to indicate which preferences were applied".into(),
+            message: format!(
+                "Response states the '{}' preference was applied — {} — but {}, so a cache holding this response under the target URI alone can serve it to a request that preferred otherwise",
+                name, why, vary_state
+            ),
         })
     }
 
     fn title(&self) -> Option<&'static str> {
-        Some("Client Prefer Header and Preference-Applied Presence")
+        Some("Prefer, Preference-Applied and the Vary a cache needs")
     }
 
     fn description(&self) -> &'static str {
-        "When a client sends a `Prefer` request header, servers MAY include a `Preference-Applied` response header to indicate which preferences were applied. This rule warns when a request included `Prefer` but the response did not include `Preference-Applied`, which makes it harder for clients to know which preferences the server applied. This is a best-practice suggestion; servers are not strictly required to include `Preference-Applied`."
+        "Reports a response that states a preference was applied — `Preference-Applied` naming one of the four preferences RFC 7240 defines — without the `Vary` that §2 requires of a server whose preferences affect caching: *\"If a server supports the optional application of a preference that might result in a variance to a cache's handling of a response entity, a Vary header field MUST be included in the response listing the Prefer header field regardless of whether the client actually used Prefer in the request.\"* §2 admits `Vary: *` as the alternative, and either spelling satisfies the rule.\n\n**The trigger is the response, not the request.** A `Prefer` request header says what a client asked for and nothing about what the server supports; a `Preference-Applied` response header is the server stating that it applies that preference. That is the half of the sentence's antecedent a captured exchange can establish, and it is what the *\"regardless of whether the client actually used Prefer in the request\"* clause points at.\n\n**Only GET and HEAD.** The requirement is conditioned on a variance to *a cache's* handling of the entity, and a single exchange shows that only where a cache would store the response under the target URI alone. POST is a cacheable method but its responses become storable only with explicit freshness information and a `Content-Location` (RFC 9110 §9.3.3), so `Preference-Applied` on a POST is not by itself evidence that anything is stored — which is why RFC 7240 §4.2's own `POST /collection` example and §3's own `PATCH` example are not findings here.\n\n**Only the four preferences RFC 7240 defines.** `return` decides whether the response carries a representation or as little as the server can send (§4.2); `respond-async` and `wait` decide whether the response is the result or a 202 standing in for it (§4.1, §4.3); `handling` decides whether a request the server could still process is rejected with a 4xx (§4.4). Each of those is a variance the document itself describes. A preference registered elsewhere has its effect written in its own registration (§5.1), so whether it varies the entity is not readable here and the rule stays silent rather than invent the antecedent of a MUST.\n\n**What this rule does not report, and why.** A response that omits `Preference-Applied` after a `Prefer` request is not a finding. §3 makes the field a MAY; §2 says outright that *\"servers are allowed to ignore stated preferences\"*, so silence may correctly mean nothing was applied; and §3's own next sentence narrows it further — *\"Use of the Preference-Applied header is only necessary when it is not readily and obviously apparent that a server applied a given preference and such ambiguity might have an impact on the client's handling of the response.\"* — a condition about what a client application can determine, which no message states. RFC 7240 §4.2's two example responses honor `return` and carry no `Preference-Applied` at all.\n\n**The boundary.** §2's MUST binds a server that *supports* applying such a preference, whether or not it applied one here and whether or not the client asked. The only in-message evidence of that support is `Preference-Applied`, and §3 leaves a server free to apply a preference and say nothing — so a server that varies its responses silently is outside what any single capture can show. `message_prefer_header_valid` reads the request's field against its grammar and `message_preference_applied_header_valid` reads the response's against its own and against what was asked for; neither looks at `Vary`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 7240",
-            section: Some("3"),
-            url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-3",
-            note: "`Preference-Applied` header and ABNF",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 7240",
+                section: Some("2"),
+                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-2",
+                note: "The `Vary` MUST this rule enforces, its `Vary: *` alternative, the case rule for comparing preference token names, and the statement that servers are allowed to ignore stated preferences — which is why a missing `Preference-Applied` is not a finding",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7240",
+                section: Some("3"),
+                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-3",
+                note: "`Preference-Applied` — a MAY, with its grammar, and the sentence narrowing its use to the case where a client could not otherwise tell that a preference was applied. The field's presence is this rule's evidence, not its requirement",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7240",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-4",
+                note: "What each of the four defined preferences does to the response, which is what makes it one that \"might result in a variance to a cache's handling of a response entity\": §4.1 and §4.3 (a 202 in place of the result), §4.2 (a representation or a minimal answer), §4.4 (a 4xx in place of processing)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7240",
+                section: Some("5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-5.1",
+                note: "The \"HTTP Preferences\" registry keeps a preference's effect in its own registration, which is why a name RFC 7240 does not define is left unjudged rather than assumed to vary the entity",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("12.5.5"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5",
+                note: "`Vary = #( \"*\" / field-name )` — a list field, read across its lines, whose members are field names and so compared case-insensitively",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.2.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.3",
+                note: "Which methods have caching semantics. With §9.3.3's condition on POST responses, this is why the gate is GET and HEAD — the methods where one exchange shows a cache would hold the response under the target URI alone",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("9.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+                note: "The method token is case-sensitive, so the gate compares the octets as written rather than folding an unrecognized method into GET",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
+                note: "What the `Vary` this rule asks for buys: without it a stored response is matched on the target URI alone, and the request field that selected it is not part of the key",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -80,13 +258,41 @@ impl Rule for ClientPreferHeaderAndPreferenceApplied {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET / HTTP/1.1\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: return=representation",
+                label: Some(
+                    "(the applied preference is named, and Vary makes it part of the cache key)",
+                ),
+                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: return=minimal\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=minimal\nVary: Prefer",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(RFC 7240 §2's alternative spelling)"),
+                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: respond-async\n\nHTTP/1.1 200 OK\nPreference-Applied: respond-async\nVary: *",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(RFC 7240 §3's own example — a PATCH response is not one a cache holds under the target URI)",
+                ),
+                snippet: "PATCH /my-document HTTP/1.1\nHost: example.org\nContent-Type: application/example-patch\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=representation\nContent-Location: /my-document",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(a preference registered elsewhere; RFC 7240 does not say what applying it changes)",
+                ),
+                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: depth-noroot\n\nHTTP/1.1 200 OK\nPreference-Applied: depth-noroot",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("(response omits Preference-Applied)"),
-                snippet: "GET / HTTP/1.1\nPrefer: return=representation\n\nHTTP/1.1 200 OK",
+                label: Some(
+                    "(the server states it varied the entity and left it out of the cache key)",
+                ),
+                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: return=minimal\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=minimal",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(Vary is present but does not list Prefer)"),
+                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=representation\nVary: Accept-Encoding",
             },
         ]
     }
@@ -99,150 +305,229 @@ static REGISTRATION: &dyn crate::rules::Rule = &ClientPreferHeaderAndPreferenceA
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hyper::header::{HeaderName, HeaderValue};
+    use hyper::HeaderMap;
     use rstest::rstest;
 
-    #[rstest]
-    #[case("Prefer: return=representation", None, true)]
-    #[case(
-        "Prefer: return=representation",
-        Some("Preference-Applied: return=representation"),
-        false
-    )]
-    #[case("", None, false)]
-    #[case(
-        "Prefer: handling=lenient",
-        Some("Preference-Applied: handling=lenient"),
-        false
-    )]
-    fn check_cases(
-        #[case] prefer_hdr: &str,
-        #[case] applied_hdr: Option<&str>,
-        #[case] expect_violation: bool,
-    ) -> anyhow::Result<()> {
-        let rule = ClientPreferHeaderAndPreferenceApplied;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-
-        if !prefer_hdr.is_empty() {
-            let parts: Vec<&str> = prefer_hdr.splitn(2, ':').collect();
-            tx.request.headers =
-                crate::test_helpers::make_headers_from_pairs(&[(parts[0].trim(), parts[1].trim())]);
-        }
-
-        if let Some(a) = applied_hdr {
-            let parts2: Vec<&str> = a.splitn(2, ':').collect();
-            tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(
-                &[(parts2[0].trim(), parts2[1].trim())],
+    /// Build a header map from raw octets, so a value `to_str` would refuse can
+    /// be written into a test.
+    fn headers(pairs: &[(&str, &[u8])]) -> HeaderMap {
+        let mut hm = HeaderMap::new();
+        for (name, value) in pairs {
+            hm.append(
+                name.parse::<HeaderName>().unwrap(),
+                HeaderValue::from_bytes(value).unwrap(),
             );
         }
+        hm
+    }
 
-        let v = rule.check_transaction(
+    fn run(
+        method: &str,
+        req: &[(&str, &[u8])],
+        resp: &[(&str, &[u8])],
+    ) -> Option<crate::lint::Violation> {
+        let rule = ClientPreferHeaderAndPreferenceApplied;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.method = method.to_string();
+        tx.request.headers = headers(req);
+        tx.response.as_mut().unwrap().headers = headers(resp);
+        rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-        );
-        if expect_violation {
-            assert!(v.is_some());
-        } else {
-            assert!(v.is_none());
+        )
+    }
+
+    /// Each of the four preferences RFC 7240 defines is one whose application
+    /// varies the entity, so each of them needs the `Vary`.
+    #[rstest]
+    #[case(b"return=minimal")]
+    #[case(b"return=representation")]
+    #[case(b"respond-async")]
+    #[case(b"wait=100")]
+    #[case(b"handling=lenient")]
+    fn defined_preference_applied_without_vary_is_reported(#[case] applied: &[u8]) {
+        let v = run("GET", &[], &[("preference-applied", applied)]);
+        assert!(v.is_some(), "expected a finding for {:?}", applied);
+    }
+
+    /// § 2 admits two spellings, and a `Vary` listing something else is neither.
+    #[rstest]
+    #[case(Some(&b"Prefer"[..]), false)]
+    #[case(Some(&b"prefer"[..]), false)]
+    #[case(Some(&b"Accept-Encoding, Prefer"[..]), false)]
+    #[case(Some(&b"*"[..]), false)]
+    #[case(Some(&b"Accept-Encoding"[..]), true)]
+    #[case(None, true)]
+    fn vary_decides(#[case] vary: Option<&[u8]>, #[case] expect_violation: bool) {
+        let mut resp: Vec<(&str, &[u8])> = vec![("preference-applied", b"return=minimal")];
+        if let Some(v) = vary {
+            resp.push(("vary", v));
         }
-        Ok(())
+        assert_eq!(run("GET", &[], &resp).is_some(), expect_violation);
+    }
+
+    /// `Vary` is a list field, so a `*` written on a second field line is a `*`.
+    #[test]
+    fn vary_is_read_across_its_field_lines() {
+        let v = run(
+            "GET",
+            &[],
+            &[
+                ("preference-applied", b"return=minimal"),
+                ("vary", b"Accept-Encoding"),
+                ("vary", b"Prefer"),
+            ],
+        );
+        assert!(v.is_none());
+    }
+
+    /// The gate is the method, and it is compared as written: `get` is a method
+    /// RFC 9110 does not define, so nothing here says a cache holds its response.
+    #[rstest]
+    #[case("GET", true)]
+    #[case("HEAD", true)]
+    #[case("POST", false)]
+    #[case("PATCH", false)]
+    #[case("PUT", false)]
+    #[case("get", false)]
+    fn method_gate(#[case] method: &str, #[case] expect_violation: bool) {
+        let v = run(method, &[], &[("preference-applied", b"return=minimal")]);
+        assert_eq!(v.is_some(), expect_violation, "method {}", method);
+    }
+
+    /// RFC 7240 § 3's own example exchange, which the rule must not report: a
+    /// PATCH response is not one a cache holds under the target URI alone.
+    #[test]
+    fn rfc7240_section_3_example_is_clean() {
+        let v = run(
+            "PATCH",
+            &[("prefer", b"return=representation")],
+            &[
+                ("content-type", b"application/json"),
+                ("preference-applied", b"return=representation"),
+                ("content-location", b"/my-document"),
+            ],
+        );
+        assert!(v.is_none());
+    }
+
+    /// § 5.1 keeps a registered preference's effect in its own registration, so a
+    /// name this document does not define is not assumed to vary the entity.
+    #[test]
+    fn preference_defined_elsewhere_is_left_alone() {
+        let v = run("GET", &[], &[("preference-applied", b"depth-noroot")]);
+        assert!(v.is_none());
+    }
+
+    /// The name is compared the way § 2 says preference token names are.
+    #[test]
+    fn preference_name_comparison_folds_case() {
+        let v = run("GET", &[], &[("preference-applied", b"Return=Minimal")]);
+        assert!(v.is_some());
+    }
+
+    /// A member the grammar does not admit says nothing about which preference
+    /// was applied; its syntax is the neighbouring rule's finding.
+    #[rstest]
+    #[case(b"")]
+    #[case(b",")]
+    #[case(b"=minimal")]
+    #[case(b"return=\"unterminated")]
+    fn an_unreadable_applied_pref_states_nothing(#[case] applied: &[u8]) {
+        let v = run("GET", &[], &[("preference-applied", applied)]);
+        assert!(v.is_none(), "expected silence for {:?}", applied);
+    }
+
+    /// A defined preference beside an unreadable member is still a defined
+    /// preference the server says it applied.
+    #[test]
+    fn a_defined_preference_beside_an_unreadable_member_is_found() {
+        let v = run(
+            "GET",
+            &[],
+            &[("preference-applied", b"=bad, return=minimal")],
+        );
+        assert!(v.is_some());
+    }
+
+    /// A `word` may be a `quoted-string` and `qdtext` admits `obs-text`, so the
+    /// field is not decoded before it is read — and the quoting is not the value.
+    #[test]
+    fn an_obs_text_octet_does_not_hide_the_field() {
+        let v = run(
+            "GET",
+            &[],
+            &[("preference-applied", b"return=\"minimal\", foo=\"caf\xe9\"")],
+        );
+        assert!(v.is_some());
+    }
+
+    /// § 2 says several field lines are one list, so a member written at a line
+    /// boundary is one member.
+    #[test]
+    fn preference_applied_is_read_across_its_field_lines() {
+        let v = run(
+            "GET",
+            &[],
+            &[
+                ("preference-applied", b"foo"),
+                ("preference-applied", b"return=minimal"),
+            ],
+        );
+        assert!(v.is_some());
+    }
+
+    /// The requirement holds *"regardless of whether the client actually used
+    /// Prefer in the request"*, so the request's field decides nothing here.
+    #[rstest]
+    #[case(None)]
+    #[case(Some(&b"return=minimal"[..]))]
+    #[case(Some(&b","[..]))]
+    #[case(Some(&b"\xff"[..]))]
+    fn the_request_field_does_not_gate_the_finding(#[case] prefer: Option<&[u8]>) {
+        let mut req: Vec<(&str, &[u8])> = vec![];
+        if let Some(p) = prefer {
+            req.push(("prefer", p));
+        }
+        let v = run("GET", &req, &[("preference-applied", b"return=minimal")]);
+        assert!(v.is_some());
+    }
+
+    /// A response that says nothing about a preference is not evidence of
+    /// anything: § 3 makes the field a MAY, and § 2 lets a server ignore every
+    /// preference it was sent.
+    #[rstest]
+    #[case(&b"return=representation"[..])]
+    #[case(&b"respond-async"[..])]
+    #[case(&b"handling=lenient"[..])]
+    fn a_missing_preference_applied_is_not_a_finding(#[case] prefer: &[u8]) {
+        let v = run("GET", &[("prefer", prefer)], &[]);
+        assert!(v.is_none());
     }
 
     #[test]
-    fn preference_applied_non_utf8_counts_as_present() -> anyhow::Result<()> {
-        use hyper::header::HeaderValue;
-
-        let rule = ClientPreferHeaderAndPreferenceApplied;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("Prefer", "respond-async")]);
-
-        // Create non-utf8 Preference-Applied value
-        let mut hm = hyper::HeaderMap::new();
-        hm.insert(
-            "preference-applied",
-            HeaderValue::from_bytes(&[0xff]).unwrap(),
-        );
-        tx.response.as_mut().unwrap().headers = hm;
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        // treat non-utf8 header as present -> no violation from this rule
-        assert!(v.is_none());
-        Ok(())
+    fn the_finding_names_the_preference_and_what_vary_said() {
+        let v = run(
+            "GET",
+            &[],
+            &[
+                ("preference-applied", b"return=minimal"),
+                ("vary", b"Accept-Encoding"),
+            ],
+        )
+        .expect("expected a finding");
+        assert!(v.message.contains("'return'"), "{}", v.message);
+        assert!(v.message.contains("Accept-Encoding"), "{}", v.message);
     }
 
     #[test]
     fn rule_id_and_scope() {
         let rule = ClientPreferHeaderAndPreferenceApplied;
         assert_eq!(rule.id(), "client_prefer_header_and_preference_applied");
-        assert_eq!(rule.scope(), crate::rules::RuleScope::Client);
-    }
-
-    #[test]
-    fn prefer_non_utf8_request_is_ignored() -> anyhow::Result<()> {
-        use hyper::header::HeaderValue;
-
-        let rule = ClientPreferHeaderAndPreferenceApplied;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        // non-utf8 Prefer header should be ignored and not cause a missing Preference-Applied warning
-        let mut hm = hyper::HeaderMap::new();
-        hm.insert("prefer", HeaderValue::from_bytes(&[0xff]).unwrap());
-        tx.request.headers = hm;
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_none());
-        Ok(())
-    }
-
-    #[test]
-    fn multiple_prefer_headers_some_empty_some_valid() -> anyhow::Result<()> {
-        let rule = ClientPreferHeaderAndPreferenceApplied;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
-            ("Prefer", ""),
-            ("Prefer", "respond-async"),
-        ]);
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn empty_prefer_header_only_is_ignored() -> anyhow::Result<()> {
-        let rule = ClientPreferHeaderAndPreferenceApplied;
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("Prefer", "")]);
-
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_none());
-        Ok(())
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
     }
 
     #[test]
