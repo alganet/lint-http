@@ -737,13 +737,13 @@ sources:
     snippet: The ABNF notation defines its terminal values to be non-negative integers (codepoints) based on the US-ASCII coded character set [ASCII].
     cited_by:
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 97
+      line: 98
   - label: client_request_uri_percent_encoding_valid (2)
     section: § 2
     snippet: the integer values used by the ABNF must be mapped back to their corresponding characters via US-ASCII in order to complete the syntax rules.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 98
+      line: 99
   - label: client_request_uri_percent_encoding_valid (3)
     section: § 2.4
     snippet: Because the percent ("%") character serves as the indicator for percent-encoded octets, it must be percent-encoded as "%25" for that octet to be used as data within a URI.
@@ -801,7 +801,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 76
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 96
+      line: 97
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 90
   - label: lint-http-rules/src/helpers/uri.rs (2)
@@ -817,7 +817,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 77
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 95
+      line: 96
   - label: lint-http-rules/src/helpers/uri.rs (4)
     section: § 2.1
     snippet: If two URIs differ only in the case of hexadecimal digits used in percent-encoded octets, they are equivalent.
@@ -2696,11 +2696,11 @@ sources:
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
       line: 171
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 200
+      line: 204
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 217
+      line: 221
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 310
+      line: 314
     - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
       line: 110
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
@@ -3168,13 +3168,13 @@ sources:
     snippet: For CONNECT (Section 9.3.6), the request target is the host name and port number of the tunnel destination, separated by a colon.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 242
+      line: 246
   - label: client_request_target_form_checks (3)
     section: § 7.1
     snippet: For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*").
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 264
+      line: 268
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
       line: 91
   - label: client_request_target_form_checks (4)
@@ -3192,13 +3192,13 @@ sources:
     snippet: There are two unusual cases for which the request target components are in a method-specific form
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 234
+      line: 238
   - label: client_request_target_form_checks (6)
     section: § 7.1
     snippet: These forms MUST NOT be used with other methods.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 235
+      line: 239
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
       line: 92
   - label: client_request_target_form_checks (7)
@@ -6576,33 +6576,33 @@ sources:
     snippet: A recipient SHOULD NOT attempt to autocorrect and then process the request without a redirect, since the invalid request-line might be deliberately crafted to bypass security filters along the request chain.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 199
+      line: 203
   - label: client_request_target_form_checks (3)
     section: § 3.2
     snippet: No whitespace is allowed in the request-target.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 197
+      line: 201
   - label: client_request_target_form_checks (4)
     section: § 3.2
     snippet: Recipients of an invalid request-line SHOULD respond with either a 400 (Bad Request) error or a 301 (Moved Permanently) redirect with the request-target properly encoded.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 218
+      line: 222
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 311
+      line: 315
   - label: client_request_target_form_checks (5)
     section: § 3.2
     snippet: Unfortunately, some user agents fail to properly encode or exclude whitespace found in hypertext references, resulting in those disallowed characters being sent as the request-target in a malformed request-line.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 198
+      line: 202
   - label: client_request_target_form_checks (6)
     section: § 3.2.1
     snippet: When making a request directly to an origin server, other than a CONNECT or server-wide OPTIONS request (as detailed below), a client MUST send only the absolute path and query components of the target URI as the request-target.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 302
+      line: 306
   - label: origin-form
     section: § 3.2.1
     snippet: origin-form    = absolute-path [ "?" query ]
@@ -6616,13 +6616,13 @@ sources:
     snippet: A server MUST accept the absolute-form in requests even though most HTTP/1.1 clients will only send the absolute-form to a proxy.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 304
+      line: 308
   - label: client_request_target_form_checks (8)
     section: § 3.2.2
     snippet: When making a request to a proxy, other than a CONNECT or server-wide OPTIONS request (as detailed below), a client MUST send the target URI in "absolute-form" as the request-target.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 303
+      line: 307
   - label: absolute-form
     section: § 3.2.2
     snippet: absolute-form  = absolute-URI
@@ -6636,27 +6636,27 @@ sources:
     snippet: It consists of only the uri-host and port number of the tunnel destination, separated by a colon (":").
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 243
+      line: 247
   - label: client_request_target_form_checks (10)
     section: § 3.2.3
     snippet: The "authority-form" of request-target is only used for CONNECT requests
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 275
+      line: 279
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 288
+      line: 292
   - label: client_request_target_form_checks (11)
     section: § 3.2.3
     snippet: The client obtains the host and port from the target URI's authority component, except that it sends the scheme's default port if the target URI elides the port.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 251
+      line: 255
   - label: client_request_target_form_checks (12)
     section: § 3.2.3
     snippet: When making a CONNECT request to establish a tunnel through one or more proxies, a client MUST send only the host and port of the tunnel destination as the request-target.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 244
+      line: 248
   - label: authority-form
     section: § 3.2.3
     snippet: authority-form = uri-host ":" port
@@ -6668,13 +6668,13 @@ sources:
     snippet: The "asterisk-form" of request-target is only used for a server-wide OPTIONS request
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 265
+      line: 269
   - label: client_request_target_form_checks (14)
     section: § 3.2.4
     snippet: When a client wishes to request OPTIONS for the server as a whole, as opposed to a specific named resource of that server, the client MUST send only "*" (%x2A) as the request-target.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 266
+      line: 270
   - label: asterisk-form
     section: § A
     snippet: asterisk-form = "*" authority = <authority, see [URI], Section 3.2>
