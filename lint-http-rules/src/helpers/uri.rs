@@ -26,6 +26,15 @@ pub fn check_percent_encoding(s: &str) -> Option<String> {
             }
             let hi = bytes[i + 1];
             let lo = bytes[i + 2];
+            // Both cases of the six letter digits derive from `HEXDIG`, whose
+            // alternatives are quoted strings and so case-insensitive, and § 2.1
+            // says the same of these digits directly -- two URIs differing only
+            // in that case are one URI. The recommendation beside it, to prefer
+            // uppercase, is a consistency one and is declined where a caller
+            // publishes its findings.
+            // cite(RFC 5234 § 2.3): "ABNF strings are case insensitive and the character set for these strings is US-ASCII."
+            // cite(RFC 3986 § 2.1): "The uppercase hexadecimal digits 'A' through 'F' are equivalent to the lowercase digits 'a' through 'f', respectively."
+            // cite(RFC 3986 § 2.1): "If two URIs differ only in the case of hexadecimal digits used in percent-encoded octets, they are equivalent."
             if !hi.is_ascii_hexdigit() || !lo.is_ascii_hexdigit() {
                 // Take three *characters*, not three bytes. The bytes after '%'
                 // are non-hex precisely here, which is when they may be the lead
