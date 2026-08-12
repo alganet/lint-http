@@ -25,8 +25,10 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to HTTP/3 transactions. The version gate is scoping, not a
         // normative check, so it carries no cite; each requirement below cites the
-        // sentence it enforces.
-        if tx.request.version != "HTTP/3" {
+        // sentence it enforces. What it reads is the major digit and not a string:
+        // this version has no version field on the wire, so the value is one a
+        // writer chose, and `helpers::version` is where the production lives.
+        if !crate::helpers::version::is_major(&tx.request.version, 3) {
             return None;
         }
 
@@ -137,7 +139,7 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
         // `:status` outside 100–599, and the constraint it enforced was RFC 9110
         // § 15's, not HTTP/3's: RFC 9114 § 4.3.2 defines the field as carrying "the
         // HTTP status code; see Section 15 of [HTTP]" and states no range of its
-        // own. Behind the `version == "HTTP/3"` gate above, the same out-of-range
+        // own. Behind the major-version gate above, the same out-of-range
         // status over HTTP/1.1 or HTTP/2 went unreported here and the HTTP/3 one was
         // reported twice — `server_status_code_valid_range` asks it of every
         // version. Same shape as the three checks `server_http3_status_code_validity`
@@ -255,7 +257,7 @@ mod tests {
 
     fn make_h3_transaction() -> crate::http_transaction::HttpTransaction {
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.version = "HTTP/3".into();
+        tx.request.version = "HTTP/3.0".into();
         tx
     }
 
@@ -264,9 +266,9 @@ mod tests {
         resp_headers: &[(&str, &str)],
     ) -> crate::http_transaction::HttpTransaction {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(status, resp_headers);
-        tx.request.version = "HTTP/3".into();
+        tx.request.version = "HTTP/3.0".into();
         if let Some(ref mut resp) = tx.response {
-            resp.version = "HTTP/3".into();
+            resp.version = "HTTP/3.0".into();
         }
         tx
     }
@@ -701,7 +703,7 @@ mod tests {
         // HTTP/3 request but HTTP/1.1 upstream response (reverse-proxy).
         let rule = MessageHttp3PseudoHeadersValidity;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(0, &[]);
-        tx.request.version = "HTTP/3".into();
+        tx.request.version = "HTTP/3.0".into();
         // Response version stays HTTP/1.1 — status 0 should not be flagged.
 
         let v = rule.check_transaction(

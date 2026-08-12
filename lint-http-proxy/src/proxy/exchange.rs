@@ -41,7 +41,7 @@ pub(super) struct ProxiedRequest {
     /// Original client request headers; suppression is applied only when
     /// building the upstream request.
     pub headers: HeaderMap,
-    /// Request version string ("HTTP/1.1", "HTTP/3", …).
+    /// Request version string ("HTTP/1.1", "HTTP/3.0", …).
     pub version: String,
     /// The request body, already wrapped so it streams to the upstream while a
     /// bounded prefix is teed for capture (H3 wraps a buffered body).

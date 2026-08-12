@@ -325,7 +325,7 @@ mod tests {
     #[case("HTTP/1.1")]
     #[case("HTTP/1.0")]
     #[case("HTTP/2.0")]
-    #[case("HTTP/3")]
+    #[case("HTTP/3.0")]
     fn no_version_is_exempt(#[case] version: &str) {
         assert!(judge("https://example.com/a%2", version).is_some());
     }
@@ -334,7 +334,7 @@ mod tests {
     /// request-target, because two of the three versions have no request-line.
     #[test]
     fn the_finding_names_the_construct_every_version_has() {
-        let msg = judge("https://example.com/a%2", "HTTP/3").expect("must be reported");
+        let msg = judge("https://example.com/a%2", "HTTP/3.0").expect("must be reported");
         assert!(msg.starts_with("Request target "), "{msg}");
         assert!(!msg.contains("request-target"), "{msg}");
     }

@@ -285,10 +285,10 @@ mod tests {
     #[test]
     fn http3_version_is_valid() {
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.version = "HTTP/3".into();
+        tx.request.version = "HTTP/3.0".into();
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
-            version: "HTTP/3".into(),
+            version: "HTTP/3.0".into(),
             headers: crate::test_helpers::make_headers_from_pairs(&[]),
             body_length: None,
             trailers: None,

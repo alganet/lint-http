@@ -24,7 +24,10 @@ impl Rule for ServerHttp3StatusCodeValidity {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to HTTP/3 connections. Scoping, not a normative check — no cite.
-        if tx.request.version != "HTTP/3" {
+        // Both gates read the major digit rather than a string: neither direction
+        // of this version carries a version field, so both values are ones a
+        // writer chose. `helpers::version` owns the production.
+        if !crate::helpers::version::is_major(&tx.request.version, 3) {
             return None;
         }
 
@@ -32,7 +35,7 @@ impl Rule for ServerHttp3StatusCodeValidity {
 
         // Only check responses that are themselves HTTP/3. In a reverse-proxy
         // setup the upstream response may be HTTP/1.1 (where 101 is valid).
-        if resp.version != "HTTP/3" {
+        if !crate::helpers::version::is_major(&resp.version, 3) {
             return None;
         }
 
@@ -160,9 +163,9 @@ mod tests {
         resp_headers: &[(&str, &str)],
     ) -> crate::http_transaction::HttpTransaction {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(status, resp_headers);
-        tx.request.version = "HTTP/3".into();
+        tx.request.version = "HTTP/3.0".into();
         if let Some(ref mut resp) = tx.response {
-            resp.version = "HTTP/3".into();
+            resp.version = "HTTP/3.0".into();
         }
         tx
     }
@@ -337,7 +340,7 @@ mod tests {
             101,
             &[("upgrade", "websocket")],
         );
-        tx.request.version = "HTTP/3".into();
+        tx.request.version = "HTTP/3.0".into();
         // response.version stays HTTP/1.1
 
         let v = rule.check_transaction(
@@ -354,7 +357,7 @@ mod tests {
     fn no_response_is_ok() {
         let rule = ServerHttp3StatusCodeValidity;
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.version = "HTTP/3".into();
+        tx.request.version = "HTTP/3.0".into();
 
         let v = rule.check_transaction(
             &tx,

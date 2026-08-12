@@ -89,7 +89,10 @@ impl Rule for Stateful101SwitchingProtocols {
 
         // ── Check: 101 on HTTP/2 ──
         // cite(RFC 9113 § 8.6): "HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
-        if tx.request.version == "HTTP/2" || tx.request.version == "HTTP/2.0" {
+        // Two spellings were listed here because the value is one a writer chose
+        // — this version carries no version field — and neither listing them nor
+        // guessing which one arrives is the question. The major digit is.
+        if crate::helpers::version::is_major(&tx.request.version, 2) {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
@@ -103,7 +106,7 @@ impl Rule for Stateful101SwitchingProtocols {
         // whose subject is HTTP Message Framing). Also enforced by
         // `server_http3_status_code_validity`; checked here for completeness.
         // cite(RFC 9114 § 4.5): "HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
-        if tx.request.version == "HTTP/3" {
+        if crate::helpers::version::is_major(&tx.request.version, 3) {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
@@ -495,8 +498,15 @@ mod tests {
 
     // ── Violation: HTTP/2 ──
 
+    /// `HTTP/2` is not a version number: RFC 9110 § 2.5 writes two digits and a
+    /// period, and RFC 9113 § 8.3.1 spells this version's implied number `2.0`.
+    /// This test asserted the gate fired on it, which was a claim about a
+    /// spelling nothing in this workspace writes and no production generates.
+    /// The gate now reads the major digit, so a value that fails the production
+    /// names no major version and reaches the checks below it instead — here,
+    /// the ordinary 101 handshake, which this request satisfies.
     #[rstest]
-    fn http2_101_forbidden() {
+    fn a_version_number_missing_its_minor_digit_names_no_major_version() {
         let tx = make_upgrade_tx(
             "HTTP/2",
             &[("upgrade", "websocket")],
@@ -504,16 +514,14 @@ mod tests {
             &[("upgrade", "websocket")],
         );
         let rule = Stateful101SwitchingProtocols;
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "stateful_101_switching_protocols",
-                ]),
-            )
-            .unwrap();
-        assert!(v.message.contains("HTTP/2"));
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "stateful_101_switching_protocols",
+            ]),
+        );
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[rstest]
@@ -542,7 +550,7 @@ mod tests {
     #[rstest]
     fn http3_101_forbidden() {
         let tx = make_upgrade_tx(
-            "HTTP/3",
+            "HTTP/3.0",
             &[("upgrade", "websocket")],
             101,
             &[("upgrade", "websocket")],

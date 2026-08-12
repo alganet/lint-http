@@ -21,4 +21,5 @@ pub mod status;
 pub mod structured_fields;
 pub mod token;
 pub mod uri;
+pub mod version;
 pub mod websocket;

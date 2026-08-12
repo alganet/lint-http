@@ -375,7 +375,12 @@ async fn handle_h3_request(
         uri,
         uri_str,
         headers: req_headers,
-        version: "HTTP/3".to_string(),
+        // The version number RFC 9114 § 4.3.1 states for a request that has
+        // nowhere to carry one, written the way § 2.5 of [HTTP] writes a major
+        // version with no minor versions of its own. `format_http_version`
+        // renders the same string from `hyper::Version::HTTP_3`.
+        // cite(RFC 9114 § 4.3.1): "HTTP/3 requests implicitly have a protocol version of "3.0"."
+        version: "HTTP/3.0".to_string(),
         body,
         body_done: body_done_rx,
         client_id,

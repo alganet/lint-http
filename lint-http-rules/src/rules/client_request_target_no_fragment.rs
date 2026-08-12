@@ -286,7 +286,7 @@ mod tests {
     #[case("HTTP/1.0", "request-target")]
     #[case("HTTP/1.1", "request-target")]
     #[case("HTTP/2.0", "pseudo-header fields")]
-    #[case("HTTP/3", "pseudo-header fields")]
+    #[case("HTTP/3.0", "pseudo-header fields")]
     fn the_version_names_what_carried_it(#[case] version: &str, #[case] expected: &str) {
         let v = judge("/a#frag", version).expect("a fragment is reported on every version");
         assert!(v.message.contains(expected), "{}", v.message);

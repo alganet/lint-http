@@ -1001,7 +1001,7 @@ sources:
     snippet: Although host is case-insensitive, producers and normalizers should use lowercase for registered names and hexadecimal addresses for the sake of uniformity
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_host_authority_consistency.rs
-      line: 67
+      line: 69
   - label: server_location_header_uri_valid
     section: § 4.1
     snippet: URI-reference = URI / relative-ref
@@ -1060,6 +1060,12 @@ sources:
       line: 35
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 70
+  - label: DIGIT
+    section: § B.1
+    snippet: DIGIT          =  %x30-39 ; 0-9
+    cited_by:
+    - file: lint-http-rules/src/helpers/version.rs
+      line: 93
 - label: RFC 5322
   url: https://www.rfc-editor.org/rfc/rfc5322.txt
   type: text/plain
@@ -3159,35 +3165,27 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
       line: 135
-  - label: client_request_target_form_checks
-    section: § 2.5
-    snippet: The first digit (major version) indicates the messaging syntax
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 164
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 86
   - label: absolute-path
     section: § 4.1
     snippet: absolute-path = 1*( "/" segment )
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 83
-  - label: client_request_target_form_checks (2)
+  - label: client_request_target_form_checks
     section: § 7.1
     snippet: For CONNECT (Section 9.3.6), the request target is the host name and port number of the tunnel destination, separated by a colon.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 246
-  - label: client_request_target_form_checks (3)
+  - label: client_request_target_form_checks (2)
     section: § 7.1
     snippet: For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*").
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 268
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 91
-  - label: client_request_target_form_checks (4)
+      line: 93
+  - label: client_request_target_form_checks (3)
     section: § 7.1
     snippet: For historical reasons, the parsed target URI components, collectively referred to as the "request target", are sent within the message control data and the Host header field
     cited_by:
@@ -3197,21 +3195,21 @@ sources:
       line: 37
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
       line: 40
-  - label: client_request_target_form_checks (5)
+  - label: client_request_target_form_checks (4)
     section: § 7.1
     snippet: There are two unusual cases for which the request target components are in a method-specific form
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 238
-  - label: client_request_target_form_checks (6)
+  - label: client_request_target_form_checks (5)
     section: § 7.1
     snippet: These forms MUST NOT be used with other methods.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 239
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 92
-  - label: client_request_target_form_checks (7)
+      line: 94
+  - label: client_request_target_form_checks (6)
     section: § 7.1
     snippet: This reconstruction is specific to each major protocol version.
     cited_by:
@@ -3360,20 +3358,32 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 42
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (3)
+    section: § 2.5
+    snippet: The "0" is used when referring to that protocol within elements that require a minor version identifier.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 58
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (4)
+    section: § 2.5
+    snippet: When a major version of HTTP does not define any minor versions, the minor version "0" is implied.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 57
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (5)
     section: § 7.6.1
     snippet: 'Connection = #connection-option connection-option = token'
     cited_by:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 65
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (4)
+      line: 88
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (6)
     section: § 7.6.1
     snippet: Connection options are case-insensitive.
     cited_by:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 68
+      line: 91
     - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
       line: 105
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (5)
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (7)
     section: § 7.6.1
     snippet: Furthermore, intermediaries SHOULD remove or replace fields that are known to require removal before forwarding, whether or not they appear as a connection-option, after applying those fields' semantics.
     cited_by:
@@ -3383,12 +3393,12 @@ sources:
       line: 799
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
       line: 16
-  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (6)
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (8)
     section: § 7.6.1
     snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message).
     cited_by:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
-      line: 85
+      line: 108
     - file: lint-http-rules/src/helpers/headers.rs
       line: 826
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
@@ -3400,7 +3410,7 @@ sources:
     - file: lint-http-proxy/src/proxy/websocket.rs
       line: 144
     - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
-      line: 55
+      line: 58
     - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
       line: 54
   - label: lint-http-rules/src/helpers/accept_ranges.rs
@@ -4001,6 +4011,28 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 234
+  - label: lint-http-rules/src/helpers/version.rs
+    section: § 2.5
+    snippet: HTTP's version number consists of two decimal digits separated by a "." (period or decimal point).
+    cited_by:
+    - file: lint-http-rules/src/helpers/version.rs
+      line: 28
+  - label: lint-http-rules/src/helpers/version.rs (2)
+    section: § 2.5
+    snippet: The first digit (major version) indicates the messaging syntax
+    cited_by:
+    - file: lint-http-rules/src/helpers/version.rs
+      line: 126
+    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
+      line: 164
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 86
+  - label: lint-http-rules/src/helpers/version.rs (3)
+    section: § 2.5
+    snippet: The first digit (major version) indicates the messaging syntax, whereas the second digit (minor version) indicates the highest minor version within that major version to which the sender is conformant (able to understand for future communication).
+    cited_by:
+    - file: lint-http-rules/src/helpers/version.rs
+      line: 29
   - label: message_accept_and_content_type_negotiation
     section: § 12.1
     snippet: A user agent cannot rely on proactive negotiation preferences being consistently honored, since the origin server might not implement proactive negotiation for the requested resource or might decide that sending a response that doesn't conform to the user agent's preferences is better than sending a 406 (Not Acceptable) response.
@@ -6034,19 +6066,19 @@ sources:
     snippet: The server MUST generate an Upgrade header field in the response that indicates which protocol(s) will be in effect after this response.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
-      line: 138
+      line: 141
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
-      line: 180
+      line: 183
   - label: stateful_101_switching_protocols (3)
     section: § 7.8
     snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
-      line: 125
+      line: 128
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
-      line: 167
+      line: 170
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
-      line: 194
+      line: 197
   - label: stateful_101_switching_protocols (4)
     section: § 7.8
     snippet: A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field.
@@ -6058,7 +6090,7 @@ sources:
     snippet: Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
-      line: 155
+      line: 158
   - label: stateful_authentication_failure_loop
     section: § 15.5.2
     snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
@@ -6565,35 +6597,19 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 121
-  - label: HTTP-version
-    section: § 2.3
-    snippet: HTTP-version  = HTTP-name "/" DIGIT "." DIGIT
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 168
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 87
-    - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
-      line: 27
   - label: client_request_target_form_checks
-    section: § 2.3
-    snippet: The version of an HTTP/1.x message is indicated by an HTTP-version field in the start-line.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 167
-  - label: client_request_target_form_checks (2)
     section: § 3.2
     snippet: A recipient SHOULD NOT attempt to autocorrect and then process the request without a redirect, since the invalid request-line might be deliberately crafted to bypass security filters along the request chain.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 203
-  - label: client_request_target_form_checks (3)
+  - label: client_request_target_form_checks (2)
     section: § 3.2
     snippet: No whitespace is allowed in the request-target.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 201
-  - label: client_request_target_form_checks (4)
+  - label: client_request_target_form_checks (3)
     section: § 3.2
     snippet: Recipients of an invalid request-line SHOULD respond with either a 400 (Bad Request) error or a 301 (Moved Permanently) redirect with the request-target properly encoded.
     cited_by:
@@ -6601,13 +6617,13 @@ sources:
       line: 222
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 315
-  - label: client_request_target_form_checks (5)
+  - label: client_request_target_form_checks (4)
     section: § 3.2
     snippet: Unfortunately, some user agents fail to properly encode or exclude whitespace found in hypertext references, resulting in those disallowed characters being sent as the request-target in a malformed request-line.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 202
-  - label: client_request_target_form_checks (6)
+  - label: client_request_target_form_checks (5)
     section: § 3.2.1
     snippet: When making a request directly to an origin server, other than a CONNECT or server-wide OPTIONS request (as detailed below), a client MUST send only the absolute path and query components of the target URI as the request-target.
     cited_by:
@@ -6621,13 +6637,13 @@ sources:
       line: 62
     - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
       line: 93
-  - label: client_request_target_form_checks (7)
+  - label: client_request_target_form_checks (6)
     section: § 3.2.2
     snippet: A server MUST accept the absolute-form in requests even though most HTTP/1.1 clients will only send the absolute-form to a proxy.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 308
-  - label: client_request_target_form_checks (8)
+  - label: client_request_target_form_checks (7)
     section: § 3.2.2
     snippet: When making a request to a proxy, other than a CONNECT or server-wide OPTIONS request (as detailed below), a client MUST send the target URI in "absolute-form" as the request-target.
     cited_by:
@@ -6641,13 +6657,13 @@ sources:
       line: 63
     - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
       line: 92
-  - label: client_request_target_form_checks (9)
+  - label: client_request_target_form_checks (8)
     section: § 3.2.3
     snippet: It consists of only the uri-host and port number of the tunnel destination, separated by a colon (":").
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 247
-  - label: client_request_target_form_checks (10)
+  - label: client_request_target_form_checks (9)
     section: § 3.2.3
     snippet: The "authority-form" of request-target is only used for CONNECT requests
     cited_by:
@@ -6655,13 +6671,13 @@ sources:
       line: 279
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 292
-  - label: client_request_target_form_checks (11)
+  - label: client_request_target_form_checks (10)
     section: § 3.2.3
     snippet: The client obtains the host and port from the target URI's authority component, except that it sends the scheme's default port if the target URI elides the port.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 255
-  - label: client_request_target_form_checks (12)
+  - label: client_request_target_form_checks (11)
     section: § 3.2.3
     snippet: When making a CONNECT request to establish a tunnel through one or more proxies, a client MUST send only the host and port of the tunnel destination as the request-target.
     cited_by:
@@ -6673,13 +6689,13 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 64
-  - label: client_request_target_form_checks (13)
+  - label: client_request_target_form_checks (12)
     section: § 3.2.4
     snippet: The "asterisk-form" of request-target is only used for a server-wide OPTIONS request
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 269
-  - label: client_request_target_form_checks (14)
+  - label: client_request_target_form_checks (13)
     section: § 3.2.4
     snippet: When a client wishes to request OPTIONS for the server as a whole, as opposed to a specific named resource of that server, the client MUST send only "*" (%x2A) as the request-target.
     cited_by:
@@ -6699,6 +6715,30 @@ sources:
       line: 111
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
       line: 100
+  - label: HTTP-version
+    section: § 2.3
+    snippet: HTTP-version  = HTTP-name "/" DIGIT "." DIGIT
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 56
+    - file: lint-http-rules/src/helpers/version.rs
+      line: 88
+    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
+      line: 168
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 87
+    - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
+      line: 27
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs
+    section: § 2.3
+    snippet: The version of an HTTP/1.x message is indicated by an HTTP-version field in the start-line.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 55
+    - file: lint-http-rules/src/helpers/version.rs
+      line: 18
+    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
+      line: 167
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 6.3
     snippet: If a message is received without Transfer-Encoding and with an invalid Content-Length header field, then the message framing is invalid and the recipient MUST treat it as an unrecoverable error, unless the field value can be successfully parsed as a comma-separated list (Section 5.6.1 of [HTTP]), all values in the list are valid, and all values in the list are the same (in which case, the message is processed with that single value used as the Content-Length field value).
@@ -6747,6 +6787,18 @@ sources:
       line: 86
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 217
+  - label: lint-http-rules/src/helpers/version.rs
+    section: § 2.3
+    snippet: HTTP-version is case-sensitive.
+    cited_by:
+    - file: lint-http-rules/src/helpers/version.rs
+      line: 62
+  - label: HTTP-name
+    section: § A
+    snippet: HTTP-name = %x48.54.54.50 ; HTTP
+    cited_by:
+    - file: lint-http-rules/src/helpers/version.rs
+      line: 89
   - label: message_compression_and_transfer_encoding_consistency
     section: § 6.1
     snippet: If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.
@@ -7095,6 +7147,28 @@ sources:
       line: 94
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
       line: 41
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs
+    section: § 8.3.1
+    snippet: All HTTP/2 requests implicitly have a protocol version of "2.0"
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 65
+    - file: lint-http-rules/src/helpers/version.rs
+      line: 128
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (2)
+    section: § 8.3.1
+    snippet: Individual HTTP/2 requests do not carry an explicit indicator of protocol version.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 64
+    - file: lint-http-rules/src/helpers/version.rs
+      line: 19
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (3)
+    section: § 8.3.2
+    snippet: HTTP/2 responses implicitly have a protocol version of "2.0".
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 66
   - label: message_header_field_names_token
     section: § 8.2.1
     snippet: HTTP/2 implementations SHOULD validate field names and values according to their definitions in Sections 5.1 and 5.5 of [HTTP], respectively, and treat messages that contain prohibited characters as malformed
@@ -7193,6 +7267,36 @@ sources:
       line: 128
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
       line: 36
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs
+    section: § 4.3.1
+    snippet: HTTP/3 does not define a way to carry the version identifier that is included in the HTTP/1.1 request line.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 72
+    - file: lint-http-rules/src/helpers/version.rs
+      line: 20
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (2)
+    section: § 4.3.1
+    snippet: HTTP/3 requests implicitly have a protocol version of "3.0".
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 73
+    - file: lint-http-proxy/src/proxy/http3.rs
+      line: 382
+    - file: lint-http-rules/src/helpers/version.rs
+      line: 127
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (3)
+    section: § 4.3.2
+    snippet: HTTP/3 does not define a way to carry the version or reason phrase that is included in an HTTP/1.1 status line.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 74
+  - label: lint-http-proxy/src/proxy/hop_by_hop.rs (4)
+    section: § 4.3.2
+    snippet: HTTP/3 responses implicitly have a protocol version of "3.0".
+    cited_by:
+    - file: lint-http-proxy/src/proxy/hop_by_hop.rs
+      line: 75
   - label: message_extension_headers_registered
     section: § 4.2
     snippet: A request or response containing uppercase characters in field names MUST be treated as malformed
@@ -7212,19 +7316,19 @@ sources:
     snippet: If both fields are present, they MUST contain the same value.
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_host_authority_consistency.rs
-      line: 66
+      line: 68
   - label: message_http3_host_authority_consistency (2)
     section: § 4.3.1
     snippet: If these fields are present, they MUST NOT be empty.
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_host_authority_consistency.rs
-      line: 53
+      line: 55
   - label: message_http3_no_connection_header
     section: § 4.2
     snippet: An endpoint MUST NOT generate an HTTP/3 field section containing connection-specific fields; any message containing connection-specific fields MUST be treated as malformed.
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 177
+      line: 178
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 161
   - label: message_http3_no_connection_header (2)
@@ -7232,7 +7336,7 @@ sources:
     snippet: An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/3 endpoints as malformed.
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 77
+      line: 78
   - label: message_http3_no_connection_header (3)
     section: § 4.2
     snippet: HTTP/3 does not use the Connection header field to indicate connection-specific fields; in this protocol, connection-specific metadata is conveyed by other means.
@@ -7244,45 +7348,45 @@ sources:
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers".
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 94
+      line: 95
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 195
+      line: 196
   - label: message_http3_pseudo_headers_validity
     section: § 4.3.1
     snippet: All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4.
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 36
+      line: 38
   - label: message_http3_pseudo_headers_validity (2)
     section: § 4.3.1
     snippet: If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field.
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 120
+      line: 122
   - label: message_http3_pseudo_headers_validity (3)
     section: § 4.3.1
     snippet: This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of / (ASCII 0x2f).
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 105
+      line: 107
   - label: message_http3_pseudo_headers_validity (4)
     section: § 4.3.2
     snippet: For responses, a single ":status" pseudo-header field is defined that carries the HTTP status code; see Section 15 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 151
+      line: 153
   - label: message_http3_pseudo_headers_validity (5)
     section: § 4.3.2
     snippet: This pseudo-header field MUST be included in all responses; otherwise, the response is malformed (see Section 4.1.2).
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 152
+      line: 154
   - label: message_http3_pseudo_headers_validity (6)
     section: § 4.4
     snippet: The :authority pseudo-header field contains the host and port to connect to
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 52
+      line: 54
   - label: server_alt_svc_h3_advertisement_valid
     section: § 3.1.1
     snippet: An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token.
@@ -7294,9 +7398,9 @@ sources:
     snippet: HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
-      line: 40
+      line: 43
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
-      line: 105
+      line: 108
   - label: server_no_body_for_1xx_204_304
     section: § 4.1
     snippet: Interim responses do not contain content or trailer sections.
