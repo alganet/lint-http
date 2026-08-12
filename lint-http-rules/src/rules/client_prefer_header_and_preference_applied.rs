@@ -69,22 +69,19 @@ fn varies_the_response_entity(name: &str) -> Option<&'static str> {
     None
 }
 
-/// Whether the response's `Vary` nominates `Prefer`, in either of the two
+/// Whether a `Vary` field value nominates `Prefer`, in either of the two
 /// spellings RFC 7240 § 2 admits.
 ///
-/// `Vary` is a list-based field, so it is read across its lines before its
-/// members are counted: the `*` may be written on a second field line. A
-/// `field-name` is a `token` and admits no DQUOTE, so the quote-aware split
-/// agrees with a plain one here; it is the shared reader every list field uses.
+/// The caller hands in the value already joined across the field's lines, which
+/// is what makes a `*` written on a second line a `*`. A `field-name` is a
+/// `token` and admits no DQUOTE, so the quote-aware split agrees with a plain
+/// one here; it is the shared reader every list field uses.
 ///
 /// cite(RFC 9110 § 12.5.5, label: Vary grammar): "Vary = #( "*" / field-name )"
 /// cite(RFC 9110 § 5.1): "Field names are case-insensitive"
 /// cite(RFC 7240 § 2): "Alternatively, the server MAY include a Vary header with the special value "*""
-fn vary_nominates_prefer(headers: &hyper::HeaderMap) -> bool {
-    let Some(value) = combined_field_value_as_written(headers, "vary") else {
-        return false;
-    };
-    split_commas_respecting_quotes(&value)
+fn vary_nominates_prefer(value: &str) -> bool {
+    split_commas_respecting_quotes(value)
         .into_iter()
         .map(trim_ows)
         .any(|member| member == "*" || member.eq_ignore_ascii_case("prefer"))
@@ -112,7 +109,6 @@ impl Rule for ClientPreferHeaderAndPreferenceApplied {
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         // § 2's requirement is conditioned on a variance to *a cache's* handling
@@ -156,29 +152,37 @@ impl Rule for ClientPreferHeaderAndPreferenceApplied {
         // so it cannot establish the antecedent either -- the finding below is
         // that a field is *absent*, and a claim of absence rests on the rest of
         // the message being legible. Its syntax is the neighbouring rule's
-        // finding, reported there rather than twice.
+        // finding, reported there rather than twice. An empty member needs no
+        // filter of its own: it has no `token` before the optional `=` either, so
+        // the parse below is where it stops.
         //
         // cite(RFC 7240 § 3): "applied-pref = token [ BWS "=" BWS word ]"
-        let varying = split_commas_respecting_quotes(&applied)
+        let (name, why) = split_commas_respecting_quotes(&applied)
             .into_iter()
             .map(trim_ows)
-            .filter(|member| !member.is_empty())
             .filter_map(|member| parse_token_bws_word(member).ok())
             .find_map(|parsed| {
                 varies_the_response_entity(parsed.name).map(|why| (parsed.name, why))
-            });
+            })?;
 
-        let (name, why) = varying?;
-
-        if vary_nominates_prefer(&resp.headers) {
+        // Read once and used twice: the value decides the verdict, and on the
+        // reporting path it is also what the finding has to show.
+        let vary = combined_field_value_as_written(&resp.headers, "vary");
+        if vary.as_deref().is_some_and(vary_nominates_prefer) {
             return None;
         }
+
+        // Read last, where the severity it carries is finally needed: every gate
+        // above ends the rule, and each of them is a map lookup or a comparison
+        // where the config read is several. Only a response that is about to be
+        // reported pays for it.
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         // The name reached here through `parse_token_bws_word`, which admits only
         // `tchar`, so it is safe in a message as written; the `Vary` value is
         // whatever the server sent.
-        let vary_state = match combined_field_value_as_written(&resp.headers, "vary") {
-            Some(v) => format!("its Vary field is '{}'", shown_in_finding(&v)),
+        let vary_state = match &vary {
+            Some(v) => format!("its Vary field is '{}'", shown_in_finding(v)),
             None => "it carries no Vary field".to_string(),
         };
 
@@ -354,18 +358,16 @@ mod tests {
     }
 
     /// § 2 admits two spellings, and a `Vary` listing something else is neither.
+    /// The absent case is the test above's subject, not this one's.
     #[rstest]
-    #[case(Some(&b"Prefer"[..]), false)]
-    #[case(Some(&b"prefer"[..]), false)]
-    #[case(Some(&b"Accept-Encoding, Prefer"[..]), false)]
-    #[case(Some(&b"*"[..]), false)]
-    #[case(Some(&b"Accept-Encoding"[..]), true)]
-    #[case(None, true)]
-    fn vary_decides(#[case] vary: Option<&[u8]>, #[case] expect_violation: bool) {
-        let mut resp: Vec<(&str, &[u8])> = vec![("preference-applied", b"return=minimal")];
-        if let Some(v) = vary {
-            resp.push(("vary", v));
-        }
+    #[case(b"Prefer", false)]
+    #[case(b"prefer", false)]
+    #[case(b"Accept-Encoding, Prefer", false)]
+    #[case(b"*", false)]
+    #[case(b"Accept-Encoding", true)]
+    fn a_present_vary_decides(#[case] vary: &[u8], #[case] expect_violation: bool) {
+        let resp: Vec<(&str, &[u8])> =
+            vec![("preference-applied", b"return=minimal"), ("vary", vary)];
         assert_eq!(run("GET", &[], &resp).is_some(), expect_violation);
     }
 
@@ -498,13 +500,11 @@ mod tests {
 
     /// A response that says nothing about a preference is not evidence of
     /// anything: § 3 makes the field a MAY, and § 2 lets a server ignore every
-    /// preference it was sent.
-    #[rstest]
-    #[case(&b"return=representation"[..])]
-    #[case(&b"respond-async"[..])]
-    #[case(&b"handling=lenient"[..])]
-    fn a_missing_preference_applied_is_not_a_finding(#[case] prefer: &[u8]) {
-        let v = run("GET", &[("prefer", prefer)], &[]);
+    /// preference it was sent. One request field is enough to assert it — the
+    /// rule exits on the response before it could read a second.
+    #[test]
+    fn a_missing_preference_applied_is_not_a_finding() {
+        let v = run("GET", &[("prefer", b"return=representation")], &[]);
         assert!(v.is_none());
     }
 
