@@ -388,6 +388,30 @@ pub fn parse_list_header(val: &str) -> impl Iterator<Item = &str> {
     val.split(',').map(|s| s.trim()).filter(|s| !s.is_empty())
 }
 
+/// The same walk as [`parse_list_header`], trimming the whitespace the production
+/// actually prints.
+///
+/// Four decisions make up a `#rule` walk -- where to split, what to trim, whether
+/// to drop an empty element, and whether to fold case -- and this differs from its
+/// neighbour in exactly one of them. `OWS` is `*( SP / HTAB )`; `str::trim` removes
+/// every character `char::is_whitespace` admits. On a value read back through
+/// `to_str` the two are the same function, because that reader lets no other
+/// whitespace octet into the string at all. On a value read one `char` per octet
+/// ([`combined_field_value_as_written`]) they are not: %xA0 and %x85 are `obs-text`
+/// octets a sender wrote *inside* a member, and trimming them hands the member's
+/// own grammar a value the sender did not write.
+///
+/// [`parse_list_header`] keeps the Unicode trim and its seventy-odd callers. They
+/// read `to_str` values, where the answer is the same one; converting them would
+/// change what every one of those sites reports, which is each of their audits'
+/// work rather than this helper's.
+// cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
+// cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+// cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+pub fn list_members(val: &str) -> impl Iterator<Item = &str> {
+    val.split(',').map(trim_ows).filter(|s| !s.is_empty())
+}
+
 /// Parse a semicolon-separated list of directive values.
 ///
 /// This iterator splits by semicolon, trims whitespace, and skips empty parts.
@@ -822,13 +846,21 @@ pub fn is_connection_specific_field(name: &str, connection_header_value: Option<
 ///
 /// The cited sentence says "header **or trailer** field(s)", and that is the whole
 /// reason a connection-option reaches into a trailer section at all.
+///
+/// Every caller passes a value joined by [`combined_field_value_as_written`], i.e.
+/// one `char` per octet, so the member walk is the `OWS`-trimming one: a member
+/// padded with an `obs-text` octet that renders like a space is not the
+/// `connection-option` it resembles, and no sentence lets this function pretend it
+/// is. The fold *is* licensed -- a `connection-option` is a field name, and those
+/// are case-insensitive.
+// cite(RFC 9110 § 5.1): "Field names are case-insensitive"
 pub fn is_nominated_by_connection(name: &str, connection_header_value: Option<&str>) -> bool {
     // cite(RFC 9110 § 7.6.1): "Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message)."
     let name_l = name.trim().to_ascii_lowercase();
     let Some(conn) = connection_header_value else {
         return false;
     };
-    parse_list_header(conn).any(|tok| tok.eq_ignore_ascii_case(name_l.as_str()))
+    list_members(conn).any(|tok| tok.eq_ignore_ascii_case(name_l.as_str()))
 }
 
 /// Split a comma-separated header value into top-level members while respecting quoted-strings
