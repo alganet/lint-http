@@ -17,7 +17,8 @@ pub struct ClientHostHeader;
 /// target authority is the `:authority` only on the two versions that have one.
 ///
 /// The capture records `:authority` as the authority of the request's target
-/// URI — the same place `message_http3_host_authority_consistency` reads it.
+/// URI — the same place `message_host_and_authority_consistency` reads it, over
+/// both of the versions that carry one.
 fn sends_authority_as_control_data(tx: &crate::http_transaction::HttpTransaction) -> bool {
     // cite(RFC 9110 § 7.2): "In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data."
     // The major digit is what "in HTTP/2 and HTTP/3" means; `http_version` owns
