@@ -24,6 +24,7 @@
 pub mod config;
 pub mod http_date;
 pub mod http_transaction;
+pub mod http_version;
 pub mod lint;
 pub mod protocol_event;
 pub mod protocol_event_store;

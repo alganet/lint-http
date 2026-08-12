@@ -187,9 +187,11 @@ impl Rule for ServerNoBodyFor1xx204304 {
         // HTTP/3 says the trailers half in its own words too, for interim responses,
         // which is why the check above needs no version gate of its own.
         // cite(RFC 9114 § 4.1): "Interim responses do not contain content or trailer sections."
+        // The major digit decides which versions define transfer codings at
+        // all; `http_version` owns the production that reads it.
         let version = resp.version.as_str();
         let a_version_that_has_the_field =
-            !(version.starts_with("HTTP/2") || version.starts_with("HTTP/3"));
+            !matches!(crate::http_version::major(version), Some(2 | 3));
         if (is_1xx || is_204)
             && a_version_that_has_the_field
             && resp.headers.contains_key("transfer-encoding")

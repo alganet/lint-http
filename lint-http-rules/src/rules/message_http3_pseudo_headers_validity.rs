@@ -27,8 +27,8 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
         // normative check, so it carries no cite; each requirement below cites the
         // sentence it enforces. What it reads is the major digit and not a string:
         // this version has no version field on the wire, so the value is one a
-        // writer chose, and `helpers::version` is where the production lives.
-        if !crate::helpers::version::is_major(&tx.request.version, 3) {
+        // writer chose, and `http_version` is where the production lives.
+        if !crate::http_version::is_major(&tx.request.version, 3) {
             return None;
         }
 
@@ -680,7 +680,7 @@ mod tests {
     #[rstest]
     #[case("HTTP/1.1")]
     #[case("HTTP/1.0")]
-    #[case("HTTP/2")]
+    #[case("HTTP/2.0")]
     #[case("HTTP/2.0")]
     fn non_h3_version_is_skipped(#[case] version: &str) {
         let rule = MessageHttp3PseudoHeadersValidity;

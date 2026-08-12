@@ -36,6 +36,21 @@ pub struct HttpVersion {
     pub minor: u8,
 }
 
+impl std::fmt::Display for HttpVersion {
+    /// Write the two digits back out as the production generates them.
+    ///
+    /// This is the other half of owning a grammar, and it is the half the
+    /// spelling defect lived in: whoever records a version has to write nine
+    /// characters that derive from `HTTP-version`, and the way to make that
+    /// certain is to render from the digits rather than from a literal. The
+    /// proxy's `format_http_version` maps its HTTP library's protocol version
+    /// onto a pair of digits and then comes here.
+    // cite(RFC 9112 § 2.3, label: HTTP-version): "HTTP-version  = HTTP-name "/" DIGIT "." DIGIT"
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "HTTP/{}.{}", self.major, self.minor)
+    }
+}
+
 /// Which of the production's three terminals a value failed to match.
 ///
 /// One variant per terminal rather than one "malformed" verdict, because the
@@ -62,7 +77,7 @@ impl std::fmt::Display for HttpVersionError {
         // cite(RFC 9112 § 2.3): "HTTP-version is case-sensitive."
         match self {
             Self::Name => f.write_str(
-                "it does not begin with the name 'HTTP' -- spelled in exactly that case -- \
+                "it does not begin with the name 'HTTP', spelled in exactly that case, \
                  followed by a '/'",
             ),
             Self::Shape => f.write_str(
@@ -79,9 +94,9 @@ impl std::fmt::Display for HttpVersionError {
 
 /// Read a value as the `HTTP-version` production.
 ///
-/// The whole production is nine octets and every one of them is fixed: the
-/// four of the name, the solidus, a digit, the period, a digit. Reading it
-/// byte-wise is the transcription, and it is also what keeps a multi-byte
+/// The whole production is nine characters and every one of them is fixed: the
+/// four of the name, the solidus, a digit, the period, a digit. Reading them one
+/// at a time is the transcription, and it is also what keeps a multi-byte
 /// character out of the "single DIGIT" comparison -- `HTTP/é.1` is one
 /// character in the major position and two bytes, and a length test that
 /// counted bytes would report the wrong terminal.
@@ -91,20 +106,18 @@ impl std::fmt::Display for HttpVersionError {
 // extractor's floor; the comment beside it is part of the same definition and
 // carries it over.
 // cite(RFC 5234 § B.1, label: DIGIT): "DIGIT          =  %x30-39 ; 0-9"
+#[inline]
 pub fn parse(value: &str) -> Result<HttpVersion, HttpVersionError> {
     let rest = value.strip_prefix("HTTP/").ok_or(HttpVersionError::Name)?;
 
     // Three characters, not three bytes: the shape question is about how many
     // characters sit around the period, and the digit question is asked next.
     let mut chars = rest.chars();
-    let (Some(major), Some(dot), Some(minor), None) =
+    let (Some(major), Some('.'), Some(minor), None) =
         (chars.next(), chars.next(), chars.next(), chars.next())
     else {
         return Err(HttpVersionError::Shape);
     };
-    if dot != '.' {
-        return Err(HttpVersionError::Shape);
-    }
     if !major.is_ascii_digit() || !minor.is_ascii_digit() {
         return Err(HttpVersionError::Digit);
     }
@@ -126,8 +139,23 @@ pub fn parse(value: &str) -> Result<HttpVersion, HttpVersionError> {
 // cite(RFC 9110 § 2.5): "The first digit (major version) indicates the messaging syntax"
 // cite(RFC 9114 § 4.3.1): "HTTP/3 requests implicitly have a protocol version of "3.0"."
 // cite(RFC 9113 § 8.3.1): "All HTTP/2 requests implicitly have a protocol version of "2.0""
+#[inline]
 pub fn is_major(value: &str, major: u8) -> bool {
-    matches!(parse(value), Ok(v) if v.major == major)
+    self::major(value) == Some(major)
+}
+
+/// Which messaging syntax carried this message, when the value says.
+///
+/// The general form of [`is_major`], for the gates that ask about more than one
+/// version at once -- "does this version have a `Connection` field", "does this
+/// version put the request target in a request-line" -- where matching
+/// `Some(2 | 3)` says in one place what two string-prefix tests said in two.
+/// `None` is a value that derives from no production and therefore names no
+/// syntax; `message_http_version_syntax_valid` is the rule that reports it.
+// cite(RFC 9110 § 2.5): "The first digit (major version) indicates the messaging syntax"
+#[inline]
+pub fn major(value: &str) -> Option<u8> {
+    parse(value).ok().map(|v| v.major)
 }
 
 #[cfg(test)]

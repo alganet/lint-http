@@ -76,7 +76,14 @@ impl Rule for Stateful101SwitchingProtocols {
         // and a bare 101 with no Upgrade at all is illegitimate a fortiori — a 101
         // presupposes an Upgrade exchange HTTP/1.0 cannot have had.
         // cite(RFC 9110 § 7.8): "A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field."
-        if tx.request.version == "HTTP/1.0" {
+        // Both digits, not the string: this is the one gate here that needs the
+        // minor version too, since HTTP/1.1 is the version that does support
+        // Upgrade. Reading the digits is the same move as the two gates below,
+        // which would otherwise be arguing with this line.
+        if matches!(
+            crate::http_version::parse(&tx.request.version),
+            Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })
+        ) {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
@@ -92,7 +99,7 @@ impl Rule for Stateful101SwitchingProtocols {
         // Two spellings were listed here because the value is one a writer chose
         // — this version carries no version field — and neither listing them nor
         // guessing which one arrives is the question. The major digit is.
-        if crate::helpers::version::is_major(&tx.request.version, 2) {
+        if crate::http_version::is_major(&tx.request.version, 2) {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
@@ -106,7 +113,7 @@ impl Rule for Stateful101SwitchingProtocols {
         // whose subject is HTTP Message Framing). Also enforced by
         // `server_http3_status_code_validity`; checked here for completeness.
         // cite(RFC 9114 § 4.5): "HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
-        if crate::helpers::version::is_major(&tx.request.version, 3) {
+        if crate::http_version::is_major(&tx.request.version, 3) {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,

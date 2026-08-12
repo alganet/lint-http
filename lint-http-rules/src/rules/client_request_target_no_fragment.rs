@@ -77,12 +77,15 @@ impl Rule for ClientRequestTargetNoFragment {
         // query. A version this proxy does not record gets no clause rather than
         // a guess -- the sentences above it hold on every version.
         //
-        // The first test carries the period because `HTTP-version` puts the
-        // minor digit after it, so HTTP/1.0 and HTTP/1.1 are both measured and
-        // `HTTP/1x` is nobody's version. The second does not, because those two
-        // versions have no `HTTP-version` field to read: what a capture records
-        // for them is a name this proxy writes, and it writes `HTTP/2.0` for one
-        // and `HTTP/3` for the other.
+        // All three arms read the major digit, which is the digit the first
+        // sentence below gives the meaning to, so HTTP/1.0 and HTTP/1.1 are one
+        // case and `HTTP/1x` is nobody's version. Only the first arm is reading
+        // something a message carried; the other two versions have no
+        // `HTTP-version` field, and what a capture records for them is the
+        // protocol version their own specifications state in words, `HTTP/2.0`
+        // and `HTTP/3.0` (RFC 9113 § 8.3.1, RFC 9114 § 4.3.1). Until 2026-08-03
+        // these were two `starts_with` hand copies of the production, one of
+        // which admitted `HTTP/2x`; `http_version` owns it now.
         // cite(RFC 9110 § 2.5): "The first digit (major version) indicates the messaging syntax"
         // cite(RFC 9112 § 2.3, label: HTTP-version): "HTTP-version  = HTTP-name "/" DIGIT "." DIGIT"
         // cite(RFC 9110 § 4.2.5): "Some protocol elements that refer to a URI allow inclusion of a fragment, while others do not."
@@ -93,14 +96,10 @@ impl Rule for ClientRequestTargetNoFragment {
         // cite(RFC 9112 § 3.2.1, label: origin-form): "origin-form    = absolute-path [ "?" query ]"
         // cite(RFC 9113 § 8.3.1): "The ":path" pseudo-header field includes the path and query parts of the target URI"
         // cite(RFC 9114 § 4.3.1): "Contains the path and query parts of the target URI"
-        let carried_in = if tx.request.version.starts_with("HTTP/1.") {
-            " No form of an HTTP/1.x request-line's request-target derives it: absolute-form is an absolute-URI, which is the URI production with the fragment component dropped, and the other three are an absolute path with an optional query, a host and a port, and the asterisk."
-        } else if tx.request.version.starts_with("HTTP/2")
-            || tx.request.version.starts_with("HTTP/3")
-        {
-            " This version sends no request-line: the components arrive as pseudo-header fields, and ':path' carries the path and query parts of the target URI, which is where the fragment is not."
-        } else {
-            ""
+        let carried_in = match crate::http_version::major(&tx.request.version) {
+            Some(1) => " No form of an HTTP/1.x request-line's request-target derives it: absolute-form is an absolute-URI, which is the URI production with the fragment component dropped, and the other three are an absolute path with an optional query, a host and a port, and the asterisk.",
+            Some(2 | 3) => " This version sends no request-line: the components arrive as pseudo-header fields, and ':path' carries the path and query parts of the target URI, which is where the fragment is not.",
+            _ => "",
         };
 
         // The requirement is the grammar's, so the sentence that makes a value

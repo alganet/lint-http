@@ -24,7 +24,17 @@ pub struct TimingInfo {
 pub struct RequestInfo {
     pub method: String,
     pub uri: String,
-    /// The exact HTTP-version token from the start-line, e.g. "HTTP/1.1". Required.
+    /// The HTTP version this message arrived under, written as an
+    /// `HTTP-version` token, e.g. "HTTP/1.1". Required.
+    ///
+    /// Only an HTTP/1.x message carries this as a field — it is the last
+    /// element of the request-line, and there is no start-line in the other two
+    /// versions. For those, this holds the protocol version their own
+    /// specifications state in words: "2.0" for every HTTP/2 message (RFC 9113
+    /// §8.3.1) and "3.0" for every HTTP/3 one (RFC 9114 §4.3.1), each written
+    /// with the minor digit RFC 9110 §2.5 supplies for a major version that
+    /// defines none of its own. Read the digits rather than the string —
+    /// `lint_http_core::http_version` owns the production.
     pub version: String,
     #[serde(
         serialize_with = "crate::serde_helpers::serialize_headers",
@@ -47,7 +57,11 @@ pub struct RequestInfo {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ResponseInfo {
     pub status: u16,
-    /// The exact HTTP-version token from the status-line, e.g. "HTTP/1.1". Required.
+    /// The HTTP version this response arrived under, written as an
+    /// `HTTP-version` token, e.g. "HTTP/1.1". Required. The first element of an
+    /// HTTP/1.x status-line; for HTTP/2 and HTTP/3, which have no status-line,
+    /// the implicit protocol version those specifications state ("2.0", RFC
+    /// 9113 §8.3.2; "3.0", RFC 9114 §4.3.2). See [`RequestInfo::version`].
     pub version: String,
     #[serde(
         serialize_with = "crate::serde_helpers::serialize_headers",

@@ -164,8 +164,10 @@ impl MessageTeHeaderConstraints {
         tx: &crate::http_transaction::HttpTransaction,
         config: &crate::rules::RuleConfig,
     ) -> Option<Violation> {
+        // The major digit decides whether this version has a `Connection` field
+        // to carry the option; `http_version` owns the production that reads it.
         let version = tx.request.version.as_str();
-        if version.starts_with("HTTP/2") || version.starts_with("HTTP/3") {
+        if matches!(crate::http_version::major(version), Some(2 | 3)) {
             return None;
         }
 
@@ -789,7 +791,7 @@ mod tests {
     /// reported. What the value may hold there is those documents' requirement, and
     /// `message_http3_no_connection_header` reports it for HTTP/3.
     #[rstest]
-    #[case("HTTP/2")]
+    #[case("HTTP/2.0")]
     #[case("HTTP/2.0")]
     #[case("HTTP/3.0")]
     fn the_versions_that_prohibit_the_connection_field_are_not_asked_for_it(#[case] version: &str) {

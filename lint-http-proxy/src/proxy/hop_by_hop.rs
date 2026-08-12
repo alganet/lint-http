@@ -7,6 +7,8 @@
 //! These helpers are shared by the HTTP/1.1+H2, WebSocket relay, and HTTP/3
 //! handlers when building responses to forward to the client.
 
+use lint_http_core::http_version::HttpVersion;
+
 // Fields an intermediary removes before forwarding, whether or not the sender
 // nominated them in Connection. The first five are the list RFC 9110 § 7.6.1
 // gives; `connection` is removed by the same section's separate instruction to
@@ -46,36 +48,51 @@ pub(super) static HOP_BY_HOP_HEADERS: &[&str] = &[
 /// Render the version a message arrived under as the `HTTP-version` token a
 /// capture records.
 ///
-/// Only the HTTP/1.x arms are transcribing something the message carried: that
-/// is the one wire format with a start-line to put a version field in. The
-/// other two arms are writing down a number their own specifications state in
-/// words, precisely because those wire formats have nowhere to carry one — and
-/// both are stated with the minor digit present, which is the general rule for
-/// a major version that defines no minor versions.
+/// Each arm names a pair of digits and nothing else; the nine characters are
+/// written by [`HttpVersion`]'s `Display`, which owns the production. Writing
+/// them as string literals here is how this function came to record `HTTP/3`
+/// for a year — a value no version production generates, matched as a literal
+/// by six rules. A pair of digits cannot be spelled wrong.
+///
+/// Only the HTTP/1.x arms transcribe something the message carried: that is the
+/// one wire format with a start-line to put a version field in. The other two
+/// are writing down a number their own specifications state in words, precisely
+/// because those wire formats have nowhere to carry one — and both are stated
+/// with the minor digit present, which is the general rule for a major version
+/// that defines no minor versions.
 // cite(RFC 9112 § 2.3): "The version of an HTTP/1.x message is indicated by an HTTP-version field in the start-line."
-// cite(RFC 9112 § 2.3, label: HTTP-version): "HTTP-version  = HTTP-name "/" DIGIT "." DIGIT"
 // cite(RFC 9110 § 2.5): "When a major version of HTTP does not define any minor versions, the minor version "0" is implied."
 // cite(RFC 9110 § 2.5): "The "0" is used when referring to that protocol within elements that require a minor version identifier."
 pub(super) fn format_http_version(v: hyper::Version) -> String {
-    match v {
-        hyper::Version::HTTP_09 => "HTTP/0.9".to_string(),
-        hyper::Version::HTTP_10 => "HTTP/1.0".to_string(),
-        hyper::Version::HTTP_11 => "HTTP/1.1".to_string(),
+    let version = match v {
+        hyper::Version::HTTP_09 => HttpVersion { major: 0, minor: 9 },
+        hyper::Version::HTTP_10 => HttpVersion { major: 1, minor: 0 },
+        hyper::Version::HTTP_11 => HttpVersion { major: 1, minor: 1 },
         // cite(RFC 9113 § 8.3.1): "Individual HTTP/2 requests do not carry an explicit indicator of protocol version."
         // cite(RFC 9113 § 8.3.1): "All HTTP/2 requests implicitly have a protocol version of "2.0""
         // cite(RFC 9113 § 8.3.2): "HTTP/2 responses implicitly have a protocol version of "2.0"."
-        hyper::Version::HTTP_2 => "HTTP/2.0".to_string(),
-        // The same two sentences for HTTP/3, and they name the same spelling:
-        // a minor digit of zero, not an absent minor digit. This arm wrote
-        // `HTTP/3` until 2026-08-03, which no version production generates and
-        // which six rules were matching against as a literal.
+        hyper::Version::HTTP_2 => HttpVersion { major: 2, minor: 0 },
+        // The same two sentences for HTTP/3, and they name the same digits.
         // cite(RFC 9114 § 4.3.1): "HTTP/3 does not define a way to carry the version identifier that is included in the HTTP/1.1 request line."
         // cite(RFC 9114 § 4.3.1): "HTTP/3 requests implicitly have a protocol version of "3.0"."
         // cite(RFC 9114 § 4.3.2): "HTTP/3 does not define a way to carry the version or reason phrase that is included in an HTTP/1.1 status line."
         // cite(RFC 9114 § 4.3.2): "HTTP/3 responses implicitly have a protocol version of "3.0"."
-        hyper::Version::HTTP_3 => "HTTP/3.0".to_string(),
-        _ => "HTTP/1.1".to_string(),
-    }
+        hyper::Version::HTTP_3 => HttpVersion { major: 3, minor: 0 },
+        // `hyper::Version` is non-exhaustive, so this arm exists for a version
+        // this build does not name, and it is unreachable for every version
+        // hyper currently defines. What it records is a *choice*, not a forced
+        // move: `1.1` is a guess, and eleven version-gated rules would read it
+        // as one — a `Host` field demanded, a `TE` connection option demanded,
+        // a 204's `Transfer-Encoding` reported. The alternative is to record a
+        // value that derives from no production, which
+        // `message_http_version_syntax_valid` would then report; that trades a
+        // silent wrong answer for a visible one and costs the invariant that
+        // nothing this proxy writes can fail that rule. The guess is kept
+        // because the arm is unreachable, and this comment is where the choice
+        // is written down.
+        _ => HttpVersion { major: 1, minor: 1 },
+    };
+    version.to_string()
 }
 
 /// Parse a Connection header value into a lowercased set of tokens.

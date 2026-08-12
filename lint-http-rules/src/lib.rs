@@ -15,8 +15,8 @@
 //! `crate::config::Config`, `crate::lint::Violation`, etc.
 
 pub use lint_http_core::{
-    config, http_date, http_transaction, lint, protocol_event, protocol_event_store, serde_helpers,
-    state, transaction_history,
+    config, http_date, http_transaction, http_version, lint, protocol_event, protocol_event_store,
+    serde_helpers, state, transaction_history,
 };
 
 pub mod engine;

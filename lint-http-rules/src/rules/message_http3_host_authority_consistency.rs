@@ -25,9 +25,9 @@ impl Rule for MessageHttp3HostAuthorityConsistency {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to HTTP/3 transactions. This gate is scoping, not a normative
         // check, so it carries no citation; the two comparisons below carry theirs.
-        // The major digit is what "is this HTTP/3" means; `helpers::version` owns
+        // The major digit is what "is this HTTP/3" means; `http_version` owns
         // the production that reads it.
-        if !crate::helpers::version::is_major(&tx.request.version, 3) {
+        if !crate::http_version::is_major(&tx.request.version, 3) {
             return None;
         }
 
