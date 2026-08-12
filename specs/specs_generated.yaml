@@ -1406,6 +1406,22 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_content_disposition_token_valid.rs
       line: 72
+- label: RFC 6335
+  url: https://www.rfc-editor.org/rfc/rfc6335.txt
+  type: text/plain
+  fragments:
+  - label: message_http2_pseudo_headers_validity
+    section: § 6
+    snippet: Reserved port numbers include values at the edges of each range, e.g., 0, 1023, 1024, etc., which may be used to extend these ranges or the overall port number space in the future.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 93
+  - label: message_http2_pseudo_headers_validity (2)
+    section: § 6
+    snippet: TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 92
 - label: RFC 6454
   url: https://www.rfc-editor.org/rfc/rfc6454.txt
   type: text/plain
@@ -2299,6 +2315,22 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
       line: 31
+- label: RFC 8441
+  url: https://www.rfc-editor.org/rfc/rfc8441.txt
+  type: text/plain
+  fragments:
+  - label: message_http2_pseudo_headers_validity
+    section: § 4
+    snippet: A new pseudo-header field :protocol MAY be included on request HEADERS indicating the desired protocol to be spoken on the tunnel created by CONNECT.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 196
+  - label: message_http2_pseudo_headers_validity (2)
+    section: § 4
+    snippet: On requests that contain the :protocol pseudo-header field, the :scheme and :path pseudo-header fields of the target URI (see Section 5) MUST also be included.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 197
 - label: RFC 8470
   url: https://www.rfc-editor.org/rfc/rfc8470.txt
   type: text/plain
@@ -2951,6 +2983,8 @@ sources:
       line: 76
     - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
       line: 170
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 180
     - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
       line: 205
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
@@ -3169,6 +3203,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
       line: 135
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 158
   - label: absolute-path
     section: § 4.1
     snippet: absolute-path = 1*( "/" segment )
@@ -3187,6 +3223,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 269
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 235
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
       line: 93
   - label: client_request_target_form_checks (3)
@@ -3211,6 +3249,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 240
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 236
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
       line: 94
   - label: client_request_target_form_checks (6)
@@ -4033,6 +4073,8 @@ sources:
       line: 243
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 22
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 210
   - label: lint-http-rules/src/helpers/uri.rs (3)
     section: § 7.2
     snippet: The "Host" header field in a request provides the host and port information from the target URI, enabling the origin server to distinguish among resources while servicing requests for multiple host names.
@@ -4715,6 +4757,24 @@ sources:
       line: 155
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
       line: 83
+  - label: message_http2_pseudo_headers_validity
+    section: § 9.3.6
+    snippet: A server MUST reject a CONNECT request that targets an empty or invalid port number, typically by responding with a 400 (Bad Request) status code.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 24
+  - label: message_http2_pseudo_headers_validity (2)
+    section: § 9.3.6
+    snippet: CONNECT uses a special form of request target, unique to this method, consisting of only the host and port number of the tunnel destination, separated by a colon.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 22
+  - label: message_http2_pseudo_headers_validity (3)
+    section: § 9.3.6
+    snippet: There is no default port; a client MUST send the port number even if the CONNECT request is based on a URI reference that contains an authority component with an elided port (Section 4.1).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 23
   - label: message_if_match_etag_syntax
     section: § 13.1.1
     snippet: 'If-Match = "*" / #entity-tag'
@@ -6695,6 +6755,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 64
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 21
   - label: client_request_target_form_checks (12)
     section: § 3.2.4
     snippet: The "asterisk-form" of request-target is only used for a server-wide OPTIONS request
@@ -7147,12 +7209,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
       line: 136
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 154
   - label: client_request_target_form_checks
     section: § 8.3.1
     snippet: A request in asterisk form (for OPTIONS) includes the value '*' for the ":path" pseudo-header field.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 170
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 234
   - label: client_request_target_form_checks (2)
     section: § 8.3.1
     snippet: Note that request targets for CONNECT or asterisk-form OPTIONS requests never include authority information
@@ -7198,23 +7264,91 @@ sources:
     - file: lint-http-rules/src/rules/message_header_field_names_token.rs
       line: 144
   - label: message_http2_pseudo_headers_validity
-    section: § 8.3
-    snippet: All pseudo-header fields MUST appear in a field block before all regular field lines.
+    section: § 8.2.1
+    snippet: A field value MUST NOT start or end with an ASCII whitespace character (ASCII SP or HTAB, 0x20 or 0x09).
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
-      line: 33
+      line: 170
   - label: message_http2_pseudo_headers_validity (2)
+    section: § 8.3
+    snippet: Endpoints MUST treat a request or response that contains undefined or invalid pseudo-header fields as malformed (Section 8.1.1).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 159
+  - label: message_http2_pseudo_headers_validity (3)
+    section: § 8.3.1
+    snippet: '":authority" MUST NOT include the deprecated userinfo subcomponent for "http" or "https" schemed URIs.'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 312
+  - label: message_http2_pseudo_headers_validity (4)
+    section: § 8.3.1
+    snippet: '":scheme" is not restricted to "http" and "https" schemed URIs.'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 279
+  - label: message_http2_pseudo_headers_validity (5)
+    section: § 8.3.1
+    snippet: All HTTP/2 requests MUST include exactly one valid value for the ":method", ":scheme", and ":path" pseudo-header fields, unless they are CONNECT requests (Section 8.5).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 250
+  - label: message_http2_pseudo_headers_validity (6)
+    section: § 8.3.1
+    snippet: The ":authority" pseudo-header field conveys the authority portion (Section 3.2 of [RFC3986]) of the target URI (Section 7.1 of [HTTP]).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 274
+  - label: message_http2_pseudo_headers_validity (7)
+    section: § 8.3.1
+    snippet: The ":scheme" pseudo-header field includes the scheme portion of the request target.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 273
+  - label: message_http2_pseudo_headers_validity (8)
+    section: § 8.3.1
+    snippet: This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of '/'.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 249
+  - label: message_http2_pseudo_headers_validity (9)
     section: § 8.3.2
     snippet: For HTTP/2 responses, a single ":status" pseudo-header field is defined that carries the HTTP status code field (see Section 15 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
-      line: 235
-  - label: message_http2_pseudo_headers_validity (3)
+      line: 360
+  - label: message_http2_pseudo_headers_validity (10)
     section: § 8.3.2
     snippet: This pseudo-header field MUST be included in all responses, including interim responses; otherwise, the response is malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
-      line: 236
+      line: 361
+  - label: message_http2_pseudo_headers_validity (11)
+    section: § 8.5
+    snippet: A CONNECT request that does not conform to these restrictions is malformed (Section 8.1.1).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 202
+  - label: message_http2_pseudo_headers_validity (12)
+    section: § 8.5
+    snippet: A proxy that supports CONNECT establishes a TCP connection [TCP] to the host and port identified in the ":authority" pseudo-header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 91
+  - label: message_http2_pseudo_headers_validity (13)
+    section: § 8.5
+    snippet: The ":authority" pseudo-header field contains the host and port to connect to (equivalent to the authority-form of the request-target of CONNECT requests; see Section 3.2.3 of [HTTP/1.1]).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 20
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 201
+  - label: message_http2_pseudo_headers_validity (14)
+    section: § 8.5
+    snippet: The ":method" pseudo-header field is set to CONNECT.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 181
   - label: message_te_header_constraints
     section: § 8.2.2
     snippet: An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields.
