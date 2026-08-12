@@ -858,6 +858,26 @@ mod tests {
     }
 
     #[test]
+    fn a_delimiter_with_nothing_after_it_is_not_the_same_as_no_delimiter() {
+        // The distinction `validate_host_and_optional_port` discards, and the
+        // reason this split is its own function: `Host = uri-host [ ":" port ]`
+        // generates both, `authority-form = uri-host ":" port` only the first.
+        assert_eq!(
+            split_host_and_port("example.com:"),
+            ("example.com", Some(""))
+        );
+        assert_eq!(split_host_and_port("example.com"), ("example.com", None));
+        assert_eq!(split_host_and_port(":80"), ("", Some("80")));
+        assert_eq!(split_host_and_port(":"), ("", Some("")));
+        assert_eq!(split_host_and_port(""), ("", None));
+        // Every colon inside the brackets belongs to the address; only one after
+        // the closing bracket separates a port.
+        assert_eq!(split_host_and_port("[::1]:443"), ("[::1]", Some("443")));
+        assert_eq!(split_host_and_port("[::1]"), ("[::1]", None));
+        assert_eq!(split_host_and_port("2001:db8::1"), ("2001", Some("db8::1")));
+    }
+
+    #[test]
     fn host_port_is_star_digit() {
         // `port = *DIGIT` bounds nothing: no minimum, so a colon with nothing
         // after it is a port, and no maximum, so a number no transport could
