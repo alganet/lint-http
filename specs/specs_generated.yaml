@@ -2753,6 +2753,8 @@ sources:
       line: 109
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
       line: 50
+    - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
+      line: 173
     - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
       line: 21
     - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
@@ -2771,6 +2773,8 @@ sources:
       line: 96
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 250
+    - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
+      line: 93
     - file: lint-http-rules/src/rules/message_cache_control_directive_validity.rs
       line: 116
     - file: lint-http-rules/src/rules/message_cache_control_token_valid.rs
@@ -3163,6 +3167,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 54
+    - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
+      line: 81
   - label: client_request_method_token_valid
     section: § 16.1.1
     snippet: The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names.
@@ -3203,6 +3209,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
       line: 135
+    - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
+      line: 115
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 158
   - label: absolute-path
@@ -4318,13 +4326,67 @@ sources:
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 136
   - label: message_allow_header_method_tokens
+    section: § 10.2
+    snippet: The response header fields below provide additional information about the response, beyond what is implied by the status code, including information about the server, about the target resource, or about related resources.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
+      line: 34
+    - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
+      line: 20
+    - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
+      line: 76
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 103
+  - label: message_allow_header_method_tokens (2)
+    section: § 10.2.1
+    snippet: An empty Allow field value indicates that the resource allows no methods, which might occur in a 405 response if the resource has been temporarily disabled by configuration.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
+      line: 66
+    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+      line: 43
+  - label: message_allow_header_method_tokens (3)
     section: § 10.2.1
     snippet: The "Allow" header field lists the set of methods advertised as supported by the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
-      line: 28
+      line: 32
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 46
+  - label: message_allow_header_method_tokens (4)
+    section: § 10.2.1
+    snippet: The purpose of this field is strictly to inform the recipient of valid request methods associated with the resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
+      line: 33
+  - label: message_allow_header_method_tokens (5)
+    section: § 5.5
+    snippet: A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
+      line: 67
+    - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
+      line: 56
+    - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
+      line: 89
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 49
+    - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
+      line: 111
+    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+      line: 138
+  - label: message_allow_header_method_tokens (6)
+    section: § 5.6.1.2
+    snippet: 'Empty elements do not contribute to the count of elements present.  A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism.'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
+      line: 94
+  - label: Allow grammar, sender-expanded
+    section: § A
+    snippet: Allow = [ method *( OWS "," OWS method ) ]
+    cited_by:
+    - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
+      line: 65
   - label: message_auth_scheme_iana_registered
     section: § 11.1
     snippet: New and existing authentication schemes are specified independently and ought to be registered
@@ -4470,20 +4532,6 @@ sources:
     - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
       line: 62
   - label: message_connection_header_tokens_valid
-    section: § 5.5
-    snippet: A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
-      line: 56
-    - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
-      line: 89
-    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 49
-    - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
-      line: 111
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 138
-  - label: message_connection_header_tokens_valid (2)
     section: § 7.6.1
     snippet: A sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content.  For example, Cache-Control is never appropriate as a connection option (Section 5.2 of [CACHING]).
     cited_by:
@@ -4497,7 +4545,7 @@ sources:
       line: 23
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 79
-  - label: message_connection_header_tokens_valid (3)
+  - label: message_connection_header_tokens_valid (2)
     section: § 7.6.1
     snippet: The "Connection" header field allows the sender to list desired control options for the current connection.
     cited_by:
@@ -5515,23 +5563,17 @@ sources:
       line: 52
   - label: semantic_options_method_capabilities
     section: § 10.2.1
-    snippet: An empty Allow field value indicates that the resource allows no methods, which might occur in a 405 response if the resource has been temporarily disabled by configuration.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
-      line: 43
-  - label: semantic_options_method_capabilities (2)
-    section: § 10.2.1
     snippet: An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 145
-  - label: semantic_options_method_capabilities (3)
+  - label: semantic_options_method_capabilities (2)
     section: § 15.3
     snippet: The 2xx (Successful) class of status code indicates that the client's request was successfully received, understood, and accepted.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 136
-  - label: semantic_options_method_capabilities (4)
+  - label: semantic_options_method_capabilities (3)
     section: § 9.3.7
     snippet: A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.
     cited_by:
@@ -5539,7 +5581,7 @@ sources:
       line: 65
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 98
-  - label: semantic_options_method_capabilities (5)
+  - label: semantic_options_method_capabilities (4)
     section: § 9.3.7
     snippet: A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.
     cited_by:
@@ -5547,19 +5589,19 @@ sources:
       line: 42
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 146
-  - label: semantic_options_method_capabilities (6)
+  - label: semantic_options_method_capabilities (5)
     section: § 9.3.7
     snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 129
-  - label: semantic_options_method_capabilities (7)
+  - label: semantic_options_method_capabilities (6)
     section: § 9.3.7
     snippet: If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 130
-  - label: semantic_options_method_capabilities (8)
+  - label: semantic_options_method_capabilities (7)
     section: § 9.3.7
     snippet: The OPTIONS method requests information about the communication options available for the target resource, at either the origin server or an intervening intermediary.
     cited_by:
@@ -5912,22 +5954,12 @@ sources:
     - file: lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
       line: 35
   - label: server_location_header_uri_valid
-    section: § 10.2
-    snippet: The response header fields below provide additional information about the response, beyond what is implied by the status code, including information about the server, about the target resource, or about related resources.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
-      line: 20
-    - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
-      line: 76
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 103
-  - label: server_location_header_uri_valid (2)
     section: § 10.2.2
     snippet: A Location field value cannot | allow a list of members because the comma list separator is a | valid data character within a URI-reference.
     cited_by:
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 96
-  - label: server_location_header_uri_valid (3)
+  - label: server_location_header_uri_valid (2)
     section: § 10.2.2
     snippet: If an invalid | message is sent with multiple Location field lines, a recipient | along the path might combine those field lines into one value.
     cited_by:
@@ -5939,7 +5971,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 71
-  - label: server_location_header_uri_valid (4)
+  - label: server_location_header_uri_valid (3)
     section: § 10.2.2
     snippet: The "Location" header field is used in some responses to refer to a specific resource in relation to the response.
     cited_by:
@@ -5947,13 +5979,13 @@ sources:
       line: 70
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 99
-  - label: server_location_header_uri_valid (5)
+  - label: server_location_header_uri_valid (4)
     section: § 16.3.2.2
     snippet: because URIs can include commas, it is not possible to reliably distinguish between a single value that includes a comma from two values
     cited_by:
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 98
-  - label: server_location_header_uri_valid (6)
+  - label: server_location_header_uri_valid (5)
     section: § 5.5
     snippet: Fields that expect to contain a comma within a member, such as within an HTTP-date or URI-reference element, ought to be defined with delimiters around that element to distinguish any comma within that data from potential list separators.
     cited_by:
