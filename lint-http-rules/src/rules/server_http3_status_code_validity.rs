@@ -26,8 +26,8 @@ impl Rule for ServerHttp3StatusCodeValidity {
         // Only applies to HTTP/3 connections. Scoping, not a normative check — no cite.
         // Both gates read the major digit rather than a string: neither direction
         // of this version carries a version field, so both values are ones a
-        // writer chose. `helpers::version` owns the production.
-        if !crate::helpers::version::is_major(&tx.request.version, 3) {
+        // writer chose. `http_version` owns the production.
+        if !crate::http_version::is_major(&tx.request.version, 3) {
             return None;
         }
 
@@ -35,7 +35,7 @@ impl Rule for ServerHttp3StatusCodeValidity {
 
         // Only check responses that are themselves HTTP/3. In a reverse-proxy
         // setup the upstream response may be HTTP/1.1 (where 101 is valid).
-        if !crate::helpers::version::is_major(&resp.version, 3) {
+        if !crate::http_version::is_major(&resp.version, 3) {
             return None;
         }
 

@@ -16,6 +16,7 @@ use crate::ca::CertificateAuthority;
 
 use super::connect::AlwaysResolves;
 use super::exchange::{exchange, ProxiedRequest};
+use super::hop_by_hop::format_http_version;
 use super::Shared;
 use super::{http3_body, tee_body};
 
@@ -376,11 +377,12 @@ async fn handle_h3_request(
         uri_str,
         headers: req_headers,
         // The version number RFC 9114 § 4.3.1 states for a request that has
-        // nowhere to carry one, written the way § 2.5 of [HTTP] writes a major
-        // version with no minor versions of its own. `format_http_version`
-        // renders the same string from `hyper::Version::HTTP_3`.
+        // nowhere to carry one. Rendered through the shared function rather
+        // than written here: every other capture site funnels through it, and
+        // this one holding its own literal is how the workspace came to need
+        // the spelling corrected in two files instead of one.
         // cite(RFC 9114 § 4.3.1): "HTTP/3 requests implicitly have a protocol version of "3.0"."
-        version: "HTTP/3.0".to_string(),
+        version: format_http_version(hyper::Version::HTTP_3),
         body,
         body_done: body_done_rx,
         client_id,

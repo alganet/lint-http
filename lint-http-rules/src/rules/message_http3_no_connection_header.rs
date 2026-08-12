@@ -46,8 +46,8 @@ impl Rule for MessageHttp3NoConnectionHeader {
         // re-homed to the reverse-proxy response gate below, and the enforcing
         // "MUST NOT generate … MUST be treated as malformed" now sits on the check.)
         // cite(RFC 9114 § 4.2): "HTTP/3 does not use the Connection header field to indicate connection-specific fields; in this protocol, connection-specific metadata is conveyed by other means."
-        // The gate reads the major digit; `helpers::version` owns the production.
-        if !crate::helpers::version::is_major(&tx.request.version, 3) {
+        // The gate reads the major digit; `http_version` owns the production.
+        if !crate::http_version::is_major(&tx.request.version, 3) {
             return None;
         }
 
@@ -77,7 +77,7 @@ impl Rule for MessageHttp3NoConnectionHeader {
         // case the previous version-gate cite was mis-anchored on.
         // cite(RFC 9114 § 4.2): "An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/3 endpoints as malformed."
         if let Some(resp) = &tx.response {
-            if crate::helpers::version::is_major(&resp.version, 3) {
+            if crate::http_version::is_major(&resp.version, 3) {
                 if let Some(msg) = check_forbidden_headers(&resp.headers) {
                     return Some(Violation {
                         rule: self.id().into(),
@@ -402,7 +402,7 @@ mod tests {
     fn http2_with_connection_header_is_not_checked() {
         let rule = MessageHttp3NoConnectionHeader;
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.version = "HTTP/2".into();
+        tx.request.version = "HTTP/2.0".into();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("connection", "keep-alive")]);
 

@@ -235,7 +235,7 @@ mod tests {
     /// reports left.
     #[rstest]
     #[case("HTTP/1.1")]
-    #[case("HTTP/2")]
+    #[case("HTTP/2.0")]
     #[case("HTTP/3.0")]
     fn out_of_range_is_reported_on_every_version(#[case] version: &str) {
         let rule = ServerStatusCodeValidRange;

@@ -155,12 +155,13 @@ impl Rule for ClientRequestTargetFormChecks {
         // reports the reassembly rather than the sender.
         //
         // The gate is the major digit, which is the digit the first sentence
-        // below gives the meaning to, and the version's own production is why the
-        // period is part of the test: `HTTP-version = HTTP-name "/" DIGIT "."
-        // DIGIT` puts the minor digit after it, so both HTTP/1.0 and HTTP/1.1 are
-        // measured and `HTTP/1x` is nobody's version. Quoting RFC 9112 § 1's
-        // "HTTP/1.1 message syntax" here would argue for a narrower gate than the
-        // one written: § 2.3 is the sentence that says HTTP/1.**x**.
+        // below gives the meaning to, so both HTTP/1.0 and HTTP/1.1 are measured
+        // and `HTTP/1x` is nobody's version. Quoting RFC 9112 § 1's "HTTP/1.1
+        // message syntax" here would argue for a narrower gate than the one
+        // written: § 2.3 is the sentence that says HTTP/1.**x**. The test was a
+        // `starts_with("HTTP/1.")` hand copy of the production until
+        // 2026-08-03; `http_version` owns it now, and reads the digit rather
+        // than the prefix a writer happened to choose.
         // cite(RFC 9110 § 2.5): "The first digit (major version) indicates the messaging syntax"
         // cite(RFC 9110 § 7.1): "For historical reasons, the parsed target URI components, collectively referred to as the "request target", are sent within the message control data and the Host header field"
         // cite(RFC 9110 § 7.1): "This reconstruction is specific to each major protocol version."
@@ -169,7 +170,7 @@ impl Rule for ClientRequestTargetFormChecks {
         // cite(RFC 9113 § 8.3.1): "A request in asterisk form (for OPTIONS) includes the value '*' for the ":path" pseudo-header field."
         // cite(RFC 9113 § 8.3.1): "Note that request targets for CONNECT or asterisk-form OPTIONS requests never include authority information"
         // cite(RFC 9114 § 4.3.1): "An OPTIONS request that does not include a path component includes the value * (ASCII 0x2a) for the :path pseudo-header field"
-        if !tx.request.version.starts_with("HTTP/1.") {
+        if !crate::http_version::is_major(&tx.request.version, 1) {
             return None;
         }
 

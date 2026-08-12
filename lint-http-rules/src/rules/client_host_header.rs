@@ -20,8 +20,11 @@ pub struct ClientHostHeader;
 /// URI — the same place `message_http3_host_authority_consistency` reads it.
 fn sends_authority_as_control_data(tx: &crate::http_transaction::HttpTransaction) -> bool {
     // cite(RFC 9110 § 7.2): "In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data."
+    // The major digit is what "in HTTP/2 and HTTP/3" means; `http_version` owns
+    // the production that reads it. Two string-prefix tests said this until
+    // 2026-08-03 and admitted `HTTP/2x` and `HTTP/20` on the way.
     let version = tx.request.version.as_str();
-    if !(version.starts_with("HTTP/2") || version.starts_with("HTTP/3")) {
+    if !matches!(crate::http_version::major(version), Some(2 | 3)) {
         return false;
     }
     crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri).is_some()
