@@ -76,11 +76,12 @@ impl Rule for ClientRequestUriPercentEncodingValid {
                 severity,
                 message: format!(
                     "Request target '{shown}': {msg}. The percent character is the indicator for a \
-                     percent-encoded octet and opens a triplet of exactly three characters, so one \
-                     meant as data is written '%25'. Once produced a URI is always in its \
-                     percent-encoded form, which is why what follows a '%' is read as an encoding \
-                     whatever the sender meant by it -- a recipient that separates the components \
-                     and decodes them can take this data for a delimiter"
+                     percent-encoded octet and opens a triplet -- itself and two hexadecimal \
+                     digits -- so one meant as data is written '%25'. Once produced a URI is \
+                     always in its percent-encoded form, which is why what follows a '%' is read \
+                     as an encoding whatever the sender meant by it, and why a recipient that \
+                     decodes before it has separated the components can take the result for a \
+                     delimiter"
                 ),
             });
         }

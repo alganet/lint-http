@@ -191,9 +191,13 @@ impl Rule for ClientRequestTargetFormChecks {
         // than the production it fell out of. The class measured is the wider
         // one: § 5.6.3's whitespace is SP and HTAB, and `is_ascii_whitespace`
         // adds CR, LF and FF -- which belong here because no component of any of
-        // the four admits them either, and because this rule does not read the
-        // characters inside a path, so a CR in an origin-form target would
-        // otherwise pass as an ordinary absolute path.
+        // the four admits them either. `client_request_uri_percent_encoding_valid`
+        // now reads the characters inside the target and reports every one no
+        // URI is composed from, whitespace among them, so a space over HTTP/1.x
+        // draws a finding from each of us -- and they say different things. That
+        // one is about the alphabet a URI is written in, on every version; this
+        // one is about the request-line, which is why it names the malformed
+        // start-line and the recipient asked not to autocorrect it.
         // cite(RFC 9112 § 3.2): "No whitespace is allowed in the request-target."
         // cite(RFC 9112 § 3.2): "Unfortunately, some user agents fail to properly encode or exclude whitespace found in hypertext references, resulting in those disallowed characters being sent as the request-target in a malformed request-line."
         // cite(RFC 9112 § 3.2): "A recipient SHOULD NOT attempt to autocorrect and then process the request without a redirect, since the invalid request-line might be deliberately crafted to bypass security filters along the request chain."
