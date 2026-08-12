@@ -239,6 +239,9 @@ severity = "warn"
 # `token` production admits every lowercase spelling this rule reports.
 # A name missing here costs one unremarked spelling and never a false report. Add a
 # private method — `PURGE`, `BAN` — to have its own case convention checked too.
+# The array is required, and an absent or empty one stops the rule outright rather than
+# only its case check: the grammar questions do not read these names, so silencing just
+# that branch would leave a configuration mistake looking like a clean run.
 registered_methods = [
   "ACL",
   "BASELINE-CONTROL",

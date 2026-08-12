@@ -2612,9 +2612,9 @@ sources:
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 310
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 109
+      line: 114
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 166
+      line: 171
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 232
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
@@ -2832,7 +2832,7 @@ sources:
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
       line: 125
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 186
+      line: 191
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
       line: 75
     - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
@@ -3044,19 +3044,19 @@ sources:
     snippet: An origin server that receives a request method that is unrecognized or not implemented SHOULD respond with the 501 (Not Implemented) status code.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 194
+      line: 199
   - label: client_request_method_token_valid (5)
     section: § 9.1
     snippet: By convention, standardized methods are defined in all-uppercase US-ASCII letters.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 187
+      line: 192
   - label: client_request_method_token_valid (6)
     section: § A
     snippet: method = token minute = 2DIGIT
     cited_by:
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 130
+      line: 135
   - label: client_request_version_method_validity
     section: § 9.3.1
     snippet: A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
@@ -6770,7 +6770,7 @@ sources:
     snippet: The ":method" pseudo-header field includes the HTTP method (Section 9 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 131
+      line: 136
   - label: message_header_field_names_token
     section: § 8.2.1
     snippet: HTTP/2 implementations SHOULD validate field names and values according to their definitions in Sections 5.1 and 5.5 of [HTTP], respectively, and treat messages that contain prohibited characters as malformed
@@ -6824,7 +6824,7 @@ sources:
     snippet: '":method":  Contains the HTTP method (Section 9 of [HTTP])'
     cited_by:
     - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 132
+      line: 137
   - label: lint-http-proxy/src/h3_instrument.rs
     section: § 6.2.1
     snippet: A control stream is indicated by a stream type of 0x00.

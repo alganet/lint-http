@@ -18,6 +18,8 @@ Reports a request whose method token does not derive from `method = token` (RFC 
 
 **`registered_methods` is required, and the reason is that the names live in a registry.** RFC 9110 §16.1.1 registers method names at IANA and admits new ones by IETF Review; §9.1 says every method specified outside RFC 9110 "ought to be registered" there. The eight methods RFC 9110 defines are only the ones that document defines, so a list compiled into this rule would be a snapshot of an open registry presented as though it were the grammar. The array is also where a deployment records its own uppercase-by-convention names: add `PURGE` to it and `purge` is reported; leave it out and it is not.
 
+**A missing or empty array stops the whole rule, not only the case finding.** The two grammar questions never read these names, so silencing just the third would leave a configuration mistake looking like a clean run. A deployment that wants the grammar half and not the case advice disables the rule rather than emptying the array.
+
 **An incomplete array costs coverage and never a false report.** A name missing from it means one spelling goes unremarked — unlike the same shape in `message_early_data_header_safe_method`, where an absent name *is* the finding, because RFC 8470 §4 names "methods whose safety is not known" alongside the unsafe ones.
 
 **Every HTTP version is read, and there is no version gate.** `method = token` is written in the version-independent document; RFC 9112 §3.1 is where an HTTP/1.1 message carries the result, and RFC 9113 §8.3.1 and RFC 9114 §4.3.1 put the same value in a `:method` pseudo-header. `message_http2_pseudo_headers_validity` reports the `tchar` half a second time, on every version, because it carries no version gate of its own.
@@ -49,6 +51,9 @@ severity = "warn"
 # `token` production admits every lowercase spelling this rule reports.
 # A name missing here costs one unremarked spelling and never a false report. Add a
 # private method — `PURGE`, `BAN` — to have its own case convention checked too.
+# The array is required, and an absent or empty one stops the rule outright rather than
+# only its case check: the grammar questions do not read these names, so silencing just
+# that branch would leave a configuration mistake looking like a clean run.
 registered_methods = [
   "ACL",
   "BASELINE-CONTROL",

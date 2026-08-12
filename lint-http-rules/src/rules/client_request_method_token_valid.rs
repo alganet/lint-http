@@ -58,6 +58,11 @@ fn parse_method_token_config(
     // No sentence forbids an empty array. It is refused because the branch it feeds
     // would then be unreachable, and a rule that silently checks two of its three
     // questions reads as a linter that agrees rather than one that was switched off.
+    //
+    // Which is also why an absent or empty array stops the rule outright rather than
+    // only the branch that reads it: the two grammar questions never touch these names,
+    // so silencing just the third would leave a configuration error looking like a
+    // clean run. A deployment that wants only the grammar half turns the rule off.
     if arr.is_empty() {
         return Err(anyhow::anyhow!(
             "'registered_methods' array cannot be empty"
@@ -139,10 +144,10 @@ impl Rule for ClientRequestMethodTokenValid {
         // A string that is not a token has no case to be in yet: the character scan is
         // what decides whether this is a `method` at all, and the convention below is
         // about how a `method` naming a standardized one is spelled.
-        let has_lowercase =
+        let lowercase_in_token =
             invalid_char.is_none() && crate::helpers::token::find_first_lowercase(m).is_some();
 
-        if !m.is_empty() && invalid_char.is_none() && !has_lowercase {
+        if !m.is_empty() && invalid_char.is_none() && !lowercase_in_token {
             return None;
         }
 
@@ -171,7 +176,7 @@ impl Rule for ClientRequestMethodTokenValid {
             return Some(self.violation(
                 &config,
                 format!(
-                    "Method token contains {}, which is not a `tchar`, so the request-line's method matches no `token`",
+                    "Method token contains {}, which is not a `tchar`, so the request's method derives from no `token` and therefore from no `method`",
                     crate::helpers::headers::shown_in_finding(&c.to_string())
                 ),
             ));
@@ -185,7 +190,7 @@ impl Rule for ClientRequestMethodTokenValid {
         // then applies that method's semantics -- the sentence beside it is why.
         // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
         // cite(RFC 9110 § 9.1): "By convention, standardized methods are defined in all-uppercase US-ASCII letters."
-        if has_lowercase {
+        if lowercase_in_token {
             let folded = m.to_ascii_uppercase();
             if config.registered_methods.iter().any(|r| r == &folded) {
                 // What a recipient does with a token it cannot place is the reason this
@@ -205,7 +210,7 @@ impl Rule for ClientRequestMethodTokenValid {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a request whose method token does not derive from `method = token` (RFC 9110 §9.1), and a request whose method is a standardized method's name written in a different case.\n\n**Two findings of different strengths.** A method token that is empty or carries a character outside `tchar` matches no production, and RFC 9110 §2.2 is what makes that a violation: \"A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.\" The case finding rests on no requirement at all — §9.1 says only \"By convention, standardized methods are defined in all-uppercase US-ASCII letters\", which is a statement about how standards write their definitions, not one addressed to a sender.\n\n**What makes the case finding worth reporting is the sentence next to the convention.** §9.1: \"The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.\" So `get` is not a badly typed `GET`; it is a method nothing defines, and §9.1 has an origin server answer an unrecognized method with `501 (Not Implemented)`. The finding is that a request asking for a standardized method will not get one.\n\n**Not reported: a lowercase method that is nobody's standardized method.** A deployment's private `x-purge` is a well-formed `token`, and the convention §9.1 states is about standardized methods — so there is no sentence under a report of it, and this rule used to make one anyway. `registered_methods` is what separates the two cases.\n\n**`registered_methods` is required, and the reason is that the names live in a registry.** RFC 9110 §16.1.1 registers method names at IANA and admits new ones by IETF Review; §9.1 says every method specified outside RFC 9110 \"ought to be registered\" there. The eight methods RFC 9110 defines are only the ones that document defines, so a list compiled into this rule would be a snapshot of an open registry presented as though it were the grammar. The array is also where a deployment records its own uppercase-by-convention names: add `PURGE` to it and `purge` is reported; leave it out and it is not.\n\n**An incomplete array costs coverage and never a false report.** A name missing from it means one spelling goes unremarked — unlike the same shape in `message_early_data_header_safe_method`, where an absent name *is* the finding, because RFC 8470 §4 names \"methods whose safety is not known\" alongside the unsafe ones.\n\n**Every HTTP version is read, and there is no version gate.** `method = token` is written in the version-independent document; RFC 9112 §3.1 is where an HTTP/1.1 message carries the result, and RFC 9113 §8.3.1 and RFC 9114 §4.3.1 put the same value in a `:method` pseudo-header. `message_http2_pseudo_headers_validity` reports the `tchar` half a second time, on every version, because it carries no version gate of its own.\n\n**The two grammar findings do not arise in traffic this proxy captured.** A capture's method comes from `hyper::Method`, whose accepted character table is `tchar` exactly and which refuses a zero-length method, so a request that reaches the wire through this proxy cannot carry either defect. They are reachable in a capture written elsewhere and deserialized into the transaction model, which is the only reason the checks are here."
+        "Reports a request whose method token does not derive from `method = token` (RFC 9110 §9.1), and a request whose method is a standardized method's name written in a different case.\n\n**Two findings of different strengths.** A method token that is empty or carries a character outside `tchar` matches no production, and RFC 9110 §2.2 is what makes that a violation: \"A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.\" The case finding rests on no requirement at all — §9.1 says only \"By convention, standardized methods are defined in all-uppercase US-ASCII letters\", which is a statement about how standards write their definitions, not one addressed to a sender.\n\n**What makes the case finding worth reporting is the sentence next to the convention.** §9.1: \"The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.\" So `get` is not a badly typed `GET`; it is a method nothing defines, and §9.1 has an origin server answer an unrecognized method with `501 (Not Implemented)`. The finding is that a request asking for a standardized method will not get one.\n\n**Not reported: a lowercase method that is nobody's standardized method.** A deployment's private `x-purge` is a well-formed `token`, and the convention §9.1 states is about standardized methods — so there is no sentence under a report of it, and this rule used to make one anyway. `registered_methods` is what separates the two cases.\n\n**`registered_methods` is required, and the reason is that the names live in a registry.** RFC 9110 §16.1.1 registers method names at IANA and admits new ones by IETF Review; §9.1 says every method specified outside RFC 9110 \"ought to be registered\" there. The eight methods RFC 9110 defines are only the ones that document defines, so a list compiled into this rule would be a snapshot of an open registry presented as though it were the grammar. The array is also where a deployment records its own uppercase-by-convention names: add `PURGE` to it and `purge` is reported; leave it out and it is not.\n\n**A missing or empty array stops the whole rule, not only the case finding.** The two grammar questions never read these names, so silencing just the third would leave a configuration mistake looking like a clean run. A deployment that wants the grammar half and not the case advice disables the rule rather than emptying the array.\n\n**An incomplete array costs coverage and never a false report.** A name missing from it means one spelling goes unremarked — unlike the same shape in `message_early_data_header_safe_method`, where an absent name *is* the finding, because RFC 8470 §4 names \"methods whose safety is not known\" alongside the unsafe ones.\n\n**Every HTTP version is read, and there is no version gate.** `method = token` is written in the version-independent document; RFC 9112 §3.1 is where an HTTP/1.1 message carries the result, and RFC 9113 §8.3.1 and RFC 9114 §4.3.1 put the same value in a `:method` pseudo-header. `message_http2_pseudo_headers_validity` reports the `tchar` half a second time, on every version, because it carries no version gate of its own.\n\n**The two grammar findings do not arise in traffic this proxy captured.** A capture's method comes from `hyper::Method`, whose accepted character table is `tchar` exactly and which refuses a zero-length method, so a request that reaches the wire through this proxy cannot carry either defect. They are reachable in a capture written elsewhere and deserialized into the transaction model, which is the only reason the checks are here."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
