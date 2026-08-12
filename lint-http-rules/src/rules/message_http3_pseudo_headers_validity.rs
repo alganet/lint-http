@@ -994,7 +994,8 @@ mod tests {
     #[test]
     fn both_authority_and_host_present_is_ok() {
         // When both :authority (via absolute URI) and Host are present, no violation.
-        // Value consistency is checked by message_http3_host_authority_consistency.
+        // Value consistency is checked by message_host_and_authority_consistency,
+        // which reads the same pair over both versions that carry an :authority.
         let rule = MessageHttp3PseudoHeadersValidity;
         let mut tx = make_h3_transaction();
         tx.request.method = "GET".into();
