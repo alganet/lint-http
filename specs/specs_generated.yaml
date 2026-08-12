@@ -737,13 +737,13 @@ sources:
     snippet: The ABNF notation defines its terminal values to be non-negative integers (codepoints) based on the US-ASCII coded character set [ASCII].
     cited_by:
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 98
+      line: 110
   - label: client_request_uri_percent_encoding_valid (2)
     section: § 2
     snippet: the integer values used by the ABNF must be mapped back to their corresponding characters via US-ASCII in order to complete the syntax rules.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 99
+      line: 111
   - label: client_request_uri_percent_encoding_valid (3)
     section: § 2.4
     snippet: Because the percent ("%") character serves as the indicator for percent-encoded octets, it must be percent-encoded as "%25" for that octet to be used as data within a URI.
@@ -762,6 +762,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
       line: 60
+  - label: query
+    section: § 3.4
+    snippet: query       = *( pchar / "/" / "?" )
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
+      line: 106
   - label: IPv4address grammar
     section: § 3.2.2
     snippet: IPv4address = dec-octet "." dec-octet "." dec-octet "." dec-octet
@@ -801,7 +807,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 76
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 97
+      line: 109
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 90
   - label: lint-http-rules/src/helpers/uri.rs (2)
@@ -817,7 +823,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 77
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 96
+      line: 108
   - label: lint-http-rules/src/helpers/uri.rs (4)
     section: § 2.1
     snippet: If two URIs differ only in the case of hexadecimal digits used in percent-encoded octets, they are equivalent.
@@ -906,13 +912,15 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 653
-  - label: lint-http-rules/src/helpers/uri.rs (17)
+  - label: reg-name
     section: § 3.2.2
     snippet: reg-name    = *( unreserved / pct-encoded / sub-delims )
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 654
-  - label: lint-http-rules/src/helpers/uri.rs (18)
+    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
+      line: 107
+  - label: lint-http-rules/src/helpers/uri.rs (17)
     section: § 3.2.3
     snippet: The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character.
     cited_by:
@@ -922,19 +930,21 @@ sources:
       line: 765
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 393
-  - label: lint-http-rules/src/helpers/uri.rs (19)
+  - label: lint-http-rules/src/helpers/uri.rs (18)
     section: § 3.2.3
     snippet: URI producers and normalizers should omit the port component and its ":" delimiter if port is empty or if its value would be the same as that of the scheme's default.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 766
-  - label: lint-http-rules/src/helpers/uri.rs (20)
+  - label: pchar
     section: § 3.3
     snippet: pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 105
-  - label: lint-http-rules/src/helpers/uri.rs (21)
+    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
+      line: 105
+  - label: lint-http-rules/src/helpers/uri.rs (19)
     section: § 4.2
     snippet: A path segment that contains a colon character (e.g., "this:that") cannot be used as the first segment of a relative-path reference, as it would be mistaken for a scheme name.
     cited_by:
@@ -942,31 +952,31 @@ sources:
       line: 106
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 91
-  - label: lint-http-rules/src/helpers/uri.rs (22)
+  - label: lint-http-rules/src/helpers/uri.rs (20)
     section: § 4.2
     snippet: A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 514
-  - label: lint-http-rules/src/helpers/uri.rs (23)
+  - label: lint-http-rules/src/helpers/uri.rs (21)
     section: § 5.2.3
     snippet: If the base URI has a defined authority component and an empty path, then return a string consisting of "/" concatenated with the reference's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 496
-  - label: lint-http-rules/src/helpers/uri.rs (24)
+  - label: lint-http-rules/src/helpers/uri.rs (22)
     section: § 5.2.3
     snippet: return a string consisting of the reference's path component appended to all but the last segment of the base URI's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 500
-  - label: lint-http-rules/src/helpers/uri.rs (25)
+  - label: lint-http-rules/src/helpers/uri.rs (23)
     section: § 5.2.4
     snippet: This is done after the path is extracted from a reference, whether or not the path was relative, in order to remove any invalid or extraneous dot-segments prior to forming the target URI.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 438
-  - label: lint-http-rules/src/helpers/uri.rs (26)
+  - label: lint-http-rules/src/helpers/uri.rs (24)
     section: § 6.2.2.3
     snippet: URI normalizers should remove dot-segments by applying the remove_dot_segments algorithm to the path, as described in Section 5.2.4.
     cited_by:
