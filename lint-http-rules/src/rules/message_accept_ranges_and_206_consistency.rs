@@ -195,7 +195,7 @@ static REGISTRATION: &dyn crate::rules::Rule = &MessageAcceptRangesAnd206Consist
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hyper::header::{HeaderName, HeaderValue};
+
     use rstest::rstest;
 
     fn config() -> crate::config::Config {
@@ -213,16 +213,7 @@ mod tests {
         headers: &[(&str, &[u8])],
         trailers: &[(&str, &[u8])],
     ) -> crate::http_transaction::HttpTransaction {
-        fn section(pairs: &[(&str, &[u8])]) -> hyper::HeaderMap {
-            let mut hm = hyper::HeaderMap::new();
-            for (name, value) in pairs {
-                hm.append(
-                    name.parse::<HeaderName>().expect("a field name"),
-                    HeaderValue::from_bytes(value).expect("a field value"),
-                );
-            }
-            hm
-        }
+        use crate::test_helpers::make_headers_from_octet_pairs as section;
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
         tx.response = Some(crate::http_transaction::ResponseInfo {

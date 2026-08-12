@@ -234,7 +234,7 @@ static REGISTRATION: &dyn crate::rules::Rule = &ClientAcceptRangesOnPartialConte
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hyper::header::{HeaderName, HeaderValue};
+
     use rstest::rstest;
 
     fn config() -> crate::config::Config {
@@ -260,16 +260,7 @@ mod tests {
         AResponse(u16, Fields<'a>, Fields<'a>),
     }
 
-    fn section(pairs: Fields<'_>) -> hyper::HeaderMap {
-        let mut hm = hyper::HeaderMap::new();
-        for (name, value) in pairs {
-            hm.append(
-                name.parse::<HeaderName>().expect("a field name"),
-                HeaderValue::from_bytes(value).expect("a field value"),
-            );
-        }
-        hm
-    }
+    use crate::test_helpers::make_headers_from_octet_pairs as section;
 
     /// Every fixture is built here. The rule reads two field sections of the
     /// previous response and treats a field line it cannot decode differently
