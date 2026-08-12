@@ -2965,6 +2965,8 @@ sources:
       line: 190
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 243
+    - file: lint-http-rules/src/rules/server_response_405_allow.rs
+      line: 41
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
       line: 81
   - label: Vary grammar
@@ -3133,6 +3135,8 @@ sources:
       line: 54
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
       line: 81
+    - file: lint-http-rules/src/rules/server_response_405_allow.rs
+      line: 40
   - label: client_request_method_token_valid
     section: § 16.1.1
     snippet: The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names.
@@ -3961,6 +3965,8 @@ sources:
       line: 44
     - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
       line: 68
+    - file: lint-http-rules/src/rules/server_response_405_allow.rs
+      line: 119
   - label: lint-http-rules/src/helpers/headers.rs (23)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
@@ -4411,6 +4417,8 @@ sources:
       line: 66
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 43
+    - file: lint-http-rules/src/rules/server_response_405_allow.rs
+      line: 117
   - label: message_allow_header_method_tokens (3)
     section: § 10.2.1
     snippet: The "Allow" header field lists the set of methods advertised as supported by the target resource.
@@ -4421,6 +4429,8 @@ sources:
       line: 46
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 189
+    - file: lint-http-rules/src/rules/server_response_405_allow.rs
+      line: 155
   - label: message_allow_header_method_tokens (4)
     section: § 10.2.1
     snippet: The purpose of this field is strictly to inform the recipient of valid request methods associated with the resource.
@@ -5617,6 +5627,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
       line: 145
+    - file: lint-http-rules/src/rules/server_response_405_allow.rs
+      line: 86
   - label: semantic_options_method_capabilities (2)
     section: § 15.3
     snippet: The 2xx (Successful) class of status code indicates that the client's request was successfully received, understood, and accepted.
@@ -6108,11 +6120,37 @@ sources:
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 77
   - label: server_response_405_allow
+    section: § 10.2.1
+    snippet: The actual set of allowed methods is defined by the origin server at the time of each request.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_405_allow.rs
+      line: 156
+  - label: server_response_405_allow (2)
+    section: § 15.5.6
+    snippet: The 405 (Method Not Allowed) status code indicates that the method received in the request-line is known by the origin server but not supported by the target resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_405_allow.rs
+      line: 154
+  - label: server_response_405_allow (3)
     section: § 15.5.6
     snippet: The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods.
     cited_by:
     - file: lint-http-rules/src/rules/server_response_405_allow.rs
-      line: 27
+      line: 118
+    - file: lint-http-rules/src/rules/server_response_405_allow.rs
+      line: 153
+  - label: server_response_405_allow (4)
+    section: § 3.7
+    snippet: All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_405_allow.rs
+      line: 61
+  - label: server_response_405_allow (5)
+    section: § 9.1
+    snippet: However, the set of allowed methods can change dynamically.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_405_allow.rs
+      line: 157
   - label: server_response_location_on_redirect
     section: § 15.4.1
     snippet: For request methods other than HEAD, the server SHOULD generate content in the 300 response containing a list of representation metadata and URI reference(s) from which the user or user agent can choose the one most preferred.
