@@ -726,6 +726,8 @@ sources:
       line: 26
     - file: lint-http-rules/src/helpers/ipv6.rs
       line: 77
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 729
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 138
   - label: lint-http-rules/src/helpers/ipv6.rs (2)
@@ -734,6 +736,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/ipv6.rs
       line: 78
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 730
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 2
     snippet: A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols.
@@ -843,7 +847,9 @@ sources:
     snippet: The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 725
+      line: 731
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 756
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 393
   - label: lint-http-rules/src/helpers/uri.rs (17)
@@ -851,7 +857,7 @@ sources:
     snippet: URI producers and normalizers should omit the port component and its ":" delimiter if port is empty or if its value would be the same as that of the scheme's default.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 726
+      line: 757
   - label: lint-http-rules/src/helpers/uri.rs (18)
     section: § 3.3
     snippet: pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
@@ -3786,7 +3792,7 @@ sources:
     snippet: Host = uri-host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 724
+      line: 755
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 157
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs

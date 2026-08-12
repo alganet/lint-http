@@ -714,6 +714,37 @@ fn is_ipvfuture(s: &str) -> bool {
         })
 }
 
+/// Where the `uri-host` ends and `":" port` begins, with neither half examined.
+///
+/// Only a colon after the closing bracket separates a port: every colon inside an
+/// IP literal belongs to the address, and the brackets are the only thing marking
+/// where it stopped.
+///
+/// The port half is `Some("")` for a value ending in its delimiter, because that
+/// is a real distinction: `port` is `*DIGIT`, so `example.com:` carries a port of
+/// no digits and `example.com` carries no port at all. Two productions one bracket
+/// apart tell those cases apart -- `Host = uri-host [ ":" port ]` generates both,
+/// `authority-form = uri-host ":" port` only the first -- so a caller reading the
+/// stricter one asks for the `Some` and a caller reading `Host` does not care.
+// cite(RFC 3986 § 3.2.2): "A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]")."
+// cite(RFC 3986 § 3.2.2): "This is the only place where square bracket characters are allowed in the URI syntax."
+// cite(RFC 3986 § 3.2.3): "The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character."
+pub fn split_host_and_port(value: &str) -> (&str, Option<&str>) {
+    let colon = match value.starts_with('[') {
+        true => value.find(']').and_then(|close| {
+            value[close + 1..]
+                .find(':')
+                .map(|offset| close + 1 + offset)
+        }),
+        false => value.find(':'),
+    };
+
+    match colon {
+        Some(i) => (&value[..i], Some(&value[i + 1..])),
+        None => (value, None),
+    }
+}
+
 /// Validate a `Host` field value: a `uri-host` and, optionally, a port.
 ///
 /// The port is `*DIGIT` — no upper bound and no lower one. A number no
@@ -725,21 +756,7 @@ fn is_ipvfuture(s: &str) -> bool {
 // cite(RFC 3986 § 3.2.3): "The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character."
 // cite(RFC 3986 § 3.2.3): "URI producers and normalizers should omit the port component and its ":" delimiter if port is empty or if its value would be the same as that of the scheme's default."
 pub fn validate_host_and_optional_port(value: &str) -> Result<(), String> {
-    // Only a colon after the closing bracket separates a port: every colon
-    // inside an IP literal belongs to the address.
-    let colon = match value.starts_with('[') {
-        true => value.find(']').and_then(|close| {
-            value[close + 1..]
-                .find(':')
-                .map(|offset| close + 1 + offset)
-        }),
-        false => value.find(':'),
-    };
-
-    let (host, port) = match colon {
-        Some(i) => (&value[..i], Some(&value[i + 1..])),
-        None => (value, None),
-    };
+    let (host, port) = split_host_and_port(value);
 
     validate_uri_host(host)?;
 
