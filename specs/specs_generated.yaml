@@ -1786,7 +1786,7 @@ sources:
     snippet: Preference-Applied = "Preference-Applied" ":" 1#applied-pref
     cited_by:
     - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 151
+      line: 147
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
       line: 145
   - label: client_prefer_header_and_preference_applied (4)
@@ -1794,7 +1794,7 @@ sources:
     snippet: The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server and applied to the processing of a request.
     cited_by:
     - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 104
+      line: 101
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
       line: 113
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
@@ -1804,7 +1804,7 @@ sources:
     snippet: applied-pref = token [ BWS "=" BWS word ]
     cited_by:
     - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 161
+      line: 159
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
       line: 196
   - label: client_prefer_header_and_preference_applied (6)
@@ -2868,19 +2868,19 @@ sources:
     snippet: The method token is case-sensitive
     cited_by:
     - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 134
+      line: 130
   - label: client_prefer_header_and_preference_applied (3)
     section: § 9.2.3
     snippet: This specification defines caching semantics for GET, HEAD, and POST, although the overwhelming majority of cache implementations only support GET and HEAD.
     cited_by:
     - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 132
+      line: 128
   - label: client_prefer_header_and_preference_applied (4)
     section: § 9.3.3
     snippet: Responses to POST requests are only cacheable when they include explicit freshness information
     cited_by:
     - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 133
+      line: 129
   - label: client_range_header_syntax_valid
     section: § 14.1.1
     snippet: A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit.
