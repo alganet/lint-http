@@ -2,11 +2,214 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::headers::{
+    combined_field_value_as_written, describe_octet, is_nominated_by_connection, list_members,
+    shown_in_finding, trim_ows,
+};
+use crate::helpers::websocket::sec_websocket_key_defect;
 use crate::lint::Violation;
 use crate::rules::Rule;
-use base64::Engine;
 
 pub struct ClientSecWebsocketHeadersConsistency;
+
+/// Which of `version`'s terminals a `Sec-WebSocket-Version` value failed, worded for
+/// the operator who has to go and look at it.
+///
+/// The production is three alternatives over one to three digits, plus a comment
+/// bounding the number they spell. Reading it as "the value 13 and nothing else" --
+/// which is what a `!= "13"` comparison does -- collapses six different mistakes
+/// into one sentence, and the advice that sentence gives ("expected 13") is not
+/// something the sender of `Sec-WebSocket-Version: 013` can act on.
+///
+/// The alternation on its own derives `256` through `299`; the comment printed
+/// beneath it is what stops there, which is why it is quoted with the productions
+/// rather than separately.
+// cite(RFC 6455 § 4.3, label: Sec-WebSocket-Version): "Sec-WebSocket-Version-Client = version"
+// cite(RFC 6455 § 4.3, label: version): "version = DIGIT | (NZDIGIT DIGIT) | ("1" DIGIT DIGIT) | ("2" DIGIT DIGIT) ; Limited to 0-255 range, with no leading zeros"
+fn version_production_defect(value: &str) -> Option<String> {
+    if value.is_empty() {
+        return Some(
+            "it is empty, and every alternative of `version` spells at least one DIGIT".into(),
+        );
+    }
+    if let Some(c) = value.chars().find(|c| !c.is_ascii_digit()) {
+        return Some(format!(
+            "it contains {}, and `version` is spelled in DIGITs alone",
+            describe_octet(c as u8)
+        ));
+    }
+    if value.len() > 3 {
+        return Some(format!(
+            "it is {} characters, and no alternative of `version` is longer than three digits",
+            value.len()
+        ));
+    }
+    if value.len() > 1 && value.starts_with('0') {
+        return Some(
+            "it carries a leading zero, and the production admits none: `NZDIGIT` is the \
+             first digit of every alternative longer than one"
+                .into(),
+        );
+    }
+    // Three digits beginning with a `2` do derive from the alternation, and the
+    // comment printed under it is what stops at 255 -- so this last one is
+    // arithmetic rather than shape.
+    if value.parse::<u16>().is_ok_and(|n| n > 255) {
+        return Some(
+            "it is above 255, which is where the comment printed under the production stops".into(),
+        );
+    }
+    None
+}
+
+impl ClientSecWebsocketHeadersConsistency {
+    /// The `Connection` half of the handshake: the field has to be there and it has
+    /// to name `Upgrade`.
+    ///
+    /// The nomination question is `Connection`'s own, asked here of the one field
+    /// name every `Upgrade` request has to name; the shared predicate is what knows
+    /// that a `connection-option` is a field name and therefore compared without
+    /// case. The lines are joined before it looks, because `Connection` is one list
+    /// however many lines carry it.
+    // cite(RFC 6455 § 4.1): "The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token."
+    // cite(RFC 6455 § 4.2.1): "A |Connection| header field that includes the token "Upgrade", treated as an ASCII case-insensitive value."
+    fn connection_defect(headers: &hyper::HeaderMap) -> Option<String> {
+        let Some(value) = combined_field_value_as_written(headers, "connection") else {
+            return Some(
+                "the request carries no Connection header field, so it names no connection-option \
+                 at all"
+                    .into(),
+            );
+        };
+        if is_nominated_by_connection("upgrade", Some(&value)) {
+            return None;
+        }
+        Some(format!(
+            "its Connection header field is `{}`, which does not include the Upgrade token",
+            shown_in_finding(&value)
+        ))
+    }
+
+    /// The `Sec-WebSocket-Version` half.
+    ///
+    /// Two questions in one place because the second only makes sense after the
+    /// first: whether the value derives from `version`, and then whether the version
+    /// it names is the one this document defines.
+    // cite(RFC 6455 § 4.1): "The request MUST include a header field with the name |Sec-WebSocket-Version|.  The value of this header field MUST be 13."
+    fn version_defect(headers: &hyper::HeaderMap) -> Option<String> {
+        // The lines are joined before the value is read, and joining them is what
+        // makes a second one visible: the client's field is one `version` and the
+        // list form belongs to the server, which is how a server answers with the
+        // versions it will speak. Two `Sec-WebSocket-Version` lines in a request
+        // therefore derive from nothing, and reading only the first would call the
+        // message clean.
+        // cite(RFC 6455 § 4.3, label: Sec-WebSocket-Version-Server): "Sec-WebSocket-Version-Server = 1#version"
+        let Some(raw) = combined_field_value_as_written(headers, "sec-websocket-version") else {
+            return Some("the request carries no Sec-WebSocket-Version header field".into());
+        };
+        let value = trim_ows(&raw);
+        if let Some(defect) = version_production_defect(value) {
+            return Some(format!(
+                "its Sec-WebSocket-Version is `{}`, which derives from no `version`: {}",
+                shown_in_finding(value),
+                defect
+            ));
+        }
+        if value == "13" {
+            return None;
+        }
+        // Not "invalid", because § 4.4 prints a request exactly like this one as its
+        // illustration of version advertisement -- `Sec-WebSocket-Version: 25`, answered
+        // with a 400 listing what the server will speak. What the value settles is
+        // which protocol this handshake is for, and this document defines one of them.
+        // cite(RFC 6455 § 4.4): "a client can initially request the version of the WebSocket Protocol that it prefers (which doesn't necessarily have to be the latest supported by the client)"
+        // cite(RFC 6455 § 4.4): "If the server doesn't support the requested version, it MUST respond with a |Sec-WebSocket-Version| header field (or multiple |Sec-WebSocket-Version| header fields) containing all versions it is willing to use."
+        Some(format!(
+            "its Sec-WebSocket-Version is `{}`, so it is not a handshake for the version this \
+             document defines; RFC 6455 § 4.4 makes that a version advertisement, and the \
+             answer it asks a server for is a 400 carrying the versions the server will speak",
+            shown_in_finding(value)
+        ))
+    }
+
+    /// The `Sec-WebSocket-Key` half.
+    ///
+    /// What is wrong with the value is asked of the production's owner, which is
+    /// also what `Sec-WebSocket-Accept` is derived through -- so the handshake is
+    /// judged from one reading of the key rather than two.
+    // cite(RFC 6455 § 4.1): "The request MUST include a header field with the name |Sec-WebSocket-Key|."
+    fn key_defect(headers: &hyper::HeaderMap) -> Option<String> {
+        let Some(raw) = combined_field_value_as_written(headers, "sec-websocket-key") else {
+            return Some("the request carries no Sec-WebSocket-Key header field".into());
+        };
+        let defect = sec_websocket_key_defect(&raw)?;
+        Some(format!(
+            "its Sec-WebSocket-Key is `{}`, which is not the nonce the field is defined as: {}",
+            shown_in_finding(trim_ows(&raw)),
+            defect
+        ))
+    }
+
+    /// The optional `Sec-WebSocket-Protocol`, which is two MUSTs about its members
+    /// rather than one about the field.
+    ///
+    /// The members are walked without the empty-element filter every other list in
+    /// this rule gets, and that is the point: `1#token` has a floor, the sentence
+    /// beside it says each element is a non-empty string, and a filter that drops
+    /// empty members answers both questions before they are asked. The alphabet the
+    /// sentence spells out -- U+0021 to U+007E less the separators -- is `token`,
+    /// which is what the ABNF it hands off to says in one word.
+    ///
+    /// `[RFC2616]` inside the quote is the document's own wording and stays byte
+    /// exact; the definition it resolves to today is cited beside it.
+    // cite(RFC 6455 § 4.1): "The elements that comprise this value MUST be non-empty strings with characters in the range U+0021 to U+007E not including separator characters as defined in [RFC2616] and MUST all be unique strings."
+    // cite(RFC 6455 § 4.1): "The ABNF for the value of this header field is 1#token, where the definitions of constructs and rules are as given in [RFC2616]."
+    // cite(RFC 6455 § 4.3, label: Sec-WebSocket-Protocol): "Sec-WebSocket-Protocol-Client = 1#token"
+    // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
+    fn subprotocol_defect(headers: &hyper::HeaderMap) -> Option<String> {
+        let raw = combined_field_value_as_written(headers, "sec-websocket-protocol")?;
+        let members: Vec<&str> = raw.split(',').map(trim_ows).collect();
+
+        // The floor, which a field carrying only separators reaches without being
+        // empty: `1#token` needs one element and `,` supplies none.
+        // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production"
+        if members.iter().all(|m| m.is_empty()) {
+            return Some(format!(
+                "its Sec-WebSocket-Protocol is `{}`, and `1#token` needs one subprotocol name",
+                shown_in_finding(trim_ows(&raw))
+            ));
+        }
+        for member in &members {
+            if member.is_empty() {
+                return Some(format!(
+                    "its Sec-WebSocket-Protocol is `{}`, which has an empty element, and every \
+                     element of this list is required to be a non-empty string",
+                    shown_in_finding(trim_ows(&raw))
+                ));
+            }
+            if let Some(c) = crate::helpers::token::find_invalid_token_char(member) {
+                return Some(format!(
+                    "its Sec-WebSocket-Protocol names the subprotocol `{}`, which holds {} — \
+                     outside the characters this field's elements are spelled from",
+                    shown_in_finding(member),
+                    describe_octet(c as u8)
+                ));
+            }
+        }
+        // "unique strings", and the sentence says nothing about case: two spellings
+        // of one name are two strings, so the comparison is of what was written.
+        for (i, member) in members.iter().enumerate() {
+            if members[..i].contains(member) {
+                return Some(format!(
+                    "its Sec-WebSocket-Protocol names the subprotocol `{}` more than once, and \
+                     the elements of this list are required to be unique",
+                    shown_in_finding(member)
+                ));
+            }
+        }
+        None
+    }
+}
 
 impl Rule for ClientSecWebsocketHeadersConsistency {
     fn id(&self) -> &'static str {
@@ -23,118 +226,104 @@ impl Rule for ClientSecWebsocketHeadersConsistency {
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
+        let req = &tx.request;
+
+        // The first half of the sentence that opens the handshake's requirement
+        // list, used here to scope rather than to report: a request that is not a
+        // GET is not this document's opening handshake, and saying so of every
+        // `POST` in a capture would be saying it of traffic that never claimed to be
+        // one. The second half of the same sentence *is* reported, below, once the
+        // request has said it wants a WebSocket.
+        // cite(RFC 6455 § 4.1): "The method of the request MUST be GET, and the HTTP version MUST be at least 1.1."
+        if req.method != "GET" {
+            return None;
+        }
+
+        // What makes this request a WebSocket handshake rather than any other GET.
+        // The keyword is matched without case because the section describing how a
+        // server reads this field says to; the lines are joined first because
+        // `Upgrade` is one list however many of them carry it.
+        // cite(RFC 6455 § 4.1): "The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword."
+        // cite(RFC 6455 § 4.2.1): "An |Upgrade| header field containing the value "websocket", treated as an ASCII case-insensitive value."
+        let upgrade = combined_field_value_as_written(&req.headers, "upgrade")?;
+        if !list_members(&upgrade).any(|m| m.eq_ignore_ascii_case("websocket")) {
+            return None;
+        }
+
+        // The version gate, which measures the one messaging syntax this handshake
+        // is defined over and declines the rest.
+        //
+        // Above major version 1 the handshake does not exist: the opening request is
+        // an extended CONNECT carrying `:protocol`, the two fields read above are
+        // ones those versions forbid outright, and the key this rule checks is not
+        // processed at all. Reporting a missing `Connection: Upgrade` there would be
+        // telling an operator to add a field the message may not carry. RFC 8441
+        // updates RFC 6455 to say so for HTTP/2 and RFC 9220 gives HTTP/3 the same
+        // answer; those two are the whole of what exists above 1, and a major digit
+        // beyond them names no wire format, so there is no handshake to measure
+        // either way.
+        //
+        // A value deriving from no `HTTP-version` names no version at all, so there
+        // is nothing here to compare against; `message_http_version_syntax_valid` is
+        // the rule that reports the value itself.
+        // cite(RFC 8441 § 5): "This request replaces the GET-based request in [RFC6455] and is used to process the WebSockets opening handshake."
+        // cite(RFC 8441 § 5): "[RFC6455] requires the use of Connection and Upgrade header fields that are not part of HTTP/2.  They MUST NOT be included in the CONNECT request defined here."
+        // cite(RFC 8441 § 5): "Implementations using this extended CONNECT to bootstrap WebSockets do not do the processing of the Sec-WebSocket-Key and Sec-WebSocket-Accept header fields of [RFC6455] as that functionality has been superseded by the :protocol pseudo-header field."
+        // cite(RFC 9220 § 3): "The semantics of the pseudo-header fields and setting are identical to those in HTTP/2 as defined in [RFC8441]."
+        let version = crate::http_version::parse(&req.version).ok()?;
+        if version.major >= 2 {
+            return None;
+        }
+
+        // Every gate above ends the rule, and reading the configuration is several
+        // map probes and a hash of the id -- so only a request about to be measured
+        // pays for it.
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        // Only consider WebSocket handshake requests: GET method and Upgrade includes 'websocket'
-        // cite(RFC 6455 § 4.1): "The value of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has been base64-encoded"
-        if tx.request.method != "GET" {
-            return None;
-        }
-
-        let upgrade_hdr = crate::helpers::headers::get_header_str(&tx.request.headers, "upgrade");
-        let connection_hdr =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "connection");
-
-        let mut is_ws_upgrade = false;
-        if let Some(up) = upgrade_hdr {
-            // Use central parse_list_header helper which trims and skips empty parts
-            for part in crate::helpers::headers::parse_list_header(up) {
-                if part.eq_ignore_ascii_case("websocket") {
-                    is_ws_upgrade = true;
-                    break;
-                }
-            }
-        }
-
-        // If Upgrade header does not indicate websocket, ignore
-        if !is_ws_upgrade {
-            return None;
-        }
-
-        // Connection header must include 'Upgrade' token (case-insensitive tokens)
-        if let Some(conn) = connection_hdr {
-            let mut has_upgrade_token = false;
-            for part in crate::helpers::headers::parse_list_header(conn) {
-                if part.eq_ignore_ascii_case("upgrade") {
-                    has_upgrade_token = true;
-                    break;
-                }
-            }
-            if !has_upgrade_token {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: "WebSocket handshake missing required 'Connection: Upgrade' token"
-                        .into(),
-                });
-            }
-        } else {
-            return Some(Violation {
+        let violation = |message: String| {
+            Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
-                message: "WebSocket handshake missing 'Connection' header".into(),
-            });
+                message,
+            })
+        };
+
+        // The other half of the sentence the method gate quotes, and the half nobody
+        // in this catalogue was reading. The section describing how a server reads
+        // this handshake opens its list with the same requirement, and a server that
+        // finds the description unmatched is told to stop and answer with an error
+        // status -- so a `GET / HTTP/1.0` carrying `Upgrade: websocket` is a
+        // handshake that cannot succeed.
+        // cite(RFC 6455 § 4.2.1): "An HTTP/1.1 or higher GET request"
+        // cite(RFC 6455 § 4.2.1): "the server MUST stop processing the client's handshake and return an HTTP response with an appropriate error code (such as 400 Bad Request)"
+        if (version.major, version.minor) < (1, 1) {
+            return violation(format!(
+                "This WebSocket opening handshake is sent over {version}, and RFC 6455 § 4.1 \
+                 requires the request's HTTP version to be at least 1.1"
+            ));
         }
 
-        // Sec-WebSocket-Version must be present and be '13'
-        if let Some(hv) =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "sec-websocket-version")
-        {
-            if hv.trim() != "13" {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "Invalid Sec-WebSocket-Version '{}'; expected '13'",
-                        hv.trim()
-                    ),
-                });
-            }
-        } else {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: "WebSocket handshake missing 'Sec-WebSocket-Version' header".into(),
-            });
-        }
+        // The four remaining requirements, in the order § 4.1's list states them --
+        // items 6, 7, 9 and 10, with the `Origin` of item 8 declined above. One
+        // message carries one finding, so the first defect is the one reported, and
+        // taking the document's order rather than a convenient one means the finding
+        // an operator sees first is the one the list reaches first.
+        let defect = [
+            Self::connection_defect(&req.headers),
+            Self::key_defect(&req.headers),
+            Self::version_defect(&req.headers),
+            Self::subprotocol_defect(&req.headers),
+        ]
+        .into_iter()
+        .flatten()
+        .next()?;
 
-        // Sec-WebSocket-Key must be present and be base64 of 16 bytes
-        if let Some(hv) =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "sec-websocket-key")
-        {
-            // Validate base64. Reporting a malformed encoding is RFC 4648's own
-            // instruction, and RFC 6455 does not state otherwise.
-            // cite(RFC 4648 § 3.3): "Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise."
-            match base64::engine::general_purpose::STANDARD.decode(hv.trim()) {
-                Ok(bytes) => {
-                    if bytes.len() != 16 {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: "Sec-WebSocket-Key must decode to 16 bytes".into(),
-                        });
-                    }
-                }
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Sec-WebSocket-Key is not valid base64".into(),
-                    });
-                }
-            }
-        } else {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: "WebSocket handshake missing 'Sec-WebSocket-Key' header".into(),
-            });
-        }
-
-        None
+        violation(format!(
+            "This request asks to be upgraded to the WebSocket Protocol, but {defect}"
+        ))
     }
 
     fn description(&self) -> &'static str {
-        "For `GET` requests with `Upgrade: websocket`, validate that the WebSocket client handshake request includes required headers and well-formed values:\n\n- `Connection` header includes the `Upgrade` token.\n- `Sec-WebSocket-Version` is present and equals `13`.\n- `Sec-WebSocket-Key` is present and decodes from base64 to 16 bytes (nonce).\n\nThis rule helps detect malformed WebSocket upgrade requests that will be rejected by compliant servers (RFC 6455)."
+        "Measures a WebSocket opening handshake — a `GET` whose `Upgrade` field names `websocket` — against the requirements RFC 6455 § 4.1 lists for it:\n\n- The request's HTTP version is at least `1.1`.\n- `Connection` names the `Upgrade` connection-option.\n- `Sec-WebSocket-Version` derives from the `version` production and names version `13`. A value that derives from the production but names another version is RFC 6455 § 4.4's version advertisement: it is reported as a handshake for a protocol this document does not define, and the answer it asks a server for is a `400` listing the versions the server speaks.\n- `Sec-WebSocket-Key` is a base64-encoded sixteen-octet nonce. Whether that nonce was *chosen* randomly, which the same sentence also requires, is not something one captured message states.\n- `Sec-WebSocket-Protocol`, when present, is a list of at least one subprotocol name, each a non-empty `token`, and no name written twice.\n\nOnly HTTP/1.x messages are measured. Over HTTP/2 and HTTP/3 the opening handshake is an extended CONNECT carrying a `:protocol` pseudo-header field (RFC 8441, RFC 9220), the `Connection` and `Upgrade` fields this rule reads are forbidden outright, and `Sec-WebSocket-Key` is not processed — so demanding them there would be advice a sender must not follow.\n\n`Host` is asked for by the same list and reported by `client_host_header`; the server's half of the handshake is `stateful_websocket_handshake_validity`'s. RFC 6455 § 4.1 also requires an `Origin` field from a browser client, and nothing in a capture says whether a client is one — § 4.2.1 says as much, telling a server not to read a missing `Origin` as evidence either way — so no rule here reports its absence."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -143,13 +332,43 @@ impl Rule for ClientSecWebsocketHeadersConsistency {
                 spec: "RFC 6455",
                 section: Some("4.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1",
-                note: "Client Handshake: request must be GET and include `Upgrade: websocket` and `Connection: Upgrade`",
+                note: "Client Requirements — the numbered list this rule measures: GET, HTTP version at least 1.1, `Upgrade: websocket`, the `Upgrade` connection-option, the `Sec-WebSocket-Key` nonce, `Sec-WebSocket-Version: 13`, and `Sec-WebSocket-Protocol`'s non-empty unique `token` members",
             },
             crate::rules::SpecRef {
                 spec: "RFC 6455",
                 section: Some("4.2.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.1",
-                note: "`Sec-WebSocket-Key` must be a base64-encoded 16-byte nonce; `Sec-WebSocket-Version` expected value is `13`",
+                note: "Reading the Client's Opening Handshake — the same list from the server's side, which is where the two case-insensitive comparisons and the `Origin` decline are stated",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6455",
+                section: Some("4.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.3",
+                note: "Collected ABNF — `Sec-WebSocket-Key = base64-value-non-empty`, `Sec-WebSocket-Version-Client = version`, `Sec-WebSocket-Protocol-Client = 1#token`; the client's version field is one `version` and only the server's is a list",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6455",
+                section: Some("4.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.4",
+                note: "Supporting Multiple Versions — why a `Sec-WebSocket-Version` other than 13 is a version advertisement rather than a malformed value, and what a server owes it",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 8441",
+                section: Some("5"),
+                url: "https://www.rfc-editor.org/rfc/rfc8441.html#section-5",
+                note: "Updates RFC 6455: over HTTP/2 the handshake is an extended CONNECT, `Connection` and `Upgrade` MUST NOT be included, and `Sec-WebSocket-Key` is not processed — the sentences behind this rule's version gate",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9220",
+                section: Some("3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9220.html#section-3",
+                note: "Carries RFC 8441's mechanism to HTTP/3 with identical semantics",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 4648",
+                section: Some("3.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc4648.html#section-3.3",
+                note: "The instruction to reject encoded data holding a character outside the base alphabet, which is what makes a malformed `Sec-WebSocket-Key` reportable rather than merely unusual",
             },
         ]
     }
@@ -169,8 +388,18 @@ impl Rule for ClientSecWebsocketHeadersConsistency {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("— invalid Sec-WebSocket-Version"),
-                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 8\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+                label: Some("— HTTP/1.0, where the Upgrade mechanism this handshake needs does not reach"),
+                snippet: "GET /chat HTTP/1.0\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 13\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— a version advertisement, which RFC 6455 § 4.4 prints as this exact request"),
+                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 25\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— the same subprotocol name twice"),
+                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 13\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\nSec-WebSocket-Protocol: chat, superchat, chat",
             },
         ]
     }
@@ -193,13 +422,28 @@ mod tests {
         tx
     }
 
+    fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
+        let rule = ClientSecWebsocketHeadersConsistency;
+        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
+        rule.check_transaction(
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+    }
+
+    /// The four fields of a handshake this document has no complaint about.
+    fn conforming() -> Vec<(&'static str, &'static str)> {
+        vec![
+            ("upgrade", "websocket"),
+            ("connection", "Upgrade"),
+            ("sec-websocket-version", "13"),
+            ("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ=="),
+        ]
+    }
+
     #[rstest]
-    #[case(vec![
-        ("upgrade", "websocket"),
-        ("connection", "Upgrade"),
-        ("sec-websocket-version", "13"),
-        ("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ==")
-    ], false)]
+    #[case(conforming(), false)]
     #[case(vec![ // missing sec-websocket-key
         ("upgrade", "websocket"),
         ("connection", "Upgrade"),
@@ -232,47 +476,21 @@ mod tests {
         #[case] headers: Vec<(&str, &str)>,
         #[case] expect_violation: bool,
     ) {
-        let rule = ClientSecWebsocketHeadersConsistency;
-        let tx = make_ws_request(headers);
-        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert_eq!(v.is_some(), expect_violation);
+        assert_eq!(run(&make_ws_request(headers)).is_some(), expect_violation);
     }
 
     #[test]
     fn non_get_request_is_ignored() {
-        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut tx = make_ws_request(conforming());
         tx.request.method = "POST".into();
-        tx.request.headers =
-            crate::test_helpers::make_headers_from_pairs(&[("upgrade", "websocket")]);
-        let rule = ClientSecWebsocketHeadersConsistency;
-        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
+        assert!(run(&tx).is_none());
     }
 
     #[test]
     fn non_websocket_upgrade_is_ignored() {
         // Upgrade: h2
         let tx = make_ws_request(vec![("upgrade", "h2"), ("connection", "Upgrade")]);
-        let rule = ClientSecWebsocketHeadersConsistency;
-        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
+        assert!(run(&tx).is_none());
     }
 
     #[test]
@@ -283,15 +501,8 @@ mod tests {
             ("sec-websocket-version", "13"),
             ("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ=="),
         ]);
-        let rule = ClientSecWebsocketHeadersConsistency;
-        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Connection: Upgrade"));
+        let v = run(&tx).expect("a Connection naming no Upgrade option is a finding");
+        assert!(v.message.contains("Upgrade token"));
     }
 
     #[test]
@@ -301,35 +512,21 @@ mod tests {
             ("connection", "Upgrade"),
             ("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ=="),
         ]);
-        let rule = ClientSecWebsocketHeadersConsistency;
-        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Sec-WebSocket-Version"));
+        let v = run(&tx).expect("an absent Sec-WebSocket-Version is a finding");
+        assert!(v.message.contains("no Sec-WebSocket-Version"));
     }
 
     #[test]
     fn whitespace_around_values_handled() {
-        // Values containing extra whitespace should be trimmed and accepted
+        // The OWS the productions print between list members, and the OWS a field
+        // value does not include, are both trimmed off before anything is compared.
         let tx = make_ws_request(vec![
             ("upgrade", " websocket  , other"),
             ("connection", " keep-alive, Upgrade "),
             ("sec-websocket-version", " 13 "),
             ("sec-websocket-key", " dGhlIHNhbXBsZSBub25jZQ== "),
         ]);
-        let rule = ClientSecWebsocketHeadersConsistency;
-        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
+        assert!(run(&tx).is_none());
     }
 
     #[test]
@@ -342,51 +539,175 @@ mod tests {
         );
     }
 
+    /// A field carrying an octet no production admits is present, and saying it is
+    /// missing is a claim about the message rather than about the value that is
+    /// wrong. The octet gets named.
     #[test]
-    fn non_utf8_sec_websocket_key_reports_violation() {
-        let mut tx = make_ws_request(vec![
-            ("upgrade", "websocket"),
-            ("connection", "Upgrade"),
-            ("sec-websocket-version", "13"),
-        ]);
+    fn an_obs_text_key_is_a_malformed_key_and_not_an_absent_one() {
+        let mut tx = make_ws_request(conforming());
         let mut hm = tx.request.headers.clone();
         hm.insert(
             "sec-websocket-key",
-            HeaderValue::from_bytes(&[0xff]).unwrap(),
+            HeaderValue::from_bytes(b"dGhlIHNhbXBsZSBub25jZ\xe9=").unwrap(),
         );
         tx.request.headers = hm;
 
-        let rule = ClientSecWebsocketHeadersConsistency;
-        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+        let v = run(&tx).expect("a key holding obs-text is a finding");
+        assert!(
+            !v.message.contains("carries no Sec-WebSocket-Key"),
+            "reported a present field as absent: {}",
+            v.message
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Sec-WebSocket-Key"));
+        assert!(v.message.contains("0xE9"), "{}", v.message);
     }
 
+    /// The same, for the field the gate reads: a value carrying `obs-text` still
+    /// names `websocket`, and dropping the whole field line would take the handshake
+    /// out of this rule's sight entirely.
     #[test]
-    fn non_utf8_upgrade_is_ignored() {
-        let mut tx = make_ws_request(vec![
-            ("connection", "Upgrade"),
-            ("sec-websocket-version", "13"),
-            ("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ=="),
-        ]);
+    fn an_obs_text_upgrade_still_names_the_protocol() {
+        let mut tx = make_ws_request(conforming());
         let mut hm = tx.request.headers.clone();
-        hm.insert("upgrade", HeaderValue::from_bytes(&[0xff]).unwrap());
+        hm.insert(
+            "upgrade",
+            HeaderValue::from_bytes(b"websocket, \xe9foo").unwrap(),
+        );
         tx.request.headers = hm;
+        // Nothing else is wrong with this handshake, so the rule reaches the end.
+        assert!(run(&tx).is_none());
+    }
 
-        let rule = ClientSecWebsocketHeadersConsistency;
-        let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
+    /// The sentence the method gate quotes has two clauses and the second one is a
+    /// finding of its own.
+    #[rstest]
+    #[case("HTTP/1.1", false)]
+    #[case("HTTP/1.9", false)]
+    #[case("HTTP/1.0", true)]
+    #[case("HTTP/0.9", true)]
+    fn the_handshake_needs_http_1_1_or_higher(#[case] version: &str, #[case] reported: bool) {
+        let mut tx = make_ws_request(conforming());
+        tx.request.version = version.into();
+        assert_eq!(run(&tx).is_some(), reported, "{version}");
+    }
+
+    /// Over HTTP/2 and HTTP/3 this handshake does not exist, and the two fields the
+    /// rule reads are ones those versions forbid — so demanding them would be
+    /// telling a sender to break a different document.
+    #[rstest]
+    #[case("HTTP/2.0")]
+    #[case("HTTP/3.0")]
+    fn the_extended_connect_versions_are_not_measured(#[case] version: &str) {
+        let mut tx = make_ws_request(vec![("upgrade", "websocket")]);
+        tx.request.version = version.into();
+        assert!(run(&tx).is_none());
+    }
+
+    /// A version value that derives from no `HTTP-version` names no version, so
+    /// there is nothing to compare; the rule that reports the value owns it.
+    #[test]
+    fn a_version_deriving_from_no_production_stops_the_rule() {
+        let mut tx = make_ws_request(vec![("upgrade", "websocket")]);
+        tx.request.version = "HTTP/3".into();
+        assert!(run(&tx).is_none());
+    }
+
+    /// Six ways to write a `Sec-WebSocket-Version` the production does not generate,
+    /// each with its own sentence — none of them "expected 13".
+    #[rstest]
+    #[case("", "at least one DIGIT")]
+    #[case("013", "leading zero")]
+    #[case("1e", "DIGITs alone")]
+    #[case("1234", "longer than three")]
+    #[case("256", "above 255")]
+    #[case("13, 8", "DIGITs alone")]
+    fn a_version_value_is_measured_against_its_production(
+        #[case] value: &str,
+        #[case] expected: &str,
+    ) {
+        let mut headers = conforming();
+        headers.retain(|(n, _)| *n != "sec-websocket-version");
+        headers.push(("sec-websocket-version", value));
+        let v = run(&make_ws_request(headers)).expect("a value deriving from no `version`");
+        assert!(v.message.contains("derives from no `version`"), "{v:?}");
+        assert!(v.message.contains(expected), "{}", v.message);
+    }
+
+    /// The client's field is one `version`; two lines of it join into a value no
+    /// production generates, and reading only the first line would call it clean.
+    #[test]
+    fn two_version_lines_are_one_value_and_derive_from_nothing() {
+        let mut tx = make_ws_request(conforming());
+        let mut hm = tx.request.headers.clone();
+        hm.append("sec-websocket-version", HeaderValue::from_static("8"));
+        tx.request.headers = hm;
+        let v = run(&tx).expect("a second field line is a second version");
+        assert!(v.message.contains("derives from no `version`"), "{v:?}");
+    }
+
+    /// § 4.4's own worked example, which is a conforming client asking for a version
+    /// this document does not define. It is a finding, and the finding does not call
+    /// the value invalid.
+    #[test]
+    fn the_documents_own_version_advertisement_is_named_as_one() {
+        let mut headers = conforming();
+        headers.retain(|(n, _)| *n != "sec-websocket-version");
+        headers.push(("sec-websocket-version", "25"));
+        let v = run(&make_ws_request(headers)).expect("a handshake for another version");
+        assert!(!v.message.contains("derives from no"), "{}", v.message);
+        assert!(v.message.contains("§ 4.4"), "{}", v.message);
+    }
+
+    /// The two MUSTs about `Sec-WebSocket-Protocol`'s members, and the values that
+    /// satisfy them.
+    #[rstest]
+    #[case("chat", false)]
+    #[case("chat, superchat", false)]
+    #[case("chat, Chat", false)]
+    #[case("chat, superchat, chat", true)]
+    #[case("chat,, superchat", true)]
+    #[case(",", true)]
+    #[case("", true)]
+    #[case("chat/1", true)]
+    fn subprotocol_members_are_non_empty_unique_tokens(
+        #[case] value: &str,
+        #[case] reported: bool,
+    ) {
+        let mut headers = conforming();
+        headers.push(("sec-websocket-protocol", value));
+        assert_eq!(
+            run(&make_ws_request(headers)).is_some(),
+            reported,
+            "{value}"
+        );
+    }
+
+    /// A subprotocol list written across two field lines is one list, so a name
+    /// repeated between the lines is a name repeated.
+    #[test]
+    fn subprotocol_lines_are_joined_before_the_names_are_counted() {
+        let mut tx = make_ws_request(conforming());
+        let mut hm = tx.request.headers.clone();
+        hm.append("sec-websocket-protocol", HeaderValue::from_static("chat"));
+        hm.append("sec-websocket-protocol", HeaderValue::from_static("chat"));
+        tx.request.headers = hm;
+        let v = run(&tx).expect("one name on two lines is one name twice");
+        assert!(v.message.contains("more than once"), "{}", v.message);
+    }
+
+    /// A `Connection` member padded with an octet that renders like a space is not
+    /// the `Upgrade` connection-option, and the walk that trims `OWS` is what keeps
+    /// that visible.
+    #[test]
+    fn an_obs_text_padded_connection_member_does_not_name_the_option() {
+        let mut tx = make_ws_request(conforming());
+        let mut hm = tx.request.headers.clone();
+        hm.insert(
+            "connection",
+            HeaderValue::from_bytes(b"\xa0Upgrade").unwrap(),
+        );
+        tx.request.headers = hm;
+        let v = run(&tx).expect("a member that is not the token is not the token");
+        assert!(v.message.contains("Upgrade token"), "{}", v.message);
     }
 
     #[test]
