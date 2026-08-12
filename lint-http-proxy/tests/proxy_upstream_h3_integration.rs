@@ -296,7 +296,7 @@ async fn upstream_h3_forwards_with_capture_parity_and_strips_connection_field() 
     assert_eq!(v["response"]["status"].as_u64(), Some(200));
     assert_eq!(
         v["response"]["version"].as_str(),
-        Some("HTTP/3"),
+        Some("HTTP/3.0"),
         "upstream (origin) leg should be recorded as HTTP/3"
     );
     assert_eq!(v["request"]["version"].as_str(), Some("HTTP/1.1"));
@@ -746,7 +746,7 @@ async fn upstream_h3_origin_early_response_is_delivered_and_captured() -> anyhow
     assert_eq!(v["response"]["status"].as_u64(), Some(401));
     assert_eq!(
         v["response"]["version"].as_str(),
-        Some("HTTP/3"),
+        Some("HTTP/3.0"),
         "the leg is recorded as HTTP/3 even though the origin responded early"
     );
 
@@ -892,13 +892,13 @@ async fn upstream_h3_discovered_via_alt_svc_is_used_on_next_request() -> anyhow:
             .iter()
             .filter_map(|v| v["response"]["version"].as_str().map(str::to_string))
             .collect();
-        if versions.iter().any(|v| v == "HTTP/3") || std::time::Instant::now() > deadline {
+        if versions.iter().any(|v| v == "HTTP/3.0") || std::time::Instant::now() > deadline {
             break versions;
         }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     };
     assert!(
-        versions.iter().any(|v| v == "HTTP/3"),
+        versions.iter().any(|v| v == "HTTP/3.0"),
         "a request should have been forwarded over H3 after discovery: {versions:?}"
     );
 

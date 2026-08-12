@@ -452,7 +452,7 @@ mod tests {
     /// sent its authority as control data was reported before this gate existed.
     #[rstest]
     #[case("HTTP/2.0", "https://example.com/path", None)]
-    #[case("HTTP/3", "https://example.com/path", None)]
+    #[case("HTTP/3.0", "https://example.com/path", None)]
     #[case(
         "HTTP/2.0",
         "/path",

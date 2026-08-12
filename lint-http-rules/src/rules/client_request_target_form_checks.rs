@@ -535,10 +535,10 @@ mod tests {
     // the reassembly: `https://example.com*` is neither an authority-form nor an
     // asterisk-form, and the sender wrote neither.
     #[case("GET", "https://example.com*", "HTTP/2.0")]
-    #[case("GET", "https://example.com*", "HTTP/3")]
+    #[case("GET", "https://example.com*", "HTTP/3.0")]
     #[case("GET", "example.com:443", "HTTP/2.0")]
-    #[case("GET", "example.com:443", "HTTP/3")]
-    #[case("GET", "", "HTTP/3")]
+    #[case("GET", "example.com:443", "HTTP/3.0")]
+    #[case("GET", "", "HTTP/3.0")]
     fn a_version_with_no_request_line_is_not_measured(
         #[case] method: &str,
         #[case] uri: &str,

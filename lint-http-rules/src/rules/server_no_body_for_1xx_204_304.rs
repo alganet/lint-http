@@ -385,8 +385,8 @@ mod tests {
     #[case(100, "HTTP/1.1", &[], None, Some(&[][..]), Some("trailer section"))]
     // --- versions: § 8.6 is every version's, RFC 9112 § 6.1 is HTTP/1.1's ---
     #[case(204, "HTTP/2.0", &[("content-length", "0")], None, None, Some("Content-Length"))]
-    #[case(204, "HTTP/3", &[("content-length", "0")], None, None, Some("Content-Length"))]
-    #[case(204, "HTTP/3", &[("transfer-encoding", "chunked")], None, None, None)]
+    #[case(204, "HTTP/3.0", &[("content-length", "0")], None, None, Some("Content-Length"))]
+    #[case(204, "HTTP/3.0", &[("transfer-encoding", "chunked")], None, None, None)]
     #[case(204, "HTTP/2.0", &[("transfer-encoding", "chunked")], None, None, None)]
     #[case(204, "HTTP/1.0", &[("transfer-encoding", "chunked")], None, None, Some("Transfer-Encoding"))]
     // --- outside the set ---

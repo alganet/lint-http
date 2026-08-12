@@ -791,7 +791,7 @@ mod tests {
     #[rstest]
     #[case("HTTP/2")]
     #[case("HTTP/2.0")]
-    #[case("HTTP/3")]
+    #[case("HTTP/3.0")]
     fn the_versions_that_prohibit_the_connection_field_are_not_asked_for_it(#[case] version: &str) {
         let v = request(version, &[b"trailers" as &[u8]], &[]);
         assert!(v.is_none(), "{version}: {v:?}");

@@ -25,7 +25,9 @@ impl Rule for MessageHttp3HostAuthorityConsistency {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to HTTP/3 transactions. This gate is scoping, not a normative
         // check, so it carries no citation; the two comparisons below carry theirs.
-        if tx.request.version != "HTTP/3" {
+        // The major digit is what "is this HTTP/3" means; `helpers::version` owns
+        // the production that reads it.
+        if !crate::helpers::version::is_major(&tx.request.version, 3) {
             return None;
         }
 
@@ -156,7 +158,7 @@ mod tests {
         host: Option<&str>,
     ) -> crate::http_transaction::HttpTransaction {
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.version = "HTTP/3".into();
+        tx.request.version = "HTTP/3.0".into();
         tx.request.uri = uri.to_string();
         if let Some(h) = host {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("host", h)]);
@@ -330,7 +332,7 @@ mod tests {
     fn host_non_utf8_is_violation() {
         let rule = MessageHttp3HostAuthorityConsistency;
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.request.version = "HTTP/3".into();
+        tx.request.version = "HTTP/3.0".into();
         tx.request.uri = "https://example.com/path".into();
         let bad = hyper::header::HeaderValue::from_bytes(&[0xff])
             .expect("should construct non-utf8 header");

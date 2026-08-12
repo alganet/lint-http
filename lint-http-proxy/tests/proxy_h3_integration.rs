@@ -297,7 +297,7 @@ async fn h3_happy_path_forwards_request_and_captures() -> anyhow::Result<()> {
 
     let v: serde_json::Value = serde_json::from_str(lines[0])?;
     assert_eq!(v["response"]["status"].as_u64(), Some(200));
-    assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3"));
+    assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3.0"));
     // connection_id and sequence_number should be set
     assert!(v["connection_id"].as_str().is_some());
     assert_eq!(v["sequence_number"].as_u64(), Some(0));
@@ -339,7 +339,7 @@ async fn h3_upstream_error_returns_502_and_records_transaction() -> anyhow::Resu
 
     let v: serde_json::Value = serde_json::from_str(lines[0])?;
     assert_eq!(v["response"]["status"].as_u64(), Some(502));
-    assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3"));
+    assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3.0"));
     assert!(v["connection_id"].as_str().is_some());
 
     // Cleanup
@@ -560,7 +560,7 @@ async fn h3_large_request_body_streams_and_truncates_capture() -> anyhow::Result
 
     let v: serde_json::Value = serde_json::from_str(lines[0])?;
     assert_eq!(v["response"]["status"].as_u64(), Some(200));
-    assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3"));
+    assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3.0"));
     assert_eq!(v["request_body_over_limit"].as_bool(), Some(true));
     assert_eq!(v["request"]["body_length"].as_u64(), Some(64));
 
@@ -663,7 +663,7 @@ async fn h3_request_with_host_header_fallback() -> anyhow::Result<()> {
 
     // The captured URI should contain the host from the Host header
     let v: serde_json::Value = serde_json::from_str(lines.last().unwrap())?;
-    assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3"));
+    assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3.0"));
     // The host header value was used to build the upstream URI
     let captured_uri = v["request"]["uri"].as_str().unwrap_or("");
     assert!(
