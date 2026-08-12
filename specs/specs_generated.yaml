@@ -706,12 +706,32 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 65
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 91
   - label: client_request_target_no_fragment
-    section: § 3.5
-    snippet: The fragment identifier component of a URI allows indirect identification of a secondary resource
+    section: § 2.2
+    snippet: If data for a URI component would conflict with a reserved character's purpose as a delimiter, then the conflicting data must be percent-encoded before the URI is formed.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 26
+      line: 47
+  - label: URI
+    section: § 3
+    snippet: URI         = scheme ":" hier-part [ "?" query ] [ "#" fragment ]
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 90
+  - label: client_request_target_no_fragment (2)
+    section: § 3.5
+    snippet: A fragment identifier component is indicated by the presence of a number sign ("#") character and terminated by the end of the URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 46
+  - label: client_request_target_no_fragment (3)
+    section: § 3.5
+    snippet: the fragment identifier is separated from the rest of the URI prior to a dereference, and thus the identifying information within the fragment itself is dereferenced solely by the user agent, regardless of the URI scheme
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 114
   - label: IPv4address grammar
     section: § 3.2.2
     snippet: IPv4address = dec-octet "." dec-octet "." dec-octet "." dec-octet
@@ -2635,6 +2655,8 @@ sources:
       line: 217
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 310
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 110
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 232
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
@@ -3085,6 +3107,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 164
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 86
   - label: absolute-path
     section: § 4.1
     snippet: absolute-path = 1*( "/" segment )
@@ -3111,6 +3135,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 165
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 37
   - label: client_request_target_form_checks (5)
     section: § 7.1
     snippet: There are two unusual cases for which the request target components are in a method-specific form
@@ -3131,6 +3157,30 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 166
+  - label: client_request_target_no_fragment
+    section: § 4.2.5
+    snippet: Some protocol elements that refer to a URI allow inclusion of a fragment, while others do not.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 88
+  - label: client_request_target_no_fragment (2)
+    section: § 4.2.5
+    snippet: They are distinguished by use of the ABNF rule for elements where fragment is allowed; otherwise, a specific rule that excludes fragments is used.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 89
+  - label: client_request_target_no_fragment (3)
+    section: § 7.1
+    snippet: The target URI excludes the reference's fragment component, if any, since fragment identifiers are reserved for client-side processing
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 113
+  - label: client_request_target_no_fragment (4)
+    section: § 7.1
+    snippet: To perform an action on a "target resource", the client sends a request message containing enough components of its parsed target URI to enable recipients to identify that same resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 21
   - label: client_request_version_method_validity
     section: § 9.3.1
     snippet: A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
@@ -3853,6 +3903,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 224
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 112
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 161
   - label: Host grammar
@@ -6451,6 +6503,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 168
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 87
     - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
       line: 27
   - label: client_request_target_form_checks
@@ -6497,6 +6551,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 62
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 93
   - label: client_request_target_form_checks (7)
     section: § 3.2.2
     snippet: A server MUST accept the absolute-form in requests even though most HTTP/1.1 clients will only send the absolute-form to a proxy.
@@ -6515,6 +6571,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 63
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 92
   - label: client_request_target_form_checks (9)
     section: § 3.2.3
     snippet: It consists of only the uri-host and port number of the tunnel destination, separated by a colon (":").
@@ -6565,6 +6623,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 71
+  - label: client_request_target_no_fragment
+    section: § 1.1
+    snippet: Conformance criteria and considerations regarding error handling are defined in Section 2 of [HTTP].
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 111
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 100
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 6.3
     snippet: If a message is received without Transfer-Encoding and with an invalid Content-Length header field, then the message framing is invalid and the recipient MUST treat it as an unrecoverable error, unless the field value can be successfully parsed as a comma-separated list (Section 5.6.1 of [HTTP]), all values in the list are valid, and all values in the list are the same (in which case, the message is processed with that single value used as the Content-Length field value).
@@ -6908,24 +6974,18 @@ sources:
     - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
       line: 172
   - label: server_status_code_valid_range
-    section: § 1.1
-    snippet: Conformance criteria and considerations regarding error handling are defined in Section 2 of [HTTP].
-    cited_by:
-    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
-      line: 100
-  - label: server_status_code_valid_range (2)
     section: § 4
     snippet: A client SHOULD ignore the reason-phrase content because it is not a reliable channel for information
     cited_by:
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
       line: 37
-  - label: server_status_code_valid_range (3)
+  - label: server_status_code_valid_range (2)
     section: § 4
     snippet: The status-code element is a 3-digit integer code describing the result of the server's attempt to understand and satisfy the client's corresponding request.
     cited_by:
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
       line: 99
-  - label: server_status_code_valid_range (4)
+  - label: server_status_code_valid_range (3)
     section: § 4
     snippet: status-code    = 3DIGIT
     cited_by:
@@ -6959,6 +7019,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 170
+  - label: client_request_target_no_fragment
+    section: § 8.3.1
+    snippet: The ":path" pseudo-header field includes the path and query parts of the target URI
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 94
   - label: message_header_field_names_token
     section: § 8.2.1
     snippet: HTTP/2 implementations SHOULD validate field names and values according to their definitions in Sections 5.1 and 5.5 of [HTTP], respectively, and treat messages that contain prohibited characters as malformed
@@ -7019,6 +7085,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 171
+  - label: client_request_target_no_fragment
+    section: § 4.3.1
+    snippet: Contains the path and query parts of the target URI
+    cited_by:
+    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+      line: 95
   - label: lint-http-proxy/src/h3_instrument.rs
     section: § 6.2.1
     snippet: A control stream is indicated by a stream type of 0x00.
