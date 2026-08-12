@@ -309,22 +309,9 @@ static REGISTRATION: &dyn crate::rules::Rule = &ClientPreferHeaderAndPreferenceA
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hyper::header::{HeaderName, HeaderValue};
-    use hyper::HeaderMap;
     use rstest::rstest;
 
-    /// Build a header map from raw octets, so a value `to_str` would refuse can
-    /// be written into a test.
-    fn headers(pairs: &[(&str, &[u8])]) -> HeaderMap {
-        let mut hm = HeaderMap::new();
-        for (name, value) in pairs {
-            hm.append(
-                name.parse::<HeaderName>().unwrap(),
-                HeaderValue::from_bytes(value).unwrap(),
-            );
-        }
-        hm
-    }
+    use crate::test_helpers::make_headers_from_octet_pairs as headers;
 
     fn run(
         method: &str,

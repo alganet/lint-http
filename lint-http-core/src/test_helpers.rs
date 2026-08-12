@@ -35,6 +35,26 @@ pub fn make_headers_from_pairs(pairs: &[(&str, &str)]) -> HeaderMap {
     hm
 }
 
+/// [`make_headers_from_pairs`] for field values that are not valid UTF-8.
+///
+/// `HeaderValue::from_str` cannot express an octet above %x7E, and several field
+/// grammars admit one — `qdtext` takes `obs-text`, and a rule measuring what a
+/// sender wrote has to be given what it wrote. Kept beside the `&str` form
+/// rather than replacing it: most fixtures read better with string literals,
+/// and only a test about the octets needs this.
+///
+/// Panics if any field name or value is one `hyper` will not hold.
+pub fn make_headers_from_octet_pairs(pairs: &[(&str, &[u8])]) -> HeaderMap {
+    let mut hm = HeaderMap::new();
+    for (name, value) in pairs {
+        hm.append(
+            name.parse::<HeaderName>().expect("a field name"),
+            HeaderValue::from_bytes(value).expect("a field value"),
+        );
+    }
+    hm
+}
+
 fn insert_rule_config(
     cfg: &mut crate::config::Config,
     rule: &str,

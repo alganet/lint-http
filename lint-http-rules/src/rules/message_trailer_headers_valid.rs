@@ -281,13 +281,7 @@ mod tests {
         section: Section,
         lines: &[(&str, &[u8])],
     ) -> crate::http_transaction::HttpTransaction {
-        let mut hm = hyper::HeaderMap::new();
-        for (name, value) in lines {
-            hm.append(
-                name.parse::<HeaderName>().expect("header name"),
-                HeaderValue::from_bytes(value).expect("header value"),
-            );
-        }
+        let hm = crate::test_helpers::make_headers_from_octet_pairs(lines);
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         match section {
             Section::Request => tx.request.headers = hm,
