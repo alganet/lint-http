@@ -5,8 +5,15 @@
 //! Query history for an exact client + request URI.
 //!
 //! This is the most common query dimension — used by conditional-request
-//! checks, redirect-chain validation, 103 Early Hints ordering, and future
-//! cache-validation rules.
+//! checks, redirect-chain validation, and cache-validation rules.
+//!
+//! Both halves of the key are the query's: every entry handed to a rule already
+//! has this client and this request target, so a consumer comparing either one
+//! against the transaction in hand is writing a test that cannot be false.
+//! `stateful_103_early_hints_before_final` compared both, and dropped them when
+//! it was audited. `semantic_cache_coherence` still compares the URI — that one
+//! is left where it is, because deleting it belongs to that rule's own audit
+//! along with the approximation its comment describes.
 
 use crate::state::{ClientIdentifier, StateStore};
 use crate::transaction_history::TransactionHistory;
