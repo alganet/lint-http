@@ -17,17 +17,17 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1839
+      line: 1675
   - label: lint-http-rules/src/helpers/headers.rs (2)
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1834
+      line: 1670
   - label: lint-http-rules/src/helpers/headers.rs (3)
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1833
+      line: 1669
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -543,19 +543,19 @@ sources:
     snippet: Labels must be 63 characters or less.
     cited_by:
     - file: lint-http-rules/src/helpers/domain.rs
-      line: 55
+      line: 90
   - label: lint-http-rules/src/helpers/domain.rs (2)
     section: § 2.3.1
     snippet: end with a letter or digit, and have as interior characters only letters, digits, and hyphen.
     cited_by:
     - file: lint-http-rules/src/helpers/domain.rs
-      line: 66
+      line: 101
   - label: lint-http-rules/src/helpers/domain.rs (3)
     section: § 2.3.4
     snippet: names 255 octets or less
     cited_by:
     - file: lint-http-rules/src/helpers/domain.rs
-      line: 46
+      line: 81
 - label: RFC 1123
   url: https://www.rfc-editor.org/rfc/rfc1123.txt
   type: text/plain
@@ -565,7 +565,7 @@ sources:
     snippet: the restriction on the first character is relaxed to allow either a letter or a digit.
     cited_by:
     - file: lint-http-rules/src/helpers/domain.rs
-      line: 67
+      line: 102
 - label: RFC 2045
   url: https://www.rfc-editor.org/rfc/rfc2045.txt
   type: text/plain
@@ -1208,34 +1208,210 @@ sources:
       line: 35
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 70
+  - label: lint-http-rules/src/helpers/mailbox.rs
+    section: § B.1
+    snippet: WSP            =  SP / HTAB ; white space
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 171
 - label: RFC 5322
   url: https://www.rfc-editor.org/rfc/rfc5322.txt
   type: text/plain
   fragments:
-  - label: lint-http-rules/src/helpers/headers.rs
-    section: § 3.4
-    snippet: 'Normally, a mailbox is composed of two parts: (1) an optional display name that indicates the name of the recipient (which can be a person or a system) that could be displayed to the user of a mail application, and (2) an addr-spec address enclosed in angle brackets'
+  - label: lint-http-rules/src/helpers/mailbox.rs
+    section: § 3.2.1
+    snippet: quoted-pair = ("\" (VCHAR / WSP)) / obs-qp
     cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 1429
-  - label: lint-http-rules/src/helpers/headers.rs (2)
-    section: § 3.4
-    snippet: There is an alternate simple form of a mailbox where the addr-spec address appears alone, without the recipient's name or the angle brackets.
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 155
+  - label: lint-http-rules/src/helpers/mailbox.rs (2)
+    section: § 3.2.2
+    snippet: CFWS = (1*([FWS] comment) [FWS]) / FWS
     cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 1442
-  - label: lint-http-rules/src/helpers/headers.rs (3)
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 242
+  - label: lint-http-rules/src/helpers/mailbox.rs (3)
+    section: § 3.2.2
+    snippet: FWS = ([*WSP CRLF] 1*WSP) / obs-FWS
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 36
+  - label: lint-http-rules/src/helpers/mailbox.rs (4)
+    section: § 3.2.2
+    snippet: ccontent = ctext / quoted-pair / comment
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 256
+  - label: lint-http-rules/src/helpers/mailbox.rs (5)
+    section: § 3.2.2
+    snippet: comment = "(" *([FWS] ccontent) [FWS] ")"
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 255
+  - label: lint-http-rules/src/helpers/mailbox.rs (6)
+    section: § 3.2.2
+    snippet: ctext = %d33-39 / ; Printable US-ASCII %d42-91 / ; characters not including %d93-126 / ; "(", ")", or "\" obs-ctext
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 141
+  - label: lint-http-rules/src/helpers/mailbox.rs (7)
+    section: § 3.2.3
+    snippet: atext = ALPHA / DIGIT / ; Printable US-ASCII "!" / "#" / ; characters not including "$" / "%" / ; specials. Used for atoms. "&" / "'" / "*" / "+" / "-" / "/" / "=" / "?" / "^" / "_" / "`" / "{" / "|" / "}" / "~"
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 109
+  - label: lint-http-rules/src/helpers/mailbox.rs (8)
+    section: § 3.2.3
+    snippet: atom = [CFWS] 1*atext [CFWS]
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 458
+  - label: lint-http-rules/src/helpers/mailbox.rs (9)
+    section: § 3.2.3
+    snippet: dot-atom = [CFWS] dot-atom-text [CFWS]
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 323
+  - label: lint-http-rules/src/helpers/mailbox.rs (10)
+    section: § 3.2.3
+    snippet: dot-atom-text = 1*atext *("." 1*atext)
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 324
+  - label: lint-http-rules/src/helpers/mailbox.rs (11)
+    section: § 3.2.3
+    snippet: specials = "(" / ")" / ; Special characters that do "<" / ">" / ; not appear in atext "[" / "]" / ":" / ";" / "@" / "\" / "," / "." / DQUOTE
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 88
+  - label: lint-http-rules/src/helpers/mailbox.rs (12)
+    section: § 3.2.4
+    snippet: qcontent = qtext / quoted-pair
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 302
+  - label: lint-http-rules/src/helpers/mailbox.rs (13)
+    section: § 3.2.4
+    snippet: qtext = %d33 / ; Printable US-ASCII %d35-91 / ; characters not including %d93-126 / ; "\" or the quote character obs-qtext
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 135
+  - label: lint-http-rules/src/helpers/mailbox.rs (14)
+    section: § 3.2.4
+    snippet: quoted-string = [CFWS] DQUOTE *([FWS] qcontent) [FWS] DQUOTE [CFWS]
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 301
+  - label: lint-http-rules/src/helpers/mailbox.rs (15)
+    section: § 3.2.5
+    snippet: phrase = 1*word / obs-phrase
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 456
+  - label: lint-http-rules/src/helpers/mailbox.rs (16)
+    section: § 3.2.5
+    snippet: word = atom / quoted-string
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 457
+  - label: lint-http-rules/src/helpers/mailbox.rs (17)
+    section: § 3.4
+    snippet: angle-addr = [CFWS] "<" addr-spec ">" [CFWS] / obs-angle-addr
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 87
+  - label: lint-http-rules/src/helpers/mailbox.rs (18)
+    section: § 3.4
+    snippet: display-name = phrase
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 455
+  - label: lint-http-rules/src/helpers/mailbox.rs (19)
+    section: § 3.4
+    snippet: mailbox = name-addr / addr-spec
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 34
+    - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
+      line: 167
+  - label: lint-http-rules/src/helpers/mailbox.rs (20)
+    section: § 3.4
+    snippet: mailbox-list = (mailbox *("," mailbox)) / obs-mbox-list
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 35
+    - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
+      line: 168
+  - label: lint-http-rules/src/helpers/mailbox.rs (21)
+    section: § 3.4
+    snippet: name-addr = [display-name] angle-addr
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 86
+  - label: lint-http-rules/src/helpers/mailbox.rs (22)
     section: § 3.4.1
     snippet: An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain.
     cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 1460
-  - label: lint-http-rules/src/helpers/headers.rs (4)
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 400
+  - label: lint-http-rules/src/helpers/mailbox.rs (23)
+    section: § 3.4.1
+    snippet: In the dot-atom form, this is interpreted as an Internet domain name (either a host name or a mail exchanger name) as described in [RFC1034], [RFC1035], and [RFC1123].
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 52
+    - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
+      line: 149
+  - label: lint-http-rules/src/helpers/mailbox.rs (24)
     section: § 3.4.1
     snippet: The locally interpreted string is either a quoted-string or a dot-atom.
     cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 1463
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 390
+  - label: lint-http-rules/src/helpers/mailbox.rs (25)
+    section: § 3.4.1
+    snippet: addr-spec = local-part "@" domain
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 381
+  - label: lint-http-rules/src/helpers/mailbox.rs (26)
+    section: § 3.4.1
+    snippet: domain = dot-atom / domain-literal / obs-domain
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 383
+  - label: lint-http-rules/src/helpers/mailbox.rs (27)
+    section: § 3.4.1
+    snippet: domain-literal = [CFWS] "[" *([FWS] dtext) [FWS] "]" [CFWS]
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 363
+  - label: lint-http-rules/src/helpers/mailbox.rs (28)
+    section: § 3.4.1
+    snippet: dtext = %d33-90 / ; Printable US-ASCII %d94-126 / ; characters not including obs-dtext ; "[", "]", or "\"
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 147
+  - label: lint-http-rules/src/helpers/mailbox.rs (29)
+    section: § 3.4.1
+    snippet: local-part = dot-atom / quoted-string / obs-local-part
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 382
+  - label: lint-http-rules/src/helpers/mailbox.rs (30)
+    section: § 4
+    snippet: Though these syntactic forms MUST NOT be generated according to the grammar in section 3, they MUST be accepted and parsed by a conformant receiver.
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 37
+    - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
+      line: 182
+  - label: message_from_header_email_syntax
+    section: § 3.4.1
+    snippet: It is therefore incumbent upon implementations to conform to the syntax of addresses for the context in which they are used.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
+      line: 150
 - label: RFC 5646
   url: https://www.rfc-editor.org/rfc/rfc5646.txt
   type: text/plain
@@ -1601,7 +1777,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1835
+      line: 1671
     - file: lint-http-rules/src/helpers/uri.rs
       line: 194
   - label: lint-http-rules/src/helpers/uri.rs
@@ -3309,6 +3485,8 @@ sources:
       line: 59
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 77
+    - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
+      line: 92
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 256
     - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
@@ -3363,6 +3541,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 32
+    - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
+      line: 22
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 385
   - label: client_expect_header_valid (2)
@@ -3443,6 +3623,8 @@ sources:
       line: 50
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
       line: 173
+    - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
+      line: 116
     - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
       line: 21
     - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
@@ -4434,13 +4616,15 @@ sources:
     snippet: A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1588
+      line: 1424
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 151
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
       line: 67
     - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
       line: 56
+    - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
+      line: 104
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 282
     - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
@@ -4568,7 +4752,7 @@ sources:
     snippet: Parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1788
+      line: 1624
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 156
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
@@ -4580,7 +4764,7 @@ sources:
     snippet: parameter       = parameter-name "=" parameter-value
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1706
+      line: 1542
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 385
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
@@ -4592,7 +4776,7 @@ sources:
     snippet: parameter-name  = token
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1720
+      line: 1556
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 386
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
@@ -4602,7 +4786,7 @@ sources:
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1749
+      line: 1585
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 387
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
@@ -4618,11 +4802,11 @@ sources:
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1587
+      line: 1423
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1698
+      line: 1534
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1778
+      line: 1614
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 384
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
@@ -4676,7 +4860,7 @@ sources:
     snippet: The type and subtype tokens are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1667
+      line: 1503
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
       line: 44
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
@@ -4702,7 +4886,7 @@ sources:
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1686
+      line: 1522
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
       line: 88
   - label: media-type grammar
@@ -4710,7 +4894,7 @@ sources:
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1603
+      line: 1439
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 107
   - label: lint-http-rules/src/helpers/headers.rs (27)
@@ -4718,7 +4902,7 @@ sources:
     snippet: type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1666
+      line: 1502
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
@@ -4736,13 +4920,21 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1542
+      line: 1378
   - label: lint-http-rules/src/helpers/headers.rs (29)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 494
+  - label: lint-http-rules/src/helpers/mailbox.rs
+    section: § 10.1.2
+    snippet: mailbox = <mailbox, see [RFC5322], Section 3.4>
+    cited_by:
+    - file: lint-http-rules/src/helpers/mailbox.rs
+      line: 33
+    - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
+      line: 54
   - label: lint-http-rules/src/helpers/product.rs
     section: § 10.1.5
     snippet: The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts.
@@ -5379,6 +5571,8 @@ sources:
       line: 113
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 50
+    - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
+      line: 91
     - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
       line: 74
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
@@ -5586,7 +5780,13 @@ sources:
     snippet: The "From" header field contains an Internet email address for a human user who controls the requesting user agent.
     cited_by:
     - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
-      line: 29
+      line: 52
+  - label: message_from_header_email_syntax (2)
+    section: § 10.1.2
+    snippet: The address ought to be machine-usable, as defined by "mailbox" in Section 3.4 of [RFC5322]
+    cited_by:
+    - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
+      line: 53
   - label: field-name grammar
     section: § A
     snippet: field-name = token field-value = *field-content
