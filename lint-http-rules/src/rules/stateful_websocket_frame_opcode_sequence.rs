@@ -2,21 +2,289 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! WebSocket frame opcode sequence validation (RFC 6455 §5).
+//! WebSocket frame opcode and frame-sequence validation (RFC 6455 § 5).
 //!
-//! Checks message-level opcode sequencing rules:
-//! - Data messages must use opcode 1 (Text) or 2 (Binary).
-//! - Control frames (Close=8, Ping=9, Pong=10) must have payload ≤ 125 bytes.
-//! - After a Close frame is sent in one direction, no further data frames
-//!   should be sent in that direction.
-//! - Reserved opcodes (3-7, 11-15) must not appear without negotiated
-//!   extensions.
+//! One frame event at a time, with the frames already seen in the same session
+//! available for the questions that are about a sequence. Three groups, in the
+//! order a receiving endpoint reaches them: what the opcode *is*, what the class
+//! that opcode puts the frame in requires of *this* frame, and what the frames
+//! already sent in that direction leave it free to be.
+//!
+//! **What can reach this rule.** The relay reads frames through
+//! tokio-tungstenite, and that reader refuses, before the proxy is handed a
+//! message, every one of the seven defects this rule reports: a reserved opcode
+//! (in the header parser, ahead of everything else), a control frame over 125
+//! bytes, a control frame with FIN clear, a Close whose body is one byte, a
+//! continuation frame with nothing to continue, a data frame interleaved into an
+//! open fragmented message, and any frame at all arriving after that peer's
+//! Close. The eighth — an opcode above 15 — has no wire spelling for a reader to
+//! refuse. (It refuses a non-zero reserved bit too, which is why no rule here
+//! has ever had one to look at.) It also defragments, so a relayed message
+//! becomes one event
+//! with FIN set and an opcode of 1 or 2 — the wire's fragmentation is gone by
+//! then — and the one `Message` variant carrying a real FIN and real RSV bits is
+//! documented as one a reader never returns. So every finding below is reachable
+//! only through `lint`, over a capture file written by something other than this
+//! proxy. That is not a reason to soften them — a capture is a record of what
+//! was on the wire, and this is the rule that reads it — but it is a reason to
+//! say so, here and in `description()`.
+
+use uuid::Uuid;
 
 use crate::lint::Violation;
-use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
+use crate::protocol_event::{
+    MessageDirection, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
+};
 use crate::rules::ProtocolRule;
 
+/// The frame fields this rule reads, lifted out of the event.
+///
+/// `fin` is here because it is a finding twice over and the destructuring used
+/// to drop it into a `..`: a control frame is defined as one that is never
+/// fragmented, and a data frame's FIN bit is the whole of what says whether a
+/// fragmented message is still open.
+struct Frame {
+    session_id: Uuid,
+    direction: MessageDirection,
+    fin: bool,
+    opcode: u8,
+    payload_length: u64,
+}
+
+impl Frame {
+    /// Which endpoint sent it, for the finding. The recorded direction is
+    /// relative to the proxy, and both sentences this rule rests a sequence
+    /// finding on are about what *one* endpoint has already sent.
+    fn sender(&self) -> &'static str {
+        match self.direction {
+            MessageDirection::Client => "client",
+            MessageDirection::Server => "server",
+        }
+    }
+}
+
 pub struct StatefulWebsocketFrameOpcodeSequence;
+
+impl StatefulWebsocketFrameOpcodeSequence {
+    /// What the opcode is — the question ahead of every other one, because an
+    /// opcode that names no frame type leaves nothing below it to decide.
+    ///
+    /// The four-bit field is the first bound. A value above 15 has no wire
+    /// spelling at all, so a capture carrying one records something no frame
+    /// header could have held; the sentence giving the field a range is in the
+    /// registry that indexes it rather than in the framing section, which prints
+    /// the width as a bit count and lets the reader do the arithmetic.
+    ///
+    /// The reserved ranges are the second. The two ranges are two sentences, not
+    /// one, and they reserve for two different things — a further *non-control*
+    /// frame below 8 and a further *control* frame above 10 — so the finding
+    /// says which.
+    ///
+    /// **The escape this rule cannot see.** § 5.8 hands both ranges to
+    /// extensions, and § 5.8 also says the endpoints negotiate any extension
+    /// during the opening handshake. That negotiation is `Sec-WebSocket-Extensions`
+    /// in an exchange the handshake rules read; a frame event carries no
+    /// handshake and no session state derived from one, so an opcode an
+    /// extension gave a meaning to is reported here anyway. Published in
+    /// `description()` rather than hedged into the message, because the frame on
+    /// its own really does derive from no defined frame type.
+    ///
+    /// **And the registry is open.** § 11.8 registers opcodes by Standards
+    /// Action, so a value assigned after this was written would land in the same
+    /// report. There is no configured list for it: unlike a registry a
+    /// deployment can outrun, this one has six assignments, admits new ones only
+    /// by Standards Action, and each new one would arrive with an extension to
+    /// negotiate it — so the honest answer is the boundary above, not an array
+    /// an operator has to keep current.
+    // cite(RFC 6455 § 11.8): "The opcode is an integer number between 0 and 15, inclusive."
+    // cite(RFC 6455 § 11.8): "WebSocket Opcode numbers are subject to the "Standards Action" IANA registration policy [RFC5226]."
+    // cite(RFC 6455 § 5.8): "This specification provides opcodes 0x3 through 0x7 and 0xB through 0xF, the "Extension data" field, and the frame-rsv1, frame-rsv2, and frame-rsv3 bits of the frame header for use by extensions."
+    // cite(RFC 6455 § 5.8): "The endpoints of a connection MUST negotiate the use of any extensions during the opening handshake."
+    fn opcode_defect(frame: &Frame) -> Option<String> {
+        if frame.opcode > 15 {
+            return Some(format!(
+                "carries the opcode {}, which is outside the range a four-bit opcode field can \
+                 hold, so no frame header on any wire carried this value",
+                frame.opcode
+            ));
+        }
+
+        // cite(RFC 6455 § 5.2): "If an unknown opcode is received, the receiving endpoint MUST _Fail the WebSocket Connection_."
+        // cite(RFC 6455 § 5.2): "%x3-7 are reserved for further non-control frames"
+        if (3..=7).contains(&frame.opcode) {
+            return Some(format!(
+                "carries the opcode {}, which is reserved for further non-control frames and \
+                 denotes no frame type this document defines",
+                frame.opcode
+            ));
+        }
+
+        // cite(RFC 6455 § 5.2): "%xB-F are reserved for further control frames"
+        if (11..=15).contains(&frame.opcode) {
+            return Some(format!(
+                "carries the opcode {}, which is reserved for further control frames and denotes \
+                 no frame type this document defines",
+                frame.opcode
+            ));
+        }
+
+        None
+    }
+
+    /// What the control-frame class requires of one frame.
+    ///
+    /// The class test is the document's own, and it is a bit rather than a list:
+    /// with the reserved opcodes already reported above, the frames reaching
+    /// here with the high bit set are 8, 9 and 10.
+    ///
+    /// The two requirements are one sentence. Reading only as far as its comma
+    /// leaves the second half — a control frame is never fragmented — enforced
+    /// by nobody, and § 5.4 states it a second time in its own list, which is
+    /// what makes the FIN bit measurable here rather than only alongside the
+    /// message sequence below.
+    ///
+    /// The Close body is the third question and the one where a *permission* is
+    /// load-bearing. The body is optional, so a Close with no payload is not a
+    /// finding; but a body that exists has a fixed first two bytes, and a
+    /// one-byte payload is too short to be either. The payload is "Extension
+    /// data" followed by "Application data", so a length of 1 leaves at most one
+    /// byte for the body under any extension — the finding does not depend on
+    /// there being none.
+    // cite(RFC 6455 § 5.5): "Control frames are identified by opcodes where the most significant bit of the opcode is 1."
+    fn control_frame_defect(frame: &Frame) -> Option<String> {
+        if frame.opcode < 8 {
+            return None;
+        }
+
+        // cite(RFC 6455 § 5.5): "All control frames MUST have a payload length of 125 bytes or less and MUST NOT be fragmented."
+        if frame.payload_length > 125 {
+            return Some(format!(
+                "is a control frame (opcode {}) carrying {} bytes of payload, where a control \
+                 frame's payload is 125 bytes or less",
+                frame.opcode, frame.payload_length
+            ));
+        }
+
+        // cite(RFC 6455 § 5.4): "Control frames themselves MUST NOT be fragmented."
+        if !frame.fin {
+            return Some(format!(
+                "is a control frame (opcode {}) with the FIN bit clear, and a control frame is \
+                 never fragmented",
+                frame.opcode
+            ));
+        }
+
+        // cite(RFC 6455 § 5.5.1): "The Close frame contains an opcode of 0x8."
+        // cite(RFC 6455 § 5.5.1): "The Close frame MAY contain a body (the "Application data" portion of the frame) that indicates a reason for closing"
+        // cite(RFC 6455 § 5.5.1): "If there is a body, the first two bytes of the body MUST be a 2-byte unsigned integer (in network byte order) representing a status code with value /code/ defined in Section 7.4."
+        if frame.opcode == 8 && frame.payload_length == 1 {
+            return Some(
+                "is a Close frame carrying a single payload byte, where a Close body that exists \
+                 opens with a two-byte status code"
+                    .into(),
+            );
+        }
+
+        None
+    }
+
+    /// What the frames already sent in this direction leave this one free to be.
+    ///
+    /// One walk, newest first, answering both sequence questions at once: has
+    /// this endpoint already sent a Close, and is a fragmented message still
+    /// open. Session and direction are halves of both — one connection can carry
+    /// more than one session, a Close says what its *own* sender may still send
+    /// and nothing about the peer still finishing the closing handshake, and the
+    /// two endpoints fragment independently of each other.
+    ///
+    /// Control frames are stepped over rather than counted, because the document
+    /// says in as many words that they may sit inside a fragmented message. The
+    /// most recent *data* frame is the one whose FIN bit answers the question,
+    /// which is why the walk stops recording after it and why an eviction cannot
+    /// mislead it: history is newest-first, so the frame it finds is the one
+    /// immediately before this.
+    ///
+    /// A frame in the history whose opcode is above 15 decides neither question:
+    /// a value that names no frame type is not evidence a message was opened or
+    /// a Close was sent, and the event carrying it has its own finding.
+    ///
+    /// The after-close scan is the other shape — it reads the whole history, so
+    /// a session long enough for its Close to fall out of the bounded store
+    /// stops producing the finding. That direction is silence, not a false
+    /// report, and the bound is the operator's `max_protocol_event_history`.
+    fn sequence_defect(frame: &Frame, history: &ProtocolEventHistory) -> Option<String> {
+        // Both sentences below are about what an endpoint may *send as data*, so
+        // the class test is the gate for the whole function.
+        // cite(RFC 6455 § 5.6): "Data frames (e.g., non-control frames) are identified by opcodes where the most significant bit of the opcode is 0."
+        if frame.opcode >= 8 {
+            return None;
+        }
+
+        let mut closed = false;
+        let mut open_fragment: Option<bool> = None;
+        for prev in history.iter() {
+            let ProtocolEventKind::WebSocketFrame {
+                session_id,
+                direction,
+                fin,
+                opcode,
+                ..
+            } = &prev.kind
+            else {
+                continue;
+            };
+            if *session_id != frame.session_id || *direction != frame.direction {
+                continue;
+            }
+            // cite(RFC 6455 § 5.5.1): "The Close frame contains an opcode of 0x8."
+            if *opcode == 8 {
+                closed = true;
+            }
+            // A control frame between two fragments is not a break in the
+            // message, so the walk steps over every one of them and keeps the
+            // most recent *data* frame's FIN bit.
+            // cite(RFC 6455 § 5.4): "Control frames (see Section 5.5) MAY be injected in the middle of a fragmented message."
+            else if *opcode < 8 && open_fragment.is_none() {
+                open_fragment = Some(!*fin);
+            }
+        }
+
+        // cite(RFC 6455 § 5.5.1): "The application MUST NOT send any more data frames after sending a Close frame."
+        // cite(RFC 6455 § 5.1): "A data frame MAY be transmitted by either the client or the server at any time after opening handshake completion and before that endpoint has sent a Close frame (Section 5.5.1)."
+        if closed {
+            return Some(format!(
+                "is a data frame (opcode {}) sent after this same endpoint's Close frame, which \
+                 is where what it may send ends",
+                frame.opcode
+            ));
+        }
+
+        // cite(RFC 6455 § 5.2): "%x0 denotes a continuation frame"
+        // cite(RFC 6455 § 5.4): "A fragmented message consists of a single frame with the FIN bit clear and an opcode other than 0, followed by zero or more frames with the FIN bit clear and the opcode set to 0, and terminated by a single frame with the FIN bit set and an opcode of 0."
+        if frame.opcode == 0 && open_fragment != Some(true) {
+            return Some(
+                "is a continuation frame, and this endpoint has no fragmented message open for it \
+                 to continue"
+                    .into(),
+            );
+        }
+
+        // A second message started before the first was terminated. The escape
+        // clause names an extension, which is the same thing a frame event
+        // cannot show as the reserved opcodes above.
+        // cite(RFC 6455 § 5.4): "The fragments of one message MUST NOT be interleaved between the fragments of another message unless an extension has been negotiated that can interpret the interleaving."
+        // cite(RFC 6455 § 5.4): "An unfragmented message consists of a single frame with the FIN bit set (Section 5.2) and an opcode other than 0."
+        if frame.opcode != 0 && open_fragment == Some(true) {
+            return Some(format!(
+                "opens a second message (opcode {}) while this endpoint's previous message is \
+                 still fragmented and unterminated",
+                frame.opcode
+            ));
+        }
+
+        None
+    }
+}
 
 impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
     fn id(&self) -> &'static str {
@@ -29,81 +297,43 @@ impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
         history: &ProtocolEventHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        let (session_id, direction, opcode, payload_length) = match &event.kind {
-            ProtocolEventKind::WebSocketFrame {
-                session_id,
-                direction,
-                opcode,
-                payload_length,
-                ..
-            } => (*session_id, *direction, *opcode, *payload_length),
-            _ => return None,
+        let ProtocolEventKind::WebSocketFrame {
+            session_id,
+            direction,
+            fin,
+            opcode,
+            payload_length,
+            ..
+        } = &event.kind
+        else {
+            return None;
+        };
+        let frame = Frame {
+            session_id: *session_id,
+            direction: *direction,
+            fin: *fin,
+            opcode: *opcode,
+            payload_length: *payload_length,
         };
 
-        // Reserved opcodes (3-7, 11-15) are invalid without extensions.
-        // cite(RFC 6455 § 11.8): "The opcode denotes the frame type of the WebSocket frame,"
-        if (3..=7).contains(&opcode) || (11..=15).contains(&opcode) {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: format!(
-                    "WebSocket reserved opcode {} used without negotiated extension (RFC 6455 §5.2)",
-                    opcode
-                ),
-            });
-        }
+        // One frame carries one finding, and the order is the order a receiver
+        // reaches the questions: an opcode that names no frame type leaves the
+        // class questions nothing to be about, and a frame the class already
+        // rejects is not yet a member of any sequence.
+        let defect = Self::opcode_defect(&frame)
+            .or_else(|| Self::control_frame_defect(&frame))
+            .or_else(|| Self::sequence_defect(&frame, history))?;
 
-        // Opcode 0 (continuation) requires fragmentation context not
-        // available at assembled-message level; skip for now.
-        if opcode == 0 {
-            return None;
-        }
+        // Every gate above ends the rule, and reading the configuration is
+        // several map probes and a hash of the id — so only a frame about to be
+        // reported pays for it.
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
-        // Control frames (8-10) must not exceed 125 bytes payload.
-        // cite(RFC 6455 § 5.5.1): "The Close frame MAY contain a body (the "Application data" portion of the frame) that indicates a reason for closing"
-        if opcode >= 8 && payload_length > 125 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: format!(
-                    "WebSocket control frame (opcode {}) payload {} bytes exceeds 125-byte limit (RFC 6455 §5.5)",
-                    opcode, payload_length
-                ),
-            });
-        }
-
-        // After a Close frame, no data frames should follow in the same
-        // direction.  Scan history for a prior Close from this direction
-        // in the same session.
-        if opcode == 1 || opcode == 2 {
-            let has_prior_close = history.iter().any(|prev| {
-                if let ProtocolEventKind::WebSocketFrame {
-                    session_id: sid,
-                    direction: dir,
-                    opcode: op,
-                    ..
-                } = &prev.kind
-                {
-                    *sid == session_id && *dir == direction && *op == 8
-                } else {
-                    false
-                }
-            });
-
-            if has_prior_close {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "WebSocket data frame (opcode {}) sent after Close in {:?} direction (RFC 6455 §5.5.1)",
-                        opcode, direction
-                    ),
-                });
-            }
-        }
-
-        None
+        Some(Violation {
+            rule: self.id().into(),
+            severity: config.severity,
+            message: format!("A WebSocket frame the {} sent {}", frame.sender(), defect),
+        })
     }
 
     fn title(&self) -> Option<&'static str> {
@@ -111,28 +341,58 @@ impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
     }
 
     fn description(&self) -> &'static str {
-        "Validates message-level opcode sequencing rules for WebSocket frames observed during relay.  This rule inspects each frame event and checks:\n\n* **Reserved opcodes** (3-7, 11-15) must not appear without a negotiated extension (RFC 6455 §5.2).\n* **Control frame payload limit** — Close (8), Ping (9), and Pong (10) frames must not exceed 125 bytes of payload data (RFC 6455 §5.5).\n* **Data after Close** — once a Close frame has been sent in a given direction, no further data frames (Text=1, Binary=2) should follow in that same direction (RFC 6455 §5.5.1)."
+        "Reads each WebSocket frame the relay observed and asks three groups of questions, in the order a receiving endpoint reaches them.\n\n**What the opcode is.** The opcode field is four bits, so a recorded value above 15 is one no frame header carried (RFC 6455 §11.8 gives the field its range).  Opcodes 3-7 are reserved for further non-control frames and 11-15 for further control frames; a frame carrying one denotes no frame type the document defines, and §5.2 has the receiving endpoint fail the connection on an unknown opcode.\n\n**What the frame's class requires of it.** §5.5 identifies a control frame by the high bit of its opcode and then states two things about it in one sentence: its payload is 125 bytes or less, and it is never fragmented — so a control frame with the FIN bit clear is reported alongside an oversized one.  A Close frame's body is optional, but a body that exists opens with a two-byte status code, so a Close carrying exactly one payload byte is too short to be either.\n\n**What the frames before it allow.** Once an endpoint has sent a Close, §5.5.1 ends what it may send; a data frame — continuation, Text or Binary — following that endpoint's own Close is reported, and the other direction is left alone, since it is still finishing the closing handshake.  §5.4's fragmentation rules supply the rest: a continuation frame with no fragmented message open in that direction has nothing to continue, and a Text or Binary frame arriving while one is still open interleaves two messages.  Control frames are stepped over when answering that question, because §5.4 permits them in the middle of a fragmented message.\n\n**Two things a frame event cannot show.** §5.8 hands opcodes 3-7 and 11-15, and the reserved bits, to extensions negotiated in the opening handshake, and §5.4's interleaving rule has the same escape.  A frame event carries no handshake, so `Sec-WebSocket-Extensions` is invisible here and both findings are reported whether or not an extension gave the frame a meaning.  The reserved bits themselves are recorded on the event and read by no rule in this catalogue.\n\n**Where these findings come from.** The relay reads frames through tokio-tungstenite, which refuses every defect above before the proxy is handed a message, and which defragments — so a relayed message reaches this rule as a single frame with FIN set.  These findings are therefore reachable through `lint`, over capture files written by something other than this proxy."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             crate::rules::SpecRef {
                 spec: "RFC 6455",
+                section: Some("5.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.1",
+                note: "Overview: when an endpoint may transmit a data frame",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6455",
                 section: Some("5.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2",
-                note: "Base Framing Protocol, opcode definitions",
+                note: "Base Framing Protocol, opcode definitions and reserved ranges",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6455",
+                section: Some("5.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.4",
+                note: "Fragmentation: what a fragmented message is made of",
             },
             crate::rules::SpecRef {
                 spec: "RFC 6455",
                 section: Some("5.5"),
                 url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5",
-                note: "Control Frames, payload length constraint",
+                note: "Control Frames: the class test and its two constraints",
             },
             crate::rules::SpecRef {
                 spec: "RFC 6455",
                 section: Some("5.5.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5.1",
-                note: "Close frame semantics and half-close behaviour",
+                note: "Close: the body's first two bytes, and the end of what a sender may send",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6455",
+                section: Some("5.6"),
+                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.6",
+                note: "Data Frames: the class test for the sequence questions",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6455",
+                section: Some("5.8"),
+                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.8",
+                note: "Extensibility: what the reserved opcodes are reserved for",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6455",
+                section: Some("11.8"),
+                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-11.8",
+                note: "WebSocket Opcode Registry: the field's range and its registration policy",
             },
         ]
     }
@@ -143,22 +403,37 @@ impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
             Example {
                 compliance: Compliance::Compliant,
                 label: None,
-                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\nSec-WebSocket-Version: 13\n\nHTTP/1.1 101 Switching Protocols\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\n\n# After upgrade, valid frame sequence:\n# Client -> Server: opcode=1 (Text), 42 bytes\n# Server -> Client: opcode=1 (Text), 100 bytes\n# Client -> Server: opcode=8 (Close), 2 bytes\n# Server -> Client: opcode=8 (Close), 2 bytes",
+                snippet: "# Frames relayed after a WebSocket upgrade, one line each.  The Ping\n# sits inside the client's fragmented message, which RFC 6455 §5.4 permits:\n# Client -> Server: opcode=1 (Text), FIN=0, 42 bytes\n# Client -> Server: opcode=9 (Ping), FIN=1, 0 bytes\n# Client -> Server: opcode=0 (Continuation), FIN=1, 17 bytes\n# Server -> Client: opcode=8 (Close), FIN=1, 2 bytes\n# Client -> Server: opcode=8 (Close), FIN=1, 2 bytes",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("(reserved opcode)"),
-                snippet: "# After WebSocket upgrade, client sends reserved opcode:\n# Client -> Server: opcode=5, 10 bytes\n# Opcode 5 is reserved (RFC 6455 §5.2)",
+                snippet: "# Client -> Server: opcode=5, FIN=1, 10 bytes\n# 5 is reserved for further non-control frames (RFC 6455 §5.2)",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("(control frame too large)"),
-                snippet: "# After WebSocket upgrade, client sends oversized Ping:\n# Client -> Server: opcode=9 (Ping), 200 bytes\n# Control frames must not exceed 125 bytes (RFC 6455 §5.5)",
+                snippet: "# Client -> Server: opcode=9 (Ping), FIN=1, 200 bytes\n# A control frame's payload is 125 bytes or less (RFC 6455 §5.5)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(fragmented control frame)"),
+                snippet: "# Server -> Client: opcode=10 (Pong), FIN=0, 4 bytes\n# A control frame is never fragmented (RFC 6455 §5.5)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(continuation with nothing to continue)"),
+                snippet: "# Client -> Server: opcode=1 (Text), FIN=1, 12 bytes\n# Client -> Server: opcode=0 (Continuation), FIN=1, 8 bytes\n# The previous message was already terminated (RFC 6455 §5.4)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(interleaved messages)"),
+                snippet: "# Client -> Server: opcode=1 (Text), FIN=0, 12 bytes\n# Client -> Server: opcode=2 (Binary), FIN=1, 30 bytes\n# The Text message was never terminated (RFC 6455 §5.4)",
             },
             Example {
                 compliance: Compliance::NonCompliant,
                 label: Some("(data after close)"),
-                snippet: "# After WebSocket upgrade, client sends data after Close:\n# Client -> Server: opcode=8 (Close), 2 bytes\n# Client -> Server: opcode=1 (Text), 50 bytes\n# No data frames after Close in same direction (RFC 6455 §5.5.1)",
+                snippet: "# Client -> Server: opcode=8 (Close), FIN=1, 2 bytes\n# Client -> Server: opcode=1 (Text), FIN=1, 50 bytes\n# A Close ends what that endpoint may send (RFC 6455 §5.5.1)",
             },
         ]
     }
@@ -189,13 +464,24 @@ mod tests {
         opcode: u8,
         payload_length: u64,
     ) -> ProtocolEvent {
+        make_ws_frame(conn, session, direction, opcode, payload_length, true)
+    }
+
+    fn make_ws_frame(
+        conn: Uuid,
+        session: Uuid,
+        direction: MessageDirection,
+        opcode: u8,
+        payload_length: u64,
+        fin: bool,
+    ) -> ProtocolEvent {
         ProtocolEvent {
             timestamp: Utc::now(),
             connection_id: conn,
             kind: ProtocolEventKind::WebSocketFrame {
                 session_id: session,
                 direction,
-                fin: true,
+                fin,
                 opcode,
                 rsv: 0,
                 payload_length,
@@ -203,102 +489,330 @@ mod tests {
         }
     }
 
+    /// History is newest-first, and these fixtures are written oldest-first
+    /// because that is the order the frames were on the wire.
+    fn history_of(mut events: Vec<ProtocolEvent>) -> ProtocolEventHistory {
+        events.reverse();
+        ProtocolEventHistory::new(events)
+    }
+
+    fn judge(event: &ProtocolEvent, history: &ProtocolEventHistory) -> Option<String> {
+        StatefulWebsocketFrameOpcodeSequence
+            .check_event(event, history, &make_config())
+            .map(|v| v.message)
+    }
+
     #[test]
     fn valid_text_frame_passes() {
-        let rule = StatefulWebsocketFrameOpcodeSequence;
-        let conn = Uuid::new_v4();
-        let session = Uuid::new_v4();
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
         let evt = make_ws_event(conn, session, MessageDirection::Client, 1, 42);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
-        assert!(result.is_none());
+        assert_eq!(judge(&evt, &ProtocolEventHistory::empty()), None);
     }
 
     #[test]
     fn valid_binary_frame_passes() {
-        let rule = StatefulWebsocketFrameOpcodeSequence;
-        let conn = Uuid::new_v4();
-        let session = Uuid::new_v4();
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
         let evt = make_ws_event(conn, session, MessageDirection::Server, 2, 1024);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
-        assert!(result.is_none());
+        assert_eq!(judge(&evt, &ProtocolEventHistory::empty()), None);
     }
 
     #[test]
     fn valid_control_frames_pass() {
-        let rule = StatefulWebsocketFrameOpcodeSequence;
-        let conn = Uuid::new_v4();
-        let session = Uuid::new_v4();
-
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
         for opcode in [8, 9, 10] {
             let evt = make_ws_event(conn, session, MessageDirection::Client, opcode, 10);
-            let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
-            assert!(result.is_none(), "opcode {} should pass", opcode);
+            assert_eq!(
+                judge(&evt, &ProtocolEventHistory::empty()),
+                None,
+                "opcode {opcode} should pass"
+            );
         }
     }
 
     #[test]
     fn reserved_opcode_fails() {
-        let rule = StatefulWebsocketFrameOpcodeSequence;
-        let conn = Uuid::new_v4();
-        let session = Uuid::new_v4();
-
-        for opcode in [3, 4, 5, 6, 7, 11, 12, 13, 14, 15] {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        for opcode in [3, 4, 5, 6, 7] {
             let evt = make_ws_event(conn, session, MessageDirection::Client, opcode, 0);
-            let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
-            assert!(result.is_some(), "opcode {} should fail", opcode);
-            assert!(result.unwrap().message.contains("reserved opcode"));
+            let msg = judge(&evt, &ProtocolEventHistory::empty()).expect("must be reported");
+            assert!(
+                msg.contains("reserved for further non-control frames"),
+                "{msg}"
+            );
+        }
+        for opcode in [11, 12, 13, 14, 15] {
+            let evt = make_ws_event(conn, session, MessageDirection::Client, opcode, 0);
+            let msg = judge(&evt, &ProtocolEventHistory::empty()).expect("must be reported");
+            assert!(msg.contains("reserved for further control frames"), "{msg}");
+        }
+    }
+
+    /// The registry's own bound on the field, which had a citation in this rule
+    /// and no branch under it: 16 and above are values a four-bit field never
+    /// held, and only a capture file can carry one.
+    #[test]
+    fn an_opcode_wider_than_the_field_fails() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        for opcode in [16, 128, 255] {
+            let evt = make_ws_event(conn, session, MessageDirection::Client, opcode, 0);
+            let msg = judge(&evt, &ProtocolEventHistory::empty()).expect("must be reported");
+            assert!(msg.contains("four-bit opcode field"), "{msg}");
         }
     }
 
     #[test]
     fn control_frame_over_125_bytes_fails() {
-        let rule = StatefulWebsocketFrameOpcodeSequence;
-        let conn = Uuid::new_v4();
-        let session = Uuid::new_v4();
-
-        // Ping with 126 bytes payload
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
         let evt = make_ws_event(conn, session, MessageDirection::Client, 9, 126);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
-        assert!(result.is_some());
-        assert!(result.unwrap().message.contains("125-byte limit"));
+        let msg = judge(&evt, &ProtocolEventHistory::empty()).expect("must be reported");
+        assert!(msg.contains("125 bytes or less"), "{msg}");
+    }
+
+    /// The other half of the sentence carrying the 125-byte bound.
+    #[test]
+    fn fragmented_control_frame_fails() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        for opcode in [8, 9, 10] {
+            let evt = make_ws_frame(conn, session, MessageDirection::Server, opcode, 4, false);
+            let msg = judge(&evt, &ProtocolEventHistory::empty()).expect("must be reported");
+            assert!(msg.contains("never fragmented"), "{msg}");
+        }
+    }
+
+    /// A body that exists opens with two bytes; one byte is neither a body nor
+    /// its absence. Both spellings the document permits stay silent.
+    #[test]
+    fn close_frame_body_shorter_than_its_status_code_fails() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let evt = make_ws_event(conn, session, MessageDirection::Server, 8, 1);
+        let msg = judge(&evt, &ProtocolEventHistory::empty()).expect("must be reported");
+        assert!(msg.contains("two-byte status code"), "{msg}");
+
+        for permitted in [0, 2, 125] {
+            let evt = make_ws_event(conn, session, MessageDirection::Server, 8, permitted);
+            assert_eq!(
+                judge(&evt, &ProtocolEventHistory::empty()),
+                None,
+                "{permitted}"
+            );
+        }
+    }
+
+    /// A one-byte *Ping* is fine — the requirement is the Close body's, and the
+    /// opcode is part of it.
+    #[test]
+    fn a_one_byte_ping_is_not_a_short_close_body() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let evt = make_ws_event(conn, session, MessageDirection::Client, 9, 1);
+        assert_eq!(judge(&evt, &ProtocolEventHistory::empty()), None);
     }
 
     #[test]
     fn data_after_close_fails() {
-        let rule = StatefulWebsocketFrameOpcodeSequence;
-        let conn = Uuid::new_v4();
-        let session = Uuid::new_v4();
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let history = history_of(vec![make_ws_event(
+            conn,
+            session,
+            MessageDirection::Client,
+            8,
+            2,
+        )]);
+        let evt = make_ws_event(conn, session, MessageDirection::Client, 1, 50);
+        let msg = judge(&evt, &history).expect("must be reported");
+        assert!(
+            msg.contains("after this same endpoint's Close frame"),
+            "{msg}"
+        );
+    }
 
-        // History: client sent a Close frame
-        let close_evt = make_ws_event(conn, session, MessageDirection::Client, 8, 2);
-        let history = ProtocolEventHistory::new(vec![close_evt]);
+    /// The gap the old `opcode == 0` bail left: a continuation frame is a data
+    /// frame, so a Close ends it too.
+    #[test]
+    fn continuation_after_close_fails() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let history = history_of(vec![
+            make_ws_frame(conn, session, MessageDirection::Client, 1, 10, false),
+            make_ws_event(conn, session, MessageDirection::Client, 8, 2),
+        ]);
+        let evt = make_ws_frame(conn, session, MessageDirection::Client, 0, 5, true);
+        let msg = judge(&evt, &history).expect("must be reported");
+        assert!(
+            msg.contains("after this same endpoint's Close frame"),
+            "{msg}"
+        );
+    }
 
-        // Now client sends a Text frame
-        let text_evt = make_ws_event(conn, session, MessageDirection::Client, 1, 50);
-        let result = rule.check_event(&text_evt, &history, &make_config());
-        assert!(result.is_some());
-        assert!(result.unwrap().message.contains("after Close"));
+    /// A Close does not stop that endpoint answering a Ping, and the sentence
+    /// says data frames rather than frames.
+    #[test]
+    fn a_control_frame_after_close_passes() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let history = history_of(vec![make_ws_event(
+            conn,
+            session,
+            MessageDirection::Client,
+            8,
+            2,
+        )]);
+        for opcode in [8, 9, 10] {
+            let evt = make_ws_event(conn, session, MessageDirection::Client, opcode, 4);
+            assert_eq!(judge(&evt, &history), None, "opcode {opcode}");
+        }
     }
 
     #[test]
     fn data_from_other_direction_after_close_passes() {
-        let rule = StatefulWebsocketFrameOpcodeSequence;
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let history = history_of(vec![make_ws_event(
+            conn,
+            session,
+            MessageDirection::Client,
+            8,
+            2,
+        )]);
+        let evt = make_ws_event(conn, session, MessageDirection::Server, 1, 50);
+        assert_eq!(judge(&evt, &history), None);
+    }
+
+    /// A second session on the same connection is a second sequence.
+    #[test]
+    fn a_close_in_another_session_does_not_reach_this_one() {
         let conn = Uuid::new_v4();
-        let session = Uuid::new_v4();
+        let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
+        let history = history_of(vec![make_ws_event(conn, a, MessageDirection::Client, 8, 2)]);
+        let evt = make_ws_event(conn, b, MessageDirection::Client, 1, 50);
+        assert_eq!(judge(&evt, &history), None);
+    }
 
-        // History: client sent a Close frame
-        let close_evt = make_ws_event(conn, session, MessageDirection::Client, 8, 2);
-        let history = ProtocolEventHistory::new(vec![close_evt]);
+    #[test]
+    fn continuation_with_nothing_open_fails() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        // No history at all.
+        let evt = make_ws_frame(conn, session, MessageDirection::Client, 0, 5, true);
+        let msg = judge(&evt, &ProtocolEventHistory::empty()).expect("must be reported");
+        assert!(msg.contains("no fragmented message open"), "{msg}");
 
-        // Server sends a Text frame (different direction — allowed during close handshake)
-        let text_evt = make_ws_event(conn, session, MessageDirection::Server, 1, 50);
-        let result = rule.check_event(&text_evt, &history, &make_config());
-        assert!(result.is_none());
+        // And a previous message that was already terminated.
+        let history = history_of(vec![make_ws_event(
+            conn,
+            session,
+            MessageDirection::Client,
+            1,
+            12,
+        )]);
+        let msg = judge(&evt, &history).expect("must be reported");
+        assert!(msg.contains("no fragmented message open"), "{msg}");
+    }
+
+    /// The document's own worked example: opcode 1 with FIN clear, then 0 with
+    /// FIN clear, then 0 with FIN set.
+    #[test]
+    fn the_documents_three_fragment_example_passes() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let first = make_ws_frame(conn, session, MessageDirection::Client, 1, 10, false);
+        assert_eq!(judge(&first, &ProtocolEventHistory::empty()), None);
+
+        let second = make_ws_frame(conn, session, MessageDirection::Client, 0, 10, false);
+        assert_eq!(judge(&second, &history_of(vec![first.clone()])), None);
+
+        let third = make_ws_frame(conn, session, MessageDirection::Client, 0, 4, true);
+        assert_eq!(
+            judge(&third, &history_of(vec![first.clone(), second.clone()])),
+            None
+        );
+
+        // And the message after it starts cleanly.
+        let next = make_ws_event(conn, session, MessageDirection::Client, 2, 7);
+        assert_eq!(judge(&next, &history_of(vec![first, second, third])), None);
+    }
+
+    /// Control frames may be injected mid-message, so the walk steps over them
+    /// to find the data frame whose FIN bit decides the question.
+    #[test]
+    fn a_ping_between_fragments_does_not_close_the_message() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let history = history_of(vec![
+            make_ws_frame(conn, session, MessageDirection::Client, 1, 10, false),
+            make_ws_event(conn, session, MessageDirection::Client, 9, 0),
+        ]);
+        let evt = make_ws_frame(conn, session, MessageDirection::Client, 0, 4, true);
+        assert_eq!(judge(&evt, &history), None);
+    }
+
+    #[test]
+    fn a_second_message_started_mid_fragment_fails() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let history = history_of(vec![make_ws_frame(
+            conn,
+            session,
+            MessageDirection::Client,
+            1,
+            10,
+            false,
+        )]);
+        for opcode in [1, 2] {
+            let evt = make_ws_event(conn, session, MessageDirection::Client, opcode, 30);
+            let msg = judge(&evt, &history).expect("must be reported");
+            assert!(msg.contains("still fragmented and unterminated"), "{msg}");
+        }
+    }
+
+    /// A value naming no frame type is not evidence of anything: it neither
+    /// opens a message for a continuation to continue nor stands in for a Close.
+    #[test]
+    fn an_opcode_outside_the_field_decides_no_sequence_question() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let history = history_of(vec![make_ws_frame(
+            conn,
+            session,
+            MessageDirection::Client,
+            200,
+            10,
+            false,
+        )]);
+
+        let continuation = make_ws_frame(conn, session, MessageDirection::Client, 0, 5, true);
+        let msg = judge(&continuation, &history).expect("must be reported");
+        assert!(msg.contains("no fragmented message open"), "{msg}");
+
+        let text = make_ws_event(conn, session, MessageDirection::Client, 1, 5);
+        assert_eq!(judge(&text, &history), None);
+    }
+
+    /// The two endpoints fragment independently: an open message one way says
+    /// nothing about a message the other way.
+    #[test]
+    fn fragmentation_state_is_per_direction() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let history = history_of(vec![make_ws_frame(
+            conn,
+            session,
+            MessageDirection::Client,
+            1,
+            10,
+            false,
+        )]);
+        let evt = make_ws_event(conn, session, MessageDirection::Server, 1, 30);
+        assert_eq!(judge(&evt, &history), None);
+    }
+
+    /// The finding names the endpoint the recorded direction is about.
+    #[test]
+    fn the_finding_names_the_sender() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let client = make_ws_event(conn, session, MessageDirection::Client, 5, 0);
+        assert!(judge(&client, &ProtocolEventHistory::empty())
+            .expect("must be reported")
+            .starts_with("A WebSocket frame the client sent"));
+
+        let server = make_ws_event(conn, session, MessageDirection::Server, 5, 0);
+        assert!(judge(&server, &ProtocolEventHistory::empty())
+            .expect("must be reported")
+            .starts_with("A WebSocket frame the server sent"));
     }
 
     #[test]
     fn non_websocket_event_ignored() {
-        let rule = StatefulWebsocketFrameOpcodeSequence;
         let evt = ProtocolEvent {
             timestamp: Utc::now(),
             connection_id: Uuid::new_v4(),
@@ -307,7 +821,6 @@ mod tests {
                 direction: MessageDirection::Client,
             },
         };
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
-        assert!(result.is_none());
+        assert_eq!(judge(&evt, &ProtocolEventHistory::empty()), None);
     }
 }

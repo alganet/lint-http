@@ -1660,16 +1660,132 @@ sources:
       line: 84
   - label: stateful_websocket_frame_opcode_sequence
     section: § 11.8
-    snippet: The opcode denotes the frame type of the WebSocket frame,
+    snippet: The opcode is an integer number between 0 and 15, inclusive.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
-      line: 45
+      line: 99
   - label: stateful_websocket_frame_opcode_sequence (2)
+    section: § 11.8
+    snippet: WebSocket Opcode numbers are subject to the "Standards Action" IANA registration policy [RFC5226].
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 100
+  - label: stateful_websocket_frame_opcode_sequence (3)
+    section: § 5.1
+    snippet: A data frame MAY be transmitted by either the client or the server at any time after opening handshake completion and before that endpoint has sent a Close frame (Section 5.5.1).
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 253
+  - label: stateful_websocket_frame_opcode_sequence (4)
+    section: § 5.2
+    snippet: '%x0 denotes a continuation frame'
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 262
+  - label: stateful_websocket_frame_opcode_sequence (5)
+    section: § 5.2
+    snippet: '%x3-7 are reserved for further non-control frames'
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 113
+  - label: stateful_websocket_frame_opcode_sequence (6)
+    section: § 5.2
+    snippet: '%xB-F are reserved for further control frames'
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 122
+  - label: stateful_websocket_frame_opcode_sequence (7)
+    section: § 5.2
+    snippet: If an unknown opcode is received, the receiving endpoint MUST _Fail the WebSocket Connection_.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 112
+  - label: stateful_websocket_frame_opcode_sequence (8)
+    section: § 5.4
+    snippet: A fragmented message consists of a single frame with the FIN bit clear and an opcode other than 0, followed by zero or more frames with the FIN bit clear and the opcode set to 0, and terminated by a single frame with the FIN bit set and an opcode of 0.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 263
+  - label: stateful_websocket_frame_opcode_sequence (9)
+    section: § 5.4
+    snippet: An unfragmented message consists of a single frame with the FIN bit set (Section 5.2) and an opcode other than 0.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 276
+  - label: stateful_websocket_frame_opcode_sequence (10)
+    section: § 5.4
+    snippet: Control frames (see Section 5.5) MAY be injected in the middle of a fragmented message.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 246
+  - label: stateful_websocket_frame_opcode_sequence (11)
+    section: § 5.4
+    snippet: Control frames themselves MUST NOT be fragmented.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 168
+  - label: stateful_websocket_frame_opcode_sequence (12)
+    section: § 5.4
+    snippet: The fragments of one message MUST NOT be interleaved between the fragments of another message unless an extension has been negotiated that can interpret the interleaving.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 275
+  - label: stateful_websocket_frame_opcode_sequence (13)
+    section: § 5.5
+    snippet: All control frames MUST have a payload length of 125 bytes or less and MUST NOT be fragmented.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 159
+  - label: stateful_websocket_frame_opcode_sequence (14)
+    section: § 5.5
+    snippet: Control frames are identified by opcodes where the most significant bit of the opcode is 1.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 153
+  - label: stateful_websocket_frame_opcode_sequence (15)
+    section: § 5.5.1
+    snippet: If there is a body, the first two bytes of the body MUST be a 2-byte unsigned integer (in network byte order) representing a status code with value /code/ defined in Section 7.4.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 179
+  - label: stateful_websocket_frame_opcode_sequence (16)
     section: § 5.5.1
     snippet: The Close frame MAY contain a body (the "Application data" portion of the frame) that indicates a reason for closing
     cited_by:
     - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
-      line: 64
+      line: 178
+  - label: stateful_websocket_frame_opcode_sequence (17)
+    section: § 5.5.1
+    snippet: The Close frame contains an opcode of 0x8.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 177
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 239
+  - label: stateful_websocket_frame_opcode_sequence (18)
+    section: § 5.5.1
+    snippet: The application MUST NOT send any more data frames after sending a Close frame.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 252
+  - label: stateful_websocket_frame_opcode_sequence (19)
+    section: § 5.6
+    snippet: Data frames (e.g., non-control frames) are identified by opcodes where the most significant bit of the opcode is 0.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 218
+  - label: stateful_websocket_frame_opcode_sequence (20)
+    section: § 5.8
+    snippet: The endpoints of a connection MUST negotiate the use of any extensions during the opening handshake.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 102
+  - label: stateful_websocket_frame_opcode_sequence (21)
+    section: § 5.8
+    snippet: This specification provides opcodes 0x3 through 0x7 and 0xB through 0xF, the "Extension data" field, and the frame-rsv1, frame-rsv2, and frame-rsv3 bits of the frame header for use by extensions.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+      line: 101
   - label: stateful_websocket_handshake_validity
     section: § 4.1
     snippet: If the response includes a |Sec-WebSocket-Extensions| header field and this header field indicates the use of an extension that was not present in the client's handshake (the server has indicated an extension not requested by the client), the client MUST _Fail the WebSocket Connection_.
