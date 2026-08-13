@@ -166,6 +166,24 @@ sources:
     url: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
     type: text/html
 
+  # The exception to the sentence above: this one does not move. It is an
+  # *individual* submission, never adopted by a working group, and it expired
+  # on 2013-01-18 at revision -03 — so the revision is pinned in the label and
+  # the archived text is the final state of the document.
+  #
+  # It is here because it is the only document that ever gave the `Keep-Alive`
+  # header's `timeout` parameter a grammar or a meaning. RFC 9110 § 7.6.1 names
+  # RFC 2068 § 19.7.1 as where `Keep-Alive` is specified; that section writes
+  # the field's grammar and then says "HTTP/1.1 does not define any
+  # parameters". So nothing in force names `timeout` at all, while servers send
+  # it constantly. Quoted as the only published reading of a value this
+  # deployment will see, never as a requirement — RFC 2026 § 2.2 is why — and
+  # the "Keep-Alive Information" registry its § 7.2 asks IANA to create was
+  # never created.
+  - label: draft-thomson-hybi-http-timeout-03
+    url: https://www.ietf.org/archive/id/draft-thomson-hybi-http-timeout-03.txt
+    type: text/plain
+
   # ── MDN ───────────────────────────────────────────────────────────────
   #
   # MdnRepo claims these URLs and verifies against the authored markdown in

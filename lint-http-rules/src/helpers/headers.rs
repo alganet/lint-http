@@ -1234,7 +1234,14 @@ pub fn parse_token_bws_word(member: &str) -> Result<TokenBwsWord<'_>, String> {
 /// Every input to [`parse_token_bws_word`] is one `char` per octet, so the cast
 /// is exact; the fallback exists only so a caller that decoded some other way
 /// still gets a finding rather than a panic.
-fn describe_char(c: char) -> String {
+///
+/// Public because every rule reading a value through
+/// [`combined_field_value_as_written`] and naming the octet a parse stopped on
+/// needs exactly this cast, and two of them had written it out privately -- with
+/// the same doc comment and a `debug_assert` plus a truncating `as u8`, which
+/// answers the out-of-range case differently from this one. The cast is one
+/// decision, so it is made in one place.
+pub fn describe_char(c: char) -> String {
     match u8::try_from(c as u32) {
         Ok(b) => describe_octet(b),
         Err(_) => format!("'{}'", c),
