@@ -926,6 +926,8 @@ sources:
       line: 107
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 243
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 493
   - label: lint-http-rules/src/helpers/uri.rs (15)
     section: § 3.2.3
     snippet: The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character.
@@ -2117,6 +2119,60 @@ sources:
       line: 47
     - file: lint-http-rules/src/rules/message_digest_header_syntax.rs
       line: 508
+- label: RFC 7234
+  url: https://www.rfc-editor.org/rfc/rfc7234.txt
+  type: text/plain
+  fragments:
+  - label: message_warning_header_syntax
+    section: § 5.5
+    snippet: Warning = 1#warning-value
+    cited_by:
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 330
+  - label: message_warning_header_syntax (2)
+    section: § 5.5
+    snippet: Warning header fields can in general be applied to any message, however some warn-codes are specific to caches and can only be applied to response messages.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 24
+  - label: message_warning_header_syntax (3)
+    section: § 5.5
+    snippet: Warnings are assigned three digit warn-codes.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 370
+  - label: message_warning_header_syntax (4)
+    section: § 5.5
+    snippet: warn-agent = ( uri-host [ ":" port ] ) / pseudonym
+    cited_by:
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 472
+  - label: message_warning_header_syntax (5)
+    section: § 5.5
+    snippet: warn-code = 3DIGIT warn-agent = ( uri-host [ ":" port ] ) / pseudonym
+    cited_by:
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 369
+  - label: message_warning_header_syntax (6)
+    section: § 5.5
+    snippet: warn-date = DQUOTE HTTP-date DQUOTE
+    cited_by:
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 431
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 520
+  - label: message_warning_header_syntax (7)
+    section: § 5.5
+    snippet: warn-text = quoted-string
+    cited_by:
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 407
+  - label: message_warning_header_syntax (8)
+    section: § 5.5
+    snippet: warning-value = warn-code SP warn-agent SP warn-text [ SP warn-date ]
+    cited_by:
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 363
 - label: RFC 7239
   url: https://www.rfc-editor.org/rfc/rfc7239.txt
   type: text/plain
@@ -3283,6 +3339,8 @@ sources:
       line: 153
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 232
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 314
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 73
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
@@ -3321,6 +3379,8 @@ sources:
       line: 75
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 259
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 343
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 289
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
@@ -3843,6 +3903,8 @@ sources:
       line: 54
     - file: lint-http-rules/src/rules/message_if_unmodified_since_date_format.rs
       line: 55
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 550
     - file: lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
       line: 36
   - label: lint-http-core/src/http_transaction.rs
@@ -4177,6 +4239,8 @@ sources:
       line: 232
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 234
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 316
     - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
       line: 46
   - label: lint-http-rules/src/helpers/headers.rs
@@ -5609,6 +5673,8 @@ sources:
       line: 150
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
       line: 159
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 331
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 155
   - label: message_prefer_header_valid (2)
@@ -6079,6 +6145,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 367
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 498
   - label: message_via_header_syntax_valid (14)
     section: § 7.6.3
     snippet: received-protocol = [ protocol-name "/" ] protocol-version
@@ -6103,6 +6171,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 368
+  - label: message_warning_header_syntax
+    section: § 5.6.7
+    snippet: Prior to 1995, there were three different formats commonly used by servers to communicate timestamps.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 549
   - label: message_www_authenticate_challenge_syntax
     section: § 11.6.1
     snippet: The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource.
@@ -7161,12 +7235,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 51
-  - label: message_warning_header_syntax
-    section: § 5.5
-    snippet: The "Warning" header field was used to carry additional information about the status or transformation of a message
-    cited_by:
-    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
-      line: 163
   - label: semantic_cache_coherence
     section: § 4.2.4
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
