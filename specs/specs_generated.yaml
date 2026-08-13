@@ -975,6 +975,8 @@ sources:
       line: 87
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
       line: 40
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 57
   - label: lint-http-rules/src/helpers/uri.rs (7)
     section: § 2.2
     snippet: A component's ABNF syntax rule will not use the reserved or gen-delims rule names directly; instead, each syntax rule lists the characters allowed within that component (i.e., not delimiting it), and any of those characters that are also in the reserved set are "reserved" for use as subcomponent delimiters within the component.
@@ -1091,6 +1093,8 @@ sources:
       line: 243
     - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
       line: 482
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 149
   - label: lint-http-rules/src/helpers/uri.rs (17)
     section: § 3.2.3
     snippet: The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character.
@@ -1103,6 +1107,8 @@ sources:
       line: 51
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 393
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 161
   - label: lint-http-rules/src/helpers/uri.rs (18)
     section: § 3.2.3
     snippet: URI producers and normalizers should omit the port component and its ":" delimiter if port is empty or if its value would be the same as that of the scheme's default.
@@ -1887,12 +1893,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 93
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 194
   - label: message_http2_pseudo_headers_validity (2)
     section: § 6
     snippet: TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries.
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 92
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 193
 - label: RFC 6454
   url: https://www.rfc-editor.org/rfc/rfc6454.txt
   type: text/plain
@@ -3130,6 +3140,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_alt_svc_h3_advertisement_valid.rs
       line: 38
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 377
   - label: server_alt_svc_h3_advertisement_valid (3)
     section: § 3.1
     snippet: The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh.
@@ -3137,11 +3149,167 @@ sources:
     - file: lint-http-rules/src/rules/server_alt_svc_h3_advertisement_valid.rs
       line: 179
   - label: server_alt_svc_header_syntax
+    section: § 1.1
+    snippet: This document uses the Augmented BNF defined in [RFC5234] and updated by [RFC7405] along with the "#rule" extension defined in Section 7 of [RFC7230].
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 463
+  - label: server_alt_svc_header_syntax (2)
+    section: § 2
+    snippet: Note that for the purpose of this specification, an ALPN protocol name implicitly includes TLS in the suite of protocols it identifies, unless specified otherwise in its definition.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 192
+  - label: server_alt_svc_header_syntax (3)
+    section: § 3
+    snippet: A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated (including those specified in the same response, in case of an invalid reply containing both "clear" and alternative services).
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 448
+  - label: Alt-Svc grammar
+    section: § 3
+    snippet: Alt-Svc       = clear / 1#alt-value
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 18
+  - label: server_alt_svc_header_syntax (4)
+    section: § 3
+    snippet: Alt-Svc MAY occur in any HTTP response message, regardless of the status code.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 391
+  - label: server_alt_svc_header_syntax (5)
+    section: § 3
+    snippet: Consequently, the octet representing the percent character "%" (hex 25) MUST be percent-encoded as well.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 52
+  - label: server_alt_svc_header_syntax (6)
+    section: § 3
+    snippet: Each "alt-value" is followed by an OPTIONAL semicolon-separated list of additional parameters, each such "parameter" comprising a name and a value.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 222
+  - label: server_alt_svc_header_syntax (7)
+    section: § 3
+    snippet: 'In order to have precisely one way to represent any ALPN protocol name, the following additional constraints apply:'
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 53
+  - label: server_alt_svc_header_syntax (8)
+    section: § 3
+    snippet: Note that the "quoted-string" syntax needs to be used because ":" is not an allowed character in "token".
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 124
+  - label: server_alt_svc_header_syntax (9)
+    section: § 3
+    snippet: Octets in the ALPN protocol name MUST NOT be percent-encoded if they are valid token characters except "%", and
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 54
+  - label: server_alt_svc_header_syntax (10)
+    section: § 3
+    snippet: Octets not allowed in tokens ([RFC7230], Section 3.2.6) MUST be percent-encoded as per Section 2.1 of [RFC3986].
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 51
+  - label: server_alt_svc_header_syntax (11)
+    section: § 3
+    snippet: The "alt-authority" component consists of an OPTIONAL uri-host ("host" in Section 3.2.2 of [RFC3986]), a colon (":"), and a port number.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 123
+  - label: server_alt_svc_header_syntax (12)
+    section: § 3
+    snippet: The field value consists either of a list of values, each of which indicates one alternative service, or the keyword "clear".
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 20
+  - label: server_alt_svc_header_syntax (13)
+    section: § 3
+    snippet: Unknown parameters MUST be ignored.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 223
+  - label: server_alt_svc_header_syntax (14)
+    section: § 3
+    snippet: When using percent-encoding, uppercase hex digits MUST be used.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 55
+  - label: server_alt_svc_header_syntax (15)
+    section: § 3
+    snippet: With these constraints, recipients can apply simple string comparison to match protocol identifiers.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 56
+  - label: server_alt_svc_header_syntax (16)
+    section: § 3
+    snippet: alt-authority = quoted-string ; containing [ uri-host ] ":" port
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 122
+  - label: server_alt_svc_header_syntax (17)
+    section: § 3
+    snippet: alt-value     = alternative *( OWS ";" OWS parameter )
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 32
+  - label: server_alt_svc_header_syntax (18)
+    section: § 3
+    snippet: alternative   = protocol-id "=" alt-authority
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 317
+  - label: server_alt_svc_header_syntax (19)
+    section: § 3
+    snippet: clear         = %s"clear"; "clear", case-sensitive
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 19
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 324
+  - label: server_alt_svc_header_syntax (20)
+    section: § 3
+    snippet: parameter     = token "=" ( token / quoted-string )
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 221
+  - label: server_alt_svc_header_syntax (21)
+    section: § 3
+    snippet: protocol-id   = token ; percent-encoded ALPN protocol name
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 318
+  - label: server_alt_svc_header_syntax (22)
+    section: § 3.1
+    snippet: Alternative services that are intended to be longer lived (such as those that are not specific to the client access network) can carry the "persist" parameter with a value "1" as a hint that the service is potentially useful beyond a network configuration change.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 288
+  - label: server_alt_svc_header_syntax (23)
+    section: § 3.1
+    snippet: Clients MUST ignore "persist" parameters with values other than "1".
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 290
+  - label: server_alt_svc_header_syntax (24)
+    section: § 3.1
+    snippet: This specification only defines a single value for "persist".
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 289
+  - label: server_alt_svc_header_syntax (25)
+    section: § 8
+    snippet: An internationalized domain name that appears in either the header field (Section 3) or the HTTP/2 frame (Section 4) MUST be expressed using A-labels ([RFC5890], Section 2.3.2.1).
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 148
+  - label: server_alt_svc_protocol_iana_registered
     section: § 1
     snippet: This specification defines a new concept in HTTP, "Alternative Services", that allows an origin server to nominate additional means of interacting with it
     cited_by:
-    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
-      line: 30
     - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
       line: 87
 - label: RFC 8187
@@ -4028,6 +4196,8 @@ sources:
       line: 332
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 289
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 464
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 94
     - file: lint-http-rules/src/rules/server_vary_header_valid.rs
@@ -5030,6 +5200,8 @@ sources:
       line: 43
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
       line: 398
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 438
   - label: OWS grammar
     section: § 5.6.3
     snippet: OWS            = *( SP / HTAB )
@@ -5046,6 +5218,8 @@ sources:
       line: 66
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 286
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 33
   - label: lint-http-rules/src/helpers/headers.rs (11)
     section: § 5.6.3
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.
@@ -5108,6 +5282,8 @@ sources:
       line: 332
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 34
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 125
   - label: lint-http-rules/src/helpers/headers.rs (17)
     section: § 5.6.6
     snippet: Parameter names are case-insensitive.
@@ -5376,6 +5552,8 @@ sources:
       line: 174
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 212
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 319
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".
@@ -7380,6 +7558,20 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 72
+  - label: server_alt_svc_header_syntax
+    section: § 3.7
+    snippet: All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 378
+    - file: lint-http-rules/src/rules/server_response_405_allow.rs
+      line: 61
+  - label: server_alt_svc_header_syntax (2)
+    section: § 5.3
+    snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
+      line: 410
   - label: server_authentication_challenge_validity
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
@@ -7559,12 +7751,6 @@ sources:
     - file: lint-http-rules/src/rules/server_response_405_allow.rs
       line: 153
   - label: server_response_405_allow (4)
-    section: § 3.7
-    snippet: All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_response_405_allow.rs
-      line: 61
-  - label: server_response_405_allow (5)
     section: § 9.1
     snippet: However, the set of allowed methods can change dynamically.
     cited_by:
