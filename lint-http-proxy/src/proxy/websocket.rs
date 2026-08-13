@@ -1244,6 +1244,39 @@ mod tests {
         assert_eq!(info.payload_length, 2);
     }
 
+    /// The dependency on the capture path, pinned: a reserved opcode never
+    /// reaches `message_to_info`, because the frame reader refuses it in the
+    /// header parser before any of the rest of the header is used. Two ranges,
+    /// and everything the document defines still parses.
+    ///
+    /// `stateful_websocket_frame_opcode_sequence` reports reserved opcodes, and
+    /// this is why its `description()` says those findings arrive through
+    /// `lint` over a capture file some other tool wrote rather than off this
+    /// proxy's own relay. When this test fails, that paragraph is what has gone
+    /// stale.
+    #[test]
+    fn the_frame_reader_refuses_a_reserved_opcode_before_the_capture_path() {
+        use std::io::Cursor;
+        use tokio_tungstenite::tungstenite::protocol::frame::FrameHeader;
+
+        // First byte: FIN set, no reserved bits, opcode in the low nibble.
+        // Second byte: unmasked, payload length 0.
+        for reserved in [0x3u8, 0x4, 0x5, 0x6, 0x7, 0xB, 0xC, 0xD, 0xE, 0xF] {
+            let head = [0x80 | reserved, 0x00];
+            assert!(
+                FrameHeader::parse(&mut Cursor::new(&head)).is_err(),
+                "opcode {reserved:#x} must not reach a capture"
+            );
+        }
+        for defined in [0x0u8, 0x1, 0x2, 0x8, 0x9, 0xA] {
+            let head = [0x80 | defined, 0x00];
+            let parsed = FrameHeader::parse(&mut Cursor::new(&head))
+                .expect("a defined opcode parses")
+                .expect("the two-byte head is complete");
+            assert_eq!(u8::from(parsed.0.opcode), defined);
+        }
+    }
+
     #[tokio::test]
     async fn connect_upstream_for_upgrade_plain_tcp_success() -> anyhow::Result<()> {
         // Start a simple HTTP server that accepts connections
