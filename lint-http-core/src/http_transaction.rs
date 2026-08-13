@@ -54,6 +54,14 @@ pub struct RequestInfo {
 }
 
 /// Response portion of an HTTP transaction (may be absent for failed upstreams).
+///
+/// **One response, and it is the final one.** A request may be answered by
+/// several messages, and this holds the last of them; there is no slot for an
+/// interim response, so a `1xx` recorded here says the interim response was the
+/// answer this exchange ended on. `stateful_103_early_hints_before_final`
+/// reports that for `103`, and the absence of a slot is why no rule can compare
+/// a `103`'s fields against the final response's.
+// cite(RFC 9110 § 15): "A single request can have multiple associated responses: zero or more "interim" (non-final) responses with status codes in the "informational" (1xx) range, followed by exactly one "final" response with a status code in one of the other ranges."
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ResponseInfo {
     pub status: u16,

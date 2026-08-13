@@ -2765,10 +2765,58 @@ sources:
   fragments:
   - label: stateful_103_early_hints_before_final
     section: § 2
-    snippet: The 103 (Early Hints) informational status code indicates to the client that the server is likely to send a final response
+    snippet: A client MUST NOT interpret the 103 (Early Hints) response header fields as if they applied to the informational response itself (e.g., as metadata about the 103 (Early Hints) response).
     cited_by:
     - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
-      line: 31
+      line: 41
+  - label: stateful_103_early_hints_before_final (2)
+    section: § 2
+    snippet: A client SHOULD NOT interpret the nonexistence of a header field in a 103 (Early Hints) response as a speculation that the header field is unlikely to be part of the final response.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+      line: 42
+  - label: stateful_103_early_hints_before_final (3)
+    section: § 2
+    snippet: A server MAY emit multiple 103 (Early Hints) responses with additional header fields as new information becomes available while the request is being processed.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+      line: 47
+  - label: stateful_103_early_hints_before_final (4)
+    section: § 2
+    snippet: A server MAY use a 103 (Early Hints) response to indicate only some of the header fields that are expected to be found in the final response.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+      line: 46
+  - label: stateful_103_early_hints_before_final (5)
+    section: § 2
+    snippet: Aside from performance optimizations, such evaluation of the 103 (Early Hints) response's header fields MUST NOT affect how the final response is processed.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+      line: 40
+  - label: stateful_103_early_hints_before_final (6)
+    section: § 2
+    snippet: However, there might be cases when this is not desirable, such as when the server learns that the header fields in the 103 (Early Hints) response are not correct before the final response is sent.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+      line: 53
+  - label: stateful_103_early_hints_before_final (7)
+    section: § 2
+    snippet: The 103 (Early Hints) informational status code indicates to the client that the server is likely to send a final response with the header fields included in the informational response.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+      line: 87
+  - label: stateful_103_early_hints_before_final (8)
+    section: § 2
+    snippet: Typically, a server will include the header fields sent in a 103 (Early Hints) response in the final response as well.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+      line: 52
+  - label: stateful_103_early_hints_before_final (9)
+    section: § 3
+    snippet: In particular, an HTTP/1.1 client that mishandles an informational response as a final response is likely to consider all responses to the succeeding requests sent over the same connection to be part of the final response.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+      line: 127
 - label: RFC 8441
   url: https://www.rfc-editor.org/rfc/rfc8441.txt
   type: text/plain
@@ -3797,6 +3845,14 @@ sources:
       line: 55
     - file: lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
       line: 36
+  - label: lint-http-core/src/http_transaction.rs
+    section: § 15
+    snippet: 'A single request can have multiple associated responses: zero or more "interim" (non-final) responses with status codes in the "informational" (1xx) range, followed by exactly one "final" response with a status code in one of the other ranges.'
+    cited_by:
+    - file: lint-http-core/src/http_transaction.rs
+      line: 64
+    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+      line: 24
   - label: lint-http-core/src/http_version.rs
     section: § 2.5
     snippet: HTTP's version number consists of two decimal digits separated by a "." (period or decimal point).
@@ -6787,6 +6843,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
       line: 165
+  - label: stateful_103_early_hints_before_final
+    section: § 15.2
+    snippet: Since HTTP/1.0 did not define any 1xx status codes, a server MUST NOT send a 1xx response to an HTTP/1.0 client.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+      line: 105
+  - label: stateful_103_early_hints_before_final (2)
+    section: § 15.2
+    snippet: The 1xx (Informational) class of status code indicates an interim response for communicating connection status or request progress prior to completing the requested action and sending a final response.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+      line: 126
   - label: stateful_authentication_failure_loop
     section: § 15.5.2
     snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.

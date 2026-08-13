@@ -1136,6 +1136,82 @@ mod tests {
         Ok(())
     }
 
+    /// Pin the boundary `stateful_103_early_hints_before_final` publishes: on
+    /// this leg an interim response never reaches a capture. hyper's HTTP/1.x
+    /// client returns no message head for `100 | 102..=199` and reads on for the
+    /// final response, so an origin sending `103` then `200` is recorded as one
+    /// transaction whose response is the `200` — the `Link` field the `103`
+    /// carried is not in the capture at all. That rule's finding is therefore
+    /// reachable only over HTTP/3 (where `h3::client`'s `recv_response` returns
+    /// the first HEADERS frame whatever its status) or through `lint` over a
+    /// capture written elsewhere; if a hyper upgrade ever surfaces informational
+    /// responses here, this test is what says so.
+    #[tokio::test]
+    async fn an_interim_response_is_not_what_the_capture_records() -> anyhow::Result<()> {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+
+        let server_task = tokio::spawn(async move {
+            if let Ok((socket, _)) = listener.accept().await {
+                let mut buf = [0u8; 1024];
+                let _ = socket.readable().await;
+                let _ = socket.try_read(&mut buf);
+
+                // RFC 8297 § 2's own worked exchange, on the wire: the interim
+                // response, then the final one.
+                let _ = socket.writable().await;
+                let _ = socket.try_write(
+                    b"HTTP/1.1 103 Early Hints\r\n\
+                      Link: </style.css>; rel=preload; as=style\r\n\
+                      \r\n\
+                      HTTP/1.1 200 OK\r\n\
+                      Content-Length: 2\r\n\
+                      \r\n\
+                      ok",
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            }
+        });
+
+        let cfg = StdArc::new(crate::config::Config::default());
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None).await?;
+
+        let uri: Uri = format!("http://127.0.0.1:{}/", addr.port()).parse()?;
+        let req = Request::builder()
+            .method("GET")
+            .uri(uri)
+            .body(Full::new(Bytes::new()).boxed())?;
+
+        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
+            "127.0.0.1:12345".parse()?,
+        ));
+        let resp = handle_http_logic(
+            req,
+            shared.clone(),
+            conn_metadata,
+            hyper::http::uri::Scheme::HTTP,
+        )
+        .await?;
+
+        assert_eq!(
+            resp.status().as_u16(),
+            200,
+            "the interim response is not it"
+        );
+
+        let entries = drain_and_read_captures(resp, &cw, &tmp).await?;
+        assert_eq!(entries.len(), 1, "one request, one recorded transaction");
+        assert_eq!(entries[0]["response"]["status"].as_u64(), Some(200));
+        assert!(
+            entries[0]["response"]["headers"].get("link").is_none(),
+            "the interim response's fields are not recorded either"
+        );
+
+        let _ = server_task.await;
+        let _ = fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
     #[tokio::test]
     async fn handle_http_logic_websocket_upgrade_path() -> anyhow::Result<()> {
         // Start a WebSocket echo server

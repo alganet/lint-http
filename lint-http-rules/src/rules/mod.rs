@@ -460,10 +460,10 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
         &stateful_cookie_domain_matching::StatefulCookieDomainMatching,
         QueryType::ByResource,
     ),
-    (
-        &stateful_103_early_hints_before_final::Stateful103EarlyHintsBeforeFinal,
-        QueryType::ByResource,
-    ),
+    // `stateful_103_early_hints_before_final` was here. Its requirement relates
+    // two responses to one request, which a history entry — a different request
+    // — cannot supply, so it reads no history and would have paid for one built
+    // for nothing.
     (
         &stateful_cache_validation_chain::StatefulCacheValidationChain,
         QueryType::ByResource,
