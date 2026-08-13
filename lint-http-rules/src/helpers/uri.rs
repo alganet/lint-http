@@ -96,29 +96,57 @@ fn is_uri_char(c: char) -> bool {
         || c == '%'
 }
 
+/// The characters a value offers as its scheme — everything before the colon
+/// that delimits one — or `None` when the value offers none.
+///
+/// Only a colon in the *first* component can delimit a scheme. A colon is an
+/// ordinary path or query character, so the scan stops at the first "/", "?"
+/// or "#": past those delimiters a colon is data, not a scheme separator.
+///
+/// Whether what it returns *is* a scheme name is [`validate_scheme_name`]'s
+/// question, and the two are separate because a caller often needs the name
+/// itself — which of the two alternatives of a grammar the value took, or
+/// which scheme's rules apply to the authority beside it.
+// cite(RFC 3986 § 3.3): "pchar         = unreserved / pct-encoded / sub-delims / ":" / "@""
+// cite(RFC 3986 § 4.2): "A path segment that contains a colon character (e.g., "this:that") cannot be used as the first segment of a relative-path reference, as it would be mistaken for a scheme name."
+pub fn scheme_prefix(s: &str) -> Option<&str> {
+    let first_component = &s[..s.find(['/', '?', '#']).unwrap_or(s.len())];
+    let colon = first_component.find(':')?;
+    Some(&s[..colon])
+}
+
 /// Validate a potential scheme (the characters before a scheme-delimiting ':').
 /// Returns `Some(msg)` on invalid scheme, `None` if OK or no scheme present.
 pub fn validate_scheme_if_present(s: &str) -> Option<String> {
-    // Only a colon in the *first* component can delimit a scheme. A colon is an
-    // ordinary path or query character, so the scan stops at the first "/", "?"
-    // or "#": past those delimiters a colon is data, not a scheme separator.
-    // cite(RFC 3986 § 3.3): "pchar         = unreserved / pct-encoded / sub-delims / ":" / "@""
-    // cite(RFC 3986 § 4.2): "A path segment that contains a colon character (e.g., "this:that") cannot be used as the first segment of a relative-path reference, as it would be mistaken for a scheme name."
-    let first_component = &s[..s.find(['/', '?', '#']).unwrap_or(s.len())];
-    let colon = first_component.find(':')?;
-
-    let scheme = &s[..colon];
-    // The production itself is [`validate_scheme_name`]'s. This function is the
-    // half that finds a scheme inside a larger value; what a scheme name may be
-    // made of is one question with one answer, and it was written out twice
-    // here before that function existed.
+    // The production itself is [`validate_scheme_name`]'s and finding the
+    // candidate is [`scheme_prefix`]'s. This function is only the pairing of
+    // the two; what a scheme name may be made of is one question with one
+    // answer, and it was written out twice here before that function existed.
     //
     // An empty scheme (a value opening with ':') satisfies neither `scheme`, whose
     // `ALPHA` is not optional, nor `segment-nz-nc`, which excludes ':' and so
     // cannot start a relative-path reference either.
-    validate_scheme_name(scheme)
+    validate_scheme_name(scheme_prefix(s)?)
         .err()
         .map(|e| format!("Invalid scheme in value: {}", e))
+}
+
+/// Split an authority into its `userinfo` subcomponent and the `host [ ":" port ]`
+/// that follows the `@`, with the delimiter itself discarded.
+///
+/// The split is at the **last** `@`, and that is not a tolerance: neither
+/// `userinfo` nor `reg-name` admits an at-sign, so an authority the grammar
+/// generates holds at most one. Taking the last leaves the host half — the one
+/// a caller goes on to measure — as short as the value allows, so a second
+/// at-sign is reported as part of the userinfo rather than as a host character.
+// cite(RFC 3986 § 3.2, label: authority grammar): "authority   = [ userinfo "@" ] host [ ":" port ]"
+// cite(RFC 3986 § 3.2.1): "userinfo    = *( unreserved / pct-encoded / sub-delims / ":" )"
+// cite(RFC 3986 § 3.2.1): "The user information, if present, is followed by a commercial at-sign ("@") that delimits it from the host."
+pub fn split_userinfo(authority: &str) -> (Option<&str>, &str) {
+    match authority.rfind('@') {
+        Some(at) => (Some(&authority[..at]), &authority[at + 1..]),
+        None => (None, authority),
+    }
 }
 
 /// Byte offset of the `://` that separates a scheme from an authority, or
@@ -1083,6 +1111,45 @@ mod tests {
         for inheriting in ["/foo", "foo.html", "../foo", "", "?x=1", "#f", "mailto:a@b"] {
             assert_eq!(reference_authority(inheriting), None, "{inheriting}");
         }
+    }
+
+    #[test]
+    fn scheme_prefix_names_the_candidate_without_judging_it() {
+        assert_eq!(scheme_prefix("https://ex"), Some("https"));
+        assert_eq!(scheme_prefix("about:blank"), Some("about"));
+        // Not a scheme name, but it is what the value offered as one — saying so
+        // is the caller's, which is the whole reason this is separate.
+        assert_eq!(scheme_prefix("1http://ex"), Some("1http"));
+        assert_eq!(scheme_prefix(":foo"), Some(""));
+        // Past a component delimiter a colon is data.
+        assert_eq!(scheme_prefix("/foo:bar"), None);
+        assert_eq!(scheme_prefix("/a?x=b:c"), None);
+        assert_eq!(scheme_prefix("/a#f:g"), None);
+        assert_eq!(scheme_prefix("//host/p"), None);
+        assert_eq!(scheme_prefix(""), None);
+    }
+
+    #[test]
+    fn userinfo_is_split_at_the_last_at_sign() {
+        assert_eq!(split_userinfo("example.com"), (None, "example.com"));
+        assert_eq!(
+            split_userinfo("user@example.com"),
+            (Some("user"), "example.com")
+        );
+        assert_eq!(
+            split_userinfo("user:pass@example.com:8080"),
+            (Some("user:pass"), "example.com:8080")
+        );
+        // No `userinfo` and no `reg-name` holds an at-sign, so a second one
+        // derives from nothing; the host half stays the short one.
+        assert_eq!(
+            split_userinfo("a@b@example.com"),
+            (Some("a@b"), "example.com")
+        );
+        // The delimiter with nothing before it is a present-but-empty userinfo,
+        // which `*( ... )` generates.
+        assert_eq!(split_userinfo("@example.com"), (Some(""), "example.com"));
+        assert_eq!(split_userinfo(""), (None, ""));
     }
 
     #[test]
