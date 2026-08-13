@@ -3933,6 +3933,8 @@ sources:
       line: 22
     - file: lint-http-rules/src/helpers/headers.rs
       line: 823
+    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
+      line: 60
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
       line: 16
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (8)
@@ -5139,8 +5141,6 @@ sources:
       line: 22
     - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
       line: 133
-    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
-      line: 27
     - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
       line: 197
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
@@ -5153,6 +5153,40 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
       line: 55
+  - label: message_connection_upgrade
+    section: § 7.6.1
+    snippet: In contrast, a connection-specific field received without a corresponding connection option usually indicates that the field has been improperly forwarded by an intermediary and ought to be ignored by the recipient.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
+      line: 93
+  - label: message_connection_upgrade (2)
+    section: § 7.6.1
+    snippet: Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
+      line: 59
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 158
+  - label: message_connection_upgrade (3)
+    section: § 7.6.1
+    snippet: When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
+      line: 41
+    - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
+      line: 239
+  - label: message_connection_upgrade (4)
+    section: § 7.8
+    snippet: A sender of Upgrade MUST also send an "Upgrade" connection option in the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
+      line: 42
+  - label: Upgrade grammar, sender-expanded
+    section: § A
+    snippet: Upgrade = [ protocol *( OWS "," OWS protocol ) ]
+    cited_by:
+    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
+      line: 43
   - label: message_content_disposition_token_valid
     section: § 5.5
     snippet: Field values are usually constrained to the range of US-ASCII characters [USASCII].
@@ -5858,24 +5892,18 @@ sources:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 235
   - label: message_te_header_constraints (5)
-    section: § 7.6.1
-    snippet: Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 158
-  - label: message_te_header_constraints (6)
     section: § A
     snippet: TE = [ t-codings *( OWS "," OWS t-codings ) ]
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 47
-  - label: message_te_header_constraints (7)
+  - label: message_te_header_constraints (6)
     section: § A
     snippet: t-codings = "trailers" / ( transfer-coding [ weight ] )
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 104
-  - label: message_te_header_constraints (8)
+  - label: message_te_header_constraints (7)
     section: § A
     snippet: transfer-coding = token *( OWS ";" OWS transfer-parameter )
     cited_by:
@@ -5883,7 +5911,7 @@ sources:
       line: 86
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 127
-  - label: message_te_header_constraints (9)
+  - label: message_te_header_constraints (8)
     section: § A
     snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
     cited_by:
@@ -5929,12 +5957,6 @@ sources:
       line: 260
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
       line: 98
-  - label: message_trailer_fields_validity (5)
-    section: § 7.6.1
-    snippet: When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
-      line: 239
   - label: message_trailer_headers_valid
     section: § 6.5.2
     snippet: The "Trailer" header field (Section 6.6.2) can be sent to indicate fields likely to be sent in the trailer section, which allows recipients to prepare for their receipt before processing the content.
@@ -7963,6 +7985,22 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 73
+  - label: message_connection_upgrade
+    section: § 8.2.2
+    snippet: An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
+      line: 61
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 159
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 184
+  - label: message_connection_upgrade (2)
+    section: § 8.2.2
+    snippet: This includes the Connection header field and those listed as having connection-specific semantics in Section 7.6.1 of [HTTP] (that is, Proxy-Connection, Keep-Alive, Transfer-Encoding, and Upgrade).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
+      line: 62
   - label: message_header_field_names_token
     section: § 8.2.1
     snippet: HTTP/2 implementations SHOULD validate field names and values according to their definitions in Sections 5.1 and 5.5 of [HTTP], respectively, and treat messages that contain prohibited characters as malformed
@@ -8085,14 +8123,6 @@ sources:
       line: 181
   - label: message_te_header_constraints
     section: § 8.2.2
-    snippet: An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 159
-    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
-      line: 184
-  - label: message_te_header_constraints (2)
-    section: § 8.2.2
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
@@ -8189,6 +8219,16 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 79
+  - label: message_connection_upgrade
+    section: § 4.2
+    snippet: An endpoint MUST NOT generate an HTTP/3 field section containing connection-specific fields; any message containing connection-specific fields MUST be treated as malformed.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
+      line: 63
+    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
+      line: 178
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 161
   - label: message_extension_headers_registered
     section: § 4.2
     snippet: A request or response containing uppercase characters in field names MUST be treated as malformed
@@ -8229,25 +8269,17 @@ sources:
       line: 309
   - label: message_http3_no_connection_header
     section: § 4.2
-    snippet: An endpoint MUST NOT generate an HTTP/3 field section containing connection-specific fields; any message containing connection-specific fields MUST be treated as malformed.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 178
-    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 161
-  - label: message_http3_no_connection_header (2)
-    section: § 4.2
     snippet: An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/3 endpoints as malformed.
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
       line: 78
-  - label: message_http3_no_connection_header (3)
+  - label: message_http3_no_connection_header (2)
     section: § 4.2
     snippet: HTTP/3 does not use the Connection header field to indicate connection-specific fields; in this protocol, connection-specific metadata is conveyed by other means.
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
       line: 48
-  - label: message_http3_no_connection_header (4)
+  - label: message_http3_no_connection_header (3)
     section: § 4.2
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers".
     cited_by:

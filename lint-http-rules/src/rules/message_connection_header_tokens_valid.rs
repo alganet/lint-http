@@ -157,7 +157,7 @@ impl Rule for MessageConnectionHeaderTokensValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validates the `Connection` header field's own value — the list of control options a sender declares for the current connection.\n\nThe field is `Connection = [ connection-option *( OWS \",\" OWS connection-option ) ]` (RFC 9110 §A), and a `connection-option` is a `token` (§7.6.1). So every member must be `1*tchar`: `Connection: a/b` names no option, because `/` is one of the delimiters a token excludes (§5.6.2). No member may be empty — `Connection: keep-alive,,close` is a list a sender MUST NOT generate (§5.6.1.1) — while an **empty value** is a different thing and is not reported: the production's outer brackets make a list of no options a list, so `Connection:` declares nothing rather than declaring badly.\n\nWhere the field appears on several lines in one section, the lines are one value (§5.2), so an empty member written at a line boundary is an empty member. A value carrying an octet outside US-ASCII is measured rather than skipped; `obs-text` is an octet `field-content` admits and `token` does not, so the member is reported for not being a token, which is what is wrong with it.\n\nOne name is reported as a name. RFC 9110 §7.6.1 says a sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content, and gives `Cache-Control` as a field that is never appropriate as one. **That example is the whole of what this rule decides about that sentence.** Whether some other field is intended for all recipients of the content is a property of that field's definition, not of anything the message carries, so a rule reading a `Connection` value cannot answer it in general — and a name's absence from this rule's findings is therefore not a verdict that listing it is permitted. Connection options are case-insensitive, and the comparison is too.\n\nAn option is not required to name a field that is present: §7.6.1 says a connection-specific field might not be needed when no parameter is associated with an option, and `close` names no field at all. The converse — a connection-specific field arriving without an option naming it — is not asked here either.\n\nScope: this rule reads header sections — a request's and a response's — and measures the value whatever protocol version carried it. Some versions of HTTP do not allow the field at all (§7.6.1); `message_http3_no_connection_header` is the rule that reports its presence over HTTP/3. Whether `Connection` may appear in a *trailer* section is §6.5.1's question and `message_trailer_fields_validity`'s. Whether an `upgrade` option is backed by an `Upgrade` field is `message_connection_upgrade`'s."
+        "Validates the `Connection` header field's own value — the list of control options a sender declares for the current connection.\n\nThe field is `Connection = [ connection-option *( OWS \",\" OWS connection-option ) ]` (RFC 9110 §A), and a `connection-option` is a `token` (§7.6.1). So every member must be `1*tchar`: `Connection: a/b` names no option, because `/` is one of the delimiters a token excludes (§5.6.2). No member may be empty — `Connection: keep-alive,,close` is a list a sender MUST NOT generate (§5.6.1.1) — while an **empty value** is a different thing and is not reported: the production's outer brackets make a list of no options a list, so `Connection:` declares nothing rather than declaring badly.\n\nWhere the field appears on several lines in one section, the lines are one value (§5.2), so an empty member written at a line boundary is an empty member. A value carrying an octet outside US-ASCII is measured rather than skipped; `obs-text` is an octet `field-content` admits and `token` does not, so the member is reported for not being a token, which is what is wrong with it.\n\nOne name is reported as a name. RFC 9110 §7.6.1 says a sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content, and gives `Cache-Control` as a field that is never appropriate as one. **That example is the whole of what this rule decides about that sentence.** Whether some other field is intended for all recipients of the content is a property of that field's definition, not of anything the message carries, so a rule reading a `Connection` value cannot answer it in general — and a name's absence from this rule's findings is therefore not a verdict that listing it is permitted. Connection options are case-insensitive, and the comparison is too.\n\nAn option is not required to name a field that is present: §7.6.1 says a connection-specific field might not be needed when no parameter is associated with an option, and `close` names no field at all. The converse — a connection-specific field arriving without an option naming it — is the direction §7.6.1 does state a requirement in, and it is not asked here: it is asked of `Upgrade` by `message_connection_upgrade` and of `TE` by `message_te_header_constraints`, each with the sentence its own field's section writes. Those are the two of §7.6.1's five connection-specific fields that have such a sentence and a rule to carry it; `Transfer-Encoding`, `Keep-Alive` and `Proxy-Connection` are asked by nothing in this catalogue.\n\nScope: this rule reads header sections — a request's and a response's — and measures the value whatever protocol version carried it. Some versions of HTTP do not allow the field at all (§7.6.1); `message_http3_no_connection_header` is the rule that reports its presence over HTTP/3. Whether `Connection` may appear in a *trailer* section is §6.5.1's question and `message_trailer_fields_validity`'s. Whether an `Upgrade` field is backed by an `upgrade` option is `message_connection_upgrade`'s."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -428,10 +428,12 @@ mod tests {
     }
 
     /// Every published snippet is run through the rule, and every Compliant one is
-    /// also run through the neighbour that owns what an option *implies*:
-    /// `message_connection_upgrade` asks for the `Upgrade` field whenever an option
-    /// names it, and this rule — which reads syntax only — cannot see that in its own
-    /// file. The `upgrade` example is here so that guard has something to measure.
+    /// also run through the neighbour that owns the pairing of the two fields:
+    /// `message_connection_upgrade` asks for the `upgrade` option whenever the
+    /// `Upgrade` field is there, and this rule — which reads syntax only — cannot see
+    /// that in its own file. The example carrying both is here so that guard has
+    /// something to measure; it runs in the direction the sentence is written, so what
+    /// it would catch is a published snippet that names the field and drops the option.
     #[test]
     fn published_examples_are_judged_by_this_rule_and_by_the_one_that_owns_the_upgrade_option() {
         use crate::rules::{Compliance, Rule as _};
@@ -441,7 +443,7 @@ mod tests {
             "message_connection_upgrade",
             "warn",
         );
-        let mut saw_an_upgrade_option = false;
+        let mut saw_an_upgrade_field = false;
 
         for ex in rule.examples() {
             let mut pairs: Vec<(&str, &str)> = Vec::new();
@@ -481,12 +483,8 @@ mod tests {
             if !matches!(ex.compliance, Compliance::Compliant) {
                 continue;
             }
-            if pairs.iter().any(|(k, val)| {
-                k.eq_ignore_ascii_case("connection")
-                    && crate::helpers::headers::parse_list_header(val)
-                        .any(|opt| opt.eq_ignore_ascii_case("upgrade"))
-            }) {
-                saw_an_upgrade_option = true;
+            if pairs.iter().any(|(k, _)| k.eq_ignore_ascii_case("upgrade")) {
+                saw_an_upgrade_field = true;
             }
             let v = neighbour.check_transaction(
                 &tx,
@@ -501,8 +499,9 @@ mod tests {
         }
 
         assert!(
-            saw_an_upgrade_option,
-            "no Compliant example names `upgrade`, so the neighbour's guard measured nothing"
+            saw_an_upgrade_field,
+            "no Compliant example carries an `Upgrade` field, so the neighbour's guard measured \
+             nothing"
         );
     }
 
