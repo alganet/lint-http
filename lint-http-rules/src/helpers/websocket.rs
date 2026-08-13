@@ -10,10 +10,70 @@
 //! decodes to say what is wrong with the value, the other decodes to find out
 //! whether there is anything to hash at all — so the reading is written once and
 //! the two callers differ only in what they do with the verdict.
+//!
+//! The third thing is the question those two rules ask *before* either half: which
+//! captured messages are an opening handshake at all. One rule measures the
+//! request and one measures the response, and a message that is a handshake to one
+//! of them and not to the other would be a gap no test could see from inside
+//! either.
 
-use crate::helpers::headers::{describe_octet, trim_ows};
+use crate::helpers::headers::{
+    combined_field_value_as_written, describe_octet, list_members, trim_ows,
+};
 use base64::Engine;
 use sha1::Digest;
+
+/// Whether this request is RFC 6455's opening handshake, and the version it
+/// arrived under.
+///
+/// Three questions, and the third is the one a reader does not expect.
+///
+/// The method and the `Upgrade` keyword are the two halves of what makes a GET
+/// this document's handshake rather than any other GET; the first half of the
+/// sentence stating the method is used here to scope rather than to report, since
+/// saying "this should have been a GET" of every POST in a capture would be saying
+/// it of traffic that never claimed to be a handshake. Its second half — the
+/// version floor — is a finding, and belongs to the rule measuring the request.
+///
+/// The third question is the messaging syntax. Above major version 1 this
+/// handshake does not exist: the opening request is an extended CONNECT carrying
+/// `:protocol`, the `Connection` and `Upgrade` fields are ones those versions
+/// forbid outright, and `Sec-WebSocket-Key` and `Sec-WebSocket-Accept` are not
+/// processed at all — so neither the request's fields nor the response's are there
+/// to measure, and demanding them would be telling an operator to add fields the
+/// message may not carry. RFC 8441 updates RFC 6455 to say so for HTTP/2 and
+/// RFC 9220 gives HTTP/3 the same answer; those two are the whole of what exists
+/// above 1, and a major digit beyond them names no wire format.
+///
+/// A value deriving from no `HTTP-version` names no version, so there is nothing
+/// here to compare against and no handshake to claim; `message_http_version_syntax_valid`
+/// is the rule that reports the value itself.
+// cite(RFC 6455 § 4.1): "The method of the request MUST be GET, and the HTTP version MUST be at least 1.1."
+// cite(RFC 6455 § 4.1): "The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword."
+// cite(RFC 6455 § 4.2.1): "An |Upgrade| header field containing the value "websocket", treated as an ASCII case-insensitive value."
+// cite(RFC 8441 § 5): "This request replaces the GET-based request in [RFC6455] and is used to process the WebSockets opening handshake."
+// cite(RFC 8441 § 5): "[RFC6455] requires the use of Connection and Upgrade header fields that are not part of HTTP/2.  They MUST NOT be included in the CONNECT request defined here."
+// cite(RFC 8441 § 5): "Implementations using this extended CONNECT to bootstrap WebSockets do not do the processing of the Sec-WebSocket-Key and Sec-WebSocket-Accept header fields of [RFC6455] as that functionality has been superseded by the :protocol pseudo-header field."
+// cite(RFC 9220 § 3): "The semantics of the pseudo-header fields and setting are identical to those in HTTP/2 as defined in [RFC8441]."
+pub fn opening_handshake_version(
+    req: &crate::http_transaction::RequestInfo,
+) -> Option<crate::http_version::HttpVersion> {
+    if req.method != "GET" {
+        return None;
+    }
+    // The keyword is matched without case because the section describing how a
+    // server reads this field says to; the lines are joined first because `Upgrade`
+    // is one list however many of them carry it.
+    let upgrade = combined_field_value_as_written(&req.headers, "upgrade")?;
+    if !list_members(&upgrade).any(|m| m.eq_ignore_ascii_case("websocket")) {
+        return None;
+    }
+    let version = crate::http_version::parse(&req.version).ok()?;
+    if version.major >= 2 {
+        return None;
+    }
+    Some(version)
+}
 
 /// Which of `Sec-WebSocket-Key`'s two requirements a value failed.
 ///
@@ -28,9 +88,26 @@ pub enum SecWebSocketKeyDefect {
     Alphabet(u8),
     /// Every octet is one the alphabet holds, but the sequence is not one the
     /// encoding generates: a symbol count no quantum accounts for, a pad character
-    /// somewhere other than the end, absent padding, or a last symbol carrying
-    /// bits a conforming encoder sets to zero.
+    /// somewhere other than the end, or absent padding.
     Shape,
+    /// A base64 spelling of sixteen octets whose last symbol carries bits a
+    /// conforming encoder sets to zero.
+    ///
+    /// Its own variant, and the reason is that this is the only defect here that
+    /// two documents answer differently. The alphabet and the shape are things
+    /// `base64-value-non-empty` does not derive and the length is a count RFC 6455
+    /// states in words; a value in this variant derives from that production, and
+    /// is sixteen octets, and is rejected only because RFC 4648 says what a
+    /// conforming *encoder* writes. That document leaves the decoder a choice in
+    /// the same breath — *"MAY chose to reject an encoding if the pad bits have
+    /// not been set to zero."* — and RFC 6455 exercises it in neither direction,
+    /// while printing such a value in its own NOTE.
+    ///
+    /// So the value is reported to whoever wrote it, and no requirement addressed
+    /// to a *recipient* of it can be read off this verdict. The rule measuring the
+    /// server's answer is where that distinction is paid.
+    // cite(RFC 4648 § 3.5): "MAY chose to reject an encoding if the pad bits have not been set to zero."
+    PadBits,
     /// A well-formed encoding of some number of octets other than sixteen.
     Length(usize),
 }
@@ -45,8 +122,13 @@ impl std::fmt::Display for SecWebSocketKeyDefect {
             ),
             Self::Shape => f.write_str(
                 "its characters are all base64 characters, but the sequence is not one \
-                 base64 encoding produces: the symbol count, the placement of the padding, \
-                 or the bits carried by the last symbol",
+                 base64 encoding produces: the symbol count, or the placement of the \
+                 padding",
+            ),
+            Self::PadBits => f.write_str(
+                "it is a base64 spelling of sixteen octets whose last symbol carries bits a \
+                 conforming encoder sets to zero, so the same nonce has a canonical spelling \
+                 this is not",
             ),
             Self::Length(n) => write!(
                 f,
@@ -88,8 +170,35 @@ pub fn sec_websocket_key_defect(value: &str) -> Option<SecWebSocketKeyDefect> {
         // in the grammar, as `base64-padding`.
         Err(base64::DecodeError::InvalidByte(_, b'=')) => Some(SecWebSocketKeyDefect::Shape),
         Err(base64::DecodeError::InvalidByte(_, b)) => Some(SecWebSocketKeyDefect::Alphabet(b)),
+        // The one refusal the strict engine makes that no production of RFC 6455's
+        // asks for. The symbols are all in the alphabet and the padding is where it
+        // belongs; what the decoder objects to is the four or two bits a final
+        // quantum discards being something other than zero. The value still spells
+        // some number of octets, and *which* number is the more useful thing to
+        // report -- so it is decoded again by an engine told to allow exactly this,
+        // and the length answers first when it is not sixteen.
+        Err(base64::DecodeError::InvalidLastSymbol { .. }) => {
+            match lenient_engine().decode(value) {
+                Ok(bytes) if bytes.len() == 16 => Some(SecWebSocketKeyDefect::PadBits),
+                Ok(bytes) => Some(SecWebSocketKeyDefect::Length(bytes.len())),
+                Err(_) => Some(SecWebSocketKeyDefect::Shape),
+            }
+        }
         Err(_) => Some(SecWebSocketKeyDefect::Shape),
     }
+}
+
+/// The standard alphabet and padding, with the one check relaxed that RFC 4648
+/// leaves to the decoder rather than to the encoder.
+///
+/// Used to answer "how many octets is this" about a value the strict engine has
+/// already refused, never to decide whether a value is acceptable.
+fn lenient_engine() -> base64::engine::GeneralPurpose {
+    base64::engine::GeneralPurpose::new(
+        &base64::alphabet::STANDARD,
+        base64::engine::general_purpose::GeneralPurposeConfig::new()
+            .with_decode_allow_trailing_bits(true),
+    )
 }
 
 /// The GUID a server concatenates to the client's key. This constant *is* the
@@ -107,21 +216,33 @@ const WS_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 /// Compute the `Sec-WebSocket-Accept` value from the client's request key.
 ///
-/// Returns `None` for any key [`sec_websocket_key_defect`] objects to: there is no
-/// accept value to expect from a server handed a key the client should not have
-/// sent, and the rule reading the request is where that gets *reported*.
+/// Returns `None` when the value is not a base64 spelling of sixteen octets: there
+/// is no accept value to expect from a server handed something that is not the
+/// nonce at all, and the rule reading the request is where that gets *reported*.
+///
+/// A [`SecWebSocketKeyDefect::PadBits`] value is **not** one of those. It spells
+/// the sixteen octets, the server is told it need not decode the field to answer
+/// it, and what gets hashed is the string as written — so the answer a server owes
+/// such a key is as well defined as any other, and refusing to compute it here
+/// would quietly excuse the server from being checked.
 ///
 /// Otherwise the result is the base64 encoding of the SHA-1 hash of the key **as a
 /// string** concatenated with the well-known GUID — not of the bytes it decodes to.
 ///
 /// The whitespace stripped either side is the whitespace this step is told to
 /// ignore — its own sentence, which happens to agree with the field-value one.
+// cite(RFC 6455 § 4.2.2): "It is not necessary for the server to base64-decode the |Sec-WebSocket-Key| value."
 // cite(RFC 6455 § 4.1): "but ignoring any leading and trailing whitespace"
 pub fn compute_accept(key: &str) -> Option<String> {
     let key_trim = trim_ows(key);
     // There is nothing to derive from a value that is not the nonce, and which of
-    // the three ways it failed is the reading rule's to report.
-    if sec_websocket_key_defect(key_trim).is_some() {
+    // the ways it failed is the reading rule's to report. A non-canonical last
+    // symbol is not one of those ways: it is the sixteen octets, spelled a way
+    // RFC 4648 leaves a decoder free to accept.
+    if !matches!(
+        sec_websocket_key_defect(key_trim),
+        None | Some(SecWebSocketKeyDefect::PadBits)
+    ) {
         return None;
     }
     let mut hasher = sha1::Sha1::new();
@@ -182,15 +303,42 @@ mod tests {
     /// spelling ends `EA==`, and both decode to the sixteen octets the NOTE names.
     ///
     /// Recorded as a test rather than worked around. A decoder that accepted this
-    /// would be one that could not tell a truncated key from a whole one, and the
-    /// sentence saying so is RFC 4648's rather than something chosen here.
+    /// silently would be one that could not tell a truncated key from a whole one,
+    /// and the sentence saying so is RFC 4648's rather than something chosen here.
+    ///
+    /// It is its own verdict rather than a `Shape`, and that is what keeps the
+    /// finding where it belongs. The value derives from `base64-value-non-empty`
+    /// and decodes to the sixteen octets the NOTE names, so a rule enforcing a
+    /// requirement addressed to a *recipient* of the value has nothing here — only
+    /// the party that wrote it does. `stateful_websocket_handshake_validity` is
+    /// where that distinction is paid, and the accept value stays derivable so the
+    /// server is still measured on its answer.
     #[test]
     fn the_notes_own_example_key_is_not_canonical_base64() {
         assert_eq!(
             sec_websocket_key_defect("AQIDBAUGBwgJCgsMDQ4PEC=="),
-            Some(SecWebSocketKeyDefect::Shape)
+            Some(SecWebSocketKeyDefect::PadBits)
         );
         assert_eq!(sec_websocket_key_defect("AQIDBAUGBwgJCgsMDQ4PEA=="), None);
+        // Both spellings name the same sixteen octets, so both have the same answer
+        // and it is the one a server derives from the string it was sent.
+        assert_ne!(
+            compute_accept("AQIDBAUGBwgJCgsMDQ4PEC=="),
+            compute_accept("AQIDBAUGBwgJCgsMDQ4PEA==")
+        );
+        assert!(compute_accept("AQIDBAUGBwgJCgsMDQ4PEC==").is_some());
+    }
+
+    /// A non-canonical last symbol on a value that is *not* sixteen octets reports
+    /// the length, because that is the more useful of the two things wrong with it
+    /// and the only one RFC 6455 states itself.
+    #[test]
+    fn a_short_key_with_non_canonical_padding_reports_its_length() {
+        assert_eq!(
+            sec_websocket_key_defect("YR=="),
+            Some(SecWebSocketKeyDefect::Length(1))
+        );
+        assert_eq!(compute_accept("YR=="), None);
     }
 
     /// The three mistakes are three verdicts, and an octet outside the alphabet
