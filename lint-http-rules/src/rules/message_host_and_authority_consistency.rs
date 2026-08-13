@@ -53,12 +53,9 @@ impl MessageHostAndAuthorityConsistency {
     /// cite(RFC 9110 § 4.2.2): "If the port subcomponent is empty or not given, TCP port 443 (the reserved port for HTTP over TLS) is the default."
     /// cite(RFC 3986 § 6.2.3): "Normalization should not remove delimiters when their associated component is empty unless licensed to do so by the scheme specification."
     fn normalized(value: &str, scheme: Option<&str>) -> String {
-        // The userinfo ends at the last `@`; a `@` inside it is
-        // `pct-encoded`'s or `sub-delims`' and not the delimiter.
-        let (userinfo, host_and_port) = match value.rfind('@') {
-            Some(at) => (&value[..=at], &value[at + 1..]),
-            None => ("", value),
-        };
+        // Where the userinfo ends is `authority`'s question and not this rule's;
+        // the shared reader owns it, and this was the copy that hand-wrote it.
+        let (userinfo, host_and_port) = crate::helpers::uri::split_userinfo(value);
         let (host, port) = crate::helpers::uri::split_host_and_port(host_and_port);
 
         // Only the two schemes RFC 9110 gives a default port to, matched without
@@ -73,7 +70,10 @@ impl MessageHostAndAuthorityConsistency {
         };
 
         let mut out = String::with_capacity(value.len());
-        out.push_str(userinfo);
+        if let Some(userinfo) = userinfo {
+            out.push_str(userinfo);
+            out.push('@');
+        }
         out.push_str(&Self::decoded_unreserved(host).to_ascii_lowercase());
 
         if let Some(port) = port {
