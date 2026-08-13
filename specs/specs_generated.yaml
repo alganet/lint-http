@@ -17,17 +17,17 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1675
+      line: 1695
   - label: lint-http-rules/src/helpers/headers.rs (2)
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1670
+      line: 1690
   - label: lint-http-rules/src/helpers/headers.rs (3)
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1669
+      line: 1689
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -1902,7 +1902,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1671
+      line: 1691
     - file: lint-http-rules/src/helpers/uri.rs
       line: 222
   - label: lint-http-rules/src/helpers/uri.rs
@@ -3153,25 +3153,25 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1359
+      line: 1379
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1300
+      line: 1320
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1338
+      line: 1358
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1331
+      line: 1351
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
@@ -4909,7 +4909,7 @@ sources:
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1268
+      line: 1288
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 171
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
@@ -4969,7 +4969,7 @@ sources:
     snippet: A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1424
+      line: 1444
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 151
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
@@ -5051,7 +5051,7 @@ sources:
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1193
+      line: 1213
   - label: lint-http-rules/src/helpers/headers.rs (12)
     section: § 5.6.3
     snippet: The OWS rule is used where zero or more linear whitespace octets might appear.
@@ -5063,13 +5063,13 @@ sources:
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1104
+      line: 1132
   - label: lint-http-rules/src/helpers/headers.rs (14)
     section: § 5.6.4
     snippet: qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1035
+      line: 1061
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 33
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
@@ -5083,7 +5083,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1002
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1052
+      line: 1075
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 422
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
@@ -5095,9 +5095,11 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1001
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1034
+      line: 1055
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1192
+      line: 1060
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1212
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 315
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
@@ -5111,7 +5113,7 @@ sources:
     snippet: Parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1624
+      line: 1644
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 156
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
@@ -5123,7 +5125,7 @@ sources:
     snippet: parameter       = parameter-name "=" parameter-value
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1542
+      line: 1562
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 385
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
@@ -5135,7 +5137,7 @@ sources:
     snippet: parameter-name  = token
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1556
+      line: 1576
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 386
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
@@ -5145,7 +5147,7 @@ sources:
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1585
+      line: 1605
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 387
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
@@ -5161,11 +5163,11 @@ sources:
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1423
+      line: 1443
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1534
+      line: 1554
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1614
+      line: 1634
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 384
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
@@ -5219,7 +5221,7 @@ sources:
     snippet: The type and subtype tokens are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1503
+      line: 1523
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
       line: 44
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
@@ -5245,7 +5247,7 @@ sources:
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1522
+      line: 1542
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
       line: 88
   - label: media-type grammar
@@ -5253,7 +5255,7 @@ sources:
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1439
+      line: 1459
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 107
   - label: lint-http-rules/src/helpers/headers.rs (27)
@@ -5261,7 +5263,7 @@ sources:
     snippet: type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1502
+      line: 1522
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
@@ -5279,7 +5281,7 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1378
+      line: 1398
   - label: lint-http-rules/src/helpers/headers.rs (29)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".

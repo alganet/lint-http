@@ -1031,38 +1031,60 @@ pub fn quoted_string_end(s: &str) -> Option<usize> {
 /// both -- HTTP is not Structured Fields, and the same-looking helper in
 /// `structured_fields.rs` is right to reject exactly what this one accepts.
 ///
+/// The two DQUOTEs of the production are stripped by [`quoted_string_interior`],
+/// which both this function and [`unescape_quoted_string`] ask, so what counts
+/// as "properly quoted" is decided once.
+///
+/// The walk is over `chars` and not over `as_bytes`, and the difference is the
+/// whole of `obs-text`. A caller reading a value through
+/// [`combined_field_value_as_written`] holds one `char` per octet, so %xE9 in it
+/// is `U+00E9` -- which `as_bytes` re-encodes as the *two* octets %xC3 %xA9, a
+/// pair the sender did not write. `to_str` callers cannot tell the two walks
+/// apart, because that reader admits no octet at or above %x80 in the first
+/// place.
+///
+/// The `*( qdtext / quoted-pair )` between a `quoted-string`'s two DQUOTEs,
+/// with nothing inside it examined.
+///
+/// A lone DQUOTE strips its prefix and then has no suffix left to strip, so the
+/// one-character string is `None` rather than an empty interior — which is the
+/// distinction the production draws, `DQUOTE DQUOTE` being the shortest value it
+/// generates. [`validate_quoted_string`] and [`unescape_quoted_string`] both ask
+/// this rather than each slicing the ends off, because "is this quoted at all"
+/// has to be one answer for the pair of them.
+// cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
+pub fn quoted_string_interior(val: &str) -> Option<&str> {
+    val.strip_prefix('"')?.strip_suffix('"')
+}
+
 // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
 // cite(RFC 9110 § 5.6.4): "qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text"
 pub fn validate_quoted_string(val: &str) -> Result<(), String> {
-    let bytes = val.as_bytes();
-    if bytes.len() < 2 || bytes[0] != b'"' || bytes[bytes.len() - 1] != b'"' {
+    let Some(inner) = quoted_string_interior(val) else {
         return Err(format!("Quoted-string not properly quoted: '{}'", val));
-    }
+    };
 
     // Walk the interior checking for unescaped control chars and ensuring proper escaping
-    let mut i = 1usize;
     let mut prev_backslash = false;
-    while i + 1 < bytes.len() {
-        let b = bytes[i];
+    for c in inner.chars() {
         if prev_backslash {
             // A backslash does not make anything quotable. The escaped octet has its
             // own set, and it is not the same as qdtext's: SP and VCHAR and HTAB and
             // obs-text may follow a backslash, the remaining controls may not.
             //
             // cite(RFC 9110 § 5.6.4): "quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )"
-            if !(b == b'\t' || (0x20..=0x7e).contains(&b) || b >= 0x80) {
+            if !(c == '\t' || ('\u{20}'..='\u{7e}').contains(&c) || c >= '\u{80}') {
                 return Err(format!("Invalid quoted-pair in quoted-string: '{}'", val));
             }
             prev_backslash = false;
-        } else if b == b'\\' {
+        } else if c == '\\' {
             prev_backslash = true;
-        } else if b == b'"' {
+        } else if c == '"' {
             // unescaped quote before the terminating one -> invalid
             return Err(format!("Unescaped quote in quoted-string: '{}'", val));
-        } else if (b < 0x20 && b != b'\t') || b == 0x7f {
+        } else if (c < '\u{20}' && c != '\t') || c == '\u{7f}' {
             return Err(format!("Control character in quoted-string: '{}'", val));
         }
-        i += 1;
     }
 
     if prev_backslash {
@@ -1101,31 +1123,29 @@ pub fn quoted_string_inner_trimmed_is_empty(val: &str) -> Result<bool, String> {
 /// no escape table in this function and should never be one. `\n` in a
 /// quoted-string is the letter n.
 ///
+/// The walk is [`validate_quoted_string`]'s, and over `chars` for the same
+/// reason: `as_bytes` re-encoded a value already holding one `char` per octet,
+/// so an `obs-text` octet inside a `quoted-string` -- which `qdtext` admits --
+/// came back out as the two octets of its UTF-8 form and every finding naming
+/// it named a pair nobody wrote.
+///
 // cite(RFC 9110 § 5.6.4): "Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash."
 pub fn unescape_quoted_string(val: &str) -> Result<String, String> {
     validate_quoted_string(val)?;
-    let bytes = val.as_bytes();
-    let mut out = String::with_capacity(bytes.len());
-    let mut i = 1usize; // skip leading DQUOTE
+    let inner = quoted_string_interior(val).expect("validation accepted the quoting");
+    let mut out = String::with_capacity(inner.len());
     let mut prev_backslash = false;
-    while i + 1 < bytes.len() {
-        let b = bytes[i];
-        if prev_backslash {
-            out.push(b as char);
-            prev_backslash = false;
-        } else if b == b'\\' {
+    for c in inner.chars() {
+        // One statement, because the sentence cited above is one: a backslash
+        // that is not itself escaped is consumed, and everything else -- escaped
+        // or not -- is the octet it is. A trailing backslash cannot reach the end
+        // of this loop, because the validation above rejects that value.
+        if !prev_backslash && c == '\\' {
             prev_backslash = true;
         } else {
-            out.push(b as char);
+            out.push(c);
+            prev_backslash = false;
         }
-        i += 1;
-    }
-
-    if prev_backslash {
-        return Err(format!(
-            "Quoted-string ends with escape character: '{}'",
-            val
-        ));
     }
 
     Ok(out)
@@ -2052,6 +2072,32 @@ mod tests {
         assert_eq!(unescape_quoted_string("\"a\"").unwrap(), "a");
         assert_eq!(unescape_quoted_string("\"a\\\"b\"").unwrap(), "a\"b");
         assert_eq!(unescape_quoted_string("\"a\\\\b\"").unwrap(), "a\\b");
+    }
+
+    /// `qdtext` admits `obs-text`, so an octet at or above %x80 inside a
+    /// `quoted-string` is conforming and has to come back out as itself. Both
+    /// functions used to walk `as_bytes`, which re-encoded the one `char` per
+    /// octet a caller reading through `combined_field_value_as_written` holds:
+    /// %xE9 went in and %xC3 %xA9 came out, so a finding naming the octet named
+    /// a pair the sender never wrote.
+    #[test]
+    fn an_obs_text_octet_survives_the_round_trip_as_one_octet() {
+        let as_written: String = [b'"', 0xE9, b'x', b'"']
+            .iter()
+            .map(|&b| b as char)
+            .collect();
+        assert!(validate_quoted_string(&as_written).is_ok());
+        let inner = unescape_quoted_string(&as_written).expect("qdtext admits obs-text");
+        assert_eq!(inner.chars().count(), 2);
+        assert_eq!(inner.chars().next().map(|c| c as u32), Some(0xE9));
+
+        // The same octet after a backslash: `quoted-pair` admits it too.
+        let escaped: String = [b'"', b'\\', 0xE9, b'"']
+            .iter()
+            .map(|&b| b as char)
+            .collect();
+        let inner = unescape_quoted_string(&escaped).expect("quoted-pair admits obs-text");
+        assert_eq!(inner.chars().map(|c| c as u32).collect::<Vec<_>>(), [0xE9]);
     }
 
     #[test]
