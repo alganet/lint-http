@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, describe_octet, is_nominated_by_connection, list_members,
-    shown_in_finding, trim_ows,
+    combined_field_value_as_written, describe_octet, is_nominated_by_connection, shown_in_finding,
+    trim_ows,
 };
 use crate::helpers::websocket::sec_websocket_key_defect;
 use crate::lint::Violation;
@@ -228,52 +228,14 @@ impl Rule for ClientSecWebsocketHeadersConsistency {
     ) -> Option<Violation> {
         let req = &tx.request;
 
-        // The first half of the sentence that opens the handshake's requirement
-        // list, used here to scope rather than to report: a request that is not a
-        // GET is not this document's opening handshake, and saying so of every
-        // `POST` in a capture would be saying it of traffic that never claimed to be
-        // one. The second half of the same sentence *is* reported, below, once the
-        // request has said it wants a WebSocket.
-        // cite(RFC 6455 § 4.1): "The method of the request MUST be GET, and the HTTP version MUST be at least 1.1."
-        if req.method != "GET" {
-            return None;
-        }
-
-        // What makes this request a WebSocket handshake rather than any other GET.
-        // The keyword is matched without case because the section describing how a
-        // server reads this field says to; the lines are joined first because
-        // `Upgrade` is one list however many of them carry it.
-        // cite(RFC 6455 § 4.1): "The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword."
-        // cite(RFC 6455 § 4.2.1): "An |Upgrade| header field containing the value "websocket", treated as an ASCII case-insensitive value."
-        let upgrade = combined_field_value_as_written(&req.headers, "upgrade")?;
-        if !list_members(&upgrade).any(|m| m.eq_ignore_ascii_case("websocket")) {
-            return None;
-        }
-
-        // The version gate, which measures the one messaging syntax this handshake
-        // is defined over and declines the rest.
-        //
-        // Above major version 1 the handshake does not exist: the opening request is
-        // an extended CONNECT carrying `:protocol`, the two fields read above are
-        // ones those versions forbid outright, and the key this rule checks is not
-        // processed at all. Reporting a missing `Connection: Upgrade` there would be
-        // telling an operator to add a field the message may not carry. RFC 8441
-        // updates RFC 6455 to say so for HTTP/2 and RFC 9220 gives HTTP/3 the same
-        // answer; those two are the whole of what exists above 1, and a major digit
-        // beyond them names no wire format, so there is no handshake to measure
-        // either way.
-        //
-        // A value deriving from no `HTTP-version` names no version at all, so there
-        // is nothing here to compare against; `message_http_version_syntax_valid` is
-        // the rule that reports the value itself.
-        // cite(RFC 8441 § 5): "This request replaces the GET-based request in [RFC6455] and is used to process the WebSockets opening handshake."
-        // cite(RFC 8441 § 5): "[RFC6455] requires the use of Connection and Upgrade header fields that are not part of HTTP/2.  They MUST NOT be included in the CONNECT request defined here."
-        // cite(RFC 8441 § 5): "Implementations using this extended CONNECT to bootstrap WebSockets do not do the processing of the Sec-WebSocket-Key and Sec-WebSocket-Accept header fields of [RFC6455] as that functionality has been superseded by the :protocol pseudo-header field."
-        // cite(RFC 9220 § 3): "The semantics of the pseudo-header fields and setting are identical to those in HTTP/2 as defined in [RFC8441]."
-        let version = crate::http_version::parse(&req.version).ok()?;
-        if version.major >= 2 {
-            return None;
-        }
+        // Which captured messages are this document's opening handshake — the
+        // method, the `Upgrade` keyword and the messaging syntax — is asked of the
+        // shared gate, because `stateful_websocket_handshake_validity` measures the
+        // server's half of the same exchange and the two rules have to agree on
+        // which exchanges those are. The version it returns is read below: the
+        // second half of the sentence the method comes from is a finding, and it is
+        // this rule's.
+        let version = crate::helpers::websocket::opening_handshake_version(req)?;
 
         // Every gate above ends the rule, and reading the configuration is several
         // map probes and a hash of the id -- so only a request about to be measured
