@@ -157,6 +157,21 @@ sources:
     url: https://www.iana.org/assignments/character-sets/character-sets.xhtml
     type: text/html
 
+  - label: IANA TLS ALPN Protocol IDs
+    url: https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml
+    type: text/html
+    # RFC 7301 § 6 created this under the name "Application-Layer Protocol
+    # Negotiation (ALPN) Protocol IDs"; RFC 8447 § 3 had IANA prepend "TLS" to
+    # it, so the label here is the registry's current name and not the one the
+    # creating document prints. It lives on the TLS ExtensionType Values page,
+    # at #alpn-protocol-ids — an anchor a rule's SpecRef may carry, since the
+    # registry check compares base URLs.
+    #
+    # Nothing in the tree reads it. It is where an operator writes the
+    # `server_alt_svc_protocol_iana_registered` allowed list from, and the
+    # policy is Expert Review, which is why that list is configuration rather
+    # than a table compiled into the linter.
+
   # ── Internet-Drafts ───────────────────────────────────────────────────
   #
   # A draft is a moving target by definition, which is the case for verifying a

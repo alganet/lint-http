@@ -401,7 +401,17 @@ severity = "warn"
 [rules.server_alt_svc_protocol_iana_registered]
 enabled = true
 severity = "warn"
-allowed = ["h2", "h3", "h2c", "ws", "wss"]
+# ALPN protocol names — the octets IANA registers in the "TLS Application-Layer
+# Protocol Negotiation (ALPN) Protocol IDs" registry — and not the escaped
+# `protocol-id`s they are written as. `http/1.1` is listed here as itself and
+# appears on the wire as `http%2F1.1`, because `/` is in no `token`. The
+# comparison is byte-exact: an ALPN protocol name is identified by its precise
+# octets, so `H2` is not `h2`.
+#
+# The registry is Expert Review and gains entries between releases, so this is
+# the narrower and more useful list: the alternatives this deployment actually
+# serves. Everything else is reported, registered or not.
+allowed = ["h2", "h3", "h2c", "http/1.1"]
 
 [rules.server_problem_details_content_type]
 enabled = true
