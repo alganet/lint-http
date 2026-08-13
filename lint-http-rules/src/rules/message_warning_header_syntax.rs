@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, describe_octet, quoted_string_end, shown_in_finding,
+    combined_field_value_as_written, describe_char, quoted_string_end, shown_in_finding,
     split_commas_respecting_quotes, trim_ows, unescape_quoted_string, validate_quoted_string,
 };
 use crate::helpers::token::find_invalid_token_char;
@@ -286,17 +286,6 @@ fn judge(headers: &hyper::HeaderMap, side: &str) -> Option<String> {
         .map(|e| format!("{side} Warning header: {e}"))
 }
 
-/// Name the octet a `char` of the value stands for.
-///
-/// The value is read one `char` per octet, so every `char` reaching here is at
-/// most U+00FF and the cast is the octet the sender wrote. Going through
-/// [`describe_octet`] is what keeps that octet — often a control character or
-/// `obs-text` — out of the finding text rather than in it.
-fn octet(c: char) -> String {
-    debug_assert!((c as u32) <= 0xff, "the value is read one char per octet");
-    describe_octet(c as u8)
-}
-
 /// The octet a parse stopped in front of, for the finding that says so.
 ///
 /// Every caller has already established that the slice is not empty: the member
@@ -306,7 +295,7 @@ fn octet(c: char) -> String {
 fn first_octet(s: &str) -> String {
     s.chars()
         .next()
-        .map(octet)
+        .map(describe_char)
         .unwrap_or_else(|| "nothing".into())
 }
 
@@ -375,7 +364,7 @@ fn validate_warning_value(member: &str) -> Result<(), String> {
             Some((_, c)) => {
                 return Err(format!(
                     "has {} in its warn-code, and a warn-code is three digits",
-                    octet(c)
+                    describe_char(c)
                 ))
             }
             None => return Err("is shorter than the three digits of a warn-code".into()),
@@ -389,7 +378,7 @@ fn validate_warning_value(member: &str) -> Result<(), String> {
         return Err(format!(
             "has {} where the SP after its warn-code goes, so either the warn-code runs longer \
              than three digits or the parts are unseparated",
-            octet(c)
+            describe_char(c)
         ));
     }
 
@@ -449,7 +438,7 @@ fn validate_warning_value(member: &str) -> Result<(), String> {
     if let Some(c) = remainder.chars().next() {
         return Err(format!(
             "has {} after its warn-date, which is the last part a member has",
-            octet(c)
+            describe_char(c)
         ));
     }
 
@@ -477,7 +466,7 @@ fn validate_warn_agent(agent: &str) -> Result<(), String> {
     if let Some(c) = agent.chars().find(|c| !c.is_ascii()) {
         return Err(format!(
             "has a warn-agent holding {}, which no uri-host admits and is not a tchar",
-            octet(c)
+            describe_char(c)
         ));
     }
 
