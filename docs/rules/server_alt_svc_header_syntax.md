@@ -32,7 +32,7 @@ parameter     = token "=" ( token / quoted-string )
 
 **Whitespace beside an `=` is reported.** RFC 7838 writes `OWS` in exactly one place — around the semicolon before a parameter — and the `#rule` it imports writes it around the commas. Both are gone by the time a half is read, so whitespace still touching an `=` is admitted by nothing. This is the opposite of a `BWS`, which is whitespace a grammar prints in order to tolerate.
 
-**What this rule declines.** RFC 7838 §3 says that over HTTP/2 *"servers SHOULD instead send an ALTSVC frame"*, and the next sentence says *"Alt-Svc header fields remain valid in responses delivered over HTTP/2"*. The frame is not in a capture, HTTP/3 has no such frame at all and RFC 9114 §3.1.1 has an HTTP/3 server use this field, so the SHOULD is not reported. Nothing here reads whether the named protocol is one anybody serves — `server_alt_svc_protocol_iana_registered` asks that against a configured list.
+**What this rule declines.** RFC 7838 §3 says that over HTTP/2 *"servers SHOULD instead send an ALTSVC frame"*, and the next sentence says *"Alt-Svc header fields remain valid in responses delivered over HTTP/2"*. The frame is not in a capture, HTTP/3 has no such frame at all and RFC 9114 §3.1.1 has an HTTP/3 server use this field, so the SHOULD is not reported. Nothing here reads *which* protocol a well-spelled `protocol-id` names — `server_alt_svc_protocol_iana_registered` decodes it back into its ALPN protocol name and asks that against a configured list.
 
 ## Specifications
 

@@ -977,6 +977,8 @@ sources:
       line: 40
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 57
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 130
   - label: lint-http-rules/src/helpers/uri.rs (7)
     section: § 2.2
     snippet: A component's ABNF syntax rule will not use the reserved or gen-delims rule names directly; instead, each syntax rule lists the characters allowed within that component (i.e., not delimiting it), and any of those characters that are also in the reserved set are "reserved" for use as subcomponent delimiters within the component.
@@ -3018,6 +3020,52 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
       line: 188
+- label: RFC 7301
+  url: https://www.rfc-editor.org/rfc/rfc7301.txt
+  type: text/plain
+  fragments:
+  - label: server_alt_svc_protocol_iana_registered
+    section: § 3.1
+    snippet: '"ProtocolNameList" contains the list of protocols advertised by the client, in descending order of preference.'
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 22
+  - label: server_alt_svc_protocol_iana_registered (2)
+    section: § 3.1
+    snippet: Protocols are named by IANA-registered, opaque, non-empty byte strings, as described further in Section 6 ("IANA Considerations") of this document.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 89
+  - label: server_alt_svc_protocol_iana_registered (3)
+    section: § 3.1
+    snippet: opaque ProtocolName<1..2^8-1>;
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 21
+  - label: server_alt_svc_protocol_iana_registered (4)
+    section: § 3.2
+    snippet: In the event that the server supports no protocols that the client advertises, then the server SHALL respond with a fatal "no_application_protocol" alert.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 318
+  - label: server_alt_svc_protocol_iana_registered (5)
+    section: § 6
+    snippet: 'Identification Sequence: The precise set of octet values that identifies the protocol.'
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 90
+  - label: server_alt_svc_protocol_iana_registered (6)
+    section: § 6
+    snippet: This document establishes a registry for protocol identifiers entitled "Application-Layer Protocol Negotiation (ALPN) Protocol IDs" under the existing "Transport Layer Security (TLS) Extensions" heading.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 45
+  - label: server_alt_svc_protocol_iana_registered (7)
+    section: § 6
+    snippet: This registry operates under the "Expert Review" policy as defined in [RFC5226].
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 46
 - label: RFC 7303
   url: https://www.rfc-editor.org/rfc/rfc7303.txt
   type: text/plain
@@ -3142,6 +3190,8 @@ sources:
       line: 38
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 377
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 195
   - label: server_alt_svc_h3_advertisement_valid (3)
     section: § 3.1
     snippet: The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh.
@@ -3172,12 +3222,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 18
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 14
   - label: server_alt_svc_header_syntax (4)
     section: § 3
     snippet: Alt-Svc MAY occur in any HTTP response message, regardless of the status code.
     cited_by:
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 391
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 218
   - label: server_alt_svc_header_syntax (5)
     section: § 3
     snippet: Consequently, the octet representing the percent character "%" (hex 25) MUST be percent-encoded as well.
@@ -3214,6 +3268,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 51
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 129
   - label: server_alt_svc_header_syntax (11)
     section: § 3
     snippet: The "alt-authority" component consists of an OPTIONAL uri-host ("host" in Section 3.2.2 of [RFC3986]), a colon (":"), and a port number.
@@ -3226,6 +3282,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 20
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 15
   - label: server_alt_svc_header_syntax (13)
     section: § 3
     snippet: Unknown parameters MUST be ignored.
@@ -3256,12 +3314,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 32
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 259
   - label: server_alt_svc_header_syntax (18)
     section: § 3
     snippet: alternative   = protocol-id "=" alt-authority
     cited_by:
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 317
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 270
   - label: server_alt_svc_header_syntax (19)
     section: § 3
     snippet: clear         = %s"clear"; "clear", case-sensitive
@@ -3270,6 +3332,8 @@ sources:
       line: 19
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 324
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 237
   - label: server_alt_svc_header_syntax (20)
     section: § 3
     snippet: parameter     = token "=" ( token / quoted-string )
@@ -3282,6 +3346,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 318
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 127
   - label: server_alt_svc_header_syntax (22)
     section: § 3.1
     snippet: Alternative services that are intended to be longer lived (such as those that are not specific to the client access network) can carry the "persist" parameter with a value "1" as a hint that the service is potentially useful beyond a network configuration change.
@@ -3307,11 +3373,29 @@ sources:
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 148
   - label: server_alt_svc_protocol_iana_registered
-    section: § 1
-    snippet: This specification defines a new concept in HTTP, "Alternative Services", that allows an origin server to nominate additional means of interacting with it
+    section: § 2
+    snippet: An Application Layer Protocol Negotiation (ALPN) protocol name, as per [RFC7301]
     cited_by:
     - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
-      line: 87
+      line: 316
+  - label: server_alt_svc_protocol_iana_registered (2)
+    section: § 2
+    snippet: The ALPN protocol name is used to identify the application protocol or suite of protocols used by the alternative service.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 317
+  - label: server_alt_svc_protocol_iana_registered (3)
+    section: § 2.4
+    snippet: If the connection to the alternative service does not negotiate the expected protocol (for example, ALPN fails to negotiate h2, or an Upgrade request to h2c is not accepted), the connection to the alternative service MUST be considered to have failed.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 319
+  - label: server_alt_svc_protocol_iana_registered (4)
+    section: § 3
+    snippet: ALPN protocol names are octet sequences with no additional constraints on format.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 128
 - label: RFC 8187
   url: https://www.rfc-editor.org/rfc/rfc8187.txt
   type: text/plain
@@ -3630,6 +3714,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 197
+- label: RFC 8447
+  url: https://www.rfc-editor.org/rfc/rfc8447.txt
+  type: text/plain
+  fragments:
+  - label: server_alt_svc_protocol_iana_registered
+    section: § 3
+    snippet: 'For consistency amongst TLS registries, IANA has prepended "TLS" to the following registries:'
+    cited_by:
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 47
 - label: RFC 8470
   url: https://www.rfc-editor.org/rfc/rfc8470.txt
   type: text/plain
@@ -5554,6 +5648,8 @@ sources:
       line: 212
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 319
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 277
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".
@@ -7564,6 +7660,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 378
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 196
     - file: lint-http-rules/src/rules/server_response_405_allow.rs
       line: 61
   - label: server_alt_svc_header_syntax (2)
@@ -7572,6 +7670,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 410
+    - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
+      line: 228
   - label: server_authentication_challenge_validity
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
