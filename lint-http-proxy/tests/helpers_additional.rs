@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: ISC
 
-use lint_http::helpers::headers::{validate_ext_value, validate_mailbox_list};
+use lint_http::helpers::headers::validate_ext_value;
+use lint_http::helpers::mailbox::{parse_mailbox, MailboxDefect};
 
 #[test]
 fn validate_ext_value_missing_language_separator_error() {
@@ -42,11 +43,15 @@ fn validate_ext_value_invalid_charset_non_ascii() {
         .contains("invalid charset"));
 }
 
+/// An `angle-addr` whose contents are not an `addr-spec` is refused, and the
+/// finding names the construct the parse stopped at rather than the whole value.
 #[test]
-fn validate_mailbox_list_angle_addr_invalid_inside() {
-    // Angle-addr with invalid addr-spec should be rejected
-    let res = validate_mailbox_list("Alice <not-an-email>");
-    assert!(res.is_err());
-    let msg = res.as_ref().err().unwrap().to_lowercase();
-    assert!(msg.contains("invalid addr-spec") || msg.contains("missing '@'"));
+fn a_mailbox_whose_angle_addr_holds_no_addr_spec_is_refused() {
+    match parse_mailbox("Alice <not-an-email>") {
+        Err(MailboxDefect::Syntax(msg)) => {
+            assert!(msg.contains("where the addr-spec has its \"@\""), "{msg}")
+        }
+        Err(MailboxDefect::ListSeparator) => panic!("read as a mailbox-list"),
+        Ok(_) => panic!("accepted"),
+    }
 }
