@@ -1114,30 +1114,14 @@ pub fn quoted_string_end(s: &str) -> Option<usize> {
     None
 }
 
-/// Validate a quoted-string per HTTP rules: must start and end with DQUOTE, support backslash escapes,
-/// must not contain unescaped control characters (except HTAB). Returns Ok(()) on success, Err(msg)
-/// on failure.
-///
-/// The two octet sets below are worth reading side by side, because the whole
-/// function is the difference between them. `qdtext` is what may appear bare;
-/// `quoted-pair` is what may appear after a backslash. HTAB and obs-text are in
-/// both -- HTTP is not Structured Fields, and the same-looking helper in
-/// `structured_fields.rs` is right to reject exactly what this one accepts.
-///
-/// The two DQUOTEs of the production are stripped by [`quoted_string_interior`],
-/// which both this function and [`unescape_quoted_string`] ask, so what counts
-/// as "properly quoted" is decided once.
-///
-/// The walk is over `chars` and not over `as_bytes`, and the difference is the
-/// whole of `obs-text`. A caller reading a value through
-/// [`combined_field_value_as_written`] holds one `char` per octet, so %xE9 in it
-/// is `U+00E9` -- which `as_bytes` re-encodes as the *two* octets %xC3 %xA9, a
-/// pair the sender did not write. `to_str` callers cannot tell the two walks
-/// apart, because that reader admits no octet at or above %x80 in the first
-/// place.
-///
 /// The `*( qdtext / quoted-pair )` between a `quoted-string`'s two DQUOTEs,
 /// with nothing inside it examined.
+///
+/// The five paragraphs that used to stand above this line described
+/// [`validate_quoted_string`] — its two octet sets, its `chars`-not-`as_bytes`
+/// walk — and were separated from it by two other items, so `rustdoc` published
+/// them against a function that strips two characters and reads none. They now
+/// live on [`quoted_string_interior_chars`], which is where that walk went.
 ///
 /// A lone DQUOTE strips its prefix and then has no suffix left to strip, so the
 /// one-character string is `None` rather than an empty interior — which is the
@@ -1150,43 +1134,145 @@ pub fn quoted_string_interior(val: &str) -> Option<&str> {
     val.strip_prefix('"')?.strip_suffix('"')
 }
 
+/// What a `quoted-string`'s interior can fail to be.
+///
+/// Data rather than a sentence for the same reason [`WordDefect`] is: the two
+/// functions that read this interior word their failures against the whole
+/// value, and the walk sees only the inside of it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuotedStringDefect {
+    /// An octet after a backslash that `quoted-pair` does not admit. A backslash
+    /// does not make anything quotable: the escaped octet has its own set, and
+    /// it is not `qdtext`'s.
+    BadQuotedPair,
+    /// A DQUOTE inside the interior that no backslash introduced. The interior
+    /// runs between the production's two DQUOTEs, so a third one closes the
+    /// value early and what follows derives from nothing.
+    UnescapedQuote,
+    /// A control octet `qdtext` excludes. HTAB is not one of them — it is in
+    /// both alphabets.
+    ControlCharacter,
+    /// A backslash with nothing after it. `quoted-pair` is two octets.
+    TrailingEscape,
+}
+
+impl QuotedStringDefect {
+    /// The finding, worded against the whole `quoted-string` rather than against
+    /// the interior the walk was given — which is what every caller embedding
+    /// this in its own message expects to read.
+    pub fn message(self, val: &str) -> String {
+        match self {
+            Self::BadQuotedPair => format!("Invalid quoted-pair in quoted-string: '{}'", val),
+            Self::UnescapedQuote => format!("Unescaped quote in quoted-string: '{}'", val),
+            Self::ControlCharacter => format!("Control character in quoted-string: '{}'", val),
+            Self::TrailingEscape => format!("Quoted-string ends with escape character: '{}'", val),
+        }
+    }
+}
+
+/// The one walk over a `quoted-string`'s interior, yielding each character of
+/// the value it stands for.
+///
+/// **This pair used to be two walks and the cost was visible from outside.**
+/// [`validate_quoted_string`] measured the interior and [`unescape_quoted_string`]
+/// called it and then measured the interior again to substitute, so every caller
+/// that wanted the content paid for two passes and the second one needed an
+/// `expect` to throw away an `Err` the first had already ruled out. Two owners
+/// for one production is also how they drift: a `quoted-pair` fix had to be made
+/// in both, in lockstep, and nothing but attention held them together.
+///
+/// The walk is over `chars` and not over `as_bytes`, and the difference is the
+/// whole of `obs-text`. A caller reading a value through
+/// [`combined_field_value_as_written`] holds one `char` per octet, so %xE9 in it
+/// is `U+00E9` — which `as_bytes` re-encodes as the *two* octets %xC3 %xA9, a
+/// pair the sender did not write. `to_str` callers cannot tell the two walks
+/// apart, because that reader admits no octet at or above %x80 at all.
+///
+/// The two octet sets are worth reading side by side, because the difference
+/// between them is the whole of this function. `qdtext` is what may appear bare;
+/// `quoted-pair` is what may appear after a backslash. HTAB and `obs-text` are in
+/// both — HTTP is not Structured Fields, and the same-looking helper in
+/// `structured_fields.rs` is right to reject exactly what this one accepts.
+///
+/// Substitution is unconditional and there is no escape table here, nor should
+/// there ever be: the sentence is about the octet *following* the backslash and
+/// not about any interpretation of it, so `\n` in a `quoted-string` is the
+/// letter n.
+///
+/// The iterator stops at the first defect, which is what makes a caller
+/// collecting it and a caller draining it report the same thing.
+///
+/// **It yields the character and not `(char, was_escaped)`**, which is what the
+/// handover asking for this scanner specified. Nothing in the tree distinguishes
+/// an octet a backslash introduced from the same octet written bare, and neither
+/// does the production: a `quoted-pair` *is* the octet after the backslash, by
+/// the recipient sentence below. The two functions here differ in whether they
+/// keep the character, not in whether they know how it got there, so a flag no
+/// caller reads would be a second answer to a question nobody asks. It goes in
+/// when a caller needs it, like every other shared answer in this module.
+///
 // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
 // cite(RFC 9110 § 5.6.4): "qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text"
+// cite(RFC 9110 § 5.6.4): "quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )"
+// cite(RFC 9110 § 5.6.4): "Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash."
+pub fn quoted_string_interior_chars(inner: &str) -> QuotedStringChars<'_> {
+    QuotedStringChars {
+        chars: inner.chars(),
+        stopped: false,
+    }
+}
+
+/// [`quoted_string_interior_chars`]'s iterator.
+pub struct QuotedStringChars<'a> {
+    chars: std::str::Chars<'a>,
+    stopped: bool,
+}
+
+impl Iterator for QuotedStringChars<'_> {
+    type Item = Result<char, QuotedStringDefect>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.stopped {
+            return None;
+        }
+        let c = self.chars.next()?;
+
+        if c == '\\' {
+            let Some(escaped) = self.chars.next() else {
+                self.stopped = true;
+                return Some(Err(QuotedStringDefect::TrailingEscape));
+            };
+            if !(escaped == '\t' || ('\u{20}'..='\u{7e}').contains(&escaped) || escaped >= '\u{80}')
+            {
+                self.stopped = true;
+                return Some(Err(QuotedStringDefect::BadQuotedPair));
+            }
+            return Some(Ok(escaped));
+        }
+        if c == '"' {
+            self.stopped = true;
+            return Some(Err(QuotedStringDefect::UnescapedQuote));
+        }
+        if (c < '\u{20}' && c != '\t') || c == '\u{7f}' {
+            self.stopped = true;
+            return Some(Err(QuotedStringDefect::ControlCharacter));
+        }
+        Some(Ok(c))
+    }
+}
+
+/// Whether the value is a well-formed `quoted-string`, with nothing kept.
+///
+/// The walk is [`quoted_string_interior_chars`]'s and is run once; a caller that
+/// also wants the content asks [`unescape_quoted_string`] instead of asking
+/// both.
 pub fn validate_quoted_string(val: &str) -> Result<(), String> {
     let Some(inner) = quoted_string_interior(val) else {
         return Err(format!("Quoted-string not properly quoted: '{}'", val));
     };
-
-    // Walk the interior checking for unescaped control chars and ensuring proper escaping
-    let mut prev_backslash = false;
-    for c in inner.chars() {
-        if prev_backslash {
-            // A backslash does not make anything quotable. The escaped octet has its
-            // own set, and it is not the same as qdtext's: SP and VCHAR and HTAB and
-            // obs-text may follow a backslash, the remaining controls may not.
-            //
-            // cite(RFC 9110 § 5.6.4): "quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )"
-            if !(c == '\t' || ('\u{20}'..='\u{7e}').contains(&c) || c >= '\u{80}') {
-                return Err(format!("Invalid quoted-pair in quoted-string: '{}'", val));
-            }
-            prev_backslash = false;
-        } else if c == '\\' {
-            prev_backslash = true;
-        } else if c == '"' {
-            // unescaped quote before the terminating one -> invalid
-            return Err(format!("Unescaped quote in quoted-string: '{}'", val));
-        } else if (c < '\u{20}' && c != '\t') || c == '\u{7f}' {
-            return Err(format!("Control character in quoted-string: '{}'", val));
-        }
+    for step in quoted_string_interior_chars(inner) {
+        step.map_err(|defect| defect.message(val))?;
     }
-
-    if prev_backslash {
-        return Err(format!(
-            "Quoted-string ends with escape character: '{}'",
-            val
-        ));
-    }
-
     Ok(())
 }
 
@@ -1207,40 +1293,20 @@ pub fn quoted_string_inner_trimmed_is_empty(val: &str) -> Result<bool, String> {
 /// - Input must include surrounding DQUOTE characters (e.g., `"a\"b"`).
 /// - Returns `Ok(inner_string)` on success or `Err(msg)` if the input is not a valid quoted-string.
 ///
-/// This helper centralizes quoted-string unescaping to avoid duplication across rules.
-///
-/// Unlike its neighbours, the sentence below is not a grammar -- it is an
-/// instruction about what a recipient must *do*, and every caller here is a
-/// recipient. It also says why the substitution is unconditional: the octet
-/// following the backslash, not some interpretation of it, which is why there is
-/// no escape table in this function and should never be one. `\n` in a
-/// quoted-string is the letter n.
-///
-/// The walk is [`validate_quoted_string`]'s, and over `chars` for the same
-/// reason: `as_bytes` re-encoded a value already holding one `char` per octet,
-/// so an `obs-text` octet inside a `quoted-string` -- which `qdtext` admits --
-/// came back out as the two octets of its UTF-8 form and every finding naming
-/// it named a pair nobody wrote.
-///
-// cite(RFC 9110 § 5.6.4): "Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash."
+/// **One pass.** This used to call [`validate_quoted_string`] and then walk the
+/// interior a second time to substitute, which is two readings of one production
+/// and needed an `expect` to discard an `Err` the first reading had already ruled
+/// out. Both functions now drain [`quoted_string_interior_chars`], which measures
+/// and substitutes in the same step, so the pair cannot disagree and neither pays
+/// for the other.
 pub fn unescape_quoted_string(val: &str) -> Result<String, String> {
-    validate_quoted_string(val)?;
-    let inner = quoted_string_interior(val).expect("validation accepted the quoting");
+    let Some(inner) = quoted_string_interior(val) else {
+        return Err(format!("Quoted-string not properly quoted: '{}'", val));
+    };
     let mut out = String::with_capacity(inner.len());
-    let mut prev_backslash = false;
-    for c in inner.chars() {
-        // One statement, because the sentence cited above is one: a backslash
-        // that is not itself escaped is consumed, and everything else -- escaped
-        // or not -- is the octet it is. A trailing backslash cannot reach the end
-        // of this loop, because the validation above rejects that value.
-        if !prev_backslash && c == '\\' {
-            prev_backslash = true;
-        } else {
-            out.push(c);
-            prev_backslash = false;
-        }
+    for step in quoted_string_interior_chars(inner) {
+        out.push(step.map_err(|defect| defect.message(val))?);
     }
-
     Ok(out)
 }
 
@@ -2550,6 +2616,84 @@ mod tests {
             token_or_quoted_string(&bare),
             Err(WordDefect::NotToken('\u{E9}'))
         );
+    }
+
+    /// The one walk, read directly: each character of the value the interior
+    /// stands for.
+    #[test]
+    fn quoted_string_interior_chars_yields_the_octet_the_quoted_pair_stands_for() {
+        let read = |inner: &str| quoted_string_interior_chars(inner).collect::<Vec<_>>();
+        assert_eq!(
+            read("a\\\"b"),
+            vec![Ok('a'), Ok('"'), Ok('b')],
+            "an escaped DQUOTE is a quoted-pair and the value it stands for is the DQUOTE"
+        );
+        // Substitution is unconditional: the octet following the backslash, not
+        // an interpretation of it. `\n` is the letter n.
+        assert_eq!(read("\\n"), vec![Ok('n')]);
+        // HTAB is in both alphabets, bare and escaped.
+        assert_eq!(read("\t"), vec![Ok('\t')]);
+        assert_eq!(read("\\\t"), vec![Ok('\t')]);
+    }
+
+    /// Each defect, and that the walk stops on the first one — which is what
+    /// makes a caller draining it and a caller collecting it report the same
+    /// thing.
+    #[test]
+    fn quoted_string_interior_chars_stops_at_the_first_defect() {
+        let first = |inner: &str| {
+            quoted_string_interior_chars(inner)
+                .find(|step| step.is_err())
+                .map(|step| step.unwrap_err())
+        };
+        assert_eq!(first("a\"b"), Some(QuotedStringDefect::UnescapedQuote));
+        assert_eq!(first("a\u{1}b"), Some(QuotedStringDefect::ControlCharacter));
+        assert_eq!(first("a\u{7f}"), Some(QuotedStringDefect::ControlCharacter));
+        assert_eq!(first("a\\"), Some(QuotedStringDefect::TrailingEscape));
+        assert_eq!(first("a\\\u{1}"), Some(QuotedStringDefect::BadQuotedPair));
+        assert_eq!(first("plain"), None);
+
+        // Nothing is yielded after the defect, so a collector cannot see past it.
+        let after: Vec<_> = quoted_string_interior_chars("a\"bcd").collect();
+        assert_eq!(after.len(), 2, "the 'a', then the defect, then nothing");
+    }
+
+    /// The pair used to be two walks and could disagree; now one drains the
+    /// scanner and the other collects it, so every value they are given gets one
+    /// verdict. `obs-text` is the case that matters: `qdtext` admits it, and a
+    /// byte walk would have split it into two octets nobody sent.
+    #[test]
+    fn validate_and_unescape_agree_on_every_value_because_they_are_one_walk() {
+        let cases = [
+            "\"\"",
+            "\"a\"",
+            "\"a\\\"b\"",
+            "\"a\\\\b\"",
+            "\"\t\"",
+            "\"a\"b\"",
+            "\"a\u{1}\"",
+            "\"a\\\"",
+            "\"unterminated",
+            "a\"",
+            "\"",
+            "",
+        ];
+        for case in cases {
+            assert_eq!(
+                validate_quoted_string(case).is_ok(),
+                unescape_quoted_string(case).is_ok(),
+                "the two disagreed on {:?}",
+                case
+            );
+            if let Err(v) = validate_quoted_string(case) {
+                assert_eq!(
+                    Some(v),
+                    unescape_quoted_string(case).err(),
+                    "same value, two messages, for {:?}",
+                    case
+                );
+            }
+        }
     }
 
     #[test]
