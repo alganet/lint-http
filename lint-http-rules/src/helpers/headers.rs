@@ -219,6 +219,37 @@ pub fn combined_field_value_as_written(headers: &HeaderMap, name: &str) -> Optio
     )
 }
 
+/// The field sections a response can carry, in the order they arrive on the
+/// wire, each with the name a finding calls it by.
+///
+/// There are two, and which of them a reader opens is not a detail any caller
+/// should be deciding for itself: a rule that reads the header section alone
+/// reports a response for saying nothing when it said it after the content.
+/// This walk was written in `helpers::accept_ranges` first, for the one field
+/// whose own section grants it a trailer; the second field to need it made the
+/// walk the shared thing and the *permission* the caller's, which is the right
+/// split -- whether a given field may sit in a trailer section is that field's
+/// definition's answer and RFC 9110 § 6.5.1's question, and it differs per
+/// caller. What does not differ is that there are exactly two sections, in this
+/// order, and that they are never joined to each other: appending a field line
+/// to the one before it is defined *within* a field section.
+///
+/// The label is `&'static str` rather than an enum for the same reason
+/// `message_header_field_names_token` passes one -- a finding says which
+/// section it came from and nothing else turns on the distinction.
+///
+/// cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
+pub fn response_field_sections(
+    resp: &crate::http_transaction::ResponseInfo,
+) -> impl Iterator<Item = (&'static str, &HeaderMap)> {
+    [
+        Some(("header section", &resp.headers)),
+        resp.trailers.as_ref().map(|t| ("trailer section", t)),
+    ]
+    .into_iter()
+    .flatten()
+}
+
 /// The same combined field value as [`combined_field_value_as_written`], as the
 /// octets themselves.
 ///

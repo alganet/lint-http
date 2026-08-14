@@ -18,10 +18,10 @@ More than one `Refresh` field line is reported on its own terms: HTML records th
 
 ## Specifications
 
-- [HTML Speculative Loading §§ 7.8](https://html.spec.whatwg.org/multipage/speculative-loading.html#the-refresh-header): The `Refresh` header. Three sentences: it is the `meta` pragma's HTTP equivalent, it takes the same value, and its processing model is elsewhere. It states no requirement of its own
-- [HTML Semantics §§ 4.2.5.3](https://html.spec.whatwg.org/multipage/semantics.html#attr-meta-http-equiv-refresh): Refresh state: the shared declarative refresh steps, and the authoring conformance requirement this rule enforces — the only sentence in HTML that says what a conforming value looks like
-- [HTML Document Lifecycle §§ 7.5.1](https://html.spec.whatwg.org/multipage/document-lifecycle.html#initialise-the-document-object): Create and initialize a Document object: the field is isomorphic-decoded before parsing, and a note records that multiple field lines are unspecified
-- [URL §§ 4.3](https://url.spec.whatwg.org/#url-writing): URL writing: valid URL string, URL code points and URL units — the alphabet the `URL=` value is judged against, which is not RFC 3986's
+- [HTML Speculative Loading §7.8](https://html.spec.whatwg.org/multipage/speculative-loading.html#the-refresh-header): The `Refresh` header. Three sentences: it is the `meta` pragma's HTTP equivalent, it takes the same value, and its processing model is elsewhere. It states no requirement of its own
+- [HTML Semantics §4.2.5.3](https://html.spec.whatwg.org/multipage/semantics.html#attr-meta-http-equiv-refresh): Refresh state: the shared declarative refresh steps, and the authoring conformance requirement this rule enforces — the only sentence in HTML that says what a conforming value looks like
+- [HTML Document Lifecycle §7.5.1](https://html.spec.whatwg.org/multipage/document-lifecycle.html#initialise-the-document-object): Create and initialize a Document object: the field is isomorphic-decoded before parsing, and a note records that multiple field lines are unspecified
+- [URL §4.3](https://url.spec.whatwg.org/#url-writing): URL writing: valid URL string, URL code points and URL units — the alphabet the `URL=` value is judged against, which is not RFC 3986's
 - [MDN Refresh](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Refresh): `Refresh` header, with browser support notes
 
 ## Configuration

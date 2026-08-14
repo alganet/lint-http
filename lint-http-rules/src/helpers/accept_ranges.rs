@@ -51,13 +51,18 @@ impl Advertisement {
 /// same two sections and the raw lines inside them, so the sentence lives here
 /// and the walk over it is shared.
 ///
+/// The *walk* now lives in [`crate::helpers::headers::response_field_sections`],
+/// because a second field needed it and there is nothing about "a response has a
+/// header section and possibly a trailer section" that belongs to this one. What
+/// stays here is the half that does: the sentence granting **this** field the
+/// trailer section, which every other field has to find in its own definition.
+/// Neither caller here reads the section's name, so the label is dropped.
+///
 // cite(RFC 9110 § 14.3): "The Accept-Ranges field MAY be sent in a trailer section, but is preferred to be sent as a header field because the information is particularly useful for restarting large information transfers that have failed in mid-content (before the trailer section is received)."
 pub fn field_sections(
     resp: &crate::http_transaction::ResponseInfo,
 ) -> impl Iterator<Item = &hyper::HeaderMap> {
-    [Some(&resp.headers), resp.trailers.as_ref()]
-        .into_iter()
-        .flatten()
+    crate::helpers::headers::response_field_sections(resp).map(|(_label, section)| section)
 }
 
 /// Read `Accept-Ranges` out of both of the response's field sections.
