@@ -74,7 +74,25 @@ impl MessageHostAndAuthorityConsistency {
             out.push_str(userinfo);
             out.push('@');
         }
-        out.push_str(&Self::decoded_unreserved(host).to_ascii_lowercase());
+        // The order is forced and the second pass is not decoration. Decoding
+        // has to run *before* the case fold, because `%50` is `P` and only a
+        // fold after the decode makes `EXAM%50LE.com` and `example.com` one
+        // host. But that fold then reaches the hexadecimal of the triplets the
+        // decode left behind — `%2F` comes back out as `%2f` — which undoes
+        // § 6.2.2.1, the sentence cited on the decoder itself. So the decode is
+        // run once more over the folded value: it re-uppercases those digits and
+        // can decode nothing new, every `unreserved` triplet having gone in the
+        // first pass. This was invisible while the decoder was private here,
+        // because the step it performs was undone one line later and only the
+        // comparison was ever looked at — both sides being folded the same way,
+        // the contradiction cost a verdict nothing and cost the *published
+        // normal form* its cited spelling.
+        //
+        // cite(RFC 3986 § 6.2.2.1): "For all URIs, the hexadecimal digits within a percent-encoding triplet (e.g., "%3a" versus "%3A") are case-insensitive and therefore should be normalized to use uppercase letters for the digits A-F."
+        let host = crate::helpers::uri::decode_unreserved(host);
+        out.push_str(&crate::helpers::uri::decode_unreserved(
+            &host.to_ascii_lowercase(),
+        ));
 
         if let Some(port) = port {
             let elided = match default_port {
@@ -93,63 +111,6 @@ impl MessageHostAndAuthorityConsistency {
 
         out
     }
-
-    /// The value with every percent-encoded octet that stands for an unreserved
-    /// character written as that character, and the hexadecimal of the triplets
-    /// that stay in upper case.
-    ///
-    /// Both halves are one sentence each, and the second is why a triplet this
-    /// leaves encoded still ends up in a normal form: the digits of a triplet
-    /// are case-insensitive, so `%2F` and `%2f` are one octet.
-    ///
-    /// cite(RFC 3986 § 6.2.2.2): "These URIs should be normalized by decoding any percent-encoded octet that corresponds to an unreserved character, as described in Section 2.3."
-    /// cite(RFC 3986 § 6.2.2.1): "For all URIs, the hexadecimal digits within a percent-encoding triplet (e.g., "%3a" versus "%3A") are case-insensitive and therefore should be normalized to use uppercase letters for the digits A-F."
-    /// cite(RFC 3986 § 2.3, label: unreserved): "unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~""
-    fn decoded_unreserved(value: &str) -> String {
-        // The walk is over `char`s and not over `str::as_bytes`, because the
-        // value carries one `char` per octet: an octet at or above %x80 is a
-        // single `char` here and two UTF-8 bytes, and a byte walk would take it
-        // apart into two octets that were never on the wire. The two characters
-        // after a `%` are checked for being hexadecimal before they are read as
-        // a number, because `from_str_radix` accepts a leading `+` and no
-        // `pct-encoded` does.
-        let chars: Vec<char> = value.chars().collect();
-        let mut out = String::with_capacity(value.len());
-        let mut i = 0;
-
-        while i < chars.len() {
-            let triplet = (chars[i] == '%' && i + 2 < chars.len())
-                .then(|| {
-                    let hex: String = chars[i + 1..i + 3].iter().collect();
-                    hex.chars()
-                        .all(|c| c.is_ascii_hexdigit())
-                        .then(|| u8::from_str_radix(&hex, 16).ok())
-                        .flatten()
-                })
-                .flatten();
-
-            match triplet {
-                Some(octet) => {
-                    let unreserved =
-                        octet.is_ascii_alphanumeric() || matches!(octet, b'-' | b'.' | b'_' | b'~');
-                    if unreserved {
-                        out.push(octet as char);
-                    } else {
-                        out.push('%');
-                        out.push_str(&format!("{:02X}", octet));
-                    }
-                    i += 3;
-                }
-                None => {
-                    out.push(chars[i]);
-                    i += 1;
-                }
-            }
-        }
-
-        out
-    }
-
     /// Compare the two values as written, and say separately when they are one
     /// authority under the normalization above.
     ///
@@ -595,6 +556,7 @@ mod tests {
     // digits in one that does not.
     #[case("https://exam%70le.com/path", "example.com")]
     #[case("https://exam%2Fle.com/path", "exam%2fle.com")]
+    #[case("https://exam%2fle.com/path", "exam%2FLE.com")]
     fn a_difference_normalization_removes_is_reported_over_http3_only(
         #[case] uri: &str,
         #[case] host: &str,

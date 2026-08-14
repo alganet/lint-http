@@ -50,61 +50,28 @@ fn first_non_pchar(name: &str) -> Option<char> {
     })
 }
 
-/// `segment` with every percent-encoded octet standing for an `unreserved`
-/// character replaced by that character, so that the segment can be compared
-/// against a literal.
-///
-/// `%2Ewell-known` and `.well-known` are the same segment — the generic syntax
-/// says so in as many words — and a comparison that misses it reads a
-/// well-known URI as an ordinary path, which is the direction a path-confusion
-/// trick is written in. Only `unreserved` octets are decoded: decoding a
-/// `sub-delims` or a `gen-delims` octet would change where the component
-/// boundaries are, which is exactly what § 2.4 warns against.
-///
-/// Everything else is left as written, hexadecimal case included, because this
-/// value is compared and never printed. Private for the same reason as
-/// [`first_non_pchar`]; `helpers::uri::normalize_path_and_query` is the natural
-/// home, but it performs one of § 6.2.2's three normalizations today and
-/// widening it would change the verdicts of its existing callers.
-// cite(RFC 3986 § 2.3): "URIs that differ in the replacement of an unreserved character with its corresponding percent-encoded US-ASCII octet are equivalent"
-// cite(RFC 3986 § 6.2.2.2): "These URIs should be normalized by decoding any percent-encoded octet that corresponds to an unreserved character, as described in Section 2.3."
-// cite(RFC 3986 § 2.4): "When a URI is dereferenced, the components and subcomponents significant to the scheme-specific dereferencing process (if any) must be parsed and separated before the percent-encoded octets within those components can be safely decoded, as otherwise the data may be mistaken for component delimiters."
-fn decode_unreserved(segment: &str) -> String {
-    let mut out = String::with_capacity(segment.len());
-    let mut chars = segment.char_indices();
-    while let Some((i, c)) = chars.next() {
-        // `get` and not a slice: a captured target read back through `lint` is
-        // an arbitrary string, so the two positions after a `%` may be inside a
-        // multi-byte code point, and indexing them would be a panic rather than
-        // a finding. The explicit `HEXDIG` test is not redundant either —
-        // `from_str_radix` accepts a leading `+`, which no `pct-encoded` writes.
-        let decoded = (c == '%')
-            .then(|| segment.get(i + 1..i + 3))
-            .flatten()
-            .filter(|hex| hex.bytes().all(|b| b.is_ascii_hexdigit()))
-            .and_then(|hex| u8::from_str_radix(hex, 16).ok())
-            .map(char::from)
-            .filter(|d| d.is_ascii_alphanumeric() || matches!(d, '-' | '.' | '_' | '~'));
-        match decoded {
-            Some(d) => {
-                out.push(d);
-                chars.next();
-                chars.next();
-            }
-            None => out.push(c),
-        }
-    }
-    out
-}
-
 /// Whether one path segment *is* the reserved segment.
 ///
 /// The literal comparison first, and the decode only when there is a `%` to
 /// decode: this predicate is asked of every segment of every request path, and
 /// the decoding path allocates.
+///
+/// `%2Ewell-known` and `.well-known` are the same segment — the generic syntax
+/// says so in as many words — and a comparison that misses it reads a well-known
+/// URI as an ordinary path, which is the direction a path-confusion trick is
+/// written in. Only `unreserved` octets are decoded, because decoding a
+/// `sub-delims` or `gen-delims` octet would move the component boundaries; that
+/// reasoning, and § 2.4's sentence, live with the shared decoder.
+///
+/// The decoder also puts a surviving triplet's hexadecimal in upper case, which
+/// cannot change this answer: `WELL_KNOWN_SEGMENT` is made of `unreserved`
+/// characters, so a segment still holding a `%` after the decode matches it in
+/// no case at all.
+// cite(RFC 3986 § 2.3): "URIs that differ in the replacement of an unreserved character with its corresponding percent-encoded US-ASCII octet are equivalent"
 fn is_well_known_segment(segment: &str) -> bool {
     segment == WELL_KNOWN_SEGMENT
-        || (segment.contains('%') && decode_unreserved(segment) == WELL_KNOWN_SEGMENT)
+        || (segment.contains('%')
+            && crate::helpers::uri::decode_unreserved(segment) == WELL_KNOWN_SEGMENT)
 }
 
 impl Rule for MessageWellKnownUriFormat {
@@ -564,27 +531,19 @@ mod tests {
         assert!(check("HTTPS://example.com/foo/.well-known/example").is_some());
     }
 
+    /// The predicate, not the decoder — that moved to `helpers::uri` with its
+    /// own tests. What stays here is the question this rule asks of it: an
+    /// escaped spelling of the reserved segment is the reserved segment, and an
+    /// escaped delimiter does not make an ordinary segment into it.
     #[test]
-    fn decode_unreserved_leaves_delimiters_encoded() {
-        // `%2F` is a `gen-delims` octet: decoding it would move a component
-        // boundary, which is the mistake RFC 3986 §2.4 names.
-        assert_eq!(decode_unreserved("a%2Fb"), "a%2Fb");
-        assert_eq!(decode_unreserved("a%2Cb"), "a%2Cb");
-        // An `unreserved` octet is decoded, in either hexadecimal case.
-        assert_eq!(decode_unreserved("%2Ewell%2dknown"), ".well-known");
-        // A truncated or non-hexadecimal run is left exactly as written; whether
-        // it is well formed is another rule's finding.
-        assert_eq!(decode_unreserved("%2"), "%2");
-        assert_eq!(decode_unreserved("%zz"), "%zz");
-        assert_eq!(decode_unreserved("%%41"), "%A");
-        // `from_str_radix` would read this as %x0A; no `pct-encoded` writes a
-        // sign, so the two characters are measured against `HEXDIG` first.
-        assert_eq!(decode_unreserved("%+A"), "%+A");
-        // A captured target read back through `lint` is an arbitrary string:
-        // the two positions after a `%` can be inside a multi-byte code point,
-        // and slicing them would panic.
-        assert_eq!(decode_unreserved("%é4"), "%é4");
-        assert_eq!(decode_unreserved("café"), "café");
+    fn an_escaped_spelling_of_the_reserved_segment_is_the_reserved_segment() {
+        assert!(is_well_known_segment(".well-known"));
+        assert!(is_well_known_segment("%2Ewell%2Dknown"));
+        assert!(is_well_known_segment("%2ewell-known"));
+        // `%2F` is a `gen-delims` octet and stays encoded, so this is a segment
+        // whose name merely contains the text — not the reserved one.
+        assert!(!is_well_known_segment("%2Fwell-known"));
+        assert!(!is_well_known_segment(".well-knownfoo"));
     }
 
     #[test]
