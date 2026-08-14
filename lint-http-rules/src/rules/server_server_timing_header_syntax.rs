@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, describe_char, quoted_string_end, quoting_is_balanced,
-    response_field_sections, shown_in_finding, split_commas_respecting_quotes,
+    combined_field_value_as_written, describe_char, list_members_as_written, quoted_string_end,
+    quoting_is_balanced, response_field_sections, shown_in_finding,
     split_semicolons_respecting_quotes, token_or_quoted_string, trim_ows, WordDefect,
 };
 use crate::helpers::token::find_invalid_token_char;
@@ -330,17 +330,15 @@ fn check_field_value(value: &str) -> Option<String> {
 
     // cite(Server Timing, label: Server-Timing grammar): "Server-Timing = #server-timing-metric"
     // cite(Server Timing § 2): "See [RFC7230] for definitions of #, *, OWS, token, and quoted-string."
-    for member in split_commas_respecting_quotes(value) {
-        // The comma splitter is the one that does not trim, so the `OWS` the
-        // list production prints around its separators comes off here -- and
-        // `trim_ows` rather than `str::trim`, because this value carries one
-        // `char` per octet and %xA0 in it is `obs-text` a sender wrote inside
-        // the member.
-        let metric = trim_ows(member);
-
+    // The empty-preserving walk, because the empty member *is* the finding below
+    // -- and the `OWS` trim in it is `trim_ows` rather than `str::trim`, because
+    // this value carries one `char` per octet and %xA0 in it is `obs-text` a
+    // sender wrote inside the member.
+    for metric in list_members_as_written(value) {
         // A sender's empty list element, which is a different party's rule from
-        // the recipient's *parse and ignore* and is why the shared list reader
-        // cannot answer this: by the time it answers, the evidence is gone.
+        // the recipient's *parse and ignore* and is why the two older list
+        // readers cannot answer this: by the time either answers, the evidence
+        // is gone.
         //
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if metric.is_empty() {

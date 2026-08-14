@@ -894,6 +894,68 @@ pub fn is_nominated_by_connection(name: &str, connection_header_value: Option<&s
     list_members(conn).any(|tok| tok.eq_ignore_ascii_case(name_l.as_str()))
 }
 
+/// Every member of a `#element` list, `OWS`-trimmed, **with the empty ones
+/// kept**.
+///
+/// The third `#rule` walk in this module, and the axis it differs on is the one
+/// that makes it a *sender's* reader rather than a recipient's.
+/// [`parse_list_header`] and [`list_members`] both drop an empty member, because
+/// § 5.6.1.2 has a recipient parse and ignore one — so by the time either
+/// answers, the evidence is gone. A rule measuring what a sender wrote needs the
+/// empty member *in the list*, since § 5.6.1.1 forbids generating it and
+/// § 5.6.1.2's worked example makes a value of nothing but commas the invalid
+/// spelling of a `1#` floor. Neither of those two findings can be made from a
+/// list that has already dropped them.
+///
+/// It is also the only one of the three that is quote-aware. A comma inside a
+/// `quoted-string` is `qdtext` and not a separator, so a naive split cut
+/// `TE: deflate;ext="a,b"` — one member, one parameter — into a second "member"
+/// of `b"`.
+///
+/// **That half is not universally right, and the test is the element's own
+/// grammar.** Quote-awareness is correct exactly where the element admits a
+/// `quoted-string` somewhere inside it. Where it does not — `acceptable-ranges =
+/// 1#range-unit` and `range-unit = token`, or `Vary = #( "*" / field-name )` —
+/// a DQUOTE is simply a character the member may not hold, and reading it as
+/// opening a quoted-string makes the *next comma* data when the grammar has no
+/// quoted-string for it to be data in. `Accept-Ranges: by"tes,none` is two
+/// members to that field's production and one to this walk. So a `#token` list
+/// keeps its naive split, and [`server_accept_ranges_values_valid`] says so at
+/// its own walk.
+///
+/// [`server_accept_ranges_values_valid`]: crate::rules::server_accept_ranges_values_valid
+///
+/// The trim is `OWS` and not `str::trim`, for [`list_members`]'s reason: every
+/// caller reads its field through [`combined_field_value_as_written`], where
+/// %xA0 and %x85 are `obs-text` octets a sender wrote *inside* a member.
+///
+/// **What each caller keeps is the wording of its own findings**, and they are
+/// not the same findings: `Server-Timing` is `#`, so it has no floor at all and
+/// only the empty-element half; `TE` reports the empty element after the members
+/// that are present; `Warning` numbers it; `Prefer` and `Preference-Applied`
+/// report the floor and the empty element as two separate sentences, because
+/// § 5.6.1.2 makes a recipient accept what § 5.6.1.1 forbids a sender to write.
+/// The walk is one thing; what it is walked *for* is twelve.
+///
+/// **Thirteen call sites in twelve rules, and the row that asked for this said
+/// five.** The five were copies of the whole *preamble* — the walk plus a floor
+/// finding plus a per-member empty finding — and what the same handover asked to
+/// be extracted was the walk underneath it, which twelve rules perform, in six
+/// spellings: collected-and-mapped, mapped-and-enumerated, mapped-and-`any`,
+/// mapped-and-`filter_map`, trimmed inside the loop body, and one that trimmed
+/// the `Vec` in place through `iter_mut`. **Count the thing being extracted, not
+/// the symptom that made you notice it.**
+///
+// cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
+// cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+// cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
+pub fn list_members_as_written(value: &str) -> Vec<&str> {
+    split_commas_respecting_quotes(value)
+        .into_iter()
+        .map(trim_ows)
+        .collect()
+}
+
 /// Split a comma-separated header value into top-level members while respecting quoted-strings
 /// and backslash escapes. Returns a Vec of slices referencing the original string.
 ///
@@ -2213,6 +2275,48 @@ mod tests {
     fn quoted_string_inner_trimmed_is_empty_true_cases() {
         assert!(quoted_string_inner_trimmed_is_empty("\"\"").unwrap());
         assert!(quoted_string_inner_trimmed_is_empty("\"   \"").unwrap());
+    }
+
+    /// The empty members are the point. Two of the three list walks in this
+    /// module drop them, which is right for a recipient and destroys the
+    /// evidence for a rule measuring a sender: `1#`'s floor counts non-empty
+    /// members, so a value of nothing but commas has to arrive as several empty
+    /// members rather than as no members at all.
+    #[test]
+    fn list_members_as_written_keeps_what_the_other_two_walks_drop() {
+        assert_eq!(list_members_as_written("a,,b"), vec!["a", "", "b"]);
+        assert_eq!(list_members_as_written(""), vec![""]);
+        assert_eq!(list_members_as_written(","), vec!["", ""]);
+        assert_eq!(list_members_as_written(",   ,"), vec!["", "", ""]);
+        // The same three values through the recipient's walk, which is what the
+        // two findings cannot be made from.
+        assert_eq!(list_members("a,,b").collect::<Vec<_>>(), vec!["a", "b"]);
+        assert!(list_members(",   ,").next().is_none());
+    }
+
+    /// A comma inside a `quoted-string` is `qdtext`, not a separator. The naive
+    /// walk cut `TE: deflate;ext="a,b"` — one member — into a second "member" of
+    /// `b"`.
+    #[test]
+    fn list_members_as_written_does_not_cut_inside_a_quoted_string() {
+        assert_eq!(
+            list_members_as_written(r#"deflate;ext="a,b", gzip"#),
+            vec![r#"deflate;ext="a,b""#, "gzip"]
+        );
+        assert_eq!(list_members("a,b").collect::<Vec<_>>(), vec!["a", "b"]);
+    }
+
+    /// `OWS` is `*( SP / HTAB )` and nothing else. Every caller reads its field
+    /// one `char` per octet, so %xA0 is an `obs-text` octet a sender wrote inside
+    /// the member and trimming it would hand the member's own grammar a value
+    /// nobody sent.
+    #[test]
+    fn list_members_as_written_trims_ows_and_not_unicode_whitespace() {
+        assert_eq!(list_members_as_written(" a ,\tb\t"), vec!["a", "b"]);
+        let padded: String = [0xA0u8, b'a', 0xA0].iter().map(|&b| b as char).collect();
+        let members = list_members_as_written(&padded);
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].chars().count(), 3, "the obs-text octets survive");
     }
 
     /// The alternation is decided by the first octet and by nothing else, and

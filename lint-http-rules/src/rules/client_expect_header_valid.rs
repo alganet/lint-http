@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, content_evidence, describe_octet, quoted_string_end,
-    quoting_is_balanced, split_commas_respecting_quotes, split_semicolons_respecting_quotes,
-    trim_ows, validate_quoted_string,
+    combined_field_value_as_written, content_evidence, describe_octet, list_members_as_written,
+    quoted_string_end, quoting_is_balanced, split_semicolons_respecting_quotes, trim_ows,
+    validate_quoted_string,
 };
 use crate::helpers::token::{find_invalid_token_char, token_run_end};
 use crate::lint::Violation;
@@ -286,12 +286,7 @@ impl Expectation<'_> {
 /// current request reports that, and the caller looking at an earlier request
 /// simply has no answer.
 fn members_of(value: &str) -> Option<Vec<&str>> {
-    quoting_is_balanced(value).then(|| {
-        split_commas_respecting_quotes(value)
-            .into_iter()
-            .map(trim_ows)
-            .collect()
-    })
+    quoting_is_balanced(value).then(|| list_members_as_written(value))
 }
 
 /// Parse one OWS-trimmed, non-empty list member against `expectation`.

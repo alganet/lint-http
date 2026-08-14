@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, describe_char, is_nominated_by_connection, shown_in_finding,
-    split_commas_respecting_quotes, token_or_quoted_string, trim_ows, WordDefect,
+    combined_field_value_as_written, describe_char, is_nominated_by_connection,
+    list_members_as_written, shown_in_finding, token_or_quoted_string, trim_ows, WordDefect,
 };
 use crate::lint::Violation;
 use crate::rules::Rule;
@@ -434,11 +434,7 @@ fn validate_keep_alive(value: &str, max_timeout_seconds: u64) -> Result<(), Stri
     // `quoted-string` and hold one as data. Each is trimmed as it is reached
     // rather than in a pass of its own, so a value failing at its first member
     // stops there.
-    for (index, member) in split_commas_respecting_quotes(v)
-        .into_iter()
-        .map(trim_ows)
-        .enumerate()
-    {
+    for (index, member) in list_members_as_written(v).into_iter().enumerate() {
         let n = index + 1;
 
         // Two sentences of this document decide that an empty member is not a

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, parse_token_bws_word, quoting_is_balanced, shown_in_finding,
-    split_commas_respecting_quotes, split_semicolons_respecting_quotes, trim_ows,
+    combined_field_value_as_written, list_members_as_written, parse_token_bws_word,
+    quoting_is_balanced, shown_in_finding, split_semicolons_respecting_quotes,
 };
 use crate::lint::Violation;
 use crate::rules::Rule;
@@ -61,8 +61,7 @@ fn read_prefer(headers: &hyper::HeaderMap) -> PreferSection {
         };
     }
 
-    for raw in split_commas_respecting_quotes(&value) {
-        let member = trim_ows(raw);
+    for member in list_members_as_written(&value) {
         if member.is_empty() {
             // `message_prefer_header_valid` owns what the client wrote; here an
             // unusable member only has to not become a preference.
@@ -143,10 +142,7 @@ impl Rule for MessagePreferenceAppliedHeaderValid {
         let applied = combined_field_value_as_written(&resp.headers, "preference-applied")?;
 
         // cite(RFC 7240 § 3): "Preference-Applied = "Preference-Applied" ":" 1#applied-pref"
-        let members: Vec<&str> = split_commas_respecting_quotes(&applied)
-            .into_iter()
-            .map(trim_ows)
-            .collect();
+        let members = list_members_as_written(&applied);
 
         // `1#` sets a floor, and the floor counts *non-empty* elements. The
         // sender expansion is where the floor is: one element, then any number

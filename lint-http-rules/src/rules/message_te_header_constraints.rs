@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, split_commas_respecting_quotes,
-    split_semicolons_respecting_quotes, trim_ows, valid_qvalue, validate_quoted_string,
+    combined_field_value_as_written, list_members_as_written, split_semicolons_respecting_quotes,
+    trim_ows, valid_qvalue, validate_quoted_string,
 };
 use crate::lint::Violation;
 use crate::rules::Rule;
@@ -53,16 +53,17 @@ impl MessageTeHeaderConstraints {
 
         let mut saw_an_empty_element = false;
 
-        // Quote-aware, because a `transfer-parameter`'s value may be a
-        // `quoted-string` and a comma inside one is not a list separator. The shared
-        // list reader is neither: it splits at every comma, so `TE: deflate;ext="a,b"`
-        // — one member, one parameter — came apart into a second "member" of `b"`,
-        // and it drops the empty elements § 5.6.1.1 forbids a sender from generating.
+        // `list_members_as_written` and not either of the two older list readers.
+        // Both of those split at every comma, so `TE: deflate;ext="a,b"` — one
+        // member, one parameter — came apart into a second "member" of `b"`; and
+        // both drop the empty elements § 5.6.1.1 forbids a sender from
+        // generating, which is the finding below. The quote-aware half is right
+        // for *this* field because the production quoted here puts a
+        // `quoted-string` inside the element; a `#token` list would want the
+        // naive split instead.
         //
         // cite(RFC 9110 § A): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
-        for member in split_commas_respecting_quotes(value) {
-            let member = trim_ows(member);
-
+        for member in list_members_as_written(value) {
             if member.is_empty() {
                 // Reported after the members that are present, and reported as the
                 // list's defect rather than the element's: there is no empty
