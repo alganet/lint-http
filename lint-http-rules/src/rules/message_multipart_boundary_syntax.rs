@@ -201,174 +201,168 @@ fn check_multipart_boundary(
             // production: `[ parameter ]` is bracketed, so a parameter list may
             // end in a separator with nothing after it and still conform.
             // cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
-            for raw in crate::helpers::headers::split_semicolons_respecting_quotes(params) {
-                let p = raw.trim();
-                if p.is_empty() {
-                    continue;
-                }
-                // A segment with no "=" is not a parameter — `parameter` has
-                // both halves and the "=" is not optional. That it is malformed
-                // is `message_content_type_well_formed`'s finding; this rule
-                // only needs to know it is not the boundary.
-                // cite(RFC 9110 § 5.6.6): "parameter       = parameter-name "=" parameter-value"
-                if let Some(eq) = p.find('=') {
-                    let (name, value) = p.split_at(eq);
-                    let name = name.trim();
-                    let value = value[1..].trim(); // skip '='
-                                                   // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."
-                    if name.eq_ignore_ascii_case("boundary") {
-                        found = true;
-                        // Nothing after the "=" is not a boundary that happens
-                        // to be too short — it is not a `parameter-value` at
-                        // all, since both alternatives are non-empty.
-                        // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
-                        if value.is_empty() {
-                            return Some(Violation {
-                                rule: MessageMultipartBoundarySyntax.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "Invalid multipart Content-Type in {}: empty 'boundary' parameter",
-                                    which
-                                ),
-                            });
-                        }
+            // The split, the bracketed-empty skip and the cut at the first `=`
+            // are `helpers::headers::parameters`'s. A segment with no "=" is not
+            // a parameter — `parameter` has both halves and the "=" is not
+            // optional — but that it is malformed is
+            // `message_content_type_well_formed`'s finding; this rule only needs
+            // to know it is not the boundary, so it is skipped here.
+            for parameter in crate::helpers::headers::parameters(params) {
+                let Ok(parameter) = parameter else { continue };
+                let value = parameter.value;
+                // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."
+                if parameter.name.eq_ignore_ascii_case("boundary") {
+                    found = true;
+                    // Nothing after the "=" is not a boundary that happens
+                    // to be too short — it is not a `parameter-value` at
+                    // all, since both alternatives are non-empty.
+                    // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
+                    if value.is_empty() {
+                        return Some(Violation {
+                            rule: MessageMultipartBoundarySyntax.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Invalid multipart Content-Type in {}: empty 'boundary' parameter",
+                                which
+                            ),
+                        });
+                    }
 
-                        // The two alternatives of `parameter-value`, each handed
-                        // to the helper that owns its grammar. Which one was
-                        // written decides nothing about the boundary itself:
-                        // the checks below run on the unescaped value, because
-                        // the two forms name the same value.
-                        //
-                        // The quoting is not a stylistic choice here. Seven
-                        // characters `bchars` allows — "(", ")", ",", "/", ":",
-                        // "=", "?" — and SP are not `tchar`, so a boundary using
-                        // any of them can only be transmitted quoted, which is
-                        // what RFC 2046 warns implementors about.
-                        // cite(RFC 9110 § 5.6.6): "A parameter value that matches the token production can be transmitted either as a token or within a quoted-string."
-                        // cite(RFC 9110 § 5.6.6): "The quoted and unquoted values are equivalent."
-                        // cite(RFC 2046 § 5.1.1): "The grammar for parameters on the Content-type field is such that it is often necessary to enclose the boundary parameter values in quotes on the Content-type line."
-                        let boundary_unquoted = if value.starts_with('"') {
-                            // Unescape quoted-string interior using helper
-                            match crate::helpers::headers::unescape_quoted_string(value) {
-                                Ok(u) => u,
-                                Err(e) => {
-                                    return Some(Violation {
-                                        rule: MessageMultipartBoundarySyntax.id().into(),
-                                        severity: config.severity,
-                                        message: format!(
-                                            "Invalid multipart Content-Type in {}: boundary quoted-string invalid: {}",
-                                            which, e
-                                        ),
-                                    })
-                                }
-                            }
-                        } else {
-                            // The unquoted alternative is `token`, and it is
-                            // HTTP's `token` that applies: the transport decides
-                            // what may be written bare in a parameter, whatever
-                            // the media type's own definition of the value.
-                            //
-                            // RFC 2045's `token` is the wider of the two, by "{"
-                            // and "}" — neither of which is a `bchars`, so both
-                            // are rejected either way and only the wording of the
-                            // finding differs.
-                            if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
+                    // The two alternatives of `parameter-value`, each handed
+                    // to the helper that owns its grammar. Which one was
+                    // written decides nothing about the boundary itself:
+                    // the checks below run on the unescaped value, because
+                    // the two forms name the same value.
+                    //
+                    // The quoting is not a stylistic choice here. Seven
+                    // characters `bchars` allows — "(", ")", ",", "/", ":",
+                    // "=", "?" — and SP are not `tchar`, so a boundary using
+                    // any of them can only be transmitted quoted, which is
+                    // what RFC 2046 warns implementors about.
+                    // cite(RFC 9110 § 5.6.6): "A parameter value that matches the token production can be transmitted either as a token or within a quoted-string."
+                    // cite(RFC 9110 § 5.6.6): "The quoted and unquoted values are equivalent."
+                    // cite(RFC 2046 § 5.1.1): "The grammar for parameters on the Content-type field is such that it is often necessary to enclose the boundary parameter values in quotes on the Content-type line."
+                    let boundary_unquoted = if value.starts_with('"') {
+                        // Unescape quoted-string interior using helper
+                        match crate::helpers::headers::unescape_quoted_string(value) {
+                            Ok(u) => u,
+                            Err(e) => {
                                 return Some(Violation {
                                     rule: MessageMultipartBoundarySyntax.id().into(),
                                     severity: config.severity,
                                     message: format!(
-                                        "Invalid multipart Content-Type in {}: boundary contains invalid token character '{}'",
-                                        which, c
+                                        "Invalid multipart Content-Type in {}: boundary quoted-string invalid: {}",
+                                        which, e
                                     ),
-                                });
+                                })
                             }
-                            value.to_string()
-                        };
-
-                        // The character set is judged first, before the length,
-                        // because the length is a count of characters and only a
-                        // value drawn from this set has a meaningful one. A
-                        // boundary of non-ASCII text was measured in bytes and
-                        // reported as too long, which named a limit it might not
-                        // have exceeded instead of the octets that are not
-                        // `bchars` at all.
+                        }
+                    } else {
+                        // The unquoted alternative is `token`, and it is
+                        // HTTP's `token` that applies: the transport decides
+                        // what may be written bare in a parameter, whatever
+                        // the media type's own definition of the value.
                         //
-                        // The set below is `bchars` transcribed: `bcharsnospace`
-                        // plus SP. It is not folded, and nothing here compares
-                        // case — a boundary is matched against the delimiter
-                        // lines in the content literally, which is the case-
-                        // sensitive end of what §5.6.6 leaves to each parameter.
-                        // cite(RFC 2046 § 5.1.1): "bchars := bcharsnospace / " ""
-                        // cite(RFC 2046 § 5.1.1): "bcharsnospace := DIGIT / ALPHA / "'" / "(" / ")" / "+" / "_" / "," / "-" / "." / "/" / ":" / "=" / "?""
-                        // cite(RFC 9110 § 5.6.6): "Parameter values might or might not be case-sensitive, depending on the semantics of the parameter name."
-                        for ch in boundary_unquoted.chars() {
-                            if ch.is_ascii_alphanumeric()
-                                || matches!(
-                                    ch,
-                                    '\'' | '('
-                                        | ')'
-                                        | '+'
-                                        | '_'
-                                        | ','
-                                        | '-'
-                                        | '.'
-                                        | '/'
-                                        | ':'
-                                        | '='
-                                        | '?'
-                                )
-                                || ch == ' '
-                            {
-                                continue;
-                            }
+                        // RFC 2045's `token` is the wider of the two, by "{"
+                        // and "}" — neither of which is a `bchars`, so both
+                        // are rejected either way and only the wording of the
+                        // finding differs.
+                        if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
                             return Some(Violation {
                                 rule: MessageMultipartBoundarySyntax.id().into(),
                                 severity: config.severity,
                                 message: format!(
-                                    "Invalid multipart Content-Type in {}: boundary contains invalid character '{}'",
-                                    which, ch
+                                    "Invalid multipart Content-Type in {}: boundary contains invalid token character '{}'",
+                                    which, c
                                 ),
                             });
                         }
+                        value.to_string()
+                    };
 
-                        // 70, not 69 and not 71: the production is 0*69 of
-                        // `bchars` followed by one more character, and the prose
-                        // states the same limit twice over. The zero case is
-                        // what `boundary=""` leaves after unquoting, and the
-                        // grammar has no empty alternative.
-                        // cite(RFC 2046 § 5.1.1): "boundary := 0*69<bchars> bcharsnospace"
-                        // cite(RFC 2046 § 5.1.1): "The only mandatory global parameter for the "multipart" media type is the boundary parameter, which consists of 1 to 70 characters from a set of characters known to be very robust through mail gateways, and NOT ending with white space."
-                        let len = boundary_unquoted.chars().count();
-                        if len == 0 || len > 70 {
-                            return Some(Violation {
-                                rule: MessageMultipartBoundarySyntax.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "Invalid multipart Content-Type in {}: 'boundary' must be between 1 and 70 characters",
-                                    which
-                                ),
-                            });
+                    // The character set is judged first, before the length,
+                    // because the length is a count of characters and only a
+                    // value drawn from this set has a meaningful one. A
+                    // boundary of non-ASCII text was measured in bytes and
+                    // reported as too long, which named a limit it might not
+                    // have exceeded instead of the octets that are not
+                    // `bchars` at all.
+                    //
+                    // The set below is `bchars` transcribed: `bcharsnospace`
+                    // plus SP. It is not folded, and nothing here compares
+                    // case — a boundary is matched against the delimiter
+                    // lines in the content literally, which is the case-
+                    // sensitive end of what §5.6.6 leaves to each parameter.
+                    // cite(RFC 2046 § 5.1.1): "bchars := bcharsnospace / " ""
+                    // cite(RFC 2046 § 5.1.1): "bcharsnospace := DIGIT / ALPHA / "'" / "(" / ")" / "+" / "_" / "," / "-" / "." / "/" / ":" / "=" / "?""
+                    // cite(RFC 9110 § 5.6.6): "Parameter values might or might not be case-sensitive, depending on the semantics of the parameter name."
+                    for ch in boundary_unquoted.chars() {
+                        if ch.is_ascii_alphanumeric()
+                            || matches!(
+                                ch,
+                                '\'' | '('
+                                    | ')'
+                                    | '+'
+                                    | '_'
+                                    | ','
+                                    | '-'
+                                    | '.'
+                                    | '/'
+                                    | ':'
+                                    | '='
+                                    | '?'
+                            )
+                            || ch == ' '
+                        {
+                            continue;
                         }
+                        return Some(Violation {
+                            rule: MessageMultipartBoundarySyntax.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Invalid multipart Content-Type in {}: boundary contains invalid character '{}'",
+                                which, ch
+                            ),
+                        });
+                    }
 
-                        // Space is the one whitespace character the check above
-                        // lets through, so this is the grammar's "last character
-                        // must be `bcharsnospace`" and nothing wider. The
-                        // production says it in its shape — `bchars` may repeat,
-                        // but the final character comes from the set without SP
-                        // — and the prose says it in words, along with the
-                        // reason: a gateway may have added that space, so a
-                        // recipient cannot tell it from the delimiter's own.
-                        // cite(RFC 2046 § 5.1.1): "boundary := 0*69<bchars> bcharsnospace"
-                        if boundary_unquoted.ends_with(' ') {
-                            return Some(Violation {
-                                rule: MessageMultipartBoundarySyntax.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "Invalid multipart Content-Type in {}: 'boundary' must not end with whitespace",
-                                    which
-                                ),
-                            });
-                        }
+                    // 70, not 69 and not 71: the production is 0*69 of
+                    // `bchars` followed by one more character, and the prose
+                    // states the same limit twice over. The zero case is
+                    // what `boundary=""` leaves after unquoting, and the
+                    // grammar has no empty alternative.
+                    // cite(RFC 2046 § 5.1.1): "boundary := 0*69<bchars> bcharsnospace"
+                    // cite(RFC 2046 § 5.1.1): "The only mandatory global parameter for the "multipart" media type is the boundary parameter, which consists of 1 to 70 characters from a set of characters known to be very robust through mail gateways, and NOT ending with white space."
+                    let len = boundary_unquoted.chars().count();
+                    if len == 0 || len > 70 {
+                        return Some(Violation {
+                            rule: MessageMultipartBoundarySyntax.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Invalid multipart Content-Type in {}: 'boundary' must be between 1 and 70 characters",
+                                which
+                            ),
+                        });
+                    }
+
+                    // Space is the one whitespace character the check above
+                    // lets through, so this is the grammar's "last character
+                    // must be `bcharsnospace`" and nothing wider. The
+                    // production says it in its shape — `bchars` may repeat,
+                    // but the final character comes from the set without SP
+                    // — and the prose says it in words, along with the
+                    // reason: a gateway may have added that space, so a
+                    // recipient cannot tell it from the delimiter's own.
+                    // cite(RFC 2046 § 5.1.1): "boundary := 0*69<bchars> bcharsnospace"
+                    if boundary_unquoted.ends_with(' ') {
+                        return Some(Violation {
+                            rule: MessageMultipartBoundarySyntax.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Invalid multipart Content-Type in {}: 'boundary' must not end with whitespace",
+                                which
+                            ),
+                        });
                     }
                 }
             }

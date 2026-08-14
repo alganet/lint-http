@@ -154,15 +154,16 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
             // weight last, and a recipient should find it wherever it is.
             // cite(RFC 9110 § 12.5.1): "Recipients SHOULD process any parameter named "q" as weight, regardless of parameter ordering."
             // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."
+            //
+            // A segment with no `=` names no weight and is skipped rather than
+            // judged: that it derives from no `parameter` is
+            // `message_accept_header_media_type_syntax`'s finding, and this rule
+            // is only asking whether the member refuses what the response sent.
             let mut qval: Option<&str> = None;
-            for p in parts {
-                let p = p.trim();
-                let mut kv = p.splitn(2, '=');
-                let k = kv.next().unwrap().trim();
-                if k.eq_ignore_ascii_case("q") {
-                    if let Some(v) = kv.next() {
-                        qval = Some(v.trim());
-                    }
+            for parameter in parts.filter_map(crate::helpers::headers::parameter_of) {
+                let Ok(parameter) = parameter else { continue };
+                if parameter.name.eq_ignore_ascii_case("q") {
+                    qval = Some(parameter.value);
                 }
             }
 

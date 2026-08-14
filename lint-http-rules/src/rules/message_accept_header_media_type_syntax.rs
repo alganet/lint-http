@@ -205,22 +205,29 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                     // A parameter is a name, an "=", and a value; none of the
                     // three is optional, so a bare word among the parameters is
                     // not a parameter with a missing value but not a parameter
-                    // at all.
-                    // cite(RFC 9110 § 5.6.6): "parameter       = parameter-name "=" parameter-value"
-                    let mut kv = p.splitn(2, '=');
-                    let k = kv.next().unwrap().trim();
-                    let v = kv.next();
-                    if v.is_none() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!(
-                                "Invalid parameter '{}' in {} header: missing '='",
-                                p, hdr
-                            ),
-                        });
-                    }
-                    let v = v.unwrap().trim();
+                    // at all. The split and the two `OWS` trims are the shared
+                    // walk's; the whitespace beside the `=` it hands back is
+                    // this rule's published leniency, read and dropped here so
+                    // that the paragraph saying so is a statement about the code.
+                    let Some(parsed) = crate::helpers::headers::parameter_of(p) else {
+                        continue;
+                    };
+                    let parsed = match parsed {
+                        Ok(parsed) => parsed,
+                        Err(crate::helpers::headers::ParameterDefect::NoEquals(_)) => {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: config.severity,
+                                message: format!(
+                                    "Invalid parameter '{}' in {} header: missing '='",
+                                    p, hdr
+                                ),
+                            })
+                        }
+                    };
+                    let _ = parsed.whitespace_beside_equals;
+                    let k = parsed.name;
+                    let v = parsed.value;
                     // `token = 1*tchar`, so a name with no characters is not a
                     // name. Scanning for an invalid character cannot see this:
                     // an empty string has no invalid character in it, and
