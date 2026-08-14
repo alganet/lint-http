@@ -1233,11 +1233,22 @@ impl QuotedStringDefect {
     /// the interior the walk was given — which is what every caller embedding
     /// this in its own message expects to read.
     pub fn message(self, val: &str) -> String {
+        // Escaped, always. Three of the four defects below are *about* an octet
+        // that would corrupt the sentence carrying it — a control character, a
+        // lone backslash, an unescaped DQUOTE — so a message that pasted the
+        // value in raw put the thing it was reporting into its own text, where a
+        // reader saw a truncated line or an escape nobody wrote. The fourth is
+        // no different: `qdtext` admits HTAB and `obs-text`.
+        let shown = shown_in_finding(val);
         match self {
-            Self::BadQuotedPair => format!("Invalid quoted-pair in quoted-string: '{}'", val),
-            Self::UnescapedQuote => format!("Unescaped quote in quoted-string: '{}'", val),
-            Self::ControlCharacter => format!("Control character in quoted-string: '{}'", val),
-            Self::TrailingEscape => format!("Quoted-string ends with escape character: '{}'", val),
+            Self::BadQuotedPair => {
+                format!("Invalid quoted-pair in quoted-string: '{}'", shown)
+            }
+            Self::UnescapedQuote => format!("Unescaped quote in quoted-string: '{}'", shown),
+            Self::ControlCharacter => format!("Control character in quoted-string: '{}'", shown),
+            Self::TrailingEscape => {
+                format!("Quoted-string ends with escape character: '{}'", shown)
+            }
         }
     }
 }
@@ -1338,9 +1349,21 @@ impl Iterator for QuotedStringChars<'_> {
 /// The walk is [`quoted_string_interior_chars`]'s and is run once; a caller that
 /// also wants the content asks [`unescape_quoted_string`] instead of asking
 /// both.
+///
+/// **The `String` is a convenience and not the only way to reach the answer.**
+/// The defect is [`QuotedStringDefect`], and a caller that wants to word the
+/// finding in its own field's terms — the way `Alt-Svc`'s parameter reader words
+/// `WordDefect` — walks [`quoted_string_interior_chars`] and matches the
+/// variant. Every one of the thirty-odd callers today embeds this sentence in
+/// its own, so the flattening costs nothing yet; the moment one of them needs
+/// to say something different about a `quoted-pair` than about a stray DQUOTE,
+/// it has somewhere to go that is not a second copy of the walk.
 pub fn validate_quoted_string(val: &str) -> Result<(), String> {
     let Some(inner) = quoted_string_interior(val) else {
-        return Err(format!("Quoted-string not properly quoted: '{}'", val));
+        return Err(format!(
+            "Quoted-string not properly quoted: '{}'",
+            shown_in_finding(val)
+        ));
     };
     for step in quoted_string_interior_chars(inner) {
         step.map_err(|defect| defect.message(val))?;
@@ -1373,7 +1396,10 @@ pub fn quoted_string_inner_trimmed_is_empty(val: &str) -> Result<bool, String> {
 /// for the other.
 pub fn unescape_quoted_string(val: &str) -> Result<String, String> {
     let Some(inner) = quoted_string_interior(val) else {
-        return Err(format!("Quoted-string not properly quoted: '{}'", val));
+        return Err(format!(
+            "Quoted-string not properly quoted: '{}'",
+            shown_in_finding(val)
+        ));
     };
     let mut out = String::with_capacity(inner.len());
     for step in quoted_string_interior_chars(inner) {
@@ -2882,6 +2908,36 @@ mod tests {
         assert!(validate_ext_value("UTF-8''%ZZ").is_err());
         // Invalid: invalid attr-char
         assert!(validate_ext_value("UTF-8''hello@world").is_err());
+    }
+
+    /// Three of the four `quoted-string` defects are about an octet that would
+    /// corrupt the sentence reporting it. Each message names the octet instead
+    /// of carrying it.
+    #[test]
+    fn a_quoted_string_finding_does_not_paste_in_the_octet_it_is_about() {
+        // A control octet: raw, it truncated the line a reader saw.
+        let m = validate_quoted_string("\"a\u{1}b\"").expect_err("a control octet is reported");
+        assert_eq!(m, "Control character in quoted-string: '\\\"a\\u{1}b\\\"'");
+        assert!(!m.contains('\u{1}'), "{m}");
+
+        // A backslash with nothing after it, which reads as an escape to
+        // whoever the message reaches next.
+        let m = validate_quoted_string("\"a\\\"").expect_err("a trailing escape is reported");
+        assert!(m.contains("ends with escape character"), "{m}");
+        assert!(m.contains("\\\\"), "{m}");
+
+        // A DQUOTE that closes the value early: unescaped, the message reads as
+        // quoting something.
+        let m = validate_quoted_string("\"a\"b\"").expect_err("an unescaped quote is reported");
+        assert!(m.contains("Unescaped quote"), "{m}");
+        assert!(m.contains("\\\"a\\\"b\\\""), "{m}");
+
+        // An unquoted value is escaped by the same rule, and `obs-text` stays
+        // legible: naming the octet is `describe_octet`'s job, not this one's.
+        assert_eq!(
+            validate_quoted_string("caf\u{e9}").expect_err("not a quoted-string"),
+            "Quoted-string not properly quoted: 'café'"
+        );
     }
 
     /// The two splitters trim the same three characters of intent, and it is
