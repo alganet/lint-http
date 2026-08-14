@@ -2191,7 +2191,7 @@ pub fn is_valid_serialized_origin(val: &str) -> bool {
             // Use the ipv6 helper to parse bracketed IPv6 and optional port
             if let Some((_, port_opt)) = crate::helpers::ipv6::parse_bracketed_ipv6(rest) {
                 if let Some(port_str) = port_opt {
-                    return crate::helpers::ipv6::parse_port_str(port_str).is_some();
+                    return crate::helpers::uri::port_number(port_str).is_some();
                 }
                 return true;
             } else {
@@ -2204,8 +2204,13 @@ pub fn is_valid_serialized_origin(val: &str) -> bool {
         if host.is_empty() || port.is_empty() {
             return false;
         }
-        // Parse and validate port using helper
-        return crate::helpers::ipv6::parse_port_str(port).is_some();
+        // Sixteen bits, and the licence to ask that of *this* value is the URL
+        // Standard's rather than a transport's: an origin's port is not a run of
+        // digits that happens to reach a TCP port, it is declared to be an
+        // integer of that width. `0` is one of them, so an origin naming it is a
+        // serialized origin; the shared reader rejected it until this was read.
+        // cite(URL): "A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port."
+        return crate::helpers::uri::port_number(port).is_some();
     }
 
     // No port: ensure host is non-empty
@@ -2357,8 +2362,12 @@ mod tests {
         assert!(is_valid_serialized_origin("http://example.com:1"));
         assert!(is_valid_serialized_origin("http://example.com:65535"));
         assert!(is_valid_serialized_origin("http://example.com:080")); // leading zero allowed -> 80
+                                                                       // `0` is a 16-bit unsigned integer and RFC 6335 §6 calls it a value
+                                                                       // *inside* the namespace, reserved rather than invalid. This asserted
+                                                                       // the opposite until the port reading was shared with the two rules
+                                                                       // that had already audited the bound.
+        assert!(is_valid_serialized_origin("http://example.com:0"));
 
-        assert!(!is_valid_serialized_origin("http://example.com:0")); // port 0 invalid
         assert!(!is_valid_serialized_origin("http://example.com:65536")); // out of range
         assert!(!is_valid_serialized_origin(
             "http://example.com:999999999999"

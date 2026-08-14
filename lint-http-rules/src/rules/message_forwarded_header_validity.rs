@@ -515,8 +515,9 @@ mod tests {
     #[test]
     fn a_node_port_is_five_digits_or_an_obfuscated_port() {
         // `port = 1*5DIGIT` has no range in it. The shared TCP-port reader this
-        // rule used to call rejects `0` and everything over 65535, and knows
-        // nothing of an obfuscated port at all.
+        // rule used to call reports everything over 65535 and knows nothing of
+        // an obfuscated port at all; `99999` is where the two part, and it is
+        // five digits.
         for value in [
             "for=\"192.0.2.1:0\"",
             "for=\"192.0.2.1:99999\"",

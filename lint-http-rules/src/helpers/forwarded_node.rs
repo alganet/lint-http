@@ -179,10 +179,12 @@ pub fn validate_node(value: &str, form: NodeForm) -> Result<(), String> {
 ///
 /// `1*5DIGIT` is the whole of what a numeric port may be here: five digits, no
 /// range. The `Forwarded` rule used to measure it with the shared TCP-port
-/// reader, which rejects `0` and anything over 65535 and so reported
-/// `for=192.0.2.1:0` and `for="192.0.2.1:99999"` — both of which the production
+/// reader, which reported `for="192.0.2.1:99999"` — a value the production
 /// generates — while the obfuscated form it has no idea about was rejected
-/// outright.
+/// outright. It also rejected `for=192.0.2.1:0` at the time, which
+/// `helpers::uri::port_number` no longer does; the ceiling is still not this
+/// production's, so the two answers stay apart for the reason above rather than
+/// by how far they happen to differ.
 ///
 // cite(RFC 7239 § 6, label: node-port grammar): "node-port     = port / obfport port          = 1*5DIGIT obfport       = "_" 1*(ALPHA / DIGIT / "." / "_" / "-")"
 fn validate_node_port(port: Option<&str>) -> Result<(), String> {

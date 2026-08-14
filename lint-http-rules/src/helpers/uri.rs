@@ -920,6 +920,48 @@ pub fn split_host_and_port(value: &str) -> (&str, Option<&str>) {
     }
 }
 
+/// The port a run of digits designates, or `None` when it designates none.
+///
+/// **This is not `port`'s grammar and must never be confused for it.**
+/// `port = *DIGIT` bounds nothing at either end, which is why
+/// [`validate_host_and_optional_port`] declines the range and why
+/// `client_host_header` reports no port for being out of range. What this
+/// answers is the *other* question — whether the number lands in the sixteen-bit
+/// namespace a transport registers its ports in — and **the licence to ask it is
+/// the caller's**, because it takes a sentence naming the transport or the type.
+/// Its three callers each carry their own: RFC 9113 § 8.5's TCP connection for a
+/// CONNECT `:authority`, RFC 7838 § 2's ALPN-name-includes-TLS for an
+/// `alt-authority`, and the URL Standard's *16-bit unsigned integer* for a
+/// serialized origin, which is the only one of the three where the width is
+/// stated of the value itself rather than reached through the transport.
+///
+/// **`0` is a port.** It is inside the namespace — a reserved value at the edge
+/// of a range, held back for extending the ranges later — and reserved is not
+/// invalid. Two of the three callers already read it that way after their own
+/// audits; the third rejected it, so `Origin: https://example.com:0` was not a
+/// serialized origin.
+///
+/// Empty and non-digit inputs are `None` too, which is the same answer for a
+/// different reason: they derive from no `port` at all. A caller wanting to tell
+/// the two apart measures the characters first, and all three do.
+// cite(RFC 3986 § 3.2.3): "The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character."
+// cite(RFC 6335 § 6): "TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries."
+// cite(RFC 6335 § 6): "Reserved port numbers include values at the edges of each range, e.g., 0, 1023, 1024, etc., which may be used to extend these ranges or the overall port number space in the future."
+pub fn port_number(digits: &str) -> Option<u16> {
+    if digits.is_empty() || !digits.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    // Sixteen bits, written as sixteen bits rather than as the literal 65535:
+    // the width is the whole of what the cited sentence says, and a type cannot
+    // be spelled wrong. A `*DIGIT` of any length either fits or overflows, and
+    // both mean the same thing here — a number outside the namespace — so the
+    // overflow is the answer rather than an early return.
+    //
+    // The digit scan above is what makes this parser safe to reach for: on its
+    // own, `u16::from_str` accepts a leading '+', which no `*DIGIT` writes.
+    digits.parse::<u16>().ok()
+}
+
 /// Validate a `Host` field value: a `uri-host` and, optionally, a port.
 ///
 /// The port is `*DIGIT` — no upper bound and no lower one. A number no
@@ -1320,6 +1362,31 @@ mod tests {
         }
     }
 
+    /// The axis the three copies of this predicate disagreed on was `0`, and
+    /// the ones either side of the namespace are what it is not.
+    #[test]
+    fn port_number_holds_the_sixteen_bit_namespace_including_its_reserved_edge() {
+        assert_eq!(port_number("0"), Some(0));
+        assert_eq!(port_number("1"), Some(1));
+        assert_eq!(port_number("443"), Some(443));
+        assert_eq!(port_number("65535"), Some(65535));
+        assert_eq!(port_number("65536"), None);
+        // A `*DIGIT` has no length bound, so an overflow is an answer rather
+        // than an early return.
+        assert_eq!(port_number("999999999999999999999999"), None);
+        // Leading zeros are digits: `port = *DIGIT` writes no canonical form,
+        // and the number is what it is.
+        assert_eq!(port_number("080"), Some(80));
+        assert_eq!(port_number("00000"), Some(0));
+        // Not a run of digits at all, which is a different reason for the same
+        // answer — `u16::from_str` would have taken the sign.
+        assert_eq!(port_number(""), None);
+        assert_eq!(port_number("+80"), None);
+        assert_eq!(port_number("-1"), None);
+        assert_eq!(port_number("8o8"), None);
+        assert_eq!(port_number(" 80"), None);
+    }
+
     #[test]
     fn scheme_prefix_names_the_candidate_without_judging_it() {
         assert_eq!(scheme_prefix("https://ex"), Some("https"));
@@ -1519,7 +1586,10 @@ mod tests {
         // The authority is validated too, not merely required to be non-empty.
         assert!(validate_origin_value("http://host:notaport").is_some());
         assert!(validate_origin_value("https://user@example.com").is_some());
-        assert!(validate_origin_value("http://example.com:0").is_some());
+        // A port outside the sixteen-bit namespace is the finding; `0` is
+        // inside it, reserved rather than invalid.
+        assert!(validate_origin_value("http://example.com:65536").is_some());
+        assert!(validate_origin_value("http://example.com:0").is_none());
         // invalid scheme in Origin
         let m = validate_origin_value("1http://example.com").unwrap();
         assert!(m.contains("Invalid scheme"));

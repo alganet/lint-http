@@ -92,13 +92,11 @@ fn connect_authority_finding(authority: &str) -> Option<String> {
 // cite(RFC 6335 § 6): "TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries."
 // cite(RFC 6335 § 6): "Reserved port numbers include values at the edges of each range, e.g., 0, 1023, 1024, etc., which may be used to extend these ranges or the overall port number space in the future."
 fn connect_port_range_finding(port: &str) -> Option<String> {
-    // A `*DIGIT` of any length parses or overflows; both mean the same thing
-    // here, so an overflow is the finding rather than an early return.
-    let too_large = match port.parse::<u64>() {
-        Ok(n) => n > u16::MAX as u64,
-        Err(_) => true,
-    };
-    too_large.then(|| {
+    // The range itself is `helpers::uri::port_number`'s, shared with the two
+    // other callers that have a sentence naming a transport. The sentences
+    // above are what license *this* caller to ask it; the reader holds the
+    // width and the reserved-value reading and nothing about CONNECT.
+    crate::helpers::uri::port_number(port).is_none().then(|| {
         format!(
             "a TCP port number is one of 65536 values and '{port}' is not among them, so the \
              connection this CONNECT asks for cannot be opened to it"
