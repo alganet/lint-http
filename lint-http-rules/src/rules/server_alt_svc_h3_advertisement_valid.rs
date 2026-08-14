@@ -2,12 +2,41 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::headers::{
+    combined_field_value_as_written, list_members_as_written, quoting_is_balanced,
+    shown_in_finding, split_semicolons_respecting_quotes, token_or_quoted_string, trim_ows,
+};
 use crate::lint::Violation;
 use crate::rules::Rule;
 
 /// Alt-Svc advertising `h3` must use the final protocol ID (not draft versions),
 /// with a reasonable `ma` (max-age) value (RFC 9114 §3.1.1, RFC 7838).
 pub struct ServerAltSvcH3AdvertisementValid;
+
+/// The alternative of the field's top production that is not a list.
+///
+/// `%s` is RFC 7405's case-sensitive string, so `Clear` is not this keyword —
+/// which costs this rule nothing either way, since a value that is not an
+/// `alt-value` advertises no HTTP/3 endpoint. Spelled the same way as
+/// `server_alt_svc_header_syntax`'s, because it is the same literal.
+// cite(RFC 7838 § 3, label: Alt-Svc grammar): "Alt-Svc       = clear / 1#alt-value"
+// cite(RFC 7838 § 3): "clear         = %s"clear"; "clear", case-sensitive"
+const CLEAR: &str = "clear";
+
+/// The one `ma` this document defines, and it is not folded.
+///
+/// RFC 7838 prints `parameter = token "=" ( token / quoted-string )` and states
+/// nothing about comparing a parameter name without regard to case. RFC 9110
+/// § 5.6.6's *"Parameter names are case-insensitive"* governs the `parameters`
+/// production, which this field does not import — it writes its own — so it does
+/// not reach here, and `server_alt_svc_header_syntax` already compares `persist`
+/// case-sensitively for the same reason. What a recipient does with `MA` is
+/// § 3's *"Unknown parameters MUST be ignored."*, so a finding about `MA=0`
+/// invalidating an advertisement would be describing something that does not
+/// happen.
+// cite(RFC 7838 § 3): "parameter     = token "=" ( token / quoted-string )"
+// cite(RFC 7838 § 3): "Unknown parameters MUST be ignored."
+const MA: &str = "ma";
 
 /// Maximum reasonable max-age: 1 year in seconds. RFC 7838 sets **no** upper
 /// bound on `ma`; this is a linter heuristic to flag likely misconfiguration,
@@ -29,83 +58,95 @@ impl Rule for ServerAltSvcH3AdvertisementValid {
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
-        // Server-scoped: this rule reads Alt-Svc from responses. §3 defines the
-        // header field itself (§1's cite was the broader "Alternative Services"
-        // concept — re-anchored to the sentence about the response header field).
+        // The field probe before the config, and the value read as the sender
+        // wrote it — one `char` per octet. The `to_str()` + `continue` this
+        // replaced dropped every field line carrying an octet at or above
+        // %x80, which is the octet class no `token` admits: the one spelling of
+        // a protocol-id that certainly derives from nothing was the one
+        // spelling this rule could not see.
+        //
+        // The lines are joined rather than read one at a time, because the
+        // sentence cited below makes them one value and `1#alt-value` is the
+        // list that licenses the join — an `alt-value` is not a `clear`, which
+        // is the field's other alternative and is ruled out under it. The
+        // header section only: what may ride in a trailer section is
+        // § 6.5.1's question and `message_trailer_fields_validity`'s finding.
+        //
         // cite(RFC 7838 § 3): "An HTTP(S) origin server can advertise the availability of alternative services to clients by adding an Alt-Svc header field to responses."
-        for hv in resp.headers.get_all("alt-svc").iter() {
-            let s = match hv.to_str() {
-                Ok(s) => s,
-                Err(_) => continue, // syntax rule handles non-UTF8
+        // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3)."
+        let value = combined_field_value_as_written(&resp.headers, "alt-svc")?;
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        let value = trim_ows(&value);
+
+        // The other alternative of the top production, which advertises no
+        // endpoint of any protocol. A `clear` sharing the value with alternative
+        // services is `server_alt_svc_header_syntax`'s finding, and this rule
+        // reads the alternatives beside it the same way a client does.
+        if value == CLEAR {
+            return None;
+        }
+
+        // An unterminated DQUOTE makes every separator after it ambiguous, so
+        // the member list is a guess and so is each member's parameter list.
+        // The syntax rule reports it; nothing below can be said about a value
+        // whose shape is unknown.
+        if !quoting_is_balanced(value) {
+            return None;
+        }
+
+        for member in list_members_as_written(value) {
+            // An empty list element and a member with no '=' are both
+            // `server_alt_svc_header_syntax`'s findings; this rule has no
+            // alternative to read in either.
+            if member.is_empty() {
+                continue;
+            }
+            let parts = split_semicolons_respecting_quotes(member);
+            let (alternative, parameters) = parts
+                .split_first()
+                .expect("the splitter yields at least one segment");
+            let Some((protocol_id, _)) = alternative.split_once('=') else {
+                continue;
             };
+            if protocol_id.is_empty() {
+                continue;
+            }
 
-            for entry in crate::helpers::headers::parse_list_header(s) {
-                // split off params after first ';'
-                let mut parts = entry.splitn(2, ';');
-                let proto_auth = parts.next().unwrap_or("").trim();
-                let params_str = parts.next().unwrap_or("");
+            // RFC 7838 §3 says protocol-ids are matched by "simple string
+            // comparison" (case-sensitive); this rule folds to lowercase — a
+            // deliberate, more-permissive choice so case-variant draft tokens
+            // (e.g. "H3-29") are still flagged. Not cited: the spec sentence
+            // mandates case-sensitive comparison, which is not what this does
+            // (the #10 shape — permissive code, no honest quote; §4.1). The
+            // fold **widens** what is reported on both of its uses, which is
+            // what makes it recordable as a leniency rather than an invented
+            // licence: `H3-29` is still named as a draft token, and `H3=…; ma=0`
+            // is still measured.
+            let proto_lower = protocol_id.to_ascii_lowercase();
 
-                if proto_auth.is_empty() {
-                    continue; // syntax rule handles this
-                }
+            // Draft h3 protocol IDs (h3-29, h3-Q050, etc.): the final ALPN token
+            // advertised for HTTP/3 is "h3", so any "h3-*" draft token is not a
+            // valid advertisement of the shipped protocol.
+            // cite(RFC 9114 § 3.1.1): "An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token."
+            if proto_lower.starts_with("h3-") {
+                return Some(self.violation(
+                    config.severity,
+                    format!(
+                        "Alt-Svc uses draft HTTP/3 protocol identifier '{}'; use the final 'h3' token instead (RFC 9114 §3.1.1)",
+                        shown_in_finding(protocol_id)
+                    ),
+                ));
+            }
 
-                // "clear" is a directive to invalidate cached alternatives, not an
-                // h3 advertisement, so there is nothing for this rule to validate.
-                // (The grammar makes "clear" case-sensitive — `%s"clear"`; matching
-                // it case-insensitively here is inert, as any non-lowercase form has
-                // no '=' and is skipped anyway. Case-sensitivity is the syntax rule's
-                // concern; see §4.1.)
-                // cite(RFC 7838 § 3): "A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated"
-                if proto_auth.eq_ignore_ascii_case("clear") {
-                    continue;
-                }
+            // Only validate parameters for actual h3 entries
+            if proto_lower != "h3" {
+                continue;
+            }
 
-                let eq_idx = match proto_auth.find('=') {
-                    Some(i) => i,
-                    None => continue, // syntax rule handles missing '='
-                };
-
-                let protocol = proto_auth[..eq_idx].trim();
-                if protocol.is_empty() {
-                    continue;
-                }
-
-                // RFC 7838 §3 says protocol-ids are matched by "simple string
-                // comparison" (case-sensitive); this rule folds to lowercase — a
-                // deliberate, more-permissive choice so case-variant draft tokens
-                // (e.g. "H3-29") are still flagged. Not cited: the spec sentence
-                // mandates case-sensitive comparison, which is not what this does
-                // (the #10 shape — permissive code, no honest quote; §4.1).
-                let proto_lower = protocol.to_ascii_lowercase();
-
-                // Draft h3 protocol IDs (h3-29, h3-Q050, etc.): the final ALPN token
-                // advertised for HTTP/3 is "h3", so any "h3-*" draft token is not a
-                // valid advertisement of the shipped protocol.
-                // cite(RFC 9114 § 3.1.1): "An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token."
-                if proto_lower.starts_with("h3-") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!(
-                            "Alt-Svc uses draft HTTP/3 protocol identifier '{}'; \
-                             use the final 'h3' token instead (RFC 9114 §3.1.1)",
-                            protocol
-                        ),
-                    });
-                }
-
-                // Only validate parameters for actual h3 entries
-                if proto_lower != "h3" {
-                    continue;
-                }
-
-                // Parse parameters looking for `ma`
-                if let Some(v) = check_h3_ma_param(self.id(), &config, params_str) {
-                    return Some(v);
-                }
+            if let Some(message) = h3_ma_defect(parameters) {
+                return Some(self.violation(config.severity, message));
             }
         }
 
@@ -117,7 +158,7 @@ impl Rule for ServerAltSvcH3AdvertisementValid {
     }
 
     fn description(&self) -> &'static str {
-        "Validates `Alt-Svc` entries that advertise HTTP/3. Servers must use the final ALPN protocol identifier `h3`, not draft-era tokens such as `h3-29` or `h3-Q050`. When the `ma` (max-age) parameter is present on an `h3` entry, its value must be a positive integer within reasonable bounds (at most 1 year / 31 536 000 seconds); `ma=0` immediately invalidates the advertisement and is flagged as likely misconfiguration.\n\nThis rule complements `server_alt_svc_header_syntax` (general syntax) and `server_alt_svc_protocol_iana_registered` (allowlist check) by adding HTTP/3-specific semantic validation."
+        "Reads the `Alt-Svc` response header field for the entries that advertise HTTP/3, and asks two things of each: that it names the shipped protocol, and that the freshness lifetime it carries is one.\n\n**The protocol identifier.** RFC 9114 §3.1.1: *\"An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the \"h3\" ALPN token.\"* A draft-era token — `h3-29`, `h3-Q050`, `h3-27` — is a different ALPN protocol name, so a client that speaks HTTP/3 and not that draft finds nothing it can use at the alternative.\n\n**The `ma` parameter.** RFC 7838 §3.1 gives it a `delta-seconds` value, and `delta-seconds` is `1*DIGIT` (RFC 9111 §1.2.2) — **the production, not an integer type**. A leading `+` is not part of it, so `ma=+5` is reported even though every standard-library parser reads it as 5; conversely a run of digits longer than 64 bits is a conforming value that RFC 9111 §1.2.2 tells a cache to clamp rather than reject, so it is measured against this rule's ceiling instead of being called malformed. `ma=0` is fresh for zero seconds — the advertisement is stale as it arrives — and is reported as the likely misconfiguration it is.\n\n**The ceiling is a heuristic and is the one thing here with no sentence behind it.** RFC 7838 places no upper bound on `ma`. One year (31 536 000 seconds) is this linter's guess at where a value stops being a policy and starts being a typo.\n\n**The parameter name is compared case-sensitively, and the protocol identifier is not.** RFC 7838 prints `parameter = token \"=\" ( token / quoted-string )` and states no case-insensitivity for the name; RFC 9110 §5.6.6's *\"Parameter names are case-insensitive\"* governs the `parameters` production, which this field does not import. So `MA=0` is a parameter name a client is required to ignore (*\"Unknown parameters MUST be ignored.\"*), and reporting it as invalidating an advertisement would describe something that does not happen. The **protocol identifier** is folded to lowercase, deliberately and against §3's *\"simple string comparison\"*: the fold only ever widens what this rule reports, so `H3-29` is still named as a draft token and `H3=…; ma=0` is still measured.\n\n**What this rule leaves to its two siblings.** Everything about the field's shape is `server_alt_svc_header_syntax`'s, on every protocol rather than on `h3` alone: an empty list element, an `alternative` with no `=`, an empty `protocol-id`, a percent-encoding this field's one-spelling constraints forbid, a `parameter` with no value or a value that is neither a `token` nor a well-formed `quoted-string`, and an unterminated DQUOTE — which this rule treats as making the whole value unreadable rather than guessing at where its members end. Whether the ALPN name is registered is `server_alt_svc_protocol_iana_registered`'s.\n\nThe field lines are joined before they are read (RFC 9110 §5.3), because `1#alt-value` is the list that licenses the join, and the value is read one `char` per octet so that an `obs-text` octet is measured rather than hiding the line it is written on."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -132,7 +173,19 @@ impl Rule for ServerAltSvcH3AdvertisementValid {
                 spec: "RFC 7838",
                 section: Some("3"),
                 url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3",
-                note: "Alt-Svc header field syntax and `ma` parameter semantics",
+                note: "Alt-Svc — the field's grammar, the `parameter` production, and the requirement that a recipient ignore a parameter name it does not know",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7838",
+                section: Some("3.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3.1",
+                note: "Caching Alt-Svc Header Field Values — what the `ma` parameter's delta-seconds value means",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9111",
+                section: Some("1.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2",
+                note: "delta-seconds — the `1*DIGIT` production `ma` carries, and what a cache does with a value too large to represent",
             },
         ]
     }
@@ -142,87 +195,122 @@ impl Rule for ServerAltSvcH3AdvertisementValid {
         &[
             Example {
                 compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Alt-Svc: h3=\":443\"; ma=2592000\nAlt-Svc: h3=example.com:443; ma=86400\nAlt-Svc: h2=\":443\", h3=\":443\"; ma=3600",
+                label: Some("The shipped ALPN token, with a freshness lifetime"),
+                snippet: "Alt-Svc: h3=\":443\"; ma=2592000",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("No `ma` at all: the parameter is optional"),
+                snippet: "Alt-Svc: h3=\":443\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("An `h3` entry beside another protocol's"),
+                snippet: "Alt-Svc: h2=\":443\", h3=\":443\"; ma=3600",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "A parameter name this document does not define is ignored, not folded",
+                ),
+                snippet: "Alt-Svc: h3=\":443\"; MA=0",
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Alt-Svc: h3-29=\":443\"              # draft protocol identifier\nAlt-Svc: h3=\":443\"; ma=0           # immediately invalidates entry\nAlt-Svc: h3=\":443\"; ma=99999999    # exceeds 1 year\nAlt-Svc: h3=\":443\"; ma=abc         # non-numeric max-age",
+                label: Some("A draft protocol identifier"),
+                snippet: "Alt-Svc: h3-29=\":443\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Fresh for zero seconds: stale as it arrives"),
+                snippet: "Alt-Svc: h3=\":443\"; ma=0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Beyond the one-year ceiling this linter guesses at"),
+                snippet: "Alt-Svc: h3=\":443\"; ma=99999999",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("No `delta-seconds`: `1*DIGIT` writes no sign"),
+                snippet: "Alt-Svc: h3=\":443\"; ma=+5",
             },
         ]
     }
 }
 
-/// Validate the `ma` (max-age) parameter on an h3 Alt-Svc entry.
-fn check_h3_ma_param(
-    rule_id: &str,
-    config: &crate::rules::RuleConfig,
-    params_str: &str,
-) -> Option<Violation> {
-    for param in crate::helpers::headers::split_semicolons_respecting_quotes(params_str) {
-        if param.is_empty() {
+/// The reason this h3 entry's `ma` parameter does not advertise a freshness
+/// lifetime, or `None`.
+///
+/// `parameters` are the segments after the `alternative`, already split on the
+/// semicolons a `quoted-string` does not swallow.
+///
+/// The value half is `( token / quoted-string )` and is read by the shared
+/// reader that owns the alternation, so `ma="86400"` and `ma=86400` are the
+/// same value and `ma="864\00"` is the value `86400` — which the hand-written
+/// `starts_with('"') && ends_with('"')` strip this replaced could not say, and
+/// which it read as the two-character-shorter string on an unbalanced quote.
+///
+/// A `parameter` this rule cannot read at all — no `=`, an empty value, a
+/// malformed `quoted-string` — is `server_alt_svc_header_syntax`'s finding, on
+/// every protocol rather than on `h3` alone, so it is passed over here rather
+/// than reported twice in different words.
+// cite(RFC 7838 § 3): "parameter     = token "=" ( token / quoted-string )"
+// cite(RFC 7838 § 3): "Each "alt-value" is followed by an OPTIONAL semicolon-separated list of additional parameters, each such "parameter" comprising a name and a value."
+fn h3_ma_defect(parameters: &[&str]) -> Option<String> {
+    for parameter in parameters {
+        // Whitespace beside the '=' leaves it in the name, so `ma = 0` does not
+        // match and is not measured here. That is the right answer rather than a
+        // gap: `alternative` and `parameter` print no `OWS` around their
+        // delimiters, so such a segment derives from no `parameter` at all and
+        // is already reported as that by `server_alt_svc_header_syntax`.
+        let Some((name, value)) = parameter.split_once('=') else {
+            continue;
+        };
+        if name != MA {
             continue;
         }
-        let mut kv = param.splitn(2, '=');
-        let key = kv.next().unwrap_or("").trim();
-        let raw_val = kv.next().unwrap_or("").trim();
-
-        if !key.eq_ignore_ascii_case("ma") {
+        let Ok(seconds) = token_or_quoted_string(value) else {
             continue;
-        }
-
-        // `ma` carries a delta-seconds count — how long the advertisement stays
-        // fresh. This governs all three checks below: an absent value and a
-        // non-numeric value fail to express delta-seconds, and ma=0 means fresh
-        // for zero seconds (immediately stale).
-        // cite(RFC 7838 § 3.1): "The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh."
-        if raw_val.is_empty() {
-            return Some(Violation {
-                rule: rule_id.into(),
-                severity: config.severity,
-                message: "Alt-Svc h3 entry has 'ma' parameter with no value".into(),
-            });
-        }
-
-        // Strip quotes if present (RFC 7838 allows quoted-string)
-        let val = if raw_val.starts_with('"') && raw_val.ends_with('"') && raw_val.len() >= 2 {
-            &raw_val[1..raw_val.len() - 1]
-        } else {
-            raw_val
         };
 
-        match val.parse::<u64>() {
-            Ok(0) => {
-                return Some(Violation {
-                    rule: rule_id.into(),
-                    severity: config.severity,
-                    message: "Alt-Svc h3 entry has 'ma=0' which immediately invalidates \
-                         the advertisement (RFC 7838 §3.1)"
-                        .into(),
-                });
-            }
-            // Heuristic ceiling, not spec-derived: RFC 7838 places no upper bound
-            // on `ma` (see MAX_REASONABLE_MA). Flags likely misconfiguration only.
-            Ok(n) if n > MAX_REASONABLE_MA => {
-                return Some(Violation {
-                    rule: rule_id.into(),
-                    severity: config.severity,
-                    message: format!(
-                        "Alt-Svc h3 entry has unreasonably large 'ma={}' \
-                         (exceeds 1 year / {} seconds)",
-                        n, MAX_REASONABLE_MA
-                    ),
-                });
-            }
-            Ok(_) => {}
-            Err(_) => {
-                return Some(Violation {
-                    rule: rule_id.into(),
-                    severity: config.severity,
-                    message: format!("Alt-Svc h3 entry has non-numeric 'ma' value: '{}'", val),
-                });
-            }
+        // `ma` carries a delta-seconds count — how long the advertisement stays
+        // fresh — and `delta-seconds` is `1*DIGIT`. That is the production, not
+        // an integer type: `parse::<u64>()` accepts a leading '+', which no
+        // `1*DIGIT` writes, and refuses a run of digits longer than 64 bits,
+        // which is a conforming value the document tells a cache how to handle.
+        // So the characters are measured against the production first and only
+        // then read as a number.
+        // cite(RFC 7838 § 3.1): "The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh."
+        // cite(RFC 9111 § 1.2.2, label: delta-seconds): "delta-seconds  = 1*DIGIT"
+        // cite(RFC 9111 § 1.2.2): "The delta-seconds rule specifies a non-negative integer, representing time in seconds."
+        if seconds.is_empty() || !seconds.chars().all(|c| c.is_ascii_digit()) {
+            return Some(format!(
+                "Alt-Svc h3 entry has 'ma={}', which is no `delta-seconds`: the production is `1*DIGIT` (RFC 9111 §1.2.2), so a sign, a radix point or any other character leaves the freshness lifetime unstated",
+                shown_in_finding(&seconds)
+            ));
+        }
+
+        // Every character is a digit by now, so the only way the parse fails is
+        // a run longer than 64 bits — a value the document has a cache clamp
+        // rather than reject, and one this rule's ceiling already covers.
+        // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648 (2^31) or the greatest positive integer it can conveniently represent."
+        let n = seconds.parse::<u64>().unwrap_or(u64::MAX);
+
+        if n == 0 {
+            return Some(
+                "Alt-Svc h3 entry has 'ma=0' which immediately invalidates the advertisement (RFC 7838 §3.1)"
+                    .into(),
+            );
+        }
+        // Heuristic ceiling, not spec-derived: RFC 7838 places no upper bound
+        // on `ma` (see MAX_REASONABLE_MA). Flags likely misconfiguration only.
+        if n > MAX_REASONABLE_MA {
+            return Some(format!(
+                "Alt-Svc h3 entry has unreasonably large 'ma={}' (exceeds 1 year / {} seconds)",
+                shown_in_finding(&seconds),
+                MAX_REASONABLE_MA
+            ));
         }
     }
 
@@ -260,14 +348,36 @@ mod tests {
     // Unreasonably large ma
     #[case(Some("h3=\":443\"; ma=99999999"), true)]
     #[case(Some("h3=\":443\"; ma=31536001"), true)]
-    // Non-numeric ma
+    // No `delta-seconds`: the production is `1*DIGIT` and nothing else.
     #[case(Some("h3=\":443\"; ma=abc"), true)]
-    // Empty ma value
-    #[case(Some("h3=\":443\"; ma="), true)]
-    // Case-insensitive protocol
+    // `parse::<u64>()` read this as 5; no `1*DIGIT` writes a sign.
+    #[case(Some("h3=\":443\"; ma=+5"), true)]
+    #[case(Some("h3=\":443\"; ma=8.6e4"), true)]
+    // Every character is a digit and the run is longer than 64 bits — a value
+    // §1.2.2 has a cache clamp rather than reject. Reported for the ceiling,
+    // which is what it exceeds, and not as "non-numeric".
+    #[case(Some("h3=\":443\"; ma=99999999999999999999999"), true)]
+    // A `quoted-pair` is the octet after the backslash, so this is 86400.
+    #[case(Some("h3=\":443\"; ma=\"864\\00\""), false)]
+    // An empty value derives from neither half of `( token / quoted-string )`,
+    // and saying so is `server_alt_svc_header_syntax`'s finding on every
+    // protocol rather than this rule's on `h3`.
+    #[case(Some("h3=\":443\"; ma="), false)]
+    // The protocol-id fold, which widens: a case-variant draft token is still
+    // named, and a case-variant `h3` is still measured.
     #[case(Some("H3=\":443\"; ma=86400"), false)]
-    // Case-insensitive ma key
+    #[case(Some("H3=\":443\"; ma=0"), true)]
+    // The parameter name is **not** folded. RFC 7838 states no
+    // case-insensitivity for it and §3 has a client ignore a name it does not
+    // know, so `MA=0` invalidates nothing and reporting it would describe
+    // something that does not happen.
     #[case(Some("h3=\":443\"; MA=86400"), false)]
+    #[case(Some("h3=\":443\"; MA=0"), false)]
+    // Whitespace beside the '=' leaves it in the name; the segment derives from
+    // no `parameter` and the syntax rule is what reports it.
+    #[case(Some("h3=\":443\"; ma = 0"), false)]
+    // An unterminated DQUOTE makes every separator after it a guess.
+    #[case(Some("h3=\":443\"; ma=\"0"), false)]
     // Persist param without ma (valid, defaults to 24h)
     #[case(Some("h3=\":443\"; persist=1"), false)]
     // Multiple params including valid ma
@@ -370,8 +480,10 @@ mod tests {
         assert!(v.message.contains("unreasonably large"));
     }
 
+    /// The message is pinned whole: it is assembled from a prefix and the value
+    /// it names, and an `is_some` assertion cannot see the two disagree.
     #[test]
-    fn non_numeric_ma_message_mentions_value() {
+    fn a_value_that_is_no_delta_seconds_names_the_production() {
         let rule = ServerAltSvcH3AdvertisementValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
@@ -385,8 +497,78 @@ mod tests {
                 &config,
             )
             .unwrap();
-        assert!(v.message.contains("non-numeric"));
-        assert!(v.message.contains("abc"));
+        assert_eq!(
+            v.message,
+            "Alt-Svc h3 entry has 'ma=abc', which is no `delta-seconds`: the production is `1*DIGIT` (RFC 9111 §1.2.2), so a sign, a radix point or any other character leaves the freshness lifetime unstated"
+        );
+    }
+
+    /// The sign is the finding, and the reason it is one is that the check is
+    /// the production rather than an integer type.
+    #[test]
+    fn a_leading_plus_is_no_delta_seconds() {
+        let rule = ServerAltSvcH3AdvertisementValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("alt-svc", "h3=\":443\"; ma=+5")],
+        );
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &config,
+            )
+            .unwrap();
+        assert!(v.message.contains("'ma=+5'"), "{}", v.message);
+        assert!(v.message.contains("`1*DIGIT`"), "{}", v.message);
+        // `parse::<u64>()` reads this as 5 and would have said nothing.
+        assert_eq!("+5".parse::<u64>(), Ok(5));
+    }
+
+    /// A run of digits too long for 64 bits is a conforming `delta-seconds`, so
+    /// it is reported for the ceiling it exceeds and not as a malformed value.
+    #[test]
+    fn an_overlong_digit_run_is_measured_against_the_ceiling() {
+        let rule = ServerAltSvcH3AdvertisementValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("alt-svc", "h3=\":443\"; ma=99999999999999999999999")],
+        );
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &config,
+            )
+            .unwrap();
+        assert!(v.message.contains("unreasonably large"), "{}", v.message);
+        assert!(!v.message.contains("delta-seconds"), "{}", v.message);
+    }
+
+    /// The value arrives through the shared `( token / quoted-string )` reader,
+    /// so the DQUOTEs are syntax and a `quoted-pair` is the octet after the
+    /// backslash. The strip this replaced took the first and last characters.
+    #[test]
+    fn a_quoted_ma_is_read_by_the_shared_reader() {
+        let rule = ServerAltSvcH3AdvertisementValid;
+        for (header, expect_finding) in [
+            ("h3=\":443\"; ma=\"864\\00\"", false),
+            ("h3=\":443\"; ma=\"0\"", true),
+        ] {
+            let tx = crate::test_helpers::make_test_transaction_with_response(
+                200,
+                &[("alt-svc", header)],
+            );
+            let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+            let v = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &config,
+            );
+            assert_eq!(v.is_some(), expect_finding, "{header}: {v:?}");
+        }
     }
 
     #[test]
@@ -433,33 +615,48 @@ mod tests {
         assert!(v.is_none());
     }
 
+    /// A parameter this rule cannot read is the syntax rule's finding on every
+    /// protocol, so it is passed over here rather than reported twice in
+    /// different words.
     #[test]
-    fn empty_ma_message_mentions_no_value() {
+    fn a_parameter_that_derives_from_nothing_is_left_to_its_owner() {
         let rule = ServerAltSvcH3AdvertisementValid;
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("alt-svc", "h3=\":443\"; ma=")],
-        );
-        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule
-            .check_transaction(
+        for header in [
+            "h3=\":443\"; ma=",
+            "h3=\":443\"; ma",
+            "h3=\":443\"; ma=\"unterminated",
+            "h3=\":443\"; ;",
+        ] {
+            let tx = crate::test_helpers::make_test_transaction_with_response(
+                200,
+                &[("alt-svc", header)],
+            );
+            let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+            let v = rule.check_transaction(
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &config,
-            )
-            .unwrap();
-        assert!(v.message.contains("no value"));
+            );
+            assert!(v.is_none(), "{header}: {v:?}");
+        }
     }
 
+    /// The value is read one `char` per octet. The `to_str()` + `continue` this
+    /// replaced dropped the whole field line for an octet at or above %x80 —
+    /// the one octet class no `token` admits, so the clearest defect was the one
+    /// the rule could not see.
     #[test]
-    fn non_utf8_header_value_is_skipped() -> anyhow::Result<()> {
+    fn an_obs_text_octet_no_longer_hides_the_line() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         use hyper::HeaderMap;
         let rule = ServerAltSvcH3AdvertisementValid;
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = HeaderMap::new();
-        let bad = HeaderValue::from_bytes(&[0xff]).expect("should construct non-utf8 header");
+        // `h3-29=":443"; ma=<%xFF>` — a draft token, in a value the old reader
+        // refused to look at.
+        let bad = HeaderValue::from_bytes(b"h3-29=\":443\"; ma=\xff")
+            .expect("should construct an obs-text header");
         hm.insert("alt-svc", bad);
         tx.response = Some(crate::http_transaction::ResponseInfo {
             status: 200,
@@ -469,15 +666,14 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(
-            v.is_none(),
-            "non-UTF8 should be skipped (syntax rule handles it)"
-        );
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .expect("the draft token is reported");
+        assert!(v.message.contains("h3-29"), "{}", v.message);
         Ok(())
     }
 
@@ -526,5 +722,49 @@ mod tests {
     fn scope_is_server() {
         let rule = ServerAltSvcH3AdvertisementValid;
         assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+    }
+
+    /// Nothing runs a rule's own `examples()` through the engine, so a
+    /// `Compliant` value the rule rejects is published as guidance. The four
+    /// snippets this replaced carried `#` comments after the field value and
+    /// could not have been run at all.
+    #[test]
+    fn published_examples_are_judged_the_way_they_are_labelled() {
+        use crate::rules::Compliance;
+        let rule = ServerAltSvcH3AdvertisementValid;
+        let mut saw_a_finding = false;
+        for ex in rule.examples() {
+            let fields: Vec<&str> = ex
+                .snippet
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| {
+                    l.strip_prefix("Alt-Svc: ")
+                        .unwrap_or_else(|| panic!("not an Alt-Svc line: {l:?}"))
+                })
+                .collect();
+            let pairs: Vec<(&str, &str)> = fields.iter().map(|v| ("alt-svc", *v)).collect();
+            let tx = crate::test_helpers::make_test_transaction_with_response(200, &pairs);
+            let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+            let found = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &config,
+            );
+            match ex.compliance {
+                Compliance::Compliant => assert!(
+                    found.is_none(),
+                    "rule reports its Compliant example {:?}: {found:?}",
+                    ex.snippet
+                ),
+                Compliance::NonCompliant => {
+                    found.unwrap_or_else(|| {
+                        panic!("rule accepts its NonCompliant example {:?}", ex.snippet)
+                    });
+                    saw_a_finding = true;
+                }
+            }
+        }
+        assert!(saw_a_finding, "no published example produced a finding");
     }
 }
