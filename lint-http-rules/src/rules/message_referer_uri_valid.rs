@@ -6,41 +6,14 @@ use crate::helpers::headers::{
     combined_field_value_as_written, describe_char, shown_in_finding, trim_ows,
 };
 use crate::helpers::uri::{
-    check_percent_encoding, find_non_uri_char, scheme_authority_marker, scheme_prefix,
-    split_host_and_port, split_userinfo, validate_host_and_optional_port, validate_scheme_name,
+    authority_component, check_percent_encoding, find_non_uri_char, scheme_authority_marker,
+    scheme_prefix, split_host_and_port, split_userinfo, validate_host_and_optional_port,
+    validate_scheme_name,
 };
 use crate::lint::Violation;
 use crate::rules::Rule;
 
 pub struct MessageRefererUriValid;
-
-/// The `authority` the value carries, or `None` when it carries none.
-///
-/// Both alternatives of the field's grammar reach an authority the same way and
-/// only that way — `hier-part` and `relative-part` each open with
-/// `"//" authority path-abempty` — so the two slashes are what the search is
-/// for, whether or not a scheme precedes them.
-///
-/// [`crate::helpers::uri::reference_authority`] answers a neighbouring question
-/// and cannot be used here: it returns `None` for `http://` as well as for
-/// `/path`, because a reference carrying an empty authority defines none *to
-/// compare against*. An empty authority is exactly what one of the requirements
-/// below is about, so the two answers have to stay apart. Written privately with
-/// that reason rather than shared, because nothing else asks it yet.
-// cite(RFC 3986 § 4.3, label: absolute-URI): "absolute-URI  = scheme ":" hier-part [ "?" query ]"
-// cite(RFC 3986 § 3): "hier-part   = "//" authority path-abempty / path-absolute / path-rootless / path-empty"
-// cite(RFC 3986 § 4.2, label: relative-part): "relative-part = "//" authority path-abempty / path-absolute / path-noscheme / path-empty"
-// cite(RFC 3986 § 3.2): "The authority component is preceded by a double slash ("//") and is terminated by the next slash ("/"), question mark ("?"), or number sign ("#") character, or by the end of the URI."
-fn authority_component(value: &str) -> Option<&str> {
-    let after_slashes = match scheme_prefix(value) {
-        Some(scheme) => value[scheme.len() + 1..].strip_prefix("//")?,
-        None => value.strip_prefix("//")?,
-    };
-    let end = after_slashes
-        .find(['/', '?', '#'])
-        .unwrap_or(after_slashes.len());
-    Some(&after_slashes[..end])
-}
 
 /// The value as a finding may print it: escaped, and with the password half of a
 /// userinfo subcomponent withheld.
@@ -257,6 +230,13 @@ impl Rule for MessageRefererUriValid {
             }
         }
 
+        // The shared reader, which returns `Some("")` for a value carrying an
+        // empty authority and `None` for one carrying no authority at all. This
+        // rule is the reason it keeps the two apart: the empty-host branch below
+        // is a MUST NOT about exactly the first of them, and
+        // `helpers::uri::reference_authority` — the neighbouring question —
+        // folds it away, because a reference with an empty authority defines
+        // none *to compare against*.
         if let Some(authority) = authority_component(value) {
             let (userinfo, host_and_port) = split_userinfo(authority);
 

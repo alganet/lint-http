@@ -149,6 +149,44 @@ pub fn split_userinfo(authority: &str) -> (Option<&str>, &str) {
     }
 }
 
+/// The `authority` a URI reference carries, or `None` when it carries none.
+///
+/// § 3.2's sentence is the whole of this function, in both directions: the
+/// component is *preceded* by a double slash and *terminated* by the next "/",
+/// "?" or "#" character, or by the end of the value. The two slashes are what
+/// the search is for, and a scheme in front of them is optional — both
+/// alternatives of the generic syntax that reach an authority open with them
+/// and only with them, `hier-part` and `relative-part` each writing
+/// `"//" authority path-abempty`.
+///
+/// **`Some("")` is an authority; `None` is the absence of one.** `host` may be
+/// a `reg-name`, which is `*( ... )`, so `http://` carries an empty authority
+/// where `http:/path` carries none — and RFC 9110 § 4.2.1's and § 4.2.2's MUST
+/// NOTs are about exactly the first of those, which is why the empty one is
+/// returned rather than folded away here. A caller that compares one authority
+/// against another has nothing to compare in that case and folds it itself;
+/// [`reference_authority`] is that caller, and says so at its own site.
+///
+/// The `//` must follow the scheme's colon immediately, which is why the scheme
+/// is taken with [`scheme_prefix`] rather than by looking for a `://`: in
+/// `a:b://c` the scheme is `a` and `b://c` is a `path-rootless`, so the value
+/// carries no authority at all.
+// cite(RFC 3986 § 4.3, label: absolute-URI): "absolute-URI  = scheme ":" hier-part [ "?" query ]"
+// cite(RFC 3986 § 3): "hier-part   = "//" authority path-abempty / path-absolute / path-rootless / path-empty"
+// cite(RFC 3986 § 4.2, label: relative-part): "relative-part = "//" authority path-abempty / path-absolute / path-noscheme / path-empty"
+// cite(RFC 3986 § 3.2): "The authority component is preceded by a double slash ("//") and is terminated by the next slash ("/"), question mark ("?"), or number sign ("#") character, or by the end of the URI."
+// cite(RFC 3986 § 3.2.2): "reg-name    = *( unreserved / pct-encoded / sub-delims )"
+pub fn authority_component(value: &str) -> Option<&str> {
+    let after_slashes = match scheme_prefix(value) {
+        Some(scheme) => value[scheme.len() + 1..].strip_prefix("//")?,
+        None => value.strip_prefix("//")?,
+    };
+    let end = after_slashes
+        .find(['/', '?', '#'])
+        .unwrap_or(after_slashes.len());
+    Some(&after_slashes[..end])
+}
+
 /// Byte offset of the `://` that separates a scheme from an authority, or
 /// `None` when the value is not in absolute form.
 ///
@@ -178,31 +216,30 @@ pub fn scheme_authority_marker(s: &str) -> Option<usize> {
 /// component as `scheme://host[:port]`. Returns `None` if input is not absolute
 /// or if it does not contain a valid origin.
 pub fn extract_origin_if_absolute(s: &str) -> Option<String> {
-    let idx = scheme_authority_marker(s)?;
-    let after = &s[idx + 3..];
-    // The authority ends at the first '/', '?' or '#'. `path-abempty` may be
-    // empty, so `http://example.com?x=1` is a legal absolute-form target whose
-    // authority stops before the query — terminating on '/' alone swallows the
-    // query into the origin.
-    // cite(RFC 3986 § 3.2): "The authority component is preceded by a double slash ("//") and is terminated by the next slash ("/"), question mark ("?"), or number sign ("#") character, or by the end of the URI."
-    let end = after
-        .find(['/', '?', '#'])
-        .map(|p| idx + 3 + p)
-        .unwrap_or(s.len());
-    let origin = &s[..end];
-
-    // Basic validation: scheme valid, no whitespace, authority part present
-    if validate_scheme_if_present(origin).is_some() {
-        return None;
-    }
-    if contains_whitespace(origin) {
-        return None;
-    }
-    let authority = &origin[idx + 3..];
+    // An origin is a scheme, the `://` between them, and an authority — so it is
+    // rebuilt from its two parts rather than sliced out of the value by
+    // arithmetic over their lengths. Where the authority ends is
+    // [`authority_component`]'s question and § 3.2's sentence: `path-abempty`
+    // may be empty, so `http://example.com?x=1` is a legal absolute-form target
+    // whose authority ends before the query.
+    //
+    // Requiring a scheme is what makes this *absolute*-form only. A network-path
+    // reference carries an authority and no scheme, and it has no origin.
+    let scheme = scheme_prefix(s)?;
+    let authority = authority_component(s)?;
     if authority.is_empty() {
         return None;
     }
-    Some(origin.to_string())
+    let origin = format!("{scheme}://{authority}");
+
+    // Basic validation: scheme valid, no whitespace
+    if validate_scheme_if_present(&origin).is_some() {
+        return None;
+    }
+    if contains_whitespace(&origin) {
+        return None;
+    }
+    Some(origin)
 }
 
 /// Validate an `Origin` header value. Accepts `null` or a serialized origin
@@ -309,21 +346,27 @@ pub fn extract_authority_from_request_target(s: &str) -> Option<String> {
         return None;
     }
 
-    // Absolute-form: scheme://authority/path...
-    if let Some(idx) = scheme_authority_marker(s_trim) {
-        let after = &s_trim[idx + 3..];
-        // Authority ends at first '/', '?', or '#'
-        let end = after.find(&['/', '?', '#'][..]).unwrap_or(after.len());
-        let authority = &after[..end];
-        if authority.is_empty() {
-            None
-        } else {
-            Some(authority.to_string())
-        }
-    } else {
-        // Authority-form: the entire target is the authority (e.g. CONNECT host:port).
-        Some(s_trim.to_string())
+    // Absolute-form: scheme://authority/path... Where the authority ends is
+    // § 3.2's sentence and [`authority_component`]'s question; a value whose
+    // authority is empty names no host, which is what this function's `None`
+    // says and what the origin-form and asterisk-form returns above say too.
+    //
+    // The two readings of the scheme are both wanted here, and they answer
+    // different questions. [`scheme_authority_marker`] decides which *form* the
+    // target is in, which is all four forms' shared question and the one this
+    // branch is selecting on; [`authority_component`] then asks whether the
+    // value in that form carries an authority at all. They part on `a:b://c`,
+    // where the scheme is `a` and `b://c` is a `path-rootless` — a target in
+    // absolute form carrying no authority, which is `None` and not an
+    // authority-form target named `a:b://c`.
+    if scheme_authority_marker(s_trim).is_some() {
+        return authority_component(s_trim)
+            .filter(|authority| !authority.is_empty())
+            .map(str::to_string);
     }
+
+    // Authority-form: the entire target is the authority (e.g. CONNECT host:port).
+    Some(s_trim.to_string())
 }
 
 /// Extract the host portion (without port) from an absolute URI or
@@ -331,29 +374,33 @@ pub fn extract_authority_from_request_target(s: &str) -> Option<String> {
 /// host; origin-form targets (starting with `/`) and the special `*` or
 /// authority-form have no host and will return `None`.
 ///
-/// The returned value is lowercased.  Ports are stripped off, since cookie
-/// matching and other rules operate on the hostname alone.
+/// The returned value is lowercased, which is § 6.2.2.1's case normalization
+/// and applies to the host and to nothing else in a URI. Ports are stripped
+/// off, since cookie matching and other rules operate on the hostname alone.
+///
+/// **The host is the authority's, and each of the three steps between them is a
+/// separate reading.** Where the authority ends is [`authority_component`]'s
+/// question and § 3.2's sentence; where the userinfo ends is
+/// [`split_userinfo`]'s; where the port begins is [`split_host_and_port`]'s, and
+/// that one is why the colon cannot simply be searched for — an `IP-literal` is
+/// bracketed and holds colons of its own.
 ///
 /// This helper is primarily used by cookie-related stateful rules and keeps
 /// the shared parsing logic in one place.
+// cite(RFC 3986 § 3.2.2, label: host grammar): "host        = IP-literal / IPv4address / reg-name"
+// cite(RFC 3986 § 6.2.2.1): "the scheme and host are case-insensitive and therefore should be normalized to lowercase"
 pub fn extract_host_from_request_target(s: &str) -> Option<String> {
-    if let Some(idx) = scheme_authority_marker(s) {
-        let after = &s[idx + 3..];
-        let host = after
-            .split('/')
-            .next()
-            .unwrap_or("")
-            .split(':')
-            .next()
-            .unwrap_or("");
-        if host.is_empty() {
-            None
-        } else {
-            Some(host.to_ascii_lowercase())
-        }
-    } else {
-        None
+    // Absolute form and only absolute form, which is what the doc above
+    // promises: `//host/p` carries an authority to [`authority_component`] and
+    // is an origin-form request-target whose path happens to open with two
+    // slashes, so the marker is asked first and its offset is not wanted.
+    scheme_authority_marker(s)?;
+    let (_, host_and_port) = split_userinfo(authority_component(s)?);
+    let (host, _) = split_host_and_port(host_and_port);
+    if host.is_empty() {
+        return None;
     }
+    Some(host.to_ascii_lowercase())
 }
 
 /// Extract the path component from a request-target or absolute URI.
@@ -624,22 +671,21 @@ fn merge_paths(base_path: &str, ref_path: &str) -> String {
 /// (`scheme://authority/…`) and a network-path reference (`//authority/…`).
 /// Every other form — absolute-path, relative-path, empty, query-only — resolves
 /// against the base and takes the base's authority.
+///
+/// **The empty authority is folded into `None` here, and that is this function's
+/// own decision rather than [`authority_component`]'s.** Every caller is
+/// comparing this reference's authority against another one, and an empty
+/// authority defines nothing to compare: a reference carrying one names no host,
+/// so the honest answer to *"which authority does this reference define"* is that
+/// it defines none. A caller asking whether the component is **present** — which
+/// is what RFC 9110 § 4.2.1's empty-host MUST NOT is about — has to ask
+/// [`authority_component`] instead, and the two answers stay apart for that
+/// reason.
 // cite(RFC 3986 § 4.2): "A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used."
 pub fn reference_authority(reference: &str) -> Option<String> {
-    let r = reference.trim();
-    let after_marker = match scheme_authority_marker(r) {
-        Some(idx) => &r[idx + 3..],
-        None => r.strip_prefix("//")?,
-    };
-    // cite(RFC 3986 § 3.2): "The authority component is preceded by a double slash ("//") and is terminated by the next slash ("/"), question mark ("?"), or number sign ("#") character, or by the end of the URI."
-    let end = after_marker
-        .find(['/', '?', '#'])
-        .unwrap_or(after_marker.len());
-    let authority = &after_marker[..end];
-    if authority.is_empty() {
-        return None;
-    }
-    Some(authority.to_string())
+    authority_component(reference.trim())
+        .filter(|authority| !authority.is_empty())
+        .map(str::to_string)
 }
 
 /// Resolve a URI reference against a base path-and-query and return the
@@ -665,6 +711,13 @@ pub fn resolve_reference_path_and_query(
 
     // A network-path reference supplies its own authority, so §5.2.2 takes its
     // path verbatim; only the scheme is inherited from the base.
+    //
+    // This is the far side of the same boundary and not a copy of
+    // [`authority_component`]: what is wanted is everything *after* the
+    // authority, and the fragment was already taken off two lines above — which
+    // is why the terminator set here is two characters rather than § 3.2's
+    // three, and why converting this to the shared reader would need the
+    // authority's length back out of it for no gain.
     if let Some(after_slashes) = r.strip_prefix("//") {
         let rest = match after_slashes.find(['/', '?']) {
             Some(i) => &after_slashes[i..],
@@ -1198,6 +1251,54 @@ mod tests {
         );
     }
 
+    /// The three axes the four readers of this question used to disagree on:
+    /// which characters terminate the component, whether an empty authority is
+    /// an authority, and how close the `//` has to sit to the scheme's colon.
+    #[test]
+    fn authority_component_reads_section_3_2s_sentence_and_nothing_else() {
+        // All three terminators, and the end of the value.
+        assert_eq!(
+            authority_component("http://example.com/p"),
+            Some("example.com")
+        );
+        assert_eq!(
+            authority_component("http://example.com?x=1"),
+            Some("example.com")
+        );
+        assert_eq!(
+            authority_component("http://example.com#f"),
+            Some("example.com")
+        );
+        assert_eq!(
+            authority_component("http://example.com"),
+            Some("example.com")
+        );
+        // The `//` is what the search is for; a scheme in front of it is
+        // optional, and a network-path reference carries one without any.
+        assert_eq!(authority_component("//example.com/p"), Some("example.com"));
+        // Every subcomponent stays in: this function answers where the
+        // component ends and nothing about what is inside it.
+        assert_eq!(
+            authority_component("http://user:pass@[::1]:8080/p"),
+            Some("user:pass@[::1]:8080")
+        );
+        // `Some("")` and `None` are different answers — `reg-name` is
+        // `*( ... )`, so the first value carries an empty authority and the
+        // second carries none.
+        assert_eq!(authority_component("http://"), Some(""));
+        assert_eq!(authority_component("http:///p"), Some(""));
+        assert_eq!(authority_component("http:/p"), None);
+        // No `//` at all, in each of the forms that reach this.
+        for none in ["/p", "p", "", "mailto:a@b", "example.com:443", "*", "?x"] {
+            assert_eq!(authority_component(none), None, "{none}");
+        }
+        // The `//` must follow the scheme's colon immediately. Here the scheme
+        // is `a` and `b://c` is a `path-rootless`, so the value carries no
+        // authority — which a bare search for `://` reads the other way.
+        assert_eq!(authority_component("a:b://c"), None);
+        assert!(scheme_authority_marker("a:b://c").is_some());
+    }
+
     #[test]
     fn reference_authority_reports_only_a_self_defined_authority() {
         // Forms that carry their own authority.
@@ -1310,6 +1411,48 @@ mod tests {
         assert_eq!(extract_host_from_request_target("/relative/path"), None);
         assert_eq!(extract_host_from_request_target("*"), None);
         assert_eq!(extract_host_from_request_target("example.com:443"), None);
+    }
+
+    /// The four values the `/`-terminated, first-colon reading answered wrongly.
+    /// Each is what a cookie rule compares a `Domain` attribute against, so each
+    /// was a host the message never named.
+    #[test]
+    fn the_host_is_the_authoritys_and_stops_where_section_3_2_says() {
+        // `path-abempty` may be empty, so the authority can end at a '?' or a
+        // '#'; terminating on '/' alone glued the query onto the host.
+        assert_eq!(
+            extract_host_from_request_target("http://example.com?x=1"),
+            Some("example.com".into())
+        );
+        assert_eq!(
+            extract_host_from_request_target("http://example.com#f"),
+            Some("example.com".into())
+        );
+        // An `IP-literal` is bracketed and holds colons of its own, so the port
+        // is not at the first one. This used to be the host `[`.
+        assert_eq!(
+            extract_host_from_request_target("http://[2001:db8::1]:8080/p"),
+            Some("[2001:db8::1]".into())
+        );
+        assert_eq!(
+            extract_host_from_request_target("http://[::1]/p"),
+            Some("[::1]".into())
+        );
+        // A userinfo is a subcomponent of the authority and not of the host; its
+        // own colon used to be read as the port delimiter, making the host
+        // `user`.
+        assert_eq!(
+            extract_host_from_request_target("http://user:pass@example.com/p"),
+            Some("example.com".into())
+        );
+        assert_eq!(
+            extract_host_from_request_target("http://user@Example.com/p"),
+            Some("example.com".into())
+        );
+        // An empty authority carries no host to compare, and neither does a
+        // value whose authority is absent.
+        assert_eq!(extract_host_from_request_target("http:///p"), None);
+        assert_eq!(extract_host_from_request_target("http:/p"), None);
     }
 
     #[test]
