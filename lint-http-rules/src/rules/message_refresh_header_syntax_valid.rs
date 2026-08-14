@@ -258,25 +258,25 @@ impl Rule for MessageRefreshHeaderSyntaxValid {
         &[
             crate::rules::SpecRef {
                 spec: "HTML Speculative Loading",
-                section: Some("§ 7.8"),
+                section: Some("7.8"),
                 url: "https://html.spec.whatwg.org/multipage/speculative-loading.html#the-refresh-header",
                 note: "The `Refresh` header. Three sentences: it is the `meta` pragma's HTTP equivalent, it takes the same value, and its processing model is elsewhere. It states no requirement of its own",
             },
             crate::rules::SpecRef {
                 spec: "HTML Semantics",
-                section: Some("§ 4.2.5.3"),
+                section: Some("4.2.5.3"),
                 url: "https://html.spec.whatwg.org/multipage/semantics.html#attr-meta-http-equiv-refresh",
                 note: "Refresh state: the shared declarative refresh steps, and the authoring conformance requirement this rule enforces — the only sentence in HTML that says what a conforming value looks like",
             },
             crate::rules::SpecRef {
                 spec: "HTML Document Lifecycle",
-                section: Some("§ 7.5.1"),
+                section: Some("7.5.1"),
                 url: "https://html.spec.whatwg.org/multipage/document-lifecycle.html#initialise-the-document-object",
                 note: "Create and initialize a Document object: the field is isomorphic-decoded before parsing, and a note records that multiple field lines are unspecified",
             },
             crate::rules::SpecRef {
                 spec: "URL",
-                section: Some("§ 4.3"),
+                section: Some("4.3"),
                 url: "https://url.spec.whatwg.org/#url-writing",
                 note: "URL writing: valid URL string, URL code points and URL units — the alphabet the `URL=` value is judged against, which is not RFC 3986's",
             },
