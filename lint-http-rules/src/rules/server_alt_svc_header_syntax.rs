@@ -182,7 +182,7 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<String> {
     // cite(RFC 7838 § 2): "Note that for the purpose of this specification, an ALPN protocol name implicitly includes TLS in the suite of protocols it identifies, unless specified otherwise in its definition."
     // cite(RFC 6335 § 6): "TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries."
     // cite(RFC 6335 § 6): "Reserved port numbers include values at the edges of each range, e.g., 0, 1023, 1024, etc., which may be used to extend these ranges or the overall port number space in the future."
-    if port.parse::<u64>().ok().is_none_or(|n| n > 65535) {
+    if crate::helpers::uri::port_number(port).is_none() {
         return Some(format!(
                 "Alt-Svc alternative '{shown}' names port {port}, which designates no port: the transports an ALPN protocol name is carried over register theirs in a sixteen-bit namespace"
             ));

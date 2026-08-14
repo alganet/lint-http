@@ -48,20 +48,11 @@ pub fn parse_bracketed_ipv6(s: &str) -> Option<(&str, Option<&str>)> {
     Some((inner, Some(port)))
 }
 
-/// Parse a port string (only digits) into `u16` and ensure it is in 1..=65535.
-pub fn parse_port_str(port: &str) -> Option<u16> {
-    if port.is_empty() {
-        return None;
-    }
-    // Reject leading '+' or '-' signs; only digits allowed.
-    if !port.chars().all(|c| c.is_ascii_digit()) {
-        return None;
-    }
-    match port.parse::<u32>() {
-        Ok(n) if (1..=65535).contains(&n) => Some(n as u16),
-        _ => None,
-    }
-}
+// `parse_port_str` was here. It answered "is this a port in the sixteen-bit
+// namespace", which is a question about a URI component and not about an IPv6
+// literal, and it answered it a third time and differently: `1..=65535` where
+// the two rules that had audited the bound both admit `0`. It is
+// `crate::helpers::uri::port_number` now, with the sentences on it.
 
 /// Detects an unbracketed IPv6-ish string that contains a port-like suffix,
 /// e.g., `fe80::1:80` — callers should treat these as violations for headers
@@ -125,21 +116,6 @@ mod tests {
         assert_eq!(parse_bracketed_ipv6("[]"), None);
         assert_eq!(parse_bracketed_ipv6("[::1]extra"), None);
         assert_eq!(parse_bracketed_ipv6("[::1]:notnum"), None);
-    }
-
-    #[test]
-    fn parse_port_str_ok_and_bounds() {
-        assert_eq!(parse_port_str("1"), Some(1));
-        assert_eq!(parse_port_str("65535"), Some(65535));
-        assert_eq!(parse_port_str("0"), None);
-        assert_eq!(parse_port_str("65536"), None);
-        assert_eq!(parse_port_str("+80"), None);
-        assert_eq!(parse_port_str("080"), Some(80));
-    }
-
-    #[test]
-    fn parse_port_str_empty_returns_none() {
-        assert_eq!(parse_port_str(""), None);
     }
 
     #[test]

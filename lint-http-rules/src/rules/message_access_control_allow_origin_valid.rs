@@ -216,6 +216,12 @@ mod tests {
     #[case("null")]
     #[case("https://example.com")]
     #[case("  https://example.com  ")]
+    // A port is a 16-bit unsigned integer and `0` is one of them — reserved at
+    // the edge of a range rather than invalid. The shared origin reader rejected
+    // it until the port reading was shared with the two rules that had audited
+    // the bound, so this value drew a finding naming an origin that is one.
+    #[case("https://example.com:0")]
+    #[case("https://example.com:65535")]
     fn valid_single_values(#[case] val: &str) {
         let rule = MessageAccessControlAllowOriginValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(
