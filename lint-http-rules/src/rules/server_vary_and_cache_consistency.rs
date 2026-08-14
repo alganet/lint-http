@@ -31,27 +31,19 @@ impl Rule for ServerVaryAndCacheConsistency {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
-        // Detect Vary: * across all Vary header fields. A `Vary: *` can never be matched by a
-        // cache, so any explicit cacheability directive on the same response is ineffective.
-        let mut saw_star = false;
-        for hv in resp.headers.get_all("vary").iter() {
-            let s = match hv.to_str() {
-                Ok(s) => s,
-                Err(_) => return None, // other rules handle non-utf8 vary values
-            };
-            for token in crate::helpers::headers::parse_list_header(s) {
-                // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
-                if token == "*" {
-                    saw_star = true;
-                    break;
-                }
-            }
-            if saw_star {
-                break;
-            }
-        }
-
-        if !saw_star {
+        // A `Vary: *` can never be matched by a cache, so any explicit
+        // cacheability directive on the same response is ineffective.
+        //
+        // The walk this replaced read the field lines one at a time and returned
+        // no finding at all when `to_str` refused one — so a single `obs-text`
+        // octet anywhere in the value stood the rule down — and it did not join
+        // them, so a `*` written on a second field line was not a `*` here while
+        // it was one to `client_prefer_header_and_preference_applied`. Both are
+        // `helpers::headers::vary_nomination`'s answer now, for all three rules
+        // that ask.
+        //
+        // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
+        if !crate::helpers::headers::vary_nomination(&resp.headers).is_wildcard() {
             return None;
         }
 
@@ -205,6 +197,44 @@ mod tests {
                 v
             );
         }
+    }
+
+    /// The two ways the walk this rule used to hold could not see a `*`.
+    #[test]
+    fn the_star_is_found_across_the_fields_lines_and_past_an_obs_text_octet() {
+        use hyper::header::{HeaderName, HeaderValue};
+        let judge = |vary: &[&[u8]]| {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            let headers = &mut tx.response.as_mut().expect("a response").headers;
+            for line in vary {
+                headers.append(
+                    HeaderName::from_static("vary"),
+                    HeaderValue::from_bytes(line).expect("a test Vary value"),
+                );
+            }
+            headers.append(
+                "cache-control",
+                "max-age=3600".parse().expect("a directive"),
+            );
+            ServerVaryAndCacheConsistency.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "server_vary_and_cache_consistency",
+                ]),
+            )
+        };
+
+        // §5.3 makes the lines one value and `#( "*" / field-name )` is what
+        // licenses the join, so this `*` is a member. Read line by line it was
+        // not one.
+        assert!(judge(&[b"accept-encoding", b"*"]).is_some());
+        // `to_str` refuses %xE9, and refusing it used to end the rule — so a
+        // `*` beside an `obs-text` octet drew nothing at all.
+        assert!(judge(&[b"caf\xe9, *"]).is_some());
+        assert!(judge(&[b"caf\xe9", b"*"]).is_some());
+        // And an `obs-text` octet on its own still nominates no `*`.
+        assert!(judge(&[b"caf\xe9"]).is_none());
     }
 
     #[test]
