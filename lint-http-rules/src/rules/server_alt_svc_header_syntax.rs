@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, describe_char, quoting_is_balanced, shown_in_finding,
-    split_commas_respecting_quotes, split_semicolons_respecting_quotes, token_or_quoted_string,
-    trim_ows, unescape_quoted_string, WordDefect,
+    combined_field_value_as_written, describe_char, list_members_as_written, quoting_is_balanced,
+    shown_in_finding, split_semicolons_respecting_quotes, token_or_quoted_string, trim_ows,
+    unescape_quoted_string, WordDefect,
 };
 use crate::lint::Violation;
 use crate::rules::Rule;
@@ -425,10 +425,7 @@ impl Rule for ServerAltSvcHeaderSyntax {
             ));
         }
 
-        let mut members = split_commas_respecting_quotes(value);
-        for member in members.iter_mut() {
-            *member = trim_ows(member);
-        }
+        let members = list_members_as_written(value);
 
         // `1#alt-value` has a floor of one, and the field's other alternative
         // was ruled out above -- so an empty value is neither.

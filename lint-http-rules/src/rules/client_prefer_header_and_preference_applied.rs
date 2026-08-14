@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, parse_token_bws_word, shown_in_finding,
-    split_commas_respecting_quotes, trim_ows,
+    combined_field_value_as_written, list_members_as_written, parse_token_bws_word,
+    shown_in_finding,
 };
 use crate::lint::Violation;
 use crate::rules::Rule;
@@ -73,17 +73,25 @@ fn varies_the_response_entity(name: &str) -> Option<&'static str> {
 /// spellings RFC 7240 § 2 admits.
 ///
 /// The caller hands in the value already joined across the field's lines, which
-/// is what makes a `*` written on a second line a `*`. A `field-name` is a
-/// `token` and admits no DQUOTE, so the quote-aware split agrees with a plain
-/// one here; it is the shared reader every list field uses.
+/// is what makes a `*` written on a second line a `*`.
+///
+/// The walk is `list_members_as_written`, and this is the one caller of it whose
+/// element grammar admits no `quoted-string`: `Vary = #( "*" / field-name )` and
+/// `field-name = token`. On a conforming value the quote-aware split and a naive
+/// one agree, which is what this comment used to claim outright -- they part on
+/// a *malformed* one, where a stray DQUOTE makes the next comma data rather than
+/// a separator, so `Vary: "x, prefer` nominates `Prefer` to a naive walk and not
+/// to this one. The reader was already the quote-aware one before it had a name,
+/// so nothing here changed; which walk this predicate should use is §6 P16's
+/// question, where the same predicate is hand-written twice more and the three
+/// disagree.
 ///
 /// cite(RFC 9110 § 12.5.5, label: Vary grammar): "Vary = #( "*" / field-name )"
 /// cite(RFC 9110 § 5.1): "Field names are case-insensitive"
 /// cite(RFC 7240 § 2): "Alternatively, the server MAY include a Vary header with the special value "*""
 fn vary_nominates_prefer(value: &str) -> bool {
-    split_commas_respecting_quotes(value)
+    list_members_as_written(value)
         .into_iter()
-        .map(trim_ows)
         .any(|member| member == "*" || member.eq_ignore_ascii_case("prefer"))
 }
 
@@ -157,9 +165,8 @@ impl Rule for ClientPreferHeaderAndPreferenceApplied {
         // the parse below is where it stops.
         //
         // cite(RFC 7240 § 3): "applied-pref = token [ BWS "=" BWS word ]"
-        let (name, why) = split_commas_respecting_quotes(&applied)
+        let (name, why) = list_members_as_written(&applied)
             .into_iter()
-            .map(trim_ows)
             .filter_map(|member| parse_token_bws_word(member).ok())
             .find_map(|parsed| {
                 varies_the_response_entity(parsed.name).map(|why| (parsed.name, why))

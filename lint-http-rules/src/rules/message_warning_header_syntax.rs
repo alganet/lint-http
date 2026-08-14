@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, describe_char, quoted_string_end, shown_in_finding,
-    split_commas_respecting_quotes, trim_ows, unescape_quoted_string, validate_quoted_string,
+    combined_field_value_as_written, describe_char, list_members_as_written, quoted_string_end,
+    shown_in_finding, trim_ows, unescape_quoted_string, validate_quoted_string,
 };
 use crate::helpers::token::find_invalid_token_char;
 use crate::helpers::uri::validate_host_and_optional_port;
@@ -307,10 +307,7 @@ fn validate_warning(value: &str) -> Result<(), String> {
 
     // The members are cut at the top-level commas only: a `warn-text` and a
     // `warn-date` are `quoted-string`s and may hold one as data.
-    let members: Vec<&str> = split_commas_respecting_quotes(v)
-        .into_iter()
-        .map(trim_ows)
-        .collect();
+    let members = list_members_as_written(v);
 
     // The cardinality character is the requirement. `Warning` is `1#`, so a
     // value with no member in it derives from nothing — which is the same

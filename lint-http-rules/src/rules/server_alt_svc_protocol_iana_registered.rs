@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, describe_octet, quoting_is_balanced, shown_in_finding,
-    split_commas_respecting_quotes, split_semicolons_respecting_quotes, trim_ows,
+    combined_field_value_as_written, describe_octet, list_members_as_written, quoting_is_balanced,
+    shown_in_finding, split_semicolons_respecting_quotes, trim_ows,
 };
 use crate::lint::Violation;
 use crate::rules::Rule;
@@ -237,8 +237,7 @@ impl Rule for ServerAltSvcProtocolIanaRegistered {
             return None;
         }
 
-        for member in split_commas_respecting_quotes(value) {
-            let member = trim_ows(member);
+        for member in list_members_as_written(value) {
             // An empty member is `1#alt-value`'s floor or a sender's empty list
             // element; both are the grammar's question and are reported there.
             if member.is_empty() {

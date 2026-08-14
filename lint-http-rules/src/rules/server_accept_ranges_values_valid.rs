@@ -262,6 +262,18 @@ impl Rule for ServerAcceptRangesValuesValid {
 /// gone -- `bytes,,none` counted two units and said nothing about the hole
 /// between them.
 ///
+/// `helpers::headers::list_members_as_written` keeps the empty elements and
+/// would answer that half -- and is still not used here, because its other half
+/// is wrong for this production. That walk is quote-aware, which is correct
+/// exactly where the element admits a `quoted-string` somewhere inside it.
+/// `range-unit = token` admits no DQUOTE at all, so here a DQUOTE is a character
+/// the member may not hold rather than one opening a quoted-string, and reading
+/// it as the latter would make the comma after it data: `by"tes,none` is two
+/// members to this production and would arrive as one. The split stays naive for
+/// the same reason the trim may stay `str::trim` -- both are decisions about
+/// this field's alphabet, and `to_str` above has already refused every octet
+/// outside visible US-ASCII, so SP and HTAB are the only whitespace left.
+///
 // cite(RFC 9110 § 14.1): "Range units are intended to be extensible, as described in Section 16.5."
 // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
 fn read_units(value: &str, units: &mut Vec<String>) -> Result<(), String> {

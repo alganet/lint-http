@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, media_type_parts_defect, parse_media_type, shown_in_finding,
-    split_commas_respecting_quotes, trim_ows,
+    combined_field_value_as_written, list_members_as_written, media_type_parts_defect,
+    parse_media_type, shown_in_finding, trim_ows,
 };
 use crate::lint::Violation;
 use crate::rules::Rule;
@@ -80,9 +80,7 @@ impl ServerPatchAcceptPatchHeader {
         // below explicitly declines to use.
         // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
         // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
-        for member in split_commas_respecting_quotes(value) {
-            let member = trim_ows(member);
-
+        for member in list_members_as_written(value) {
             if member.is_empty() {
                 // Reported after the members that are present, and reported as
                 // the list's defect rather than the element's: there is no such

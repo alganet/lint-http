@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, parse_token_bws_word, shown_in_finding,
-    split_commas_respecting_quotes, split_semicolons_respecting_quotes, trim_ows,
+    combined_field_value_as_written, list_members_as_written, parse_token_bws_word,
+    shown_in_finding, split_semicolons_respecting_quotes, trim_ows,
 };
 use crate::lint::Violation;
 use crate::rules::Rule;
@@ -135,10 +135,7 @@ impl Rule for MessagePreferHeaderValid {
         // halves of it.
         //
         // cite(RFC 7240 § 2): "Prefer     = "Prefer" ":" 1#preference"
-        let members: Vec<&str> = split_commas_respecting_quotes(&value)
-            .into_iter()
-            .map(trim_ows)
-            .collect();
+        let members = list_members_as_written(&value);
 
         // `1#` sets a floor, and the floor counts *non-empty* elements — so
         // `Prefer:`, `Prefer: ,` and `Prefer: ,   ,` are three spellings of one
