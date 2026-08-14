@@ -510,9 +510,21 @@ fn validate_warn_date(quoted: &str) -> Result<(), String> {
 
     // The DQUOTEs of `warn-date` sit directly against the `HTTP-date`, and SP is
     // `qdtext` — so a padded date is a well-formed quoted-string holding
-    // something no date production generates. It is asked here because the date
-    // reader trims before it parses, being written for a field *value*, where
-    // §5.5's sentence puts the whitespace outside the value.
+    // something no date production generates.
+    //
+    // **This is the one HTTP-date in the tree with no field-line `OWS` around
+    // it**, which is why the finding is made here and only here. § 5.5 puts a
+    // field value's leading and trailing whitespace outside the value; a
+    // `warn-date`'s boundary is the DQUOTE, so nothing puts this whitespace
+    // outside anything. The sentence the finding rests on is § 5.6.7's own MUST
+    // NOT, which was cited nowhere in the tree while this branch was justified
+    // by a paraphrase and by what the date reader used to do — it trimmed before
+    // it parsed, and this check was written to get in front of that. The trim is
+    // gone from the reader now, and the branch keeps its place because the
+    // message it makes is the specific one.
+    //
+    // cite(RFC 9110 § 5.6.7): "A sender MUST NOT generate additional whitespace in an HTTP-date beyond that specifically included as SP in the grammar"
+    // cite(RFC 9110 § 5.6.4): "qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text"
     if inner != trim_ows(&inner) {
         return Err(format!(
             "has a warn-date padded with whitespace inside its DQUOTEs: '{}'",
@@ -722,9 +734,12 @@ mod tests {
         );
     }
 
-    /// `warn-date` writes its DQUOTEs against the `HTTP-date`; the date reader
-    /// trims, being written for a field value, so the padding is asked about
-    /// here.
+    /// `warn-date` writes its DQUOTEs against the `HTTP-date`, so nothing puts
+    /// this whitespace outside anything the way § 5.5 does for a field value —
+    /// and § 5.6.7 forbids a sender to write it. The date reader used to trim,
+    /// and this check was written to get in front of that; it keeps its place
+    /// now that the reader does not, because the message it makes names the
+    /// padding rather than reporting a date that is not one.
     #[test]
     fn a_warn_date_padded_inside_its_quotes_is_reported() {
         let message = judged_response("214 example.com \"T\" \" Wed, 21 Oct 2015 07:28:00 GMT\"")

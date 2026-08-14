@@ -4811,27 +4811,41 @@ sources:
     snippet: A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats.
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 25
+      line: 32
   - label: lint-http-core/src/http_date.rs (2)
+    section: § 5.6.7
+    snippet: A sender MUST NOT generate additional whitespace in an HTTP-date beyond that specifically included as SP in the grammar
+    cited_by:
+    - file: lint-http-core/src/http_date.rs
+      line: 80
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 526
+  - label: lint-http-core/src/http_date.rs (3)
     section: § 5.6.7
     snippet: HTTP-date = IMF-fixdate / obs-date
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 24
-  - label: lint-http-core/src/http_date.rs (3)
+      line: 31
+  - label: lint-http-core/src/http_date.rs (4)
+    section: § 5.6.7
+    snippet: IMF-fixdate  = day-name "," SP date1 SP time-of-day SP GMT
+    cited_by:
+    - file: lint-http-core/src/http_date.rs
+      line: 79
+  - label: lint-http-core/src/http_date.rs (5)
     section: § 5.6.7
     snippet: When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format.
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 47
+      line: 82
     - file: lint-http-rules/src/rules/message_if_modified_since_date_format.rs
-      line: 54
+      line: 67
     - file: lint-http-rules/src/rules/message_if_unmodified_since_date_format.rs
-      line: 55
+      line: 67
     - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
-      line: 536
+      line: 548
     - file: lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
-      line: 36
+      line: 47
   - label: lint-http-core/src/http_transaction.rs
     section: § 15
     snippet: 'A single request can have multiple associated responses: zero or more "interim" (non-final) responses with status codes in the "informational" (1xx) range, followed by exactly one "final" response with a status code in one of the other ranges.'
@@ -5540,6 +5554,10 @@ sources:
       line: 69
     - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
       line: 100
+    - file: lint-http-rules/src/rules/message_if_modified_since_date_format.rs
+      line: 44
+    - file: lint-http-rules/src/rules/message_if_unmodified_since_date_format.rs
+      line: 44
     - file: lint-http-rules/src/rules/message_language_tag_format_valid.rs
       line: 121
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
@@ -5580,6 +5598,8 @@ sources:
       line: 33
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 332
+    - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
+      line: 527
   - label: lint-http-rules/src/helpers/headers.rs (24)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -6699,7 +6719,17 @@ sources:
     snippet: If-Modified-Since = HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/message_if_modified_since_date_format.rs
-      line: 53
+      line: 64
+  - label: message_if_modified_since_date_format (2)
+    section: § 5.5
+    snippet: A field value does not include leading or trailing whitespace
+    cited_by:
+    - file: lint-http-rules/src/rules/message_if_modified_since_date_format.rs
+      line: 65
+    - file: lint-http-rules/src/rules/message_if_unmodified_since_date_format.rs
+      line: 65
+    - file: lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
+      line: 45
   - label: message_if_none_match_etag_syntax
     section: § 13.1.2
     snippet: 'If-None-Match = "*" / #entity-tag'
@@ -6711,7 +6741,7 @@ sources:
     snippet: If-Unmodified-Since = HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/message_if_unmodified_since_date_format.rs
-      line: 54
+      line: 64
   - label: message_keep_alive_header_validity
     section: § 7.6.1
     snippet: Keep-Alive (Section 19.7.1 of [RFC2068])
@@ -7415,7 +7445,7 @@ sources:
     snippet: Prior to 1995, there were three different formats commonly used by servers to communicate timestamps.
     cited_by:
     - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
-      line: 535
+      line: 547
   - label: message_www_authenticate_challenge_syntax
     section: § 11.6.1
     snippet: The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource.
@@ -7915,7 +7945,7 @@ sources:
     snippet: Last-Modified = HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
-      line: 35
+      line: 44
   - label: server_location_header_uri_valid
     section: § 10.2.2
     snippet: A Location field value cannot | allow a list of members because the comma list separator is a | valid data character within a URI-reference.
@@ -9020,6 +9050,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
       line: 37
+  - label: message_if_modified_since_date_format
+    section: § 5
+    snippet: field-line   = field-name ":" OWS field-value OWS
+    cited_by:
+    - file: lint-http-rules/src/rules/message_if_modified_since_date_format.rs
+      line: 66
+    - file: lint-http-rules/src/rules/message_if_unmodified_since_date_format.rs
+      line: 66
+    - file: lint-http-rules/src/rules/server_last_modified_rfc1123_format.rs
+      line: 46
   - label: message_problem_details_structure
     section: § 6.3
     snippet: If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets.
