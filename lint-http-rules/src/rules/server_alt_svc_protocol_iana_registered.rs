@@ -175,16 +175,6 @@ fn shown_alpn_name(name: &[u8]) -> String {
 /// rule asks whether the name is one this deployment offers.
 pub struct ServerAltSvcProtocolIanaRegistered;
 
-impl ServerAltSvcProtocolIanaRegistered {
-    fn violation(&self, severity: crate::lint::Severity, message: String) -> Violation {
-        Violation {
-            rule: self.id().into(),
-            severity,
-            message,
-        }
-    }
-}
-
 impl Rule for ServerAltSvcProtocolIanaRegistered {
     fn id(&self) -> &'static str {
         "server_alt_svc_protocol_iana_registered"

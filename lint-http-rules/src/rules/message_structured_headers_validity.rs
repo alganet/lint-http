@@ -91,7 +91,7 @@ impl MessageStructuredHeadersValidity {
             // considered.
             // cite(RFC 9651 § 4.2): "Convert input_bytes into an ASCII string input_string; if conversion fails, fail parsing."
             let Ok(v) = hv.to_str() else {
-                return Some(self.violation(
+                return Some(self.parse_failure(
                     hdr,
                     section,
                     "contains a byte outside ASCII",
@@ -104,7 +104,7 @@ impl MessageStructuredHeadersValidity {
             return None;
         }
         let msg = validate_structured_field(&lines.join(", "))?;
-        Some(self.violation(hdr, section, &msg, config.severity))
+        Some(self.parse_failure(hdr, section, &msg, config.severity))
     }
 
     /// The finding, framed as what a recipient does about it.
@@ -114,23 +114,27 @@ impl MessageStructuredHeadersValidity {
     /// RFC 9651 forbids field specifications from softening that, so the price
     /// of one stray character is the whole header.
     ///
+    /// Named for the failure rather than for the `Violation` it returns: an
+    /// inherent `violation` would shadow `Rule::violation` without saying so.
+    /// What is private here is the *wording*, licensed by the sentence below;
+    /// the construction is the trait's.
+    ///
     // cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
-    fn violation(
+    fn parse_failure(
         &self,
         hdr: &str,
         section: &str,
         msg: &str,
         severity: crate::lint::Severity,
     ) -> Violation {
-        Violation {
-            rule: self.id().into(),
+        self.violation(
             severity,
-            message: format!(
+            format!(
                 "The {} header '{}' fails Structured Fields parsing, so a recipient discards \
                  the whole field or treats the message as malformed: {}",
                 section, hdr, msg
             ),
-        }
+        )
     }
 }
 
