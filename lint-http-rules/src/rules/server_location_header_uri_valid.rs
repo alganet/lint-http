@@ -90,16 +90,18 @@ impl Rule for ServerLocationHeaderUriValid {
             // names this very field as the counter-example new field definitions
             // should not emulate.
             //
-            // cite(RFC 9110 § 5.5): "Fields that only anticipate a single member as the field value are referred to as "singleton fields"."
             // cite(RFC 9110 § 5.5): "Fields that expect to contain a comma within a member, such as within an HTTP-date or URI-reference element, ought to be defined with delimiters around that element to distinguish any comma within that data from potential list separators."
-            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             // cite(RFC 9110 § 10.2.2): "A Location field value cannot | allow a list of members because the comma list separator is a | valid data character within a URI-reference."
             // cite(RFC 9110 § 10.2.2): "If an invalid | message is sent with multiple Location field lines, a recipient | along the path might combine those field lines into one value."
             // cite(RFC 9110 § 16.3.2.2): "because URIs can include commas, it is not possible to reliably distinguish between a single value that includes a comma from two values"
             return violation(format!(
-                "Location is written on {} header lines, which recombine into the one value '{}'; the field is a singleton — `Location = URI-reference` has no comma-separated-list alternative — so a sender must not generate more than one field line for it (RFC 9110 §5.3). The comma a recipient joins them with is a valid data character inside a URI-reference, so the combined value is a well-formed reference to neither resource (RFC 9110 §10.2.2)",
-                lines,
-                value.escape_debug()
+                "{}. The comma a recipient joins them with is a valid data character inside a URI-reference, so the combined value is a well-formed reference to neither resource (RFC 9110 §10.2.2)",
+                crate::helpers::headers::singleton_field_preamble(
+                    "Location",
+                    lines,
+                    &value.escape_debug().to_string(),
+                    "`Location = URI-reference` has no comma-separated-list alternative",
+                )
             ));
         }
 
@@ -342,13 +344,18 @@ mod tests {
         // and the reason it cannot be the join every other singleton in the tree
         // uses.
         let v = judge(&make_tx_with_locs(&[b"/first", b"/second"])).expect("expected a finding");
-        assert!(
-            v.message.contains("written on 2 header lines"),
-            "{}",
-            v.message
+        // Pinned whole, because the finding is written in two functions now and
+        // the second one carries § 10.2.2's reason -- the half that distinguishes
+        // this field from a singleton whose join is merely malformed.
+        assert_eq!(
+            v.message,
+            "Location is written on 2 header lines, which recombine into the one value \
+             '/first,/second'; the field is a singleton — `Location = URI-reference` has no \
+             comma-separated-list alternative — so a sender must not generate more than one field \
+             line for it (RFC 9110 §5.3). The comma a recipient joins them with is a valid data \
+             character inside a URI-reference, so the combined value is a well-formed reference \
+             to neither resource (RFC 9110 §10.2.2)"
         );
-        assert!(v.message.contains("/first,/second"), "{}", v.message);
-        assert!(v.message.contains("singleton"), "{}", v.message);
         assert!(judge(&make_tx_with_locs(&[b"/first"])).is_none());
     }
 

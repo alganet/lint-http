@@ -75,25 +75,20 @@ impl Rule for MessageFromHeaderEmailSyntax {
             // joins two `From` lines into is a well-formed production of the same
             // document — just not the one this field imports.
             //
-            // This is the **fourth** hand copy of the singleton preamble — count
-            // the lines, quote § 5.5 and § 5.3, name the field's grammar, show
-            // the joined value. `message_max_forwards_numeric`,
-            // `server_location_header_uri_valid` and
-            // `message_content_location_and_uri_consistency` are the other three,
-            // and their second sentences already differ, because *why* the join
-            // is wrong is a different fact per field: a comma is data inside a
-            // `URI-reference`, it is malformed inside `1*DIGIT`, and here it is a
-            // neighbouring production's separator. Only the first sentence is
-            // shared, so converting them changes what three audited rules report
-            // — recorded here rather than harmonised, at the site that creates
-            // the copy.
-            //
-            // cite(RFC 9110 § 5.5): "Fields that only anticipate a single member as the field value are referred to as "singleton fields"."
-            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            // The preamble is `helpers::headers::singleton_field_preamble`'s.
+            // What is appended is the sharpest of the five: the other four join
+            // into something malformed or into a reference naming the wrong
+            // resource, and this one joins into a *well-formed production of the
+            // same document* — `mailbox-list`, two lines below `mailbox` in
+            // RFC 5322 § 3.4 and not imported by this field.
             return violation(format!(
-                "From is written on {} header lines, which recombine into the one value '{}'; the field is a singleton — its value is a single RFC 5322 `mailbox`, which has no comma-separated-list alternative — so a sender must not generate more than one field line for it (RFC 9110 §5.3). The comma a recipient joins them with is `mailbox-list`'s separator (RFC 5322 §3.4), a production this field does not import, so the joined value names no one address",
-                lines,
-                shown_in_finding(&value)
+                "{}. The comma a recipient joins them with is `mailbox-list`'s separator (RFC 5322 §3.4), a production this field does not import, so the joined value names no one address",
+                crate::helpers::headers::singleton_field_preamble(
+                    "From",
+                    lines,
+                    &shown_in_finding(&value),
+                    "its value is a single RFC 5322 `mailbox`, which has no comma-separated-list alternative",
+                )
             ));
         }
 
@@ -411,13 +406,20 @@ mod tests {
             ("from", "bob@example.org"),
         ]))
         .expect("two field lines are a finding");
-        assert!(
-            v.message
-                .contains("From is written on 2 header lines, which recombine into the one value 'alice@example.com,bob@example.org'"),
-            "{}",
-            v.message
+        // Pinned whole. The finding is written in two functions now -- the shared
+        // preamble and this field's own second sentence -- and an assertion that
+        // stops at the preamble would still pass if the half naming
+        // `mailbox-list` went missing, which is the half that says what is
+        // actually wrong here.
+        assert_eq!(
+            v.message,
+            "From is written on 2 header lines, which recombine into the one value \
+             'alice@example.com,bob@example.org'; the field is a singleton — its value is a \
+             single RFC 5322 `mailbox`, which has no comma-separated-list alternative — so a \
+             sender must not generate more than one field line for it (RFC 9110 §5.3). The comma \
+             a recipient joins them with is `mailbox-list`'s separator (RFC 5322 §3.4), a \
+             production this field does not import, so the joined value names no one address"
         );
-        assert!(v.message.contains("singleton"), "{}", v.message);
     }
 
     #[rstest]

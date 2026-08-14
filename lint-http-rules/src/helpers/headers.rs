@@ -1198,6 +1198,55 @@ pub fn shown_in_finding(s: &str) -> String {
     s.escape_debug().to_string()
 }
 
+/// The sentence a singleton field says when a message carries more than one of
+/// its field lines.
+///
+/// **Only the first sentence, and that is the whole design.** Five rules say it;
+/// four of them then append a second sentence saying *why* the join is wrong,
+/// and those four are four different facts, because the join is wrong in a
+/// different way per field. For `Max-Forwards` the comma is
+/// malformed inside `1*DIGIT`. For `Location` it is a valid data character
+/// inside a `URI-reference`, so the joined value is a well-formed reference to
+/// neither resource. For `Referer` and `Content-Location`, which share one
+/// production, it is a `sub-delims` character both alternatives admit inside a
+/// path or a query. For `From` it is `mailbox-list`'s separator — a well-formed
+/// production of RFC 5322 that the field does not import. So the caller appends
+/// its own; what is shared ends at the semicolon-joined clause below.
+///
+/// The parameters are in the order the sentence reads them, which is what keeps
+/// two adjacent `&str` arguments from being swappable in silence: the field, how
+/// many lines it was written on, what those lines recombine into, and the
+/// field's own reason for being a singleton.
+///
+/// `shown_value` is already rendered for a finding, because the four callers
+/// render differently on purpose — `escape_debug`, [`shown_in_finding`], and a
+/// `Referer`-specific one that withholds a userinfo. What a finding may print is
+/// the field's question, not this function's.
+///
+/// **Not for a field counted across two sections.** The recombining clause is
+/// § 5.2's, and § 5.2 is *within a section*; § 5.3's MUST NOT is about the whole
+/// message and says so (*"whether in the headers or trailers"*). A rule counting
+/// both sections at once — `message_content_disposition_token_valid` does — is
+/// answering § 5.3 correctly and cannot honestly say what § 5.2 recombines,
+/// which is why it says something else instead.
+///
+// cite(RFC 9110 § 5.5): "Fields that only anticipate a single member as the field value are referred to as "singleton fields"."
+// cite(RFC 9110 § 5.5): "This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability."
+// cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
+// cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+pub fn singleton_field_preamble(
+    field: &str,
+    lines: usize,
+    shown_value: &str,
+    grammar: &str,
+) -> String {
+    format!(
+        "{field} is written on {lines} header lines, which recombine into the one value \
+         '{shown_value}'; the field is a singleton — {grammar} — so a sender must not generate \
+         more than one field line for it (RFC 9110 §5.3)"
+    )
+}
+
 /// Why a value derives from neither alternative of `( token / quoted-string )`.
 ///
 /// Data rather than a sentence, and that is the whole reason this extraction was

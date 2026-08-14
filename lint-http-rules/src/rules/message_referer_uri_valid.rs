@@ -127,27 +127,20 @@ impl Rule for MessageRefererUriValid {
             // exception does not apply and one message carries at most one
             // `Referer` line.
             //
-            // This is the **fifth** hand copy of the singleton preamble — count
-            // the lines, quote § 5.5 and § 5.3, name the field's grammar, show
-            // the joined value. `message_max_forwards_numeric`,
-            // `server_location_header_uri_valid`,
-            // `message_content_location_and_uri_consistency` and
-            // `message_from_header_email_syntax` are the other four, and only the
-            // first sentence is shared, because *why* the join is wrong is a
-            // different fact per field: a comma is malformed inside `1*DIGIT`,
-            // it is data inside a `URI-reference`, and here — as for the sibling
-            // field carrying the same production — it is a `sub-delims`
-            // character both alternatives admit inside a path or a query, so the
-            // joined value is a well-formed reference to a resource neither line
-            // named.
+            // The preamble is `helpers::headers::singleton_field_preamble`'s;
+            // what is appended is this field's, and the sibling carrying the same
+            // production (`Content-Location`) appends the same fact because it is
+            // the same fact.
             //
-            // cite(RFC 9110 § 5.5): "Fields that only anticipate a single member as the field value are referred to as "singleton fields"."
-            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             // cite(RFC 3986 § 2.2): "sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "=""
             return violation(format!(
-                "Referer is written on {} header lines, which recombine into the one value '{}'; the field is a singleton — `Referer = absolute-URI / partial-URI`, and neither alternative is a comma-separated list — so a sender must not generate more than one field line for it (RFC 9110 §5.3). The comma a recipient joins them with is a `sub-delims` character both alternatives admit inside a path or a query (RFC 3986 §2.2), so the joined value is a well-formed reference to a resource neither line named",
-                lines,
-                shown_referer(&value)
+                "{}. The comma a recipient joins them with is a `sub-delims` character both alternatives admit inside a path or a query (RFC 3986 §2.2), so the joined value is a well-formed reference to a resource neither line named",
+                crate::helpers::headers::singleton_field_preamble(
+                    "Referer",
+                    lines,
+                    &shown_referer(&value),
+                    "`Referer = absolute-URI / partial-URI`, and neither alternative is a comma-separated list",
+                )
             ));
         }
 

@@ -109,6 +109,17 @@ impl Rule for MessageContentDispositionTokenValid {
             // recombined value is "attachment; filename="a", inline", which
             // different recipients truncate at different points, so the filename
             // a download is saved under depends on whose parser read it.
+            //
+            // **Not `helpers::headers::singleton_field_preamble`, and the reason
+            // is one line above: `vals` counts the header section and the trailer
+            // section together.** That is what §5.3 asks for -- its MUST NOT is
+            // about the message and says *"whether in the headers or trailers"* --
+            // and it is exactly what the shared preamble may not claim, because
+            // the recombining clause in it is §5.2's and §5.2 recombines *within a
+            // section*. Two lines in two sections are two values, not one. The
+            // five callers of that preamble each read one section; this rule is
+            // out of it by a reason rather than by omission, and it was missed by
+            // both of the hand-maintained copy lists that P3 was written from.
             // cite(RFC 6266 § 4.1): "content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )"
             // cite(RFC 9110 § 5.5): "Fields that only anticipate a single member as the field value are referred to as "singleton fields"."
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
