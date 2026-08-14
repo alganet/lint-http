@@ -64,7 +64,7 @@ impl Rule for MessageAccessControlAllowOriginValid {
         };
 
         // Must be a single value (not a comma-separated list)
-        let members: Vec<String> = crate::helpers::headers::parse_list_header(s)
+        let members: Vec<String> = crate::helpers::headers::list_members(s)
             .map(|m| m.to_string())
             .collect();
         if members.len() != 1 {

@@ -64,8 +64,7 @@ impl Rule for StatefulPrivateCacheVisibility {
         // check If-None-Match members
         for hv in tx.request.headers.get_all("if-none-match").iter() {
             if let Ok(s) = hv.to_str() {
-                for member in crate::helpers::headers::parse_list_header(s) {
-                    let member = member.trim();
+                for member in crate::helpers::headers::list_members(s) {
                     let normalized = crate::helpers::headers::normalize_etag(member);
 
                     for past in history.iter() {

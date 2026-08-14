@@ -52,7 +52,7 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
             let mut ce_set = std::collections::HashSet::new();
             for hv in headers.get_all("content-encoding").iter() {
                 let s = decode(hv);
-                for part in crate::helpers::headers::parse_list_header(&s) {
+                for part in crate::helpers::headers::list_members(&s) {
                     // Nothing in this field's grammar sits behind a `;`, so this
                     // strips something that cannot legally be there. It is kept as
                     // a deliberate tolerance: a sender writing `gzip;q=1.0` here
@@ -61,8 +61,15 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
                     // `message_content_encoding_iana_registered` is already
                     // reporting as malformed. It cannot invent an overlap -- the
                     // text before the `;` is text the sender wrote.
+                    // The trim is `OWS`, not `str::trim`: `decode` is
+                    // `from_utf8_lossy`, so %xC2 %xA0 reaches here as one `char`
+                    // `char::is_whitespace` admits and no `token` does, and
+                    // taking it would turn a name no production writes into
+                    // `gzip`.
+                    // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
                     // cite(RFC 9110 § 8.4.1): "All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry","
-                    let token = part.split(';').next().unwrap().trim().to_ascii_lowercase();
+                    let token = crate::helpers::headers::trim_ows(part.split(';').next().unwrap())
+                        .to_ascii_lowercase();
                     if token.is_empty() {
                         continue;
                     }
@@ -87,8 +94,13 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
             for hv in headers.get_all("transfer-encoding").iter() {
                 let s = decode(hv);
                 for part in crate::helpers::headers::split_commas_respecting_quotes(&s) {
+                    // `OWS` for the same reason as the `Content-Encoding` loop
+                    // above, and this production prints it: the whitespace around
+                    // the `;` is `OWS` and nothing wider.
+                    // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
                     // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
-                    let token = part.split(';').next().unwrap().trim().to_ascii_lowercase();
+                    let token = crate::helpers::headers::trim_ows(part.split(';').next().unwrap())
+                        .to_ascii_lowercase();
                     if token.is_empty() {
                         continue;
                     }
@@ -314,6 +326,38 @@ mod tests {
                 v
             );
         }
+    }
+
+    /// `Some("gzip"), Some("chunked, gzip")` — the first `overlap_cases` row —
+    /// with one `obs-text` octet on the `Content-Encoding` name. `content-coding
+    /// = token`, so `gzip<%xC2%xA0>` is not the `gzip` coding and the two fields
+    /// name nothing in common. The value is read with `from_utf8_lossy`, so the
+    /// pair arrives as one `char`; the list walk trimmed it and the name split
+    /// below trimmed it again, and the finding claimed an overlap between a
+    /// coding and a value that is not one.
+    ///
+    /// Both name splits are exercised, because they are two separate trims on
+    /// two separate productions and only one of them was covered.
+    #[rstest]
+    #[case(b"gzip\xC2\xA0", b"chunked, gzip")]
+    #[case(b"gzip", b"chunked, gzip\xC2\xA0")]
+    fn a_coding_name_carrying_obs_text_overlaps_nothing(#[case] ce: &[u8], #[case] te: &[u8]) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_octet_pairs(&[
+                ("content-encoding", ce),
+                ("transfer-encoding", te),
+            ]);
+        let rule = MessageCompressionAndTransferEncodingConsistency;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_compression_and_transfer_encoding_consistency",
+        ]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[test]

@@ -20,9 +20,19 @@
 /// enforced -- subtags are alphanumeric, hyphen-separated, at most eight
 /// characters, and no whitespace -- and each sits on the line that enforces it.
 ///
+/// **Nothing is trimmed here, and the line that used to do it silenced the line
+/// below it.** `let s = tag.trim()` removed every character `char::is_whitespace`
+/// admits — and the next branch exists to *report* exactly those. On an ASCII
+/// space the two cancelled out into a wrong-but-harmless silence; on U+00A0,
+/// which is how the octet %xA0 and the pair %xC2 %xA0 both reach this function,
+/// it meant `en-US<%xC2%xA0>` was validated as `en-US`. The list's own `OWS` is
+/// the caller's to strip (§ 5.6.1.1 puts it outside the element), and inside the
+/// element the sentence below admits no whitespace at all — so the honest answer
+/// is to measure what was passed.
+///
 /// Returns Ok(()) if the tag looks like a valid language tag, Err(msg) otherwise.
 pub fn validate_language_tag(tag: &str) -> Result<(), String> {
-    let s = tag.trim();
+    let s = tag;
     if s.is_empty() {
         return Err("empty language tag".into());
     }

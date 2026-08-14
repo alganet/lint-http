@@ -62,7 +62,7 @@ impl Rule for MessageCrossOriginResourcePolicyValid {
         };
 
         // Must not be a comma-separated list
-        if crate::helpers::headers::parse_list_header(val).count() != 1 {
+        if crate::helpers::headers::list_members(val).count() != 1 {
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,

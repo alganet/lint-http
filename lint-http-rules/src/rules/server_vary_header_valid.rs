@@ -67,7 +67,7 @@ impl Rule for ServerVaryHeaderValid {
                 }
             }
 
-            for token in crate::helpers::headers::parse_list_header(s) {
+            for token in crate::helpers::headers::list_members(s) {
                 // "*" is a valid list member. Under RFC 9110 it may appear alongside
                 // field-names (RFC 7231's "*"-or-a-list exclusivity was dropped), so
                 // no combination check is made — only field-name tokens are validated.

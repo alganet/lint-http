@@ -522,7 +522,7 @@ mod tests {
                         "Content-Range {value:?} does not parse"
                     ),
                     "accept-ranges" => {
-                        for token in crate::helpers::headers::parse_list_header(value) {
+                        for token in crate::helpers::headers::list_members(value) {
                             assert!(
                                 crate::helpers::token::find_invalid_token_char(token).is_none(),
                                 "Accept-Ranges holds {token:?}, which is not a token"

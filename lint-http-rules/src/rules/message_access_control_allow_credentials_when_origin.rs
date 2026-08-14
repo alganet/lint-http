@@ -49,7 +49,7 @@ impl Rule for MessageAccessControlAllowCredentialsWhenOrigin {
                     })
                 }
             };
-            for token in crate::helpers::headers::parse_list_header(s) {
+            for token in crate::helpers::headers::list_members(s) {
                 if token == "*" {
                     acao_has_star = true;
                     break;

@@ -96,7 +96,7 @@ impl Rule for MessageContentEncodingIanaRegistered {
                            allowed: &Vec<String>,
                            is_accept: bool|
          -> Option<Violation> {
-            for part in crate::helpers::headers::parse_list_header(val) {
+            for part in crate::helpers::headers::list_members(val) {
                 // Split off any parameters (e.g., gzip;q=0.8)
                 let token = part.split(';').next().unwrap().trim();
                 if token == "*" {

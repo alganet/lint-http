@@ -242,7 +242,7 @@ fn validate_range_set(unit: &str, range_set: &str) -> Result<(), String> {
         // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
         let spec = spec.trim();
 
-        // Not `parse_list_header`, which drops empty elements: that is the right
+        // Not `list_members`, which drops empty elements: that is the right
         // reading for the recipients that call it and the wrong one here, because
         // the empty element is this rule's evidence. By the time that function
         // answers, what a sender must not have generated is gone.

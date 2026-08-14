@@ -53,10 +53,10 @@ impl MessageTeHeaderConstraints {
 
         let mut saw_an_empty_element = false;
 
-        // `list_members_as_written` and not either of the two older list readers.
-        // Both of those split at every comma, so `TE: deflate;ext="a,b"` — one
+        // `list_members_as_written` and not `list_members`, the recipient's walk.
+        // That one splits at every comma, so `TE: deflate;ext="a,b"` — one
         // member, one parameter — came apart into a second "member" of `b"`; and
-        // both drop the empty elements § 5.6.1.1 forbids a sender from
+        // it drops the empty elements § 5.6.1.1 forbids a sender from
         // generating, which is the finding below. The quote-aware half is right
         // for *this* field because the production quoted here puts a
         // `quoted-string` inside the element; a `#token` list would want the

@@ -255,7 +255,7 @@ impl Rule for ServerAcceptRangesValuesValid {
 /// a name this code has never heard of is a name it has to carry rather than
 /// reject.
 ///
-/// The list is split here rather than by `parse_list_header`, which drops empty
+/// The list is split here rather than by `list_members`, which drops empty
 /// elements: that is the reading a recipient of this field is required to take
 /// and the wrong one for the rule measuring what the sender generated. By the
 /// time that function answers, the element a sender must not have written is

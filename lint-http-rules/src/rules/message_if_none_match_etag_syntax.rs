@@ -47,7 +47,7 @@ impl Rule for MessageIfNoneMatchEtagSyntax {
             // weak-comparison MUST is owned by `inm_matches_known`, which performs it.
             // cite(RFC 9110 § 13.1.2): "If-None-Match = "*" / #entity-tag"
             let mut seen_any = false;
-            for member in crate::helpers::headers::parse_list_header(s) {
+            for member in crate::helpers::headers::list_members(s) {
                 seen_any = true;
                 if let Err(msg) = crate::helpers::headers::validate_entity_tag(member) {
                     return Some(Violation {

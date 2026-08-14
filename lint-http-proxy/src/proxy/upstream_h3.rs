@@ -802,11 +802,11 @@ enum AltSvc {
 /// `":port"` (same-host) advertisement form. Returns `None` when the header
 /// carries no usable h3 route and no `clear`.
 fn parse_alt_svc(header: &str, origin_host: &str) -> Option<AltSvc> {
-    use crate::helpers::headers::{parse_list_header, split_semicolons_respecting_quotes};
+    use crate::helpers::headers::{list_members, split_semicolons_respecting_quotes};
 
     let mut endpoints = Vec::new();
     let mut ma = DEFAULT_ALT_SVC_MA_SECS;
-    for entry in parse_list_header(header) {
+    for entry in list_members(header) {
         let mut parts = entry.splitn(2, ';');
         let proto_auth = parts.next().unwrap_or("").trim();
         let params = parts.next().unwrap_or("");

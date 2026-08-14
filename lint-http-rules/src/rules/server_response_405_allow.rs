@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::headers::{combined_field_value_as_written, shown_in_finding, trim_ows};
+use crate::helpers::headers::{combined_field_value_as_written, list_members, shown_in_finding};
 use crate::lint::Violation;
 use crate::rules::Rule;
 
@@ -26,21 +26,27 @@ impl ServerResponse405Allow {
     /// the comma is one of the delimiters a `token` excludes, and this field embeds
     /// no `quoted-string` for one to hide inside.
     ///
-    /// Neither list helper in `helpers::headers` answers this. `parse_list_header`
-    /// trims with `str::trim`, which is Unicode whitespace — wrong for a value read
-    /// one `char` per octet, where %xA0 is `obs-text` and not whitespace at all; and
-    /// `is_nominated_by_connection` folds case, because the thing it looks for is a
-    /// field name. A shared answer belongs in that module on its second caller, as
-    /// `shown_in_finding` did; this is the first.
+    /// **`list_members` is the walk, and the argument for writing it out here died
+    /// when that helper stopped trimming Unicode whitespace.** This comment used to
+    /// say no list helper answered the question: `parse_list_header` used `str::trim`,
+    /// wrong for a value read one `char` per octet where %xA0 is `obs-text` and not
+    /// whitespace at all, and `is_nominated_by_connection` folds case because what it
+    /// looks for is a field name. The first half is no longer true — the two walks
+    /// were one walk with one wrong line — and the fourth decision `list_members`
+    /// makes, dropping an empty member, is one this question cannot see anyway: the
+    /// caller keeps an empty method away, and a non-empty method equals no empty
+    /// member.
     ///
     /// The comparison is exact rather than case-folding, and the sentence below is
     /// why: two spellings of a name in two cases are two methods, so a 405 answering
-    /// `get` while advertising `GET` contradicts nothing.
+    /// `get` while advertising `GET` contradicts nothing. Case is the one decision
+    /// the shared walk leaves to its caller, which is why this stays a function
+    /// rather than becoming a call.
     ///
     /// cite(RFC 9110 § 5.6.2): "Delimiters are chosen from the set of US-ASCII visual characters not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}")."
     /// cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
     fn advertises(value: &str, method: &str) -> bool {
-        value.split(',').any(|member| trim_ows(member) == method)
+        list_members(value).any(|member| member == method)
     }
 }
 

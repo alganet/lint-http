@@ -176,7 +176,7 @@ impl Rule for MessageTrailerFieldsValidity {
 fn collect_declared_trailers(headers: &hyper::HeaderMap) -> Option<Vec<String>> {
     let value = crate::helpers::headers::combined_field_value_as_written(headers, "trailer")?;
     Some(
-        crate::helpers::headers::parse_list_header(&value)
+        crate::helpers::headers::list_members(&value)
             .map(|member| member.to_ascii_lowercase())
             .collect(),
     )
@@ -462,6 +462,32 @@ mod tests {
 
         let v = rule.check_transaction(&tx, &empty_history(), &cfg());
         assert!(v.is_none());
+    }
+
+    /// `response_trailer_declared_and_matching_no_violation` with one octet
+    /// added to the declaration, which is the fixture the reading defect hid
+    /// behind. `X-Checksum<%xA0>` is not a `field-name`, so it declares nothing
+    /// an arriving field can be — the answer `collect_declared_trailers`' own doc
+    /// comment states. The recipient's walk used to trim %xA0 as whitespace and
+    /// hand back `x-checksum`, so the undeclared field matched a declaration
+    /// nobody wrote.
+    #[test]
+    fn a_declaration_carrying_obs_text_declares_no_arriving_field() {
+        let rule = MessageTrailerFieldsValidity;
+        let mut tx = make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_octet_pairs(
+            &[("trailer", b"X-Checksum\xA0".as_slice())],
+        );
+        let mut trailers = hyper::HeaderMap::new();
+        trailers.insert("x-checksum", "abc123".parse().unwrap());
+        tx.response.as_mut().unwrap().trailers = Some(trailers);
+
+        let v = rule.check_transaction(&tx, &empty_history(), &cfg());
+        assert!(
+            v.as_ref()
+                .is_some_and(|v| v.message.contains("not declared")),
+            "{v:?}"
+        );
     }
 
     #[test]

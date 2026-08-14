@@ -35,7 +35,7 @@ impl Rule for MessageTimingAllowOriginValidity {
             return None;
         }
 
-        // Combine members across multiple header fields; parse_list_header handles commas & whitespace.
+        // Combine members across multiple header fields; list_members handles commas & whitespace.
         // Several header fields are explicitly allowed, so this rule checks the members,
         // not the field count — unlike Access-Control-Allow-Origin, which carries one value.
         // cite(Resource Timing): "The sender MAY generate multiple Timing-Allow-Origin header fields."
@@ -87,9 +87,7 @@ impl Rule for MessageTimingAllowOriginValidity {
                     // cite(RFC 9110 § 5.6.1.2): "A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism"
                 }
             }
-            for member in crate::helpers::headers::parse_list_header(s) {
-                let m = member.trim();
-
+            for m in crate::helpers::headers::list_members(s) {
                 // `wildcard` and the case-sensitive lowercase `null` are the two
                 // non-origin members the grammar admits (both productions resolve
                 // into Fetch).

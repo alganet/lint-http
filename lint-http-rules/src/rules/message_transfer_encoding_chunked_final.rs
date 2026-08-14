@@ -62,8 +62,14 @@ impl Rule for MessageTransferEncodingChunkedFinal {
                     // being lax about parameters changes the answer rather than
                     // just the message. Whether the parameter should be there at
                     // all is `message_transfer_coding_iana_registered`'s finding.
+                    // The trim is `OWS` because that is the whitespace the
+                    // production prints around the `;`. `str::trim` would take
+                    // more, and on a value read through `from_utf8_lossy` there
+                    // is more to take: %xC2 %xA0 arrives as one `char` that
+                    // `char::is_whitespace` admits and no `token` does.
                     // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
-                    let name = part.split(';').next().unwrap().trim();
+                    // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+                    let name = crate::helpers::headers::trim_ows(part.split(';').next().unwrap());
                     if name.is_empty() {
                         continue;
                     }
@@ -83,7 +89,7 @@ impl Rule for MessageTransferEncodingChunkedFinal {
                 // Bound rather than returned directly: the iterator borrows
                 // `val`, and as a tail expression it outlives it. Not a style
                 // choice -- inlining it does not compile.
-                let found = crate::helpers::headers::parse_list_header(&val)
+                let found = crate::helpers::headers::list_members(&val)
                     .any(|opt| opt.eq_ignore_ascii_case("close"));
                 found
             })
@@ -632,6 +638,60 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none(), "{te:?} with Connection: close: {v:?}");
+    }
+
+    /// `a_response_that_announces_close_is_not_reported` with the exemption
+    /// spelled in an octet that is not a `tchar`. `connection-option = token`,
+    /// so `close<%xC2%xA0>` is not the `close` option and the response has said
+    /// nothing — the value is read with `from_utf8_lossy` and the pair arrives as
+    /// one `char` `str::trim` calls whitespace, so the list walk used to hand
+    /// back `close` and excuse the message.
+    ///
+    /// The same octet on the coding itself is the other half: the name in front
+    /// of the `;` is `OWS`-trimmed now, so a request whose only coding is
+    /// `chunked<%xC2%xA0>` has applied something that is not `chunked` and never
+    /// framed the result. Both used to read as the bare token.
+    #[test]
+    fn an_obs_text_octet_is_not_whitespace_in_the_connection_option() {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_octet_pairs(&[
+                ("transfer-encoding", b"chunked, gzip".as_slice()),
+                ("connection", b"close\xC2\xA0".as_slice()),
+            ]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(
+            v.as_ref()
+                .is_some_and(|v| v.message.contains("final coding")),
+            "{v:?}"
+        );
+    }
+
+    #[test]
+    fn an_obs_text_octet_is_not_whitespace_in_the_coding_name() {
+        let rule = MessageTransferEncodingChunkedFinal;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_octet_pairs(&[(
+            "transfer-encoding",
+            b"chunked\xC2\xA0".as_slice(),
+        )]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(
+            v.as_ref()
+                .is_some_and(|v| v.message.contains("must apply chunked as the final coding")),
+            "{v:?}"
+        );
     }
 
     /// The option is a token in a list and is matched as one, not by substring.

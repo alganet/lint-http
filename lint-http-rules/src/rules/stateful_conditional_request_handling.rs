@@ -104,11 +104,8 @@ impl Rule for StatefulConditionalRequestHandling {
                         if let Ok(resp_etag) = resp_etag_hv.to_str() {
                             for hv in req.headers.get_all("if-none-match").iter() {
                                 if let Ok(inm_raw) = hv.to_str() {
-                                    for member in
-                                        crate::helpers::headers::parse_list_header(inm_raw)
-                                    {
-                                        if member.trim() == resp_etag.trim() || member.trim() == "*"
-                                        {
+                                    for member in crate::helpers::headers::list_members(inm_raw) {
+                                        if member == resp_etag.trim() || member == "*" {
                                             return Some(Violation {
                                                 rule: self.id().into(),
                                                 severity: config.severity,
