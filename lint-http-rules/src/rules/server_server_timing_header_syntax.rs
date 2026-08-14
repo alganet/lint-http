@@ -124,16 +124,6 @@ fn is_valid_floating_point_number(s: &str) -> bool {
 /// § 2 prints.
 pub struct ServerServerTimingHeaderSyntax;
 
-impl ServerServerTimingHeaderSyntax {
-    fn violation(&self, severity: crate::lint::Severity, message: String) -> Violation {
-        Violation {
-            rule: self.id().into(),
-            severity,
-            message,
-        }
-    }
-}
-
 impl Rule for ServerServerTimingHeaderSyntax {
     fn id(&self) -> &'static str {
         "server_server_timing_header_syntax"

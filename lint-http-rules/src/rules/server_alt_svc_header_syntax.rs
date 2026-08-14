@@ -100,16 +100,6 @@ fn protocol_id_encoding_defect(protocol_id: &str) -> Option<String> {
 /// field value against the grammar RFC 7838 § 3 prints for it.
 pub struct ServerAltSvcHeaderSyntax;
 
-impl ServerAltSvcHeaderSyntax {
-    fn violation(&self, severity: crate::lint::Severity, message: String) -> Violation {
-        Violation {
-            rule: self.id().into(),
-            severity,
-            message,
-        }
-    }
-}
-
 /// `alt-authority = quoted-string ; containing [ uri-host ] ":" port`
 ///
 /// Two productions deep, and the outer one is where this rule used to stop:

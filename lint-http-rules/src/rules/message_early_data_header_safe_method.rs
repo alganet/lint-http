@@ -87,14 +87,6 @@ fn parse_early_data_config(
 pub struct MessageEarlyDataHeaderSafeMethod;
 
 impl MessageEarlyDataHeaderSafeMethod {
-    fn violation(&self, config: &EarlyDataConfig, message: String) -> Violation {
-        Violation {
-            rule: self.id().into(),
-            severity: config.severity,
-            message,
-        }
-    }
-
     /// Whether this section's `Connection` field names `early-data`.
     ///
     /// The field lines are joined first: `Connection = #connection-option`, so a member
@@ -112,7 +104,7 @@ impl MessageEarlyDataHeaderSafeMethod {
             return None;
         }
         Some(self.violation(
-            config,
+            config.severity,
             format!(
                 "The {section} names Early-Data as a connection-option in its Connection header field, so every intermediary removes the field before forwarding — which is what RFC 8470 §5.1 forbids an intermediary to do to it"
             ),
@@ -177,7 +169,7 @@ impl Rule for MessageEarlyDataHeaderSafeMethod {
             // cite(RFC 9110 § 9.2.1): "Request methods are considered "safe" if their defined semantics are essentially read-only; i.e., the client does not request, and does not expect, any state change on the origin server as a result of applying a safe method to a target resource."
             if !config.safe_methods.iter().any(|m| m == &tx.request.method) {
                 return Some(self.violation(
-                    &config,
+                    config.severity,
                     format!(
                         "Request carrying an Early-Data header field was conveyed in TLS early data on a previous hop (RFC 8470 §5.1), and its method '{}' is not one this deployment lists as safe; RFC 8470 §4 has a client send only safe methods in early data, because a replayed unsafe request takes effect twice",
                         tx.request.method
@@ -190,7 +182,7 @@ impl Rule for MessageEarlyDataHeaderSafeMethod {
             // cite(RFC 8470 § 5.1): "An intermediary that forwards a request prior to the completion of the TLS handshake with its client MUST send it with the Early-Data header field set to "1" (i.e., it adds it if not present in the request)."
             if instances > 1 {
                 return Some(self.violation(
-                    &config,
+                    config.severity,
                     format!(
                         "Request carries {instances} Early-Data header field lines, and a client may send at most one — the field holds a single bit. A server reads them as one instance with the value 1, so the extra lines change nothing about the request; an intermediary marking early data adds the field only when it is not already there"
                     ),
@@ -207,7 +199,7 @@ impl Rule for MessageEarlyDataHeaderSafeMethod {
                 let written = hv.as_bytes();
                 if written != b"1" {
                     return Some(self.violation(
-                        &config,
+                        config.severity,
                         format!(
                             "Early-Data header field carries {}, and the field has exactly one valid value, \"1\". A server treats an invalid instance as though it said 1, so the request is marked as early data all the same — the value is simply wrong",
                             describe_value(written)
@@ -233,7 +225,7 @@ impl Rule for MessageEarlyDataHeaderSafeMethod {
             // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
             if resp.headers.contains_key(FIELD) {
                 return Some(self.violation(
-                    &config,
+                    config.severity,
                     "Response carries an Early-Data header field. The field is a request header field: it tells a server that a request reached it through early data, and a response has nothing to mark".to_string(),
                 ));
             }

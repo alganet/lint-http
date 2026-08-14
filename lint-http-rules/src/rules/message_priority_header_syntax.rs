@@ -73,8 +73,8 @@ impl MessagePriorityHeaderSyntax {
             // and step 1 fails before any type is considered.
             let Ok(v) = hv.to_str() else {
                 return Some(self.violation(
-                    whole_field(section, "contains a byte outside ASCII"),
                     severity,
+                    whole_field(section, "contains a byte outside ASCII"),
                 ));
             };
             lines.push(v);
@@ -82,15 +82,7 @@ impl MessagePriorityHeaderSyntax {
         if lines.is_empty() {
             return None;
         }
-        Some(self.violation(validate_priority(&lines.join(", "), section)?, severity))
-    }
-
-    fn violation(&self, message: String, severity: crate::lint::Severity) -> Violation {
-        Violation {
-            rule: self.id().into(),
-            severity,
-            message,
-        }
+        Some(self.violation(severity, validate_priority(&lines.join(", "), section)?))
     }
 }
 

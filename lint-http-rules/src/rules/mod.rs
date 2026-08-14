@@ -134,6 +134,35 @@ pub trait Rule: Send + Sync {
         RuleScope::Both
     }
 
+    /// Build one of this rule's findings.
+    ///
+    /// `Violation.rule` is the rule id, so a constructor for it needs `self.id()`
+    /// — which is why seven rules had each written this out privately, where
+    /// `id()` already was in scope. Four were byte-identical, one differed only
+    /// in argument order, and two took a whole config struct in order to read
+    /// `severity` off it. That is the argument for the extraction and not merely
+    /// its occasion: seven copies of one four-line body had already grown three
+    /// signatures.
+    ///
+    /// The parameters follow the struct's own field order: `rule` comes from
+    /// `self`, then `severity`, then `message`. A rule whose severity lives in a
+    /// custom config section passes `config.severity`; nothing here reads a
+    /// config, because the trait cannot know the shape of one.
+    ///
+    /// Not generic over the message, so the trait stays object-safe — the engine
+    /// dispatches every rule through `&'static dyn Rule`.
+    ///
+    /// An inherent method of this name on a rule would shadow this one silently,
+    /// which is why `message_structured_headers_validity`'s private finding
+    /// builder is named for its failure rather than for what it returns.
+    fn violation(&self, severity: crate::lint::Severity, message: String) -> Violation {
+        Violation {
+            rule: self.id().into(),
+            severity,
+            message,
+        }
+    }
+
     /// Evaluate an `HttpTransaction` against this rule. Rules parse whatever
     /// configuration they need directly from the global `cfg: &Config`.
     fn check_transaction(

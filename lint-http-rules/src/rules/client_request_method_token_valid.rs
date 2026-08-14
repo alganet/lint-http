@@ -92,16 +92,6 @@ fn parse_method_token_config(
 
 pub struct ClientRequestMethodTokenValid;
 
-impl ClientRequestMethodTokenValid {
-    fn violation(&self, config: &MethodTokenConfig, message: String) -> Violation {
-        Violation {
-            rule: self.id().into(),
-            severity: config.severity,
-            message,
-        }
-    }
-}
-
 impl Rule for ClientRequestMethodTokenValid {
     fn id(&self) -> &'static str {
         "client_request_method_token_valid"
@@ -160,7 +150,7 @@ impl Rule for ClientRequestMethodTokenValid {
         // the same thing in their own comments.
         if m.is_empty() {
             return Some(self.violation(
-                &config,
+                config.severity,
                 "Request carries an empty method token, and `method = token` has a one-character floor (`token = 1*tchar`), so the empty string derives from no production and names no method to apply to the target resource".into(),
             ));
         }
@@ -174,7 +164,7 @@ impl Rule for ClientRequestMethodTokenValid {
             // that prints as nothing: a raw DEL interpolated here produced a finding
             // whose offending character was an empty pair of quotes.
             return Some(self.violation(
-                &config,
+                config.severity,
                 format!(
                     "Method token contains {}, which is not a `tchar`, so the request's method derives from no `token` and therefore from no `method`",
                     crate::helpers::headers::shown_in_finding(&c.to_string())
@@ -198,7 +188,7 @@ impl Rule for ClientRequestMethodTokenValid {
                 // asks for a method nobody defined.
                 // cite(RFC 9110 § 9.1): "An origin server that receives a request method that is unrecognized or not implemented SHOULD respond with the 501 (Not Implemented) status code."
                 return Some(self.violation(
-                    &config,
+                    config.severity,
                     format!(
                         "Method token '{m}' is '{folded}' written in another case. The method token is case-sensitive, so a server matching method names sees an unrecognized method here rather than '{folded}', and ought to answer 501 (Not Implemented); by convention a standardized method is defined in all-uppercase US-ASCII letters"
                     ),

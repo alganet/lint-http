@@ -114,16 +114,6 @@ fn classify(target: &str) -> Option<TargetForm<'_>> {
 
 pub struct ClientRequestTargetFormChecks;
 
-impl ClientRequestTargetFormChecks {
-    fn violation(&self, severity: crate::lint::Severity, message: String) -> Violation {
-        Violation {
-            rule: self.id().into(),
-            severity,
-            message,
-        }
-    }
-}
-
 impl Rule for ClientRequestTargetFormChecks {
     fn id(&self) -> &'static str {
         "client_request_target_form_checks"
