@@ -1198,15 +1198,81 @@ pub fn shown_in_finding(s: &str) -> String {
     s.escape_debug().to_string()
 }
 
+/// Why a value derives from neither alternative of `( token / quoted-string )`.
+///
+/// Data rather than a sentence, and that is the whole reason this extraction was
+/// possible at all. The alternation is one production; the finding is not. Seven
+/// sites read this pair and each says something about its own field — an
+/// `Alt-Svc` parameter, a `Server-Timing` parameter, a `Pragma` directive, a
+/// media type's parameter, a `Keep-Alive` parameter, a `Prefer` preference. Six
+/// of them had also decided, separately and in four different ways, what an
+/// empty value means. So what is shared here is the decision and the two
+/// measurements behind it; **the wording, and the verdict on
+/// [`WordDefect::Empty`], stay at the caller** — which is where each field's own
+/// sentence about it is.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WordDefect {
+    /// The value is empty, and neither alternative derives the empty string:
+    /// `token = 1*tchar` has a one-character floor, and the shortest
+    /// `quoted-string` is its two DQUOTEs. That is arithmetic on two
+    /// productions and is not a per-field question — but what a field *does*
+    /// about it is, and two rules in this tree tolerate it on the record.
+    Empty,
+    /// An unquoted value holding a character no `tchar` admits. Unquoted by
+    /// elimination rather than by inspection: see [`token_or_quoted_string`].
+    NotToken(char),
+    /// A leading DQUOTE opened something that is not a well-formed
+    /// `quoted-string`, carrying the interior walk's own account of it.
+    NotQuotedString(String),
+}
+
+/// Read one `( token / quoted-string )` and return what it holds.
+///
+/// The alternation is decided by the first octet and by nothing else: RFC 9110
+/// § 5.6.2 makes DQUOTE a delimiter, so no `token` can open with one and a value
+/// that does is trying to be a `quoted-string` and nothing else. A value that
+/// does not open with one is a `token` by elimination, which is why the `tchar`
+/// scan below is the whole of that half.
+///
+/// The content returned is what the field means by the value: a `token` as
+/// written, a `quoted-string` after `quoted-pair` substitution. A caller that
+/// only judges the value may discard it — [`unescape_quoted_string`] opens by
+/// asking [`validate_quoted_string`], so the two accept exactly the same strings
+/// and the `Err` is the same `Err`.
+///
+/// RFC 7230 named this pair `word`; RFC 9110 kept both halves and dropped the
+/// name, which is why the two productions cited here are the halves and not the
+/// whole. Callers whose own document writes its own name for it —
+/// `server-timing-param-value`, `parameter-value`, RFC 2068's `value` — cite
+/// that at their site.
+///
+// cite(RFC 9110 § 5.6.2): "Delimiters are chosen from the set of US-ASCII visual characters not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}")."
+// cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
+// cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
+pub fn token_or_quoted_string(value: &str) -> Result<std::borrow::Cow<'_, str>, WordDefect> {
+    if value.is_empty() {
+        return Err(WordDefect::Empty);
+    }
+    if value.starts_with('"') {
+        return unescape_quoted_string(value)
+            .map(std::borrow::Cow::Owned)
+            .map_err(WordDefect::NotQuotedString);
+    }
+    match crate::helpers::token::find_invalid_token_char(value) {
+        Some(c) => Err(WordDefect::NotToken(c)),
+        None => Ok(std::borrow::Cow::Borrowed(value)),
+    }
+}
+
 /// One `token [ BWS "=" BWS word ]` pair, parsed.
 ///
 /// RFC 7240 writes that production three times — `preference`, `parameter` and
 /// `applied-pref` — and says in prose that the third is the first minus its
 /// parameters, so the pair itself is one thing written once here rather than
 /// per field. `word` is the name RFC 7230 gave `( token / quoted-string )`;
-/// RFC 9110 kept both halves and dropped the name, which is why the two
-/// productions cited on [`parse_token_bws_word`] are the halves and not the
-/// whole.
+/// RFC 9110 kept both halves and dropped the name, which is why the pair is
+/// cited by its halves at [`token_or_quoted_string`], where it is read, and not
+/// under a name no document in force writes.
 pub struct TokenBwsWord<'a> {
     /// The `token`, exactly as written. Case folding is the caller's: whether
     /// two names are the same string is a question each field answers for
@@ -1237,10 +1303,10 @@ pub struct TokenBwsWord<'a> {
 ///
 /// The shape itself is cited at the field that has it, not here — a helper
 /// shared by three productions can honestly quote only the halves they agree
-/// on. `token` is transcribed once at [`crate::helpers::token::is_tchar`], which
-/// this function asks rather than re-reading.
+/// on. `token` is transcribed once at [`crate::helpers::token::is_tchar`], and
+/// the `word` half is read by [`token_or_quoted_string`]; what is left here is
+/// the part RFC 7240 owns, which is the optional group and the `BWS`.
 ///
-/// cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
 /// cite(RFC 9110 § 5.6.3): "The BWS rule is used where the grammar allows optional whitespace only for historical reasons."
 pub fn parse_token_bws_word(member: &str) -> Result<TokenBwsWord<'_>, String> {
     // `token` admits neither `=` nor DQUOTE, so nothing can precede the `=` the
@@ -1264,17 +1330,20 @@ pub fn parse_token_bws_word(member: &str) -> Result<TokenBwsWord<'_>, String> {
 
     let value = match value_written_trimmed {
         None => None,
-        Some(v) if v.starts_with('"') => Some(unescape_quoted_string(v)?),
-        // `word` is `token / quoted-string` and `token` is `1*tchar`, so the
-        // optional group cannot close on an empty value: a field that means to
-        // say "no value" writes no `=`, or writes `""`.
-        Some("") => return Err("nothing after the \"=\", where the grammar has a word".to_string()),
-        Some(v) => {
-            if let Some(c) = crate::helpers::token::find_invalid_token_char(v) {
-                return Err(format!("value contains {}", describe_char(c)));
+        Some(v) => match token_or_quoted_string(v) {
+            Ok(content) => Some(content.into_owned()),
+            // `word` is `token / quoted-string` and `token` is `1*tchar`, so the
+            // optional group cannot close on an empty value: a field that means
+            // to say "no value" writes no `=`, or writes `""`. RFC 7240 grants
+            // no tolerance for the third spelling, so this is a defect here.
+            Err(WordDefect::Empty) => {
+                return Err("nothing after the \"=\", where the grammar has a word".to_string())
             }
-            Some(v.to_string())
-        }
+            Err(WordDefect::NotToken(c)) => {
+                return Err(format!("value contains {}", describe_char(c)))
+            }
+            Err(WordDefect::NotQuotedString(e)) => return Err(e),
+        },
     };
 
     Ok(TokenBwsWord { name, value, bws })
@@ -2095,6 +2164,57 @@ mod tests {
     fn quoted_string_inner_trimmed_is_empty_true_cases() {
         assert!(quoted_string_inner_trimmed_is_empty("\"\"").unwrap());
         assert!(quoted_string_inner_trimmed_is_empty("\"   \"").unwrap());
+    }
+
+    /// The alternation is decided by the first octet and by nothing else, and
+    /// each of the three defects is a distinct answer rather than one `Err`:
+    /// the seven callers that used to write this out disagree about `Empty` in
+    /// particular, so it has to arrive as something they can match on.
+    #[test]
+    fn token_or_quoted_string_separates_its_three_defects() {
+        assert_eq!(token_or_quoted_string("abc").unwrap(), "abc");
+        // The content is what the field means by the value, so the DQUOTEs come
+        // off and a `quoted-pair` is substituted.
+        assert_eq!(token_or_quoted_string("\"a\\\"b\"").unwrap(), "a\"b");
+        // `""` is two DQUOTEs and derives from the production; its content is
+        // empty, which is not the same fact as the value being empty.
+        assert_eq!(token_or_quoted_string("\"\"").unwrap(), "");
+
+        assert_eq!(token_or_quoted_string(""), Err(WordDefect::Empty));
+        assert_eq!(
+            token_or_quoted_string("a b"),
+            Err(WordDefect::NotToken(' '))
+        );
+        // A leading DQUOTE commits the value to the `quoted-string` half: RFC
+        // 9110 § 5.6.2 makes DQUOTE a delimiter, so this is not a `token`
+        // holding a bad character, it is a malformed `quoted-string`.
+        assert!(matches!(
+            token_or_quoted_string("\"abc"),
+            Err(WordDefect::NotQuotedString(_))
+        ));
+        assert!(matches!(
+            token_or_quoted_string("\"abc\"x"),
+            Err(WordDefect::NotQuotedString(_))
+        ));
+    }
+
+    /// The reader is handed one `char` per octet by every caller that reads a
+    /// field through [`combined_field_value_as_written`], and the two halves
+    /// answer an `obs-text` octet differently on purpose: `qdtext` admits it and
+    /// `tchar` does not.
+    #[test]
+    fn obs_text_lands_on_the_side_of_the_alternation_the_grammar_puts_it() {
+        let quoted: String = [b'"', 0xE9, b'"'].iter().map(|&b| b as char).collect();
+        assert_eq!(
+            token_or_quoted_string(&quoted).unwrap().chars().count(),
+            1,
+            "an obs-text octet is qdtext and comes back as one octet"
+        );
+        let bare: String = [0xE9u8].iter().map(|&b| b as char).collect();
+        assert_eq!(
+            token_or_quoted_string(&bare),
+            Err(WordDefect::NotToken('\u{E9}'))
+        );
     }
 
     #[test]

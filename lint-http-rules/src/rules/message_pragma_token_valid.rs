@@ -159,22 +159,26 @@ fn check_pragma_value(s: &str) -> Option<String> {
 
         if let Some(vpart) = kv.next() {
             let vpart = vpart.trim();
-            // A bare `directive=` (the `=` present with no value) is more permissive than the
-            // grammar, which requires a `token` or `quoted-string` after `=`; accepted as a
-            // deliberate tolerance for this deprecated field.
-            if vpart.is_empty() {
-                continue;
-            }
-            // Value grammars owned by the helpers (RFC 9110 §5.6.4 `quoted-string`, §5.6.2 `token`).
-            if vpart.starts_with('"') {
-                if let Err(e) = crate::helpers::headers::validate_quoted_string(vpart) {
+            // The `( token / quoted-string )` alternation is read by the shared
+            // helper that owns it; what stays here is what this field says about
+            // each answer.
+            match crate::helpers::headers::token_or_quoted_string(vpart) {
+                Ok(_) => {}
+                // A bare `directive=` (the `=` present with no value) is more permissive than the
+                // grammar, which requires a `token` or `quoted-string` after `=`; accepted as a
+                // deliberate tolerance for this deprecated field. Written as an
+                // arm rather than as a pre-check, because it is a verdict this
+                // rule reaches and not a step of reading the value.
+                Err(crate::helpers::headers::WordDefect::Empty) => continue,
+                Err(crate::helpers::headers::WordDefect::NotQuotedString(e)) => {
                     return Some(format!("Invalid quoted-string in directive value: {}", e));
                 }
-            } else if let Some(c) = crate::helpers::token::find_invalid_token_char(vpart) {
-                return Some(format!(
-                    "Directive value contains invalid character: '{}'",
-                    c
-                ));
+                Err(crate::helpers::headers::WordDefect::NotToken(c)) => {
+                    return Some(format!(
+                        "Directive value contains invalid character: '{}'",
+                        c
+                    ));
+                }
             }
         }
     }
