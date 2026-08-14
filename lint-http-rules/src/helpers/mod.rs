@@ -5,6 +5,29 @@
 //! Helper utilities shared across multiple lint rules.
 //!
 //! This module groups reusable helpers for validating HTTP common structures.
+//!
+//! **Every module below is named for a question, and none for a document.**
+//! Read the list: each name is something a value can *be*, never the
+//! specification that defines it — which is why one module holds productions
+//! from several documents, and why two productions printed on the same page can
+//! live apart. That is the shelving rule, and it is the answer to the periodic
+//! suggestion of a module named for a publisher: a `microsyntax.rs` collecting
+//! the WHATWG transcriptions would be the first module here named for a table of
+//! contents.
+//!
+//! Counted by *what transcribes a production into code* — not by what cites a
+//! WHATWG document, which `message_link_header_validity` also does, for three
+//! algorithm steps that license a gate and transcribe nothing — the tree holds
+//! **six** such transcriptions, in two rules, from four documents: the URL
+//! Standard's *URL code points* and *URL units*, Infra's *ASCII whitespace*,
+//! HTML's *valid non-negative integer* and its two-form authoring requirement
+//! for `Refresh`, and HTML's *valid floating-point number* in
+//! `server_server_timing_header_syntax`. Two character-class sets, a whitespace
+//! set, two number productions and a prose shape; not one is a subroutine of
+//! another, and each has exactly one caller. **The rule for arriving here is
+//! unchanged and is what decides it: a shared answer moves on the second caller,
+//! and that caller has to be asking the same question, not merely reading the
+//! same publisher.**
 
 pub mod accept_ranges;
 pub mod auth;

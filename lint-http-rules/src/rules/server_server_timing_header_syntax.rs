@@ -44,15 +44,19 @@ const ESTABLISHED_PARAM_NAMES: [&str; 2] = ["dur", "desc"];
 /// This is the authoring half of a pair HTML keeps deliberately apart: the
 /// *valid floating-point number* is what a conforming author writes, and the
 /// *rules for parsing floating-point number values* are what a user agent runs
-/// over whatever arrived. A rule measuring a sender wants the first. Written
-/// privately because it has one caller and there is no HTML-microsyntax reader
-/// anywhere in `helpers/`; the shared answer moves there on the second. The
-/// campaign's only other WHATWG microsyntax is
-/// `message_refresh_header_syntax_valid`'s *valid non-negative integer*, and it
-/// is an inline `chars().all(is_ascii_digit)` rather than a function -- one
-/// production is not a subroutine of the other, and a shared module holding the
-/// two of them would be filed by which document they came from rather than by
-/// what they do.
+/// over whatever arrived. A rule measuring a sender wants the first.
+///
+/// **Written privately, and that is a decision rather than a deferral.** It has
+/// one caller. The tree's other five WHATWG transcriptions are all in
+/// `message_refresh_header_syntax_valid` -- the URL Standard's *URL code points*
+/// and *URL units*, Infra's *ASCII whitespace*, HTML's *valid non-negative
+/// integer* and its two-form authoring requirement for the field -- and each of
+/// those has one caller too. Four documents, six transcriptions, no two of them
+/// the same question and none a subroutine of another: a shared module holding
+/// them would be filed by which publisher they came from, which is the one thing
+/// `helpers/` is not shelved by. The rule that would move this is unchanged and
+/// is written at `helpers/mod.rs`: a shared answer moves on the second caller
+/// *asking the same question*.
 // cite(HTML Common Microsyntaxes § 2.3.4.3): "A string is a valid floating-point number if it consists of:"
 // cite(HTML Common Microsyntaxes § 2.3.4.3): "The Infinity and Not-a-Number (NaN) values are not valid floating-point numbers."
 // cite(HTML Common Microsyntaxes § 2.3.4.3): "The valid floating-point number concept is typically only used to restrict what is allowed for authors, while the user agent requirements use the rules for parsing floating-point number values below"

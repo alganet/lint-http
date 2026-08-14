@@ -61,7 +61,7 @@ sources:
     snippet: Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 205
+      line: 220
   - label: message_sec_fetch_dest_value_valid
     snippet: 'A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt".'
     cited_by:
@@ -134,12 +134,12 @@ sources:
     snippet: It takes the same value and works largely the same.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 238
+      line: 253
   - label: message_refresh_header_syntax_valid (2)
     snippet: The `Refresh` HTTP response header is the HTTP-equivalent to a meta element with an http-equiv attribute in the Refresh state.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 185
+      line: 200
   - label: server_x_frame_options_value_valid
     snippet: For each value of rawXFrameOptions, append value, converted to ASCII lowercase, to xFrameOptions.
     cited_by:
@@ -188,27 +188,27 @@ sources:
     snippet: 'For meta elements with an http-equiv attribute in the Refresh state, the content attribute must have a value consisting either of:'
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 104
+      line: 119
   - label: message_refresh_header_syntax_valid (2)
     snippet: If quote is not the empty string, and there is a code point in urlString equal to quote, then truncate urlString at that code point, so that it and all subsequent code points are removed.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 166
+      line: 181
   - label: message_refresh_header_syntax_valid (3)
     snippet: a valid non-negative integer, followed by a U+003B SEMICOLON character (;), followed by one or more ASCII whitespace, followed by a substring that is an ASCII case-insensitive match for the string "URL", followed by a U+003D EQUALS SIGN character (=), followed by a valid URL string
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 106
+      line: 121
   - label: message_refresh_header_syntax_valid (4)
     snippet: just a valid non-negative integer, or
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 105
+      line: 120
   - label: message_refresh_header_syntax_valid (5)
     snippet: that does not start with a literal U+0027 APOSTROPHE (') or U+0022 QUOTATION MARK
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 161
+      line: 176
 - label: HTML Common Microsyntaxes
   url: https://html.spec.whatwg.org/multipage/common-microsyntaxes.html
   type: text/html
@@ -217,31 +217,31 @@ sources:
     snippet: A string is a valid non-negative integer if it consists of one or more ASCII digits.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 120
+      line: 135
   - label: server_server_timing_header_syntax
     section: § 2.3.4.3
     snippet: 'A string is a valid floating-point number if it consists of:'
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 56
+      line: 60
   - label: server_server_timing_header_syntax (2)
     section: § 2.3.4.3
     snippet: Advance position to the next character. (The "+" is ignored, but it is not conforming.)
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 67
+      line: 71
   - label: server_server_timing_header_syntax (3)
     section: § 2.3.4.3
     snippet: The Infinity and Not-a-Number (NaN) values are not valid floating-point numbers.
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 57
+      line: 61
   - label: server_server_timing_header_syntax (4)
     section: § 2.3.4.3
     snippet: The valid floating-point number concept is typically only used to restrict what is allowed for authors, while the user agent requirements use the rules for parsing floating-point number values below
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 58
+      line: 62
 - label: HTML Document Lifecycle
   url: https://html.spec.whatwg.org/multipage/document-lifecycle.html
   type: text/html
@@ -250,12 +250,12 @@ sources:
     snippet: Let value be the isomorphic decoding of the value of the header.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 224
+      line: 239
   - label: message_refresh_header_syntax_valid (2)
     snippet: We do not currently have a spec for how to handle multiple `Refresh` headers.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 204
+      line: 219
 - label: URL
   url: https://url.spec.whatwg.org/
   type: text/html
@@ -264,32 +264,32 @@ sources:
     snippet: A code point is found that is not a URL unit.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 80
+      line: 95
   - label: message_refresh_header_syntax_valid (2)
     snippet: A valid URL string must be either a relative-URL-with-fragment string or an absolute-URL-with-fragment string.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 172
+      line: 187
   - label: message_refresh_header_syntax_valid (3)
     snippet: 'A valid host string must be a valid domain string, a valid IPv4-address string, or: U+005B ([), followed by a valid IPv6-address string, followed by U+005D (]).'
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 75
+      line: 90
   - label: message_refresh_header_syntax_valid (4)
     snippet: An absolute-URL-with-fragment string must be an absolute-URL string, optionally followed by U+0023 (#) and a URL-fragment string.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 74
+      line: 89
   - label: message_refresh_header_syntax_valid (5)
     snippet: The URL code points are ASCII alphanumeric, U+0021 (!), U+0024 ($), U+0026 (&), U+0027 ('), U+0028 LEFT PARENTHESIS, U+0029 RIGHT PARENTHESIS, U+002A (*), U+002B (+), U+002C (,), U+002D (-), U+002E (.), U+002F (/), U+003A (:), U+003B (;), U+003D (=), U+003F (?), U+0040 (@), U+005F (_), U+007E (~), and code points in the range U+00A0 to U+10FFFD, inclusive, excluding surrogates and noncharacters.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 21
+      line: 36
   - label: message_refresh_header_syntax_valid (6)
     snippet: URL units are URL code points and percent-encoded bytes.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 60
+      line: 75
 - label: Infra
   url: https://infra.spec.whatwg.org/
   type: text/html
@@ -298,12 +298,12 @@ sources:
     snippet: ASCII whitespace is U+0009 TAB, U+000A LF, U+000C FF, U+000D CR, or U+0020 SPACE.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 93
+      line: 108
   - label: message_refresh_header_syntax_valid (2)
     snippet: To isomorphic decode a byte sequence input, return a string whose code point length is equal to input’s length and whose code points have the same values as the values of input’s bytes, in the same order.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 225
+      line: 240
 - label: CSP3
   url: https://www.w3.org/TR/CSP3/
   type: text/html
@@ -455,32 +455,32 @@ sources:
     snippet: '*( OWS ";" OWS server-timing-param ) metric-name = token'
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 361
+      line: 365
   - label: Server-Timing grammar
     snippet: 'Server-Timing = #server-timing-metric'
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 331
+      line: 335
   - label: server-timing-metric grammar
     snippet: server-timing-metric = metric-name *( OWS ";" OWS server-timing-param )
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 360
+      line: 364
   - label: server-timing-param grammar
     snippet: server-timing-param = server-timing-param-name OWS "=" OWS server-timing-param-value
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 433
+      line: 437
   - label: server-timing-param-name grammar
     snippet: server-timing-param-name = token
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 434
+      line: 438
   - label: server-timing-param-value grammar
     snippet: server-timing-param-value = token / quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 538
+      line: 542
   - label: server_server_timing_header_syntax
     section: § 2
     snippet: A user agent that does not recognize particular server-timing-param-name in the Server-Timing header field of a response MUST ignore those tokens and continue processing instead of signaling an error.
@@ -492,25 +492,25 @@ sources:
     snippet: All subsequent occurrences MUST be ignored without signaling an error or otherwise altering the processing of the server-timing-metric.
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 489
+      line: 493
   - label: server_server_timing_header_syntax (3)
     section: § 2
     snippet: If any server-timing-param-name is specified more than once, only the first instance is to be considered, even if the server-timing-param is incomplete or invalid.
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 488
+      line: 492
   - label: server_server_timing_header_syntax (4)
     section: § 2
     snippet: 'See [RFC7230] for definitions of #, *, OWS, token, and quoted-string.'
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 332
+      line: 336
   - label: server_server_timing_header_syntax (5)
     section: § 2
     snippet: The Server-Timing header field is used to communicate one or more metrics and descriptions for the given request-response cycle.
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 134
+      line: 138
   - label: server_server_timing_header_syntax (6)
     section: § 2
     snippet: This specification establishes the server-timing-params for server-timing-param-names "dur" for duration and "desc" for description, both optional.
@@ -522,31 +522,31 @@ sources:
     snippet: To avoid any possible ambiguity, individual server-timing-param-names SHOULD NOT appear multiple times within a server-timing-metric.
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 487
+      line: 491
   - label: server_server_timing_header_syntax (8)
     section: § 2
     snippet: User agents MUST ignore extraneous characters found after a server-timing-param-value but before the next server-timing-param and before the end of the current server-timing-metric.
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 508
+      line: 512
   - label: server_server_timing_header_syntax (9)
     section: § 3.2
     snippet: If dur is an error, return 0; Otherwise return dur.
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 606
+      line: 610
   - label: server_server_timing_header_syntax (10)
     section: § 3.2
     snippet: Let dur be the result of parsing this’s params["dur"] using the rules for parsing floating-point number values.
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 605
+      line: 609
   - label: server_server_timing_header_syntax (11)
     section: § 3.3
     snippet: The description getter steps are to return this’s params["desc"] if it exists, otherwise the empty string.
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 589
+      line: 593
 - label: Permissions Policy
   url: https://w3c.github.io/webappsec-permissions-policy/
   type: text/html
@@ -4372,7 +4372,7 @@ sources:
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 92
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 343
+      line: 347
     - file: lint-http-rules/src/rules/server_vary_header_valid.rs
       line: 59
   - label: client_expect_header_valid (13)
@@ -5204,7 +5204,7 @@ sources:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
       line: 390
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 232
+      line: 247
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 234
     - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
@@ -5212,7 +5212,7 @@ sources:
     - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
       line: 46
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 326
+      line: 330
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 11.6.3
     snippet: Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
@@ -5374,7 +5374,7 @@ sources:
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
       line: 70
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 176
+      line: 180
   - label: lint-http-rules/src/helpers/headers.rs (11)
     section: § 5.5
     snippet: Fields that only anticipate a single member as the field value are referred to as "singleton fields".
@@ -5458,7 +5458,7 @@ sources:
     - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
       line: 274
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 376
+      line: 380
   - label: OWS grammar
     section: § 5.6.3
     snippet: OWS            = *( SP / HTAB )
@@ -5482,7 +5482,7 @@ sources:
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 33
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 459
+      line: 463
   - label: lint-http-rules/src/helpers/headers.rs (16)
     section: § 5.6.3
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.
@@ -5550,7 +5550,7 @@ sources:
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 115
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 308
+      line: 312
   - label: lint-http-rules/src/helpers/headers.rs (22)
     section: § 5.6.6
     snippet: Parameter names are case-insensitive.
@@ -5664,7 +5664,7 @@ sources:
     - file: lint-http-rules/src/rules/server_response_405_allow.rs
       line: 119
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 165
+      line: 169
   - label: lint-http-rules/src/helpers/headers.rs (30)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
@@ -7800,7 +7800,7 @@ sources:
     - file: lint-http-rules/src/rules/server_response_405_allow.rs
       line: 61
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 135
+      line: 139
   - label: server_alt_svc_header_syntax (2)
     section: § 5.3
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).
@@ -7810,7 +7810,7 @@ sources:
     - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
       line: 226
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 175
+      line: 179
   - label: server_authentication_challenge_validity
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
@@ -8062,7 +8062,7 @@ sources:
     snippet: '#element => [ 1#element ]'
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 325
+      line: 329
   - label: server_status_and_caching_semantics
     section: § 15.1
     snippet: Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls

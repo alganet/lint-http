@@ -7,6 +7,21 @@ use crate::rules::Rule;
 
 pub struct MessageRefreshHeaderSyntaxValid;
 
+// This rule holds four of the tree's six WHATWG transcriptions -- the URL
+// Standard's *URL code points* and *URL units* below, Infra's *ASCII
+// whitespace*, and HTML's *valid non-negative integer* inside
+// `refresh_value_error`, whose own two-form authoring requirement is the fifth.
+// The sixth is `server_server_timing_header_syntax`'s *valid floating-point
+// number*.
+//
+// **All six stay private, and the reason is written at `helpers/mod.rs`**: that
+// module is shelved by question and never by document, so a `microsyntax.rs`
+// collecting these would be filed by publisher. They are two character-class
+// sets, a whitespace set, two number productions and a prose shape -- no two the
+// same question, none a subroutine of another, one caller each. A second caller
+// asking the *same* question is what moves one of them, and reading the same
+// document is not that.
+
 /// Whether `c` is one of the code points a URL may be written with.
 ///
 /// Transcribed from the WHATWG URL Standard § 4.3, not from RFC 3986 — the two
