@@ -93,27 +93,14 @@ impl Rule for MessageExtensionHeadersRegistered {
     ) -> Option<Violation> {
         let config = parse_allowed_config(cfg, self.id()).ok()?;
 
-        if let Some(v) = check_section("request header section", &tx.request.headers, &config) {
-            return Some(v);
-        }
-        // A trailer field name is a field name, so the allowlist reaches it on the same
-        // terms. The section is `None` unless the framing carried one.
+        // All four, in wire order, from the shared walk. A trailer field name is
+        // a field name, so the allowlist reaches it on the same terms; a
+        // transaction the upstream never answered has no response half; and
+        // which sections exist at all is the framing's answer, not this rule's.
         // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
-        if let Some(trailers) = &tx.request.trailers {
-            if let Some(v) = check_section("request trailer section", trailers, &config) {
+        for (section, headers) in crate::helpers::headers::transaction_field_sections(tx) {
+            if let Some(v) = check_section(section, headers, &config) {
                 return Some(v);
-            }
-        }
-
-        // A transaction the upstream never answered has no response half to read.
-        if let Some(resp) = &tx.response {
-            if let Some(v) = check_section("response header section", &resp.headers, &config) {
-                return Some(v);
-            }
-            if let Some(trailers) = &resp.trailers {
-                if let Some(v) = check_section("response trailer section", trailers, &config) {
-                    return Some(v);
-                }
             }
         }
 
