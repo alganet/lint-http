@@ -65,7 +65,7 @@ impl Rule for ServerVaryAndCacheConsistency {
             };
 
             for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
-                let m = member.trim();
+                let m = member;
                 if m.is_empty() {
                     continue;
                 }

@@ -136,7 +136,6 @@ impl Rule for MessageTransferCodingIanaRegistered {
             // `tchar`, and the rule reported a conforming field.
             // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
             for part in crate::helpers::headers::split_commas_respecting_quotes(val) {
-                let part = part.trim();
                 // `#element` admits empty members, and they are not elements.
                 // `parse_list_header` used to drop these; the quote-aware
                 // splitter does not, so the filter moves here with its licence.

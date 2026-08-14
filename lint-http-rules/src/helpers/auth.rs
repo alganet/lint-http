@@ -12,15 +12,21 @@ use crate::helpers::headers::split_commas_respecting_quotes;
 /// members without a leading scheme are treated as continuation parameters for
 /// the current challenge.
 ///
-/// Returns Ok(Vec<String>) on success or Err(String) describing a parsing problem
-/// (e.g., empty member, parameter before a scheme, or missing scheme on a member
-/// that starts with whitespace).
+/// Returns Ok(Vec<String>) on success or Err(String) describing a parsing
+/// problem: an empty member, or a parameter with no challenge before it. There
+/// was a third — *missing scheme on a member that starts with whitespace* — and
+/// it was the same problem read off a character the list grammar puts outside
+/// the element.
 pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, String> {
     let members: Vec<&str> = split_commas_respecting_quotes(s);
     let mut challenges: Vec<String> = Vec::new();
 
     for m in members {
-        let mm = m.trim();
+        // The `OWS` the `#rule` prints around its commas is the splitter's to
+        // remove, and it removes exactly that — the `str::trim` this replaced
+        // also took %xA0 and %x85 off a member's ends, which are `obs-text` and
+        // are two of the octets the `auth-scheme` check below exists to name.
+        let mm = m;
         if mm.is_empty() {
             return Err("WWW-Authenticate header contains empty challenge/member".into());
         }
@@ -43,10 +49,15 @@ pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, String> {
             last.push_str(", ");
             last.push_str(mm);
         } else {
-            // continuation without a starting challenge -> syntax issue
-            if m.chars().next().map(|c| c.is_whitespace()).unwrap_or(false) {
-                return Err("WWW-Authenticate challenge missing auth-scheme".into());
-            }
+            // A continuation with no challenge before it. There used to be two
+            // messages here, chosen by whether the member as split began with
+            // whitespace — and that was the `OWS` of `#challenge`'s own comma
+            // separator being read as evidence about the challenge. ` realm="x"`
+            // and `realm="x"` are the same member: §5.6.1.1 puts the whitespace
+            // outside the element, so after it is removed there is one case and
+            // one thing to say about it.
+            // cite(RFC 9110 § 11.6.1): "WWW-Authenticate = #challenge"
+            // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
             return Err("WWW-Authenticate contains parameter before any auth-scheme".into());
         }
     }
@@ -131,9 +142,10 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
             }
         }
 
-        // Parse auth-params
+        // Parse auth-params. The `OWS` around the `#auth-param` commas is the
+        // splitter's; the `str::trim` this replaced also took the two `obs-text`
+        // octets that look like whitespace, and no `token` admits either.
         for param in split_commas_respecting_quotes(rest) {
-            let param = param.trim();
             if param.is_empty() {
                 return Err("WWW-Authenticate contains empty parameter".into());
             }
@@ -327,7 +339,7 @@ pub fn parse_auth_params(s: &str) -> Result<std::collections::HashMap<String, St
     let mut out = std::collections::HashMap::new();
     // split comma-separated params respecting quoted-strings
     for part in split_commas_respecting_quotes(s) {
-        let p = part.trim();
+        let p = part;
         if p.is_empty() {
             return Err("empty auth-param".into());
         }
@@ -469,11 +481,20 @@ mod tests {
         assert!(r.unwrap_err().contains("parameter before any auth-scheme"));
     }
 
+    /// The leading space is `#challenge`'s own `OWS`, so this member is the one
+    /// above with whitespace in front of it and draws the same message. It used
+    /// to draw a different one, chosen by a character the list grammar puts
+    /// outside the element.
     #[test]
-    fn member_starting_with_whitespace_reports_missing_scheme() {
-        let r = split_and_group_challenges(" realm=\"x\"");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("missing auth-scheme"));
+    fn a_members_leading_ows_does_not_change_what_it_is() {
+        for value in [" realm=\"x\"", "\trealm=\"x\"", "realm=\"x\"  "] {
+            let r = split_and_group_challenges(value);
+            assert!(
+                r.as_ref()
+                    .is_err_and(|e| e.contains("parameter before any auth-scheme")),
+                "{value}: {r:?}"
+            );
+        }
     }
 
     #[test]

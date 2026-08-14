@@ -129,7 +129,6 @@ fn check_pragma_value(s: &str) -> Option<String> {
     // `extension-pragma` (dropped by RFC 9111). The pieces enforced below — the `#`-list split,
     // the empty-element rule, `token`, and `quoted-string` — are all current RFC 9110 §5.6.
     for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
-        let member = member.trim();
         // An empty element *within* the list (e.g. `no-cache,,foo` or a trailing comma) is
         // forbidden, unlike the empty whole value skipped by the callers above.
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."

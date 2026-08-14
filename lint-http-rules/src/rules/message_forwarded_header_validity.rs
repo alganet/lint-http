@@ -237,7 +237,6 @@ impl MessageForwardedHeaderValidity {
         let mut saw_an_empty_element = false;
 
         for elem in split_commas_respecting_quotes(line) {
-            let elem = elem.trim();
             if elem.is_empty() {
                 // `1#` is unsatisfied by a line of these, and the count is what
                 // says so: an empty element is not one of the elements present.

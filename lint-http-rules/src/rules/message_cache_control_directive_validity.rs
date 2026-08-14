@@ -110,7 +110,6 @@ impl Rule for MessageCacheControlDirectiveValidity {
 
 fn check_cache_control_directives(s: &str) -> Option<String> {
     for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
-        let member = member.trim();
         // An empty element *within* the list is forbidden, unlike the empty whole
         // value the callers skip as a zero-element list.
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
