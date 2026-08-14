@@ -646,6 +646,13 @@ mod tests {
                 let Some((name, value)) = line.split_once(": ") else {
                     continue;
                 };
+                // Not trimmed, deliberately: a published example is prose this
+                // crate wrote, so padding in one is an authoring slip rather
+                // than a sender's `OWS`, and `is_valid_imf_fixdate` measures
+                // whatever it is handed. An `If-Range` example carrying a padded
+                // date would make *both* halves false and fail the `!=` below
+                // with a message about the value not being either — so the fix
+                // is the example, not this line.
                 let tag_ok = crate::helpers::headers::validate_entity_tag(value).is_ok();
                 let date_ok = crate::http_date::is_valid_imf_fixdate(value);
                 match name.to_ascii_lowercase().as_str() {

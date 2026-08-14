@@ -32,9 +32,20 @@ impl Rule for ServerLastModifiedRfc1123Format {
             // *defined* as HTTP-date, and a sender is still confined to IMF-fixdate.
             // Checking `is_valid_http_date` accepted the two obsolete formats and so
             // could never fail on the thing this rule exists to report.
+            // The `OWS` is excluded here, because only this side knows the value
+            // came off a field line. `IMF-fixdate` prints no whitespace but the
+            // `SP`s at its fixed offsets and § 5.6.7 forbids a sender any more,
+            // so `is_valid_imf_fixdate` measures whatever it is handed; what
+            // makes a leading or trailing `OWS` not part of *this* value is the
+            // `field-line` production and § 5.5's sentence about it, and the
+            // trim is `OWS` rather than `str::trim` for the reason recorded at
+            // `trim_ows`.
+            //
             // cite(RFC 9110 § 8.8.2): "Last-Modified = HTTP-date"
+            // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace"
+            // cite(RFC 9112 § 5): "field-line   = field-name ":" OWS field-value OWS"
             // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
-            if !crate::http_date::is_valid_imf_fixdate(s) {
+            if !crate::http_date::is_valid_imf_fixdate(crate::helpers::headers::trim_ows(s)) {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
@@ -106,6 +117,18 @@ mod tests {
     // the recipient's question.
     #[case(Some(vec![("last-modified", "Sunday, 06-Nov-94 08:49:37 GMT")] ), true)]
     #[case(Some(vec![("last-modified", "Sun Nov  6 08:49:37 1994")] ), true)]
+    // The `OWS` a `field-line` is allowed to carry around its value, which is
+    // this side's to exclude now that `is_valid_imf_fixdate` measures the whole
+    // string. Reporting these would report an HTTP/1.1 sender for something
+    // RFC 9112 § 5 lets it write — and hyper's own parser has already removed
+    // them from live traffic, so what this pins is the capture-file path.
+    //
+    // What these two guard is the `trim_ows` call, not the whole change: they
+    // fail if it is deleted and pass if the trim moves back inside the date
+    // reader, because both spellings tolerate the padding. That is the guard
+    // worth having, since the call is the load-bearing half here.
+    #[case(Some(vec![("last-modified", " Wed, 21 Oct 2015 07:28:00 GMT")] ), false)]
+    #[case(Some(vec![("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT\t")] ), false)]
     fn check_last_modified_cases(
         #[case] headers: Option<Vec<(&str, &str)>>,
         #[case] expect_violation: bool,
