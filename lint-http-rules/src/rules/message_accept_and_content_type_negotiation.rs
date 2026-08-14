@@ -119,7 +119,6 @@ impl Rule for MessageAcceptAndContentTypeNegotiation {
         // which accepts `text/plain` and nothing else — was read as accepting
         // `image/png` too, and a response nobody asked for went unreported.
         for member in crate::helpers::headers::split_commas_respecting_quotes(accept) {
-            let member = member.trim();
             if member.is_empty() {
                 continue;
             }

@@ -400,7 +400,9 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_www_authenticate_challenge_syntax",
         ]);
-        // member starts with whitespace -> missing scheme
+        // The leading space is `#challenge`'s `OWS`, so this is a parameter
+        // with no challenge in front of it — which is what it was without the
+        // space too. The two used to draw different messages.
         let tx = crate::test_helpers::make_test_transaction_with_response(
             401,
             &[("www-authenticate", " realm=\"x\"")],
@@ -411,7 +413,10 @@ mod tests {
             &cfg,
         );
         assert!(v.is_some());
-        assert!(v.unwrap().message.contains("missing auth-scheme"));
+        assert!(v
+            .unwrap()
+            .message
+            .contains("parameter before any auth-scheme"));
     }
 
     #[test]

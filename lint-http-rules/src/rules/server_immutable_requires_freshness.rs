@@ -60,7 +60,6 @@ impl Rule for ServerImmutableRequiresFreshness {
             };
 
             for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
-                let member = member.trim();
                 if member.is_empty() {
                     continue;
                 }

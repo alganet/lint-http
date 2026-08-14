@@ -68,7 +68,7 @@ impl Rule for StatefulVaryHeaderCacheValidity {
             for hv in req.headers.get_all("if-none-match").iter() {
                 if let Ok(s) = hv.to_str() {
                     for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
-                        if member.trim() == "*" {
+                        if member == "*" {
                             return None;
                         }
                     }

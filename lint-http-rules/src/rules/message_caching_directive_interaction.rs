@@ -57,7 +57,7 @@ impl Rule for MessageCachingDirectiveInteraction {
                 }
 
                 for member in split_commas_respecting_quotes(s) {
-                    let m = member.trim();
+                    let m = member;
                     if m.is_empty() {
                         // Cache-Control is a `#cache-directive` list, and the sender (client on a
                         // request, server on a response) must not emit empty list elements.

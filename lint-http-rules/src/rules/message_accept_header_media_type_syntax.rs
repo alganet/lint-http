@@ -44,7 +44,6 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
             // is still reported, and reported here: this is the rule that owns
             // a malformed Accept, so it names the defect rather than declining.
             for member in crate::helpers::headers::split_commas_respecting_quotes(val) {
-                let member = member.trim();
                 // An empty list element is legal for a recipient to ignore, and
                 // ignoring it is all this rule does with it. The production
                 // brackets each element, so `a, , b` conforms.

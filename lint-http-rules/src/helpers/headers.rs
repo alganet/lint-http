@@ -1006,10 +1006,10 @@ pub fn is_nominated_by_connection(name: &str, connection_header_value: Option<&s
 // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
 // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
 pub fn list_members_as_written(value: &str) -> Vec<&str> {
+    // The `OWS` trim is the splitter's now, and this function is what it is for:
+    // the splitter answers where the members are, and this name says that the
+    // slices it hands back are the `1#element` expansion's elements.
     split_commas_respecting_quotes(value)
-        .into_iter()
-        .map(trim_ows)
-        .collect()
 }
 
 /// Split a comma-separated header value into top-level members while respecting quoted-strings
@@ -1017,6 +1017,22 @@ pub fn list_members_as_written(value: &str) -> Vec<&str> {
 ///
 /// This is useful for header grammars like `Cache-Control` and `Pragma` where members
 /// may contain quoted-strings with commas that must not be treated as separators.
+///
+/// **Each segment comes back without the `OWS` the `#rule` prints around its
+/// commas**, which is what [`split_semicolons_respecting_quotes`] has always
+/// done for the semicolon its own grammars print `OWS` around. The two were
+/// asymmetric for no reason anyone had written down: every caller of this one
+/// trimmed on the next line, and every one of them reached for `str::trim`.
+///
+/// That is why the asymmetry was worth removing rather than documenting.
+/// `str::trim` is Unicode whitespace, and a value read through
+/// [`combined_field_value_as_written`] carries one `char` per octet — so %xA0
+/// and %x85, the two `obs-text` octets that most look like a space, were removed
+/// from a member's ends before any check could see them, and `obs-text` is
+/// exactly the octet class no `token` admits. [`trim_ows`] is bounded to what
+/// `OWS` is.
+// cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
+// cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
 pub fn split_commas_respecting_quotes(s: &str) -> Vec<&str> {
     let bytes = s.as_bytes();
     let mut res = Vec::new();
@@ -1050,7 +1066,7 @@ pub fn split_commas_respecting_quotes(s: &str) -> Vec<&str> {
     if start <= s.len() {
         res.push(&s[start..]);
     }
-    res
+    res.into_iter().map(trim_ows).collect()
 }
 
 /// Split a semicolon-separated header value into top-level members while respecting quoted-strings
@@ -2868,6 +2884,37 @@ mod tests {
         assert!(validate_ext_value("UTF-8''hello@world").is_err());
     }
 
+    /// The two splitters trim the same three characters of intent, and it is
+    /// `OWS` rather than Unicode whitespace. Every caller of the comma splitter
+    /// used to write `str::trim` on the next line, which is what this asserts is
+    /// no longer needed and no longer right.
+    #[test]
+    fn both_splitters_trim_ows_and_only_ows() {
+        assert_eq!(
+            split_commas_respecting_quotes("  a , \tb\t ,c"),
+            vec!["a", "b", "c"]
+        );
+        assert_eq!(
+            split_semicolons_respecting_quotes("  a ; \tb\t ;c"),
+            vec!["a", "b", "c"]
+        );
+        // %xA0 and %x85 arrive as U+00A0 and U+0085 from a value read one `char`
+        // per octet. They are `obs-text`, which no `token` admits, so a member
+        // that ends in one is a finding and not a member with trailing space —
+        // and `str::trim` removed both.
+        assert_eq!(
+            split_commas_respecting_quotes("a\u{A0}, \u{85}b"),
+            vec!["a\u{A0}", "\u{85}b"]
+        );
+        assert_eq!(
+            split_semicolons_respecting_quotes("a\u{A0}; \u{85}b"),
+            vec!["a\u{A0}", "\u{85}b"]
+        );
+        // An empty member stays an empty member: the trim removes whitespace,
+        // never a member.
+        assert_eq!(split_commas_respecting_quotes("a, ,b"), vec!["a", "", "b"]);
+    }
+
     #[test]
     fn a_backslash_outside_a_quoted_string_escapes_nothing() {
         // `quoted-pair` is part of `quoted-string`, so outside one a backslash
@@ -2876,7 +2923,7 @@ mod tests {
         // the value into a single member.
         assert_eq!(
             split_commas_respecting_quotes(r#"text/html\, application/z+bogus"#),
-            vec![r#"text/html\"#, " application/z+bogus"]
+            vec![r#"text/html\"#, "application/z+bogus"]
         );
         assert_eq!(
             split_semicolons_respecting_quotes(r#"text/html; p=a\; charset=utf-8"#),
@@ -2885,7 +2932,7 @@ mod tests {
         // Inside a quoted-string it still escapes, including an escaped DQUOTE.
         assert_eq!(
             split_commas_respecting_quotes(r#"a;p="x\",y", b"#),
-            vec![r#"a;p="x\",y""#, " b"]
+            vec![r#"a;p="x\",y""#, "b"]
         );
         assert_eq!(
             split_semicolons_respecting_quotes(r#"a; p="x\";y"; q=1"#),

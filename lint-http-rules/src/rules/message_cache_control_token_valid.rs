@@ -111,7 +111,6 @@ impl Rule for MessageCacheControlTokenValid {
 fn check_cache_control_value(s: &str) -> Option<String> {
     // Split by top-level commas but ignore commas inside quoted-strings
     for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
-        let member = member.trim();
         // An empty element *within* the list is forbidden, unlike the empty whole
         // value the callers skip as a zero-element list.
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
