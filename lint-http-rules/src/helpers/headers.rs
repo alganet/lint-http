@@ -242,12 +242,68 @@ pub fn combined_field_value_as_written(headers: &HeaderMap, name: &str) -> Optio
 pub fn response_field_sections(
     resp: &crate::http_transaction::ResponseInfo,
 ) -> impl Iterator<Item = (&'static str, &HeaderMap)> {
-    [
-        Some(("header section", &resp.headers)),
-        resp.trailers.as_ref().map(|t| ("trailer section", t)),
-    ]
-    .into_iter()
-    .flatten()
+    message_field_sections(
+        &resp.headers,
+        resp.trailers.as_ref(),
+        ("header section", "trailer section"),
+    )
+}
+
+/// The field sections of one message, in wire order, under the names its
+/// caller's findings use.
+///
+/// This is the sentence both public walks rest on and the only thing they
+/// share: **a message has exactly two field sections, in this order, and they
+/// are never joined to each other** — appending a field line to the one before
+/// it is defined *within* a field section, which is why a value spanning the
+/// two is two values and not one.
+///
+/// The labels are a parameter because they are the *finding's* wording rather
+/// than a decision the walk makes: a rule that reads one direction says "header
+/// section" because there is no other, and a rule reading both has to say which
+/// direction or its findings are ambiguous. Nothing else turns on the string.
+fn message_field_sections<'a>(
+    headers: &'a HeaderMap,
+    trailers: Option<&'a HeaderMap>,
+    labels: (&'static str, &'static str),
+) -> impl Iterator<Item = (&'static str, &'a HeaderMap)> {
+    [Some((labels.0, headers)), trailers.map(|t| (labels.1, t))]
+        .into_iter()
+        .flatten()
+}
+
+/// Every field section a transaction carries, in wire order, each named by the
+/// direction it belongs to as well as by its position.
+///
+/// Four at most: the request's two, then the response's two when the upstream
+/// answered at all. This is [`response_field_sections`]'s question asked of a
+/// whole transaction, and the two exist separately because their labels differ
+/// and the labels are what a finding prints — a response-only rule saying
+/// *"response header section"* is naming a direction its scope already fixed.
+///
+/// A rule reaching for this is one whose governing sentence names neither a
+/// direction nor a section, which is what makes all four in scope. That is a
+/// claim about the sentence and has to be checked per rule: `User-Agent`'s
+/// SHOULD is about a request's header section, and reading its trailer section
+/// for one would count a field § 6.5.1 forbids as satisfying § 10.1.5.
+///
+/// cite(RFC 9110 § 5): "Fields are sent and received within the header and trailer sections of messages"
+/// cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
+pub fn transaction_field_sections(
+    tx: &crate::http_transaction::HttpTransaction,
+) -> impl Iterator<Item = (&'static str, &HeaderMap)> {
+    message_field_sections(
+        &tx.request.headers,
+        tx.request.trailers.as_ref(),
+        ("request header section", "request trailer section"),
+    )
+    .chain(tx.response.iter().flat_map(|resp| {
+        message_field_sections(
+            &resp.headers,
+            resp.trailers.as_ref(),
+            ("response header section", "response trailer section"),
+        )
+    }))
 }
 
 /// The same combined field value as [`combined_field_value_as_written`], as the
@@ -3087,6 +3143,58 @@ mod tests {
         let got: Vec<&str> = parse_semicolon_list("token=\"a;b\";x").collect();
         // naive split will break the quoted-string into multiple parts
         assert_eq!(got, vec!["token=\"a", "b\"", "x"]);
+    }
+
+    /// Wire order, the four labels, and the two ways a section is absent — a
+    /// framing that carried no trailers, and an upstream that never answered.
+    #[test]
+    fn transaction_field_sections_walks_all_four_in_wire_order() {
+        let labels = |tx: &crate::http_transaction::HttpTransaction| -> Vec<&'static str> {
+            transaction_field_sections(tx)
+                .map(|(label, _)| label)
+                .collect()
+        };
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-type", "text/plain")],
+        );
+        assert_eq!(
+            labels(&tx),
+            vec!["request header section", "response header section"]
+        );
+
+        tx.request.trailers = Some(crate::test_helpers::make_headers_from_pairs(&[(
+            "x-a", "1",
+        )]));
+        tx.response.as_mut().expect("a response").trailers = Some(
+            crate::test_helpers::make_headers_from_pairs(&[("x-b", "2")]),
+        );
+        assert_eq!(
+            labels(&tx),
+            vec![
+                "request header section",
+                "request trailer section",
+                "response header section",
+                "response trailer section",
+            ]
+        );
+
+        // A transaction the upstream never answered has a request half and
+        // nothing else.
+        let unanswered = crate::test_helpers::make_test_transaction();
+        assert_eq!(labels(&unanswered), vec!["request header section"]);
+
+        // The response-only walk answers the same question one direction wide,
+        // and names the sections without a direction because its callers'
+        // scope already fixes one.
+        let resp = tx.response.as_ref().expect("a response");
+        assert_eq!(
+            response_field_sections(resp)
+                .map(|(label, _)| label)
+                .collect::<Vec<_>>(),
+            vec!["header section", "trailer section"]
+        );
     }
 
     #[test]
