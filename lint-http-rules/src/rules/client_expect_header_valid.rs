@@ -416,19 +416,39 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
         if seg.is_empty() {
             continue;
         }
-        let Some((pname, pvalue)) = seg.split_once('=') else {
+        let Ok(parameter) =
+            crate::helpers::headers::parameter_of(seg).expect("the empty segment returned above")
+        else {
             return Err(format!(
                 "Expect member '{}' has a parameter with no value: '{}'",
                 crate::helpers::headers::shown_in_finding(member),
                 crate::helpers::headers::shown_in_finding(seg)
             ));
         };
+        let (pname, pvalue) = (parameter.name, parameter.value);
+
         // No `OWS` is written around a parameter's `=`, and the section says so
-        // twice — once by writing the production without any, once in prose. So
-        // the space in `a = b` lands inside a name or a value and is reported as
-        // the octet it is.
+        // twice — once by writing the production without any, once in prose.
+        // **This is the one caller in the tree that reports it.** Six rules
+        // reading a media type trim it and publish that as a known leniency, so
+        // the shared walk hands the fact back rather than deciding it, and this
+        // is where the sentence below is enforced. What changed is the sentence
+        // the finding names, not what it catches: the walk here used not to trim
+        // at all, so the space in `a = b` landed inside the name and came back as
+        // "an octet no `tchar` admits". Every spelling was caught that way --
+        // SP and HTAB are `tchar`s in no position, and the splitter has already
+        // taken the `OWS` off both ends of the segment -- but the requirement
+        // being reported was § 5.6.2's alphabet when the requirement in force is
+        // the Note below, which is about this character and says so.
         //
         // cite(RFC 9110 § 5.6.6): "|  *Note:* Parameters do not allow whitespace (not even "bad" |  whitespace) around the "=" character."
+        if parameter.whitespace_beside_equals {
+            return Err(format!(
+                "Expect member '{}' writes whitespace beside the '=' of parameter '{}'; parameters do not allow whitespace around that character, not even \"bad\" whitespace",
+                crate::helpers::headers::shown_in_finding(member),
+                crate::helpers::headers::shown_in_finding(seg)
+            ));
+        }
         if pname.is_empty() {
             return Err(format!(
                 "Expect member '{}' has a parameter with no name: '{}'",
@@ -443,32 +463,35 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
                 crate::helpers::headers::shown_in_finding(pname)
             ));
         }
-        if pvalue.starts_with('"') {
-            // No second "does the quoted-string end the value" test: everything
-            // such a test would catch, `validate_quoted_string` already rejects
-            // -- it requires the first and last octets to be the DQUOTE and no
-            // unescaped one between them, so a string that closed early is an
-            // unescaped quote to it. Two owners for one production is how they
-            // drift apart.
-            validate_quoted_string(pvalue).map_err(|e| {
-                format!(
+        // `parameter-value = ( token / quoted-string )`, read by the function
+        // that owns the alternation -- a ninth copy of it, found while giving the
+        // `parameters` walk a home. No second "does the quoted-string end the
+        // value" test is needed: everything such a test would catch,
+        // `validate_quoted_string` already rejects, since it requires the first
+        // and last octets to be the DQUOTE with no unescaped one between them.
+        match crate::helpers::headers::token_or_quoted_string(pvalue) {
+            Ok(_) => {}
+            Err(crate::helpers::headers::WordDefect::Empty) => {
+                return Err(format!(
+                    "Expect member '{}' has a parameter with an empty value: '{}'",
+                    crate::helpers::headers::shown_in_finding(member),
+                    crate::helpers::headers::shown_in_finding(seg)
+                ))
+            }
+            Err(crate::helpers::headers::WordDefect::NotQuotedString(e)) => {
+                return Err(format!(
                     "Invalid quoted-string in Expect parameter '{}': {}",
                     crate::helpers::headers::shown_in_finding(seg),
                     e
-                )
-            })?;
-        } else if pvalue.is_empty() {
-            return Err(format!(
-                "Expect member '{}' has a parameter with an empty value: '{}'",
-                crate::helpers::headers::shown_in_finding(member),
-                crate::helpers::headers::shown_in_finding(seg)
-            ));
-        } else if let Some(c) = find_invalid_token_char(pvalue) {
-            return Err(format!(
-                "Invalid octet {} in Expect parameter value '{}'",
-                describe_octet(c as u8),
-                crate::helpers::headers::shown_in_finding(pvalue)
-            ));
+                ))
+            }
+            Err(crate::helpers::headers::WordDefect::NotToken(c)) => {
+                return Err(format!(
+                    "Invalid octet {} in Expect parameter value '{}'",
+                    describe_octet(c as u8),
+                    crate::helpers::headers::shown_in_finding(pvalue)
+                ))
+            }
         }
     }
 
@@ -575,9 +598,13 @@ mod tests {
     #[case("a/b", true)]
     #[case("=value", true)]
     #[case("a=", true)]
+    // Whitespace beside the `=`. All three were caught before the shared walk
+    // existed, as "an octet no tchar admits"; what the finding now names is the
+    // Note that is actually about this character.
     #[case("a= b", true)]
     #[case("a = b", true)]
     #[case("a=b; c = d", true)]
+    #[case("a=\t b", true)]
     #[case("a=\"unterminated", true)]
     #[case("a=b junk", true)]
     #[case("a=b;=x", true)]
@@ -591,6 +618,22 @@ mod tests {
             "case '{}' produced {:?}",
             value,
             v.map(|x| x.message)
+        );
+    }
+
+    /// The one caller in the tree that reports § 5.6.6's whitespace Note, pinned
+    /// whole. A `is_some()` case cannot tell this finding from the `tchar` one it
+    /// replaced, and the whole change is which requirement the message names.
+    #[test]
+    fn whitespace_beside_the_equals_names_the_note_that_forbids_it() {
+        // The parameter level, not the expectation's own `=`: `expectation =
+        // token [ "=" ( token / quoted-string ) parameters ]`, so `a = b` alone
+        // is a name-and-value pair and its whitespace is caught one branch up.
+        let v = judge_value("a=b; c = d").expect("§ 5.6.6 forbids whitespace around the '='");
+        assert_eq!(
+            v.message,
+            "Expect member 'a=b; c = d' writes whitespace beside the '=' of parameter 'c = d'; \
+             parameters do not allow whitespace around that character, not even \"bad\" whitespace"
         );
     }
 

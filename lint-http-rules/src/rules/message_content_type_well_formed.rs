@@ -300,6 +300,15 @@ mod tests {
     #[case("text/plain;=value", true)]
     #[case("text/plain; charset=utf 8", true)]
     #[case("text/plain; charset=\"unclosed", true)]
+    // `parameter-value = ( token / quoted-string )` derives no empty string:
+    // `token = 1*tchar` has a one-character floor and the shortest
+    // `quoted-string` is its two DQUOTEs. This reached a `tchar` scan, which
+    // finds no invalid character in the empty string and called it clean — the
+    // same shape `message_accept_header_media_type_syntax` was corrected for,
+    // living one level down in the media-type helper both rules read through.
+    // `charset=""` is a different value and still conforms.
+    #[case("text/plain; charset=", true)]
+    #[case("text/plain; charset=\"\"", false)]
     fn content_type_parsing_cases(#[case] val: &str, #[case] expect_violation: bool) {
         let cfg = crate::test_helpers::make_test_rule_config();
         let res = super::check_content_type("test", val, &cfg);

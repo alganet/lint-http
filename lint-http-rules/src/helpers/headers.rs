@@ -1629,6 +1629,111 @@ pub struct ParsedMediaType<'a> {
     pub params: Option<&'a str>,
 }
 
+/// One `parameter` of a `parameters` group, split but not judged.
+///
+/// `value` is **as written** — a `quoted-string` still carries its DQUOTEs.
+/// Whether this field's value half is § 5.6.6's `( token / quoted-string )`, a
+/// narrower production, or one literal is the caller's grammar and not this
+/// walk's, and [`token_or_quoted_string`] is what reads it where it is the
+/// former.
+pub struct Parameter<'a> {
+    /// The `parameter-name` as written. Case folding is the caller's — § 5.6.6
+    /// makes the name case-insensitive, but a rule reporting *what a sender
+    /// wrote* often wants the spelling back.
+    pub name: &'a str,
+    /// The `parameter-value` as written, DQUOTEs included.
+    pub value: &'a str,
+    /// Whether whitespace sat beside the `=`.
+    ///
+    /// **This is the "Known leniency" six rules describe in prose, returned as a
+    /// fact instead.** § 5.6.6's Note forbids whitespace there in as many words
+    /// — *"not even 'bad' whitespace"* — and six rules trim it and say so in
+    /// their `description()`, while `client_expect_header_valid` reports it. A
+    /// walk that trimmed silently would have to pick one of those; a walk that
+    /// hands back what it found lets each caller keep the answer its own audit
+    /// reached, and turns a paragraph of prose into a branch a reader can see.
+    pub whitespace_beside_equals: bool,
+}
+
+/// Why a segment of a `parameters` group is not a `parameter`.
+pub enum ParameterDefect<'a> {
+    /// The segment carries no `=`. `parameter = parameter-name "="
+    /// parameter-value` makes neither the delimiter nor the value optional, so a
+    /// bare token among the parameters is not a valueless flag — it is not a
+    /// `parameter` at all. Carries the segment as written.
+    NoEquals(&'a str),
+}
+
+/// Walk `parameters = *( OWS ";" OWS [ parameter ] )`.
+///
+/// Four decisions, and they are the four every hand copy of this production in
+/// the tree had to make: split at the top-level semicolons only (a `;` inside a
+/// `quoted-string` parameter value starts no new parameter), drop the `OWS` the
+/// production prints beside them, **skip an empty segment** — `[ parameter ]` is
+/// bracketed, so `text/plain; charset=utf-8;` is a conforming zero-parameter
+/// repetition rather than a defect — and cut each remaining segment at its
+/// **first** `=`, because `parameter-name` is a `token` and `=` is no `tchar`,
+/// so no name can hold one and every later `=` belongs to the value.
+///
+/// What is *not* decided here: whether the name is a `token`, whether the value
+/// derives from this field's value production, whether an empty name is a
+/// finding, and what whitespace beside the `=` means. Those are four different
+/// answers across the callers, which is why the walk stops where it does.
+///
+/// The input is the run *after* the media type — what [`parse_media_type`] puts
+/// in `params` — not the whole field value.
+///
+// cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
+// cite(RFC 9110 § 5.6.6): "parameter       = parameter-name "=" parameter-value"
+// cite(RFC 9110 § 5.6.6): "parameter-name  = token"
+// cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+pub fn parameters(
+    params: &str,
+) -> impl Iterator<Item = Result<Parameter<'_>, ParameterDefect<'_>>> {
+    split_semicolons_respecting_quotes(params)
+        .into_iter()
+        .filter_map(parameter_of)
+        .collect::<Vec<_>>()
+        .into_iter()
+}
+
+/// One already-split segment of a `parameters` group, read as a `parameter`.
+///
+/// `None` for an empty segment: `[ parameter ]` is bracketed, so a repetition
+/// that generated a semicolon and nothing after it has still conformed.
+///
+/// Separate from [`parameters`] because two rules reach their parameters through
+/// a split they have already made for another reason — `media-range` and
+/// `expectation` both put the thing the field is *about* in the first segment
+/// and the parameters in the rest — and joining the tail back together only to
+/// split it again would be a second parse of a value already parsed.
+///
+/// The cut is at the **first** `=`: `parameter-name` is a `token` and `=` is no
+/// `tchar`, so no name can hold one and every later `=` belongs to the value.
+///
+// cite(RFC 9110 § 5.6.6): "parameter       = parameter-name "=" parameter-value"
+// cite(RFC 9110 § 5.6.6): "parameter-name  = token"
+pub fn parameter_of(segment: &str) -> Option<Result<Parameter<'_>, ParameterDefect<'_>>> {
+    if segment.is_empty() {
+        return None;
+    }
+    Some(match segment.find('=') {
+        None => Err(ParameterDefect::NoEquals(segment)),
+        Some(eq) => {
+            let (name_written, rest) = segment.split_at(eq);
+            let value_written = &rest[1..];
+            let name = trim_ows(name_written);
+            let value = trim_ows(value_written);
+            Ok(Parameter {
+                name,
+                value,
+                whitespace_beside_equals: name.len() != name_written.len()
+                    || value.len() != value_written.len(),
+            })
+        }
+    })
+}
+
 /// Parse a Media Type string into type, subtype, and optional params.
 ///
 /// This does NOT fully validate the tokens (e.g. wildcards or invalid chars),
@@ -1721,14 +1826,16 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
 /// name it are measuring a value whose every octet is one `char`, which a
 /// `media-type` reaching this function is not guaranteed to be.
 ///
-/// **One inherited leniency, and it is the fourth copy of it.** `parameter` is
-/// `parameter-name "=" parameter-value` with no `OWS` anywhere in it, and
-/// § 5.6.6 says so again in prose — yet the whitespace beside the `=` is trimmed
-/// here, so `text/example; charset = utf-8` passes. That is the reading the
-/// `Content-Type`, multipart-boundary and charset rules already publish as a
-/// known leniency; it moved in with the code rather than being decided here, and
-/// changing it changes those rules' verdicts. Recorded at the shared site so the
-/// next reader does not take it for the grammar.
+/// **One inherited leniency, and it is now a decision rather than an accident.**
+/// `parameter` is `parameter-name "=" parameter-value` with no `OWS` anywhere in
+/// it, and § 5.6.6 says so again in prose — *"Parameters do not allow whitespace
+/// (not even 'bad' whitespace) around the '=' character"* — yet
+/// `text/example; charset = utf-8` passes here. [`parameters`] hands back
+/// `whitespace_beside_equals` rather than trimming in silence, and this function
+/// reads it and drops it; that is what makes the "Known leniency" paragraph six
+/// rules publish a true statement about the code rather than a plausible one.
+/// Changing the answer changes those rules' verdicts, so it stays theirs.
+/// `client_expect_header_valid` is the one caller in the tree that reports it.
 ///
 /// cite(RFC 9110 § 8.3.1): "type       = token subtype    = token"
 /// cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
@@ -1758,68 +1865,76 @@ pub fn media_type_parts_defect(parsed: &ParsedMediaType<'_>) -> Option<String> {
     // the `OWS` the production prints beside its semicolons -- re-trimming it
     // with `str::trim` here undid that helper's own fix and put %xA0 and %x85
     // back out of reach.
-    for p in split_semicolons_respecting_quotes(params) {
-        // `[ parameter ]` is bracketed, so a semicolon with nothing after it is
-        // a conforming zero-parameter repetition rather than a defect --
-        // `text/plain; charset=utf-8;` is well formed.
-        // cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
-        if p.is_empty() {
-            continue;
-        }
-
-        let Some(eq) = p.find('=') else {
+    // The walk is `parameters`, which owns the split, the bracketed-empty skip
+    // and the cut at the first `=`. Everything below is this function's: what a
+    // name and a value have to be, and what its callers are told when they are
+    // not.
+    for parameter in parameters(params) {
+        let parameter = match parameter {
+            Ok(p) => p,
             // The "=" is not optional inside `parameter`, so a bare token among
             // the parameters is not a valueless flag.
-            // cite(RFC 9110 § 5.6.6): "parameter       = parameter-name "=" parameter-value"
-            return Some(format!("parameter '{}' missing '='", p.escape_debug()));
+            Err(ParameterDefect::NoEquals(segment)) => {
+                return Some(format!(
+                    "parameter '{}' missing '='",
+                    segment.escape_debug()
+                ))
+            }
         };
 
-        // The two trims are the leniency named above, bounded to `OWS` so that
-        // an `obs-text` octet beside the `=` is not mistaken for whitespace and
-        // removed.
-        let (name, value) = p.split_at(eq);
-        let name = trim_ows(name);
-        let value = trim_ows(&value[1..]); // skip '='
+        // The whitespace beside the `=` is the leniency named in this function's
+        // doc comment, and it is declined *here* rather than absorbed by the
+        // walk: § 5.6.6's Note forbids it, and five of the six rules reading a
+        // media type through this function say in their `description()` that
+        // they tolerate it. Reading the flag and dropping it is what makes that
+        // paragraph true rather than merely plausible.
+        let _ = parameter.whitespace_beside_equals;
 
-        if name.is_empty() {
+        if parameter.name.is_empty() {
             return Some("empty parameter name".to_string());
         }
         // cite(RFC 9110 § 5.6.6): "parameter-name  = token"
-        if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
+        if let Some(c) = crate::helpers::token::find_invalid_token_char(parameter.name) {
             return Some(format!(
                 "invalid character '{}' in parameter name '{}'",
                 c.escape_debug(),
-                name.escape_debug()
+                parameter.name.escape_debug()
             ));
         }
 
-        if value.starts_with('"') {
-            // The `quoted-string` production belongs to the shared helper, which
-            // walks the interior; asking only that the value start and end with
-            // DQUOTE accepts `foo="a\"`, whose closing quote is escaped, and
-            // `foo="a"b"`.
-            if let Err(e) = validate_quoted_string(value) {
-                // The helper's reason quotes the value it was handed, so the
-                // escape goes around the whole clause rather than around the
-                // name alone -- a control octet inside the quoted-string is
-                // exactly what that reason is about, and it arrived raw.
+        // `parameter-value = ( token / quoted-string )`, read by the function
+        // that owns the alternation. This site was an eighth copy of it and was
+        // missed when the other seven were converted, for the reason every stale
+        // count in this campaign has had: the list was of *rules*, and this is a
+        // helper.
+        // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
+        match token_or_quoted_string(parameter.value) {
+            Ok(_) => {}
+            // `parameters` yields the value as written and does not judge it, so
+            // an empty one arrives here. It derives from neither alternative.
+            Err(WordDefect::Empty) => {
                 return Some(format!(
-                    "parameter '{}' has invalid quoted-string: {}",
-                    name.escape_debug(),
-                    e.escape_debug()
-                ));
+                    "parameter '{}' has an empty value, and a parameter-value is a token or a quoted-string",
+                    parameter.name.escape_debug()
+                ))
             }
-        } else {
-            // The alternation is exclusive: a value that does not open with
-            // DQUOTE has to satisfy `token`, which is why an unquoted `utf 8` is
-            // a defect rather than a curiosity.
-            // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
-            if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
+            Err(WordDefect::NotToken(c)) => {
                 return Some(format!(
                     "invalid character '{}' in parameter value '{}'",
                     c.escape_debug(),
-                    value.escape_debug()
-                ));
+                    parameter.value.escape_debug()
+                ))
+            }
+            // The reason quotes the value it was handed, so the escape goes
+            // around the whole clause rather than around the name alone -- a
+            // control octet inside the quoted-string is exactly what that reason
+            // is about, and it arrived raw.
+            Err(WordDefect::NotQuotedString(e)) => {
+                return Some(format!(
+                    "parameter '{}' has invalid quoted-string: {}",
+                    parameter.name.escape_debug(),
+                    e.escape_debug()
+                ))
             }
         }
     }
@@ -1831,49 +1946,59 @@ pub fn media_type_parts_defect(parsed: &ParsedMediaType<'_>) -> Option<String> {
 /// - Returns `Some(boundary)` unquoted/unescaped when present and well-structured, `None` otherwise.
 /// - This helper is intentionally conservative: it returns `None` when the Content-Type cannot be
 ///   parsed or the boundary parameter is missing or not well-formed (e.g., invalid quoted-string).
+///
+/// **That contract used to hold for one alternative only.** "Not well-formed"
+/// was honoured for a `quoted-string` and not for a `token`: an unquoted value
+/// went back to the caller whatever octets it held, so `boundary=a b` — which
+/// derives from no `parameter-value`, since SP is no `tchar` — was handed on as
+/// the boundary `a b`, and the caller hunted a body for `--a b` delimiters on
+/// the strength of a value the grammar does not generate. Both alternatives now
+/// go through [`token_or_quoted_string`], so the function does what its own
+/// second bullet says. What the sender meant by a malformed boundary is not
+/// recoverable, and `message_multipart_boundary_syntax` is the rule that reports
+/// it.
 pub fn extract_multipart_boundary(val: &str) -> Option<String> {
     let parsed = parse_media_type(val).ok()?;
     if !parsed.type_.eq_ignore_ascii_case("multipart") {
         return None;
     }
     let params = parsed.params?;
-    // Quote-aware, because a `;` inside a quoted parameter value does not start
-    // a new parameter. A raw `split(';')` cut such a value apart and read the
-    // pieces as parameters, so `foo="a; boundary=abc; b=1"` — which has no
-    // boundary parameter at all — yielded `abc`, and the caller then hunted a
-    // body for `--abc` delimiters that were never declared.
-    // cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
-    for raw in split_semicolons_respecting_quotes(params) {
-        let p = raw.trim();
-        if p.is_empty() {
+    // The second `parameters` walk this module used to hold, and it disagreed
+    // with the first in two places: it split with the same quote-aware splitter
+    // but then re-trimmed each segment with `str::trim`, putting the %xA0 and
+    // %x85 that splitter had deliberately left alone back out of reach, and it
+    // read a segment with no `=` as something to skip rather than as a defect
+    // -- which is right *here*, because a value that names no boundary is this
+    // function's `None` rather than a finding.
+    for parameter in parameters(params) {
+        // A malformed segment names no boundary, and reporting is not this
+        // function's job: `message_content_type_well_formed` reads the same
+        // value through `media_type_parts_defect` and says so there.
+        let Ok(parameter) = parameter else { continue };
+
+        // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."
+        if !parameter.name.eq_ignore_ascii_case("boundary") {
             continue;
         }
-        if let Some(eq) = p.find('=') {
-            let (name, value) = p.split_at(eq);
-            let name = name.trim();
-            let value = value[1..].trim(); // skip '='
-                                           // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."
-            if name.eq_ignore_ascii_case("boundary") {
-                if value.is_empty() {
-                    return None;
-                }
-                if value.starts_with('"') {
-                    // quoted-string: unescape using existing helper; if it fails, treat as missing
-                    match unescape_quoted_string(value) {
-                        Ok(u) => {
-                            // Empty boundary (after unquoting) is invalid -> treat as missing
-                            if u.trim().is_empty() {
-                                return None;
-                            }
-                            return Some(u);
-                        }
-                        Err(_) => return None,
-                    }
+
+        // Deliberately conservative in one direction: every answer below that is
+        // not a boundary is `None`, because a caller hunting a body for
+        // `--<boundary>` delimiters must not be handed a guess.
+        return match token_or_quoted_string(parameter.value) {
+            Err(_) => None,
+            Ok(content) => {
+                let unquoted = content.into_owned();
+                // A boundary of nothing delimits nothing. `trim_ows` and not
+                // `str::trim`: RFC 2046's `bcharsnospace` admits no whitespace
+                // of any kind, so an `obs-text` octet here is a defect the
+                // boundary rule reports rather than padding to be removed.
+                if trim_ows(&unquoted).is_empty() {
+                    None
                 } else {
-                    return Some(value.to_string());
+                    Some(unquoted)
                 }
             }
-        }
+        };
     }
     None
 }
@@ -2275,6 +2400,63 @@ mod tests {
     fn quoted_string_inner_trimmed_is_empty_true_cases() {
         assert!(quoted_string_inner_trimmed_is_empty("\"\"").unwrap());
         assert!(quoted_string_inner_trimmed_is_empty("\"   \"").unwrap());
+    }
+
+    /// The four decisions the walk makes, and the one it deliberately does not.
+    #[test]
+    fn parameters_splits_skips_and_cuts_at_the_first_equals() {
+        let read: Vec<_> = parameters("charset=utf-8; foo=\"a;b\"")
+            .map(|p| p.ok().map(|p| (p.name, p.value)))
+            .collect();
+        assert_eq!(
+            read,
+            vec![Some(("charset", "utf-8")), Some(("foo", "\"a;b\""))],
+            "a `;` inside a quoted-string starts no new parameter, and the value keeps its DQUOTEs"
+        );
+
+        // `[ parameter ]` is bracketed, so a trailing or doubled semicolon is a
+        // conforming zero-parameter repetition and yields nothing at all.
+        assert_eq!(parameters("a=b;").count(), 1);
+        assert_eq!(parameters("a=b;;c=d").count(), 2);
+        assert_eq!(parameters(";").count(), 0);
+
+        // The first `=` is the delimiter: `parameter-name` is a `token` and `=`
+        // is no `tchar`, so no name holds one.
+        let base64ish: Vec<_> = parameters("v=a=b=")
+            .map(|p| p.ok().map(|p| (p.name, p.value)))
+            .collect();
+        assert_eq!(base64ish, vec![Some(("v", "a=b="))]);
+
+        // A segment with no `=` is a defect and not a valueless flag -- named,
+        // so each caller can decide whether it is its finding.
+        assert!(matches!(
+            parameters("charset").next(),
+            Some(Err(ParameterDefect::NoEquals("charset")))
+        ));
+    }
+
+    /// § 5.6.6's Note forbids whitespace beside the `=` and six rules tolerate
+    /// it anyway. The walk reports the fact rather than picking a side, which is
+    /// what lets `client_expect_header_valid` enforce the Note while the media
+    /// type readers keep the leniency their descriptions publish.
+    #[test]
+    fn parameters_returns_the_whitespace_beside_the_equals_rather_than_deciding_it() {
+        let ws = |s: &str| {
+            parameters(s)
+                .next()
+                .expect("one parameter")
+                .ok()
+                .expect("well formed")
+                .whitespace_beside_equals
+        };
+        assert!(!ws("a=b"));
+        assert!(ws("a =b"));
+        assert!(ws("a= b"));
+        assert!(ws("a =\tb"));
+        // The name and value still come back trimmed, so a caller that drops the
+        // flag reads exactly what it read before the flag existed.
+        let p = parameters("a = b").next().unwrap().ok().unwrap();
+        assert_eq!((p.name, p.value), ("a", "b"));
     }
 
     /// The empty members are the point. Two of the three list walks in this

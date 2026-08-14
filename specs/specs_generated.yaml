@@ -17,17 +17,17 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1906
+      line: 2031
   - label: lint-http-rules/src/helpers/headers.rs (2)
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1901
+      line: 2026
   - label: lint-http-rules/src/helpers/headers.rs (3)
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1900
+      line: 2025
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -733,7 +733,7 @@ sources:
     snippet: The Content-Type field for multipart entities requires one parameter, "boundary".
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 381
+      line: 375
     - file: lint-http-rules/src/rules/message_multipart_content_type_and_body_consistency.rs
       line: 42
   - label: message_multipart_boundary_syntax (3)
@@ -741,7 +741,7 @@ sources:
     snippet: The boundary delimiter line is then defined as a line consisting entirely of two hyphen characters ("-", decimal value 45) followed by the boundary parameter value from the Content-Type header field, optional linear whitespace, and a terminating CRLF.
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 382
+      line: 376
     - file: lint-http-rules/src/rules/message_multipart_content_type_and_body_consistency.rs
       line: 187
   - label: message_multipart_boundary_syntax (4)
@@ -749,33 +749,33 @@ sources:
     snippet: The grammar for parameters on the Content-type field is such that it is often necessary to enclose the boundary parameter values in quotes on the Content-type line.
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 249
+      line: 244
   - label: message_multipart_boundary_syntax (5)
     section: § 5.1.1
     snippet: The only mandatory global parameter for the "multipart" media type is the boundary parameter, which consists of 1 to 70 characters from a set of characters known to be very robust through mail gateways, and NOT ending with white space.
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 340
+      line: 335
   - label: message_multipart_boundary_syntax (6)
     section: § 5.1.1
     snippet: bchars := bcharsnospace / " "
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 301
+      line: 296
   - label: message_multipart_boundary_syntax (7)
     section: § 5.1.1
     snippet: bcharsnospace := DIGIT / ALPHA / "'" / "(" / ")" / "+" / "_" / "," / "-" / "." / "/" / ":" / "=" / "?"
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 302
+      line: 297
   - label: message_multipart_boundary_syntax (8)
     section: § 5.1.1
     snippet: boundary := 0*69<bchars> bcharsnospace
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 339
+      line: 334
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 361
+      line: 356
   - label: message_multipart_content_type_and_body_consistency
     section: § 5.1.1
     snippet: An exact match of the entire candidate line is not required; it is sufficient that the boundary appear in its entirety following the CRLF.
@@ -2031,7 +2031,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1902
+      line: 2027
     - file: lint-http-rules/src/helpers/uri.rs
       line: 222
   - label: lint-http-rules/src/helpers/uri.rs
@@ -4376,7 +4376,7 @@ sources:
     snippet: '|  *Note:* Parameters do not allow whitespace (not even "bad" |  whitespace) around the "=" character.'
     cited_by:
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
-      line: 431
+      line: 444
   - label: client_expect_header_valid (14)
     section: § A
     snippet: Expect = [ expectation *( OWS "," OWS expectation ) ]
@@ -5324,7 +5324,7 @@ sources:
     snippet: A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1655
+      line: 1760
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 151
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
@@ -5356,7 +5356,7 @@ sources:
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
       line: 156
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
-      line: 249
+      line: 248
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 84
     - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
@@ -5465,6 +5465,8 @@ sources:
       line: 441
     - file: lint-http-rules/src/helpers/headers.rs
       line: 950
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1689
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 109
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
@@ -5550,61 +5552,61 @@ sources:
     snippet: Parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1855
+      line: 1979
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 156
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
-      line: 121
+      line: 123
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 218
+      line: 213
   - label: lint-http-rules/src/helpers/headers.rs (23)
     section: § 5.6.6
     snippet: parameter       = parameter-name "=" parameter-value
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1773
+      line: 1687
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1714
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 380
-    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 209
-    - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 213
   - label: lint-http-rules/src/helpers/headers.rs (24)
     section: § 5.6.6
     snippet: parameter-name  = token
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1787
+      line: 1688
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1715
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1896
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 381
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 231
+      line: 238
   - label: parameter-value grammar
     section: § 5.6.6
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1816
+      line: 1910
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 382
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
       line: 89
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 278
+      line: 285
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
-      line: 127
+      line: 129
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 224
+      line: 219
   - label: lint-http-rules/src/helpers/headers.rs (25)
     section: § 5.6.6
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1654
+      line: 1686
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1765
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 1845
+      line: 1759
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 379
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
@@ -5670,11 +5672,11 @@ sources:
     snippet: The type and subtype tokens are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1734
+      line: 1841
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
       line: 44
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 203
+      line: 204
     - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
       line: 98
     - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
@@ -5696,7 +5698,7 @@ sources:
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1753
+      line: 1860
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
       line: 88
   - label: media-type grammar
@@ -5704,7 +5706,7 @@ sources:
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1670
+      line: 1775
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 105
   - label: lint-http-rules/src/helpers/headers.rs (33)
@@ -5712,7 +5714,7 @@ sources:
     snippet: type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1733
+      line: 1840
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
@@ -5872,13 +5874,13 @@ sources:
     snippet: If no "q" parameter is present, the default weight is 1.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 178
+      line: 179
   - label: message_accept_and_content_type_negotiation (5)
     section: § 12.4.2
     snippet: The weight is normalized to a real number in the range 0 through 1, where 0.001 is the least preferred and 1 is the most preferred; a value of 0 means "not acceptable".
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 177
+      line: 178
   - label: message_accept_and_content_type_negotiation (6)
     section: § 12.5.1
     snippet: 'Accept = #( media-range [ weight ] )'
@@ -5892,7 +5894,7 @@ sources:
     snippet: If more than one media range applies to a given type, the most specific reference has precedence.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 202
+      line: 203
   - label: message_accept_and_content_type_negotiation (8)
     section: § 12.5.1
     snippet: Recipients SHOULD process any parameter named "q" as weight, regardless of parameter ordering.
@@ -5900,7 +5902,7 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 155
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 259
+      line: 266
   - label: message_accept_and_content_type_negotiation (9)
     section: § 12.5.1
     snippet: The "Accept" header field can be used by user agents to specify their preferences regarding response media types.
@@ -5914,7 +5916,7 @@ sources:
     snippet: The media-range can include media type parameters that are applicable to that range.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 201
+      line: 202
   - label: message_accept_and_content_type_negotiation (11)
     section: § 12.5.1
     snippet: media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters
@@ -5936,7 +5938,7 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
       line: 133
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 258
+      line: 265
     - file: lint-http-rules/src/rules/message_accept_language_weight_validity.rs
       line: 83
   - label: message_accept_encoding_parameter_validity (2)
@@ -6002,7 +6004,7 @@ sources:
     snippet: A sender of qvalue MUST NOT generate more than three digits after the decimal point.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 267
+      line: 274
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 292
   - label: message_accept_header_media_type_syntax (2)
@@ -6036,7 +6038,7 @@ sources:
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 78
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 232
+      line: 239
     - file: lint-http-rules/src/rules/message_connection_header_tokens_valid.rs
       line: 83
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
@@ -6742,19 +6744,19 @@ sources:
     snippet: A parameter value that matches the token production can be transmitted either as a token or within a quoted-string.
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 247
+      line: 242
   - label: message_multipart_boundary_syntax (2)
     section: § 5.6.6
     snippet: Parameter values might or might not be case-sensitive, depending on the semantics of the parameter name.
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 303
+      line: 298
   - label: message_multipart_boundary_syntax (3)
     section: § 5.6.6
     snippet: The quoted and unquoted values are equivalent.
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
-      line: 248
+      line: 243
   - label: message_multipart_boundary_syntax (4)
     section: § 8.3.3
     snippet: All multipart types share a common syntax, as defined in Section 5.1.1 of [RFC2046], and include a boundary parameter as part of the media type value.
