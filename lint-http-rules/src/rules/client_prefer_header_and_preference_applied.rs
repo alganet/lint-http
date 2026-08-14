@@ -69,30 +69,23 @@ fn varies_the_response_entity(name: &str) -> Option<&'static str> {
     None
 }
 
-/// Whether a `Vary` field value nominates `Prefer`, in either of the two
+/// Whether a response's `Vary` nominates `Prefer`, in either of the two
 /// spellings RFC 7240 § 2 admits.
 ///
-/// The caller hands in the value already joined across the field's lines, which
-/// is what makes a `*` written on a second line a `*`.
+/// The reader is `helpers::headers::vary_nomination`, shared with the two
+/// caching rules that ask the same question. This site was the only one of the
+/// three that joined the field's lines — which is what makes a `*` written on a
+/// second line a `*` — and the only one that survived an `obs-text` octet, and
+/// it was the one using the **wrong walk**: it split quote-aware, and
+/// `Vary = #( "*" / field-name )` with `field-name = token` admits no
+/// `quoted-string`, so a stray DQUOTE made the next comma data rather than a
+/// separator and `Vary: "x, prefer` did not nominate `Prefer`. Each of the three
+/// was right about something the other two were not; the shared reader is all
+/// three answers.
 ///
-/// The walk is `list_members_as_written`, and this is the one caller of it whose
-/// element grammar admits no `quoted-string`: `Vary = #( "*" / field-name )` and
-/// `field-name = token`. On a conforming value the quote-aware split and a naive
-/// one agree, which is what this comment used to claim outright -- they part on
-/// a *malformed* one, where a stray DQUOTE makes the next comma data rather than
-/// a separator, so `Vary: "x, prefer` nominates `Prefer` to a naive walk and not
-/// to this one. The reader was already the quote-aware one before it had a name,
-/// so nothing here changed; which walk this predicate should use is §6 P16's
-/// question, where the same predicate is hand-written twice more and the three
-/// disagree.
-///
-/// cite(RFC 9110 § 12.5.5, label: Vary grammar): "Vary = #( "*" / field-name )"
-/// cite(RFC 9110 § 5.1): "Field names are case-insensitive"
 /// cite(RFC 7240 § 2): "Alternatively, the server MAY include a Vary header with the special value "*""
-fn vary_nominates_prefer(value: &str) -> bool {
-    list_members_as_written(value)
-        .into_iter()
-        .any(|member| member == "*" || member.eq_ignore_ascii_case("prefer"))
+fn vary_nominates_prefer(response_headers: &hyper::HeaderMap) -> bool {
+    crate::helpers::headers::vary_nomination(response_headers).nominates("prefer")
 }
 
 impl Rule for ClientPreferHeaderAndPreferenceApplied {
@@ -174,8 +167,7 @@ impl Rule for ClientPreferHeaderAndPreferenceApplied {
 
         // Read once and used twice: the value decides the verdict, and on the
         // reporting path it is also what the finding has to show.
-        let vary = combined_field_value_as_written(&resp.headers, "vary");
-        if vary.as_deref().is_some_and(vary_nominates_prefer) {
+        if vary_nominates_prefer(&resp.headers) {
             return None;
         }
 
@@ -187,7 +179,10 @@ impl Rule for ClientPreferHeaderAndPreferenceApplied {
 
         // The name reached here through `parse_token_bws_word`, which admits only
         // `tchar`, so it is safe in a message as written; the `Vary` value is
-        // whatever the server sent.
+        // whatever the server sent, so it is read as written and escaped. Read
+        // here rather than at the gate above, which asks the shared predicate a
+        // question about the field rather than for its text.
+        let vary = combined_field_value_as_written(&resp.headers, "vary");
         let vary_state = match &vary {
             Some(v) => format!("its Vary field is '{}'", shown_in_finding(v)),
             None => "it carries no Vary field".to_string(),

@@ -136,34 +136,21 @@ impl Rule for StatefulVaryHeaderCacheValidity {
 
         let past = matched_past?; // no validator candidate found
 
-        // collect Vary header fields from that past response
-        let mut vary_fields: Vec<String> = Vec::new();
-        for hv in past
-            .response
-            .as_ref()
-            .unwrap()
-            .headers
-            .get_all("vary")
-            .iter()
-        {
-            if let Ok(s) = hv.to_str() {
-                for tok in crate::helpers::headers::parse_list_header(s) {
-                    let t = tok.trim();
-                    if t == "*" {
-                        // Vary: * never matches any request, so there is nothing to compare.
-                        // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
-                        return None;
-                    }
-                    if !t.is_empty() {
-                        // Vary field names are case-insensitive; lower-case for comparison.
-                        vary_fields.push(t.to_ascii_lowercase());
-                    }
-                }
-            } else {
-                // ignore non-UTF8 Vary values; other rules will handle
-                return None;
-            }
-        }
+        // The field names that past response nominated. A `*` never matches any
+        // request, so there is nothing to compare and the rule stops.
+        //
+        // The walk this replaced read the field lines one at a time, skipped the
+        // whole rule when `to_str` refused one, and did not join them — so a `*`
+        // on a second field line was not a `*` here, and one `obs-text` octet in
+        // any line stood the comparison down. `helpers::headers::vary_nomination`
+        // is the one answer all three rules that ask this now share.
+        //
+        // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
+        let crate::helpers::headers::VaryNomination::Fields(vary_fields) =
+            crate::helpers::headers::vary_nomination(&past.response.as_ref().unwrap().headers)
+        else {
+            return None;
+        };
 
         if vary_fields.is_empty() {
             return None;
@@ -322,6 +309,56 @@ mod tests {
                 ]),
             )
             .is_none());
+    }
+
+    /// The two ways the walk this rule used to hold could not read its `Vary`.
+    /// Both fixtures are the `mismatch_on_vary_field_triggers` exchange below
+    /// with the past response's `Vary` written differently — so the finding is
+    /// the same one, and what changes is whether the rule can see the field.
+    #[test]
+    fn the_past_responses_vary_is_read_across_its_lines_and_past_an_obs_text_octet() {
+        use hyper::header::{HeaderName, HeaderValue};
+        let judge = |vary: &[&[u8]]| {
+            let mut past = make_resp_tx("https://example.com/foo", None, Some("\"etag1\""));
+            let headers = &mut past.response.as_mut().expect("a response").headers;
+            for line in vary {
+                headers.append(
+                    HeaderName::from_static("vary"),
+                    HeaderValue::from_bytes(line).expect("a test Vary value"),
+                );
+            }
+            past.request.headers =
+                crate::test_helpers::make_headers_from_pairs(&[("Accept-Encoding", "gzip")]);
+
+            let mut tx = make_tx_with_req("https://example.com/foo");
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+                ("If-None-Match", "\"etag1\""),
+                ("Accept-Encoding", "deflate"),
+            ]);
+            let history =
+                crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
+            StatefulVaryHeaderCacheValidity.check_transaction(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_vary_header_cache_validity",
+                ]),
+            )
+        };
+
+        // The nominated field is on the second line. §5.3 makes the lines one
+        // value; read one at a time the rule saw two one-member lists and this
+        // one still reports, so the case that proves the join is the `*`.
+        assert!(judge(&[b"accept-encoding"]).is_some());
+        assert!(judge(&[b"accept", b"accept-encoding"]).is_some());
+        // A `*` on the second field line is a member of the value, and a `*`
+        // stops the comparison outright. Read line by line it was not one, and
+        // this exchange was reported.
+        assert!(judge(&[b"accept-encoding", b"*"]).is_none());
+        // `to_str` refuses %xE9, and refusing it used to end the rule — so a
+        // nominated field beside an `obs-text` octet drew nothing at all.
+        assert!(judge(&[b"caf\xe9, accept-encoding"]).is_some());
+        assert!(judge(&[b"caf\xe9", b"accept-encoding"]).is_some());
     }
 
     #[test]
