@@ -47,7 +47,7 @@ pub fn validate_content_length(headers: &HeaderMap) -> Result<Option<u128>, Cont
         //
         // cite(RFC 9112 § 6.3): "If a message is received without Transfer-Encoding and with an invalid Content-Length header field, then the message framing is invalid and the recipient MUST treat it as an unrecoverable error, unless the field value can be successfully parsed as a comma-separated list (Section 5.6.1 of [HTTP]), all values in the list are valid, and all values in the list are the same (in which case, the message is processed with that single value used as the Content-Length field value)."
         let mut saw_value = false;
-        for t in parse_list_header(s) {
+        for t in list_members(s) {
             saw_value = true;
 
             // cite(RFC 9110 § 8.6, label: Content-Length grammar): "Content-Length = 1*DIGIT"
@@ -452,48 +452,50 @@ pub fn extract_strong_validators_from_response(
     (etag, last_modified)
 }
 
-/// Parse a comma-separated list of header values (e.g., Connection, Transfer-Encoding).
+/// Every member of a `#element` list, `OWS`-trimmed, with the empty ones dropped.
 ///
-/// This iterator splits by comma, trims whitespace, and skips empty parts.
+/// A recipient's reader, and "dropping the empty ones" is what makes it one. `a,,b`
+/// is a two-element list and not a malformed one; a *sender* must not generate the
+/// empty element (§ 5.6.1.1), which is a different rule for a different party — so
+/// a rule wanting to flag `a,,b` as bad output cannot ask this function, because by
+/// the time it answers, the evidence is gone. [`list_members_as_written`] is the
+/// walk that keeps it.
 ///
-/// "Skips empty parts" is the interesting one, and it is a requirement rather
-/// than a convenience: `a,,b` is a two-element list, not a malformed one, and the
-/// seventy-odd callers that reach this are all recipients. A sender must not
-/// produce empty elements (§ 5.6.1.1), which is a different rule for a different
-/// party -- so a *rule* wanting to flag `a,,b` as bad output cannot ask this
-/// function, because by the time it answers, the evidence is gone.
+/// § 5.6.1.2 bounds the ignoring — "a reasonable number", but not so many that it
+/// becomes a denial-of-service vector — and this imposes no cap. That is deliberate
+/// rather than overlooked: the bound protects a recipient from the cost of the
+/// ignoring, and `split` + `filter` is linear with no amplification. There is
+/// nothing here to exhaust.
 ///
-/// § 5.6.1.2 bounds the requirement -- ignore "a reasonable number", but not so
-/// many that it becomes a denial-of-service vector -- and this imposes no cap.
-/// That is deliberate rather than overlooked: the bound protects a recipient from
-/// the cost of the ignoring, and `split` + `filter` is linear with no
-/// amplification. There is nothing here to exhaust.
+/// **The trim is `OWS` and not `str::trim`, and this was two functions until it
+/// was read.** Four decisions make up a `#rule` walk — where to split, what to
+/// trim, whether to drop an empty element, and whether to fold case — and
+/// `parse_list_header` differed from this one in exactly the second: `OWS` is
+/// `*( SP / HTAB )`, and `str::trim` removes every character `char::is_whitespace`
+/// admits. That difference cannot show on a value read back through
+/// `HeaderValue::to_str`, which returns `Err` for every octet outside `%x20-7E`
+/// plus HTAB — so the `&str` it hands back holds no other whitespace character to
+/// trim. It shows on the two readers that do not go through it, and it shows
+/// differently on each.
 ///
-// cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+/// [`combined_field_value_as_written`] carries one `char` per octet, so the
+/// disagreement is exactly two characters wide: U+00A0 and U+0085, which are the
+/// octets %xA0 and %x85. **`String::from_utf8_lossy` is wider than that** — a
+/// field value is octets, and any UTF-8 sequence a sender writes decodes to the
+/// `char` it spells, so U+2003, U+3000, U+1680 and U+2028 are all reachable
+/// alongside %xC2 %xA0 and %xC2 %x85. Every one of them is `obs-text` on the wire
+/// — the very octet class no `token` admits — and trimming any of them hands the
+/// member's own grammar a value the sender did not write.
+///
+/// The split is naive: a DQUOTE is not read as opening a `quoted-string`. That is
+/// the grammar's answer where the element admits none, and the wrong one where it
+/// does; [`list_members_as_written`] is the quote-aware walk and says which is
+/// which at its own doc comment.
+///
 // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
-pub fn parse_list_header(val: &str) -> impl Iterator<Item = &str> {
-    val.split(',').map(|s| s.trim()).filter(|s| !s.is_empty())
-}
-
-/// The same walk as [`parse_list_header`], trimming the whitespace the production
-/// actually prints.
-///
-/// Four decisions make up a `#rule` walk -- where to split, what to trim, whether
-/// to drop an empty element, and whether to fold case -- and this differs from its
-/// neighbour in exactly one of them. `OWS` is `*( SP / HTAB )`; `str::trim` removes
-/// every character `char::is_whitespace` admits. On a value read back through
-/// `to_str` the two are the same function, because that reader lets no other
-/// whitespace octet into the string at all. On a value read one `char` per octet
-/// ([`combined_field_value_as_written`]) they are not: %xA0 and %x85 are `obs-text`
-/// octets a sender wrote *inside* a member, and trimming them hands the member's
-/// own grammar a value the sender did not write.
-///
-/// [`parse_list_header`] keeps the Unicode trim and its seventy-odd callers. They
-/// read `to_str` values, where the answer is the same one; converting them would
-/// change what every one of those sites reports, which is each of their audits'
-/// work rather than this helper's.
-// cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
 // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+// cite(RFC 9110 § 5.6.1.2): "A recipient MUST parse and ignore a reasonable number of empty list elements:"
+// cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
 // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
 pub fn list_members(val: &str) -> impl Iterator<Item = &str> {
     val.split(',').map(trim_ows).filter(|s| !s.is_empty())
@@ -1028,17 +1030,17 @@ pub fn vary_nomination(response_headers: &HeaderMap) -> VaryNomination {
 /// Every member of a `#element` list, `OWS`-trimmed, **with the empty ones
 /// kept**.
 ///
-/// The third `#rule` walk in this module, and the axis it differs on is the one
+/// The second `#rule` walk in this module, and the axis it differs on is the one
 /// that makes it a *sender's* reader rather than a recipient's.
-/// [`parse_list_header`] and [`list_members`] both drop an empty member, because
-/// § 5.6.1.2 has a recipient parse and ignore one — so by the time either
-/// answers, the evidence is gone. A rule measuring what a sender wrote needs the
+/// [`list_members`] drops an empty member, because § 5.6.1.2 has a recipient
+/// parse and ignore one — so by the time it answers, the evidence is gone. A
+/// rule measuring what a sender wrote needs the
 /// empty member *in the list*, since § 5.6.1.1 forbids generating it and
 /// § 5.6.1.2's worked example makes a value of nothing but commas the invalid
 /// spelling of a `1#` floor. Neither of those two findings can be made from a
 /// list that has already dropped them.
 ///
-/// It is also the only one of the three that is quote-aware. A comma inside a
+/// It is also the only one of the two that is quote-aware. A comma inside a
 /// `quoted-string` is `qdtext` and not a separator, so a naive split cut
 /// `TE: deflate;ext="a,b"` — one member, one parameter — into a second "member"
 /// of `b"`.
@@ -2351,10 +2353,68 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_list_header() {
+    fn test_list_members() {
         let input = " foo, bar , , baz ";
-        let tokens: Vec<_> = parse_list_header(input).collect();
+        let tokens: Vec<_> = list_members(input).collect();
         assert_eq!(tokens, vec!["foo", "bar", "baz"]);
+    }
+
+    /// The two spellings a caller can hand this walk, characterised rather than
+    /// regressed: [`list_members`] already trimmed `OWS`, so this passes on the
+    /// tree before `parse_list_header` was folded into it. What it pins is which
+    /// *values* now reach here — a value read one `char` per octet carries %xA0
+    /// as U+00A0, and a value read through `String::from_utf8_lossy` carries the
+    /// same octet's UTF-8 spelling %xC2 %xA0 as the same `char`. Either way it is
+    /// `obs-text` a sender wrote *inside* the member, which is the octet class no
+    /// `token` admits, so it has to survive the trim and reach the check that
+    /// owns the member's grammar. The conversion's own regressions are the eight
+    /// rule-level tests named in RULECITES §6's P17 entry.
+    #[test]
+    fn list_members_trims_ows_and_not_the_obs_text_that_looks_like_space() {
+        assert_eq!(
+            list_members(" a ,\tb\t").collect::<Vec<_>>(),
+            vec!["a", "b"]
+        );
+
+        let per_octet: String = [0xA0u8, b'a', 0xA0].iter().map(|&b| b as char).collect();
+        let members: Vec<_> = list_members(&per_octet).collect();
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].chars().count(), 3, "the obs-text octets survive");
+
+        let lossy = String::from_utf8_lossy(b"gzip\xC2\xA0").into_owned();
+        assert_eq!(list_members(&lossy).collect::<Vec<_>>(), vec!["gzip\u{A0}"]);
+
+        // U+0085 is %x85 and tells the same story; `str::trim` removed both.
+        let nel: String = [b'a', 0x85].iter().map(|&b| b as char).collect();
+        assert_eq!(list_members(&nel).next().unwrap().chars().count(), 2);
+    }
+
+    /// Why converting `parse_list_header`'s thirty-six call sites changed
+    /// nothing at twenty-nine of them and everything at seven. Twenty-six read
+    /// their value back through `to_str`, which returns `Err` for every octet
+    /// outside `%x20-7E` plus HTAB, so the `&str` it hands back cannot hold a
+    /// whitespace character the two trims disagree about; three more are Rust
+    /// string literals in a test's own fixture. The disagreement is reachable
+    /// only through a reader that does not refuse those octets.
+    ///
+    /// **The octet is placed at both ends, which is the only place a trim can
+    /// see it.** An earlier spelling of this test wrapped it as `a<octet>b`,
+    /// where both trims are the identity for every input and the assertion says
+    /// `s == s`. A test whose fixture cannot reach the branch it is about is the
+    /// already-clean-fixture shape, one level in from the message it asserts.
+    #[test]
+    fn to_str_admits_no_whitespace_the_two_trims_disagree_about() {
+        for b in 0u8..=0xFF {
+            let Ok(hv) = HeaderValue::from_bytes(&[b, b'a', b]) else {
+                continue;
+            };
+            let Ok(s) = hv.to_str() else { continue };
+            assert_eq!(
+                s.trim(),
+                trim_ows(s),
+                "octet {b:#04x} reached `to_str` and the two trims disagree on it"
+            );
+        }
     }
 
     #[test]
@@ -2707,19 +2767,19 @@ mod tests {
         assert_eq!((p.name, p.value), ("a", "b"));
     }
 
-    /// The empty members are the point. Two of the three list walks in this
-    /// module drop them, which is right for a recipient and destroys the
-    /// evidence for a rule measuring a sender: `1#`'s floor counts non-empty
-    /// members, so a value of nothing but commas has to arrive as several empty
-    /// members rather than as no members at all.
+    /// The empty members are the point. The other list walk in this module drops
+    /// them, which is right for a recipient and destroys the evidence for a rule
+    /// measuring a sender: `1#`'s floor counts non-empty members, so a value of
+    /// nothing but commas has to arrive as several empty members rather than as
+    /// no members at all.
     #[test]
-    fn list_members_as_written_keeps_what_the_other_two_walks_drop() {
+    fn list_members_as_written_keeps_what_the_recipients_walk_drops() {
         assert_eq!(list_members_as_written("a,,b"), vec!["a", "", "b"]);
         assert_eq!(list_members_as_written(""), vec![""]);
         assert_eq!(list_members_as_written(","), vec!["", ""]);
         assert_eq!(list_members_as_written(",   ,"), vec!["", "", ""]);
-        // The same three values through the recipient's walk, which is what the
-        // two findings cannot be made from.
+        // The same values through the recipient's walk, which is what the two
+        // findings cannot be made from.
         assert_eq!(list_members("a,,b").collect::<Vec<_>>(), vec!["a", "b"]);
         assert!(list_members(",   ,").next().is_none());
     }

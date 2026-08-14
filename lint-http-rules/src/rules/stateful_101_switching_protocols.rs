@@ -163,15 +163,14 @@ impl Rule for Stateful101SwitchingProtocols {
         // Protocol names carry a preferred case but are matched case-insensitively,
         // so both lists are folded to lowercase before comparison.
         // cite(RFC 9110 § 7.8): "Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols."
-        let offered: Vec<String> = crate::helpers::headers::parse_list_header(&req_upgrade_val)
-            .map(|t| t.trim().to_ascii_lowercase())
+        let offered: Vec<String> = crate::helpers::headers::list_members(&req_upgrade_val)
+            .map(str::to_ascii_lowercase)
             .collect();
 
         // The response must indicate at least one chosen protocol.
-        let chosen_list: Vec<String> =
-            crate::helpers::headers::parse_list_header(&resp_upgrade_val)
-                .map(|t| t.trim().to_ascii_lowercase())
-                .collect();
+        let chosen_list: Vec<String> = crate::helpers::headers::list_members(&resp_upgrade_val)
+            .map(str::to_ascii_lowercase)
+            .collect();
 
         // Upgrade present but no valid tokens (e.g. " , , "): still nothing indicated.
         // cite(RFC 9110 § 7.8): "A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field."

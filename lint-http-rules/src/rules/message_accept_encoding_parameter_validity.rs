@@ -47,7 +47,7 @@ impl Rule for MessageAcceptEncodingParameterValidity {
                     // is right — §12.5.3 gives that value a meaning of its own.
                     // cite(RFC 9110 § 12.5.3): "An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response."
                     // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
-                    for part in crate::helpers::headers::parse_list_header(val) {
+                    for part in crate::helpers::headers::list_members(val) {
                         // Split into token and optional params
                         let mut iter =
                             crate::helpers::headers::split_semicolons_respecting_quotes(part)

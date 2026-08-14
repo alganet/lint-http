@@ -318,12 +318,12 @@ impl Rule for SemanticHeadResponseHeadersMatchGet {
                         // up, which no ordering changes.
                         // cite(RFC 9110 § 12.5.5): "To inform cache recipients that they MUST NOT use this response to satisfy a later request unless the later request has the same values for the listed header fields as the original request"
                         //
-                        // `parse_list_header` drops empty members, which is the
+                        // `list_members` drops empty members, which is the
                         // recipient's reading and the right one for a question
                         // about what was advertised; a sender that writes
                         // `Accept, , Accept-Encoding` is `server_vary_header_valid`'s.
                         let members = |v: &str| {
-                            let mut m: Vec<String> = crate::helpers::headers::parse_list_header(v)
+                            let mut m: Vec<String> = crate::helpers::headers::list_members(v)
                                 .map(|s| s.to_ascii_lowercase())
                                 .collect();
                             m.sort_unstable();
@@ -1030,6 +1030,32 @@ mod tests {
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains("Vary"));
+    }
+
+    /// `vary_different_members_reports_violation` with the difference written as
+    /// the one octet the recipient's walk used to erase. `Vary = #( "*" /
+    /// field-name )` and `field-name = token`, so `b<%xA0>` is not the member
+    /// `b` — the two responses advertise different sets, which is the finding.
+    /// `str::trim` made them the same set, and the comparison here is over a
+    /// value read one `char` per octet, so %xA0 arrives as itself.
+    #[test]
+    fn vary_members_differing_by_one_obs_text_octet_report() {
+        let rule = SemanticHeadResponseHeadersMatchGet;
+        let mut prev = make_prev_with_headers(&[]);
+        prev.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_octet_pairs(&[("vary", b"a, b\xA0".as_slice())]);
+        let mut head = make_head_with_headers(&[("vary", "a, b")]);
+        head.request.uri = prev.request.uri.clone();
+
+        let v = rule.check_transaction(
+            &head,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &make_cfg_with_headers(vec!["vary"]),
+        );
+        assert!(
+            v.as_ref().is_some_and(|v| v.message.contains("Vary")),
+            "{v:?}"
+        );
     }
 
     #[test]

@@ -64,10 +64,7 @@ impl Rule for ClientAcceptEncodingPresent {
         for hv in tx.request.headers.get_all("accept-encoding").iter() {
             present = true;
             let val = String::from_utf8_lossy(hv.as_bytes());
-            if crate::helpers::headers::parse_list_header(&val)
-                .next()
-                .is_some()
-            {
+            if crate::helpers::headers::list_members(&val).next().is_some() {
                 any_coding = true;
             }
         }
@@ -331,6 +328,23 @@ mod tests {
             v.is_some_and(|v| v.message.contains("declines all content codings")),
             "{value:?} lists no codings"
         );
+    }
+
+    /// **A value holding an `obs-text` octet is not an empty value**, and the
+    /// finding above says "empty" in as many words. The list walk used to trim
+    /// %xC2 %xA0 as whitespace, so a field carrying one member was reported for
+    /// declining every coding — a claim about a value the sender did not write.
+    /// The member derives from no `codings` and this rule does not say so:
+    /// that is the field's syntax and belongs to
+    /// `message_accept_encoding_parameter_validity`.
+    #[test]
+    fn a_member_of_obs_text_is_a_preference_expressed_not_an_empty_field() {
+        let mut tx = req(&[]);
+        tx.request.headers = crate::test_helpers::make_headers_from_octet_pairs(&[(
+            "accept-encoding",
+            b"\xC2\xA0".as_slice(),
+        )]);
+        assert!(run(&tx).is_none(), "{:?}", run(&tx));
     }
 
     /// The two findings are distinct, because the states are.

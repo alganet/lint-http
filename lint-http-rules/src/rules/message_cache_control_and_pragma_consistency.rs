@@ -37,8 +37,7 @@ impl Rule for MessageCacheControlAndPragmaConsistency {
                     continue;
                 }
             };
-            for member in crate::helpers::headers::parse_list_header(s) {
-                let m = member.trim();
+            for m in crate::helpers::headers::list_members(s) {
                 if m.eq_ignore_ascii_case("no-cache") {
                     // if request also contains Cache-Control: only-if-cached, that's contradictory
                     for cc in tx.request.headers.get_all("cache-control").iter() {

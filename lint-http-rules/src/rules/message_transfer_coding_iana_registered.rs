@@ -137,8 +137,8 @@ impl Rule for MessageTransferCodingIanaRegistered {
             // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
             for part in crate::helpers::headers::split_commas_respecting_quotes(val) {
                 // `#element` admits empty members, and they are not elements.
-                // `parse_list_header` used to drop these; the quote-aware
-                // splitter does not, so the filter moves here with its licence.
+                // `list_members` drops these; the quote-aware splitter does not,
+                // so the filter moves here with its licence.
                 // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
                 if part.is_empty() {
                     continue;
@@ -952,7 +952,7 @@ mod tests {
     }
 
     /// Empty list members are not elements, and the quote-aware splitter --
-    /// unlike `parse_list_header` -- does not drop them for us.
+    /// unlike `list_members` -- does not drop them for us.
     #[test]
     fn empty_list_members_are_skipped() {
         let rule = MessageTransferCodingIanaRegistered;

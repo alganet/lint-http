@@ -69,7 +69,7 @@ impl MessageTrailerHeadersValid {
                 // list's defect rather than the element's: there is no such thing as
                 // an empty `field-name`, so what the sender generated is a member
                 // that contributes nothing to the list. The recipient's reader
-                // (`parse_list_header`) drops these, which is that party's
+                // (`list_members`) drops these, which is that party's
                 // requirement and erases this one — so it is not used here.
                 //
                 // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
@@ -553,7 +553,7 @@ mod tests {
             let announced: Vec<&str> = pairs
                 .iter()
                 .filter(|(k, _)| k.eq_ignore_ascii_case("trailer"))
-                .flat_map(|(_, v)| crate::helpers::headers::parse_list_header(v))
+                .flat_map(|(_, v)| crate::helpers::headers::list_members(v))
                 .collect();
             if announced.is_empty() {
                 continue;

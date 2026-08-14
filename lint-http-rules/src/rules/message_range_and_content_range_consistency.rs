@@ -178,7 +178,7 @@ impl Rule for MessageRangeAndContentRangeConsistency {
                 // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
                 let requested_ranges = requested
                     .as_ref()
-                    .map(|(_, set)| crate::helpers::headers::parse_list_header(set).count());
+                    .map(|(_, set)| crate::helpers::headers::list_members(set).count());
                 if requested_ranges == Some(1) {
                     return Some(Violation {
                         rule: self.id().into(),

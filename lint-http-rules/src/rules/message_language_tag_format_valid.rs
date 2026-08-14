@@ -96,7 +96,7 @@ impl Rule for MessageLanguageTagFormatValid {
         let content_language = |headers: &hyper::HeaderMap| -> Option<Violation> {
             for hv in headers.get_all("content-language").iter() {
                 let val = decode(hv);
-                for token in crate::helpers::headers::parse_list_header(&val) {
+                for token in crate::helpers::headers::list_members(&val) {
                     if let Some(v) = check_tag("Content-Language", token) {
                         return Some(v);
                     }
@@ -108,11 +108,18 @@ impl Rule for MessageLanguageTagFormatValid {
         let accept_language = |headers: &hyper::HeaderMap| -> Option<Violation> {
             for hv in headers.get_all("accept-language").iter() {
                 let val = decode(hv);
-                for member in crate::helpers::headers::parse_list_header(&val) {
+                for member in crate::helpers::headers::list_members(&val) {
                     // The weight is stripped rather than checked; whether it is
                     // a weight at all is `message_accept_language_weight_validity`'s
                     // subject, and this rule reads only the range in front of it.
-                    let lang = member.split(';').next().unwrap().trim();
+                    // `OWS` and not `str::trim`, which is what the walk above
+                    // settled: `decode` is `from_utf8_lossy`, so %xC2 %xA0
+                    // arrives as one `char` `char::is_whitespace` admits — and
+                    // this rule's own description says an octet outside visible
+                    // US-ASCII is reported rather than skipped.
+                    // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
+                    // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+                    let lang = crate::helpers::headers::trim_ows(member.split(';').next().unwrap());
                     // `*` is one of the two alternatives of `language-range`,
                     // not a tag — so it is skipped here and reported in
                     // Content-Language, where the production has no such
@@ -497,5 +504,35 @@ mod tests {
         );
         assert!(v.is_none());
         Ok(())
+    }
+
+    /// What `description()`'s *"An octet outside visible US-ASCII is reported,
+    /// not skipped"* claims, on the two spellings that used to escape it. The
+    /// value is read with `from_utf8_lossy` precisely so such an octet reaches
+    /// `check_tag` — and %xC2 %xA0 arrives as one `char` `str::trim` calls
+    /// whitespace, so the list walk took it off `Content-Language` and the
+    /// weight split took it off `Accept-Language`. Both trims are `OWS` now, and
+    /// no `language-tag` or `language-range` admits either octet.
+    #[rstest]
+    #[case("content-language", b"en-US\xC2\xA0")]
+    #[case("accept-language", b"en-US\xC2\xA0")]
+    fn an_obs_text_octet_shaped_like_a_space_is_still_reported(
+        #[case] field: &str,
+        #[case] value: &[u8],
+    ) {
+        let rule = MessageLanguageTagFormatValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_language_tag_format_valid",
+        ]);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_octet_pairs(&[(field, value)]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some(), "{field} carrying %xC2 %xA0 drew nothing");
     }
 }

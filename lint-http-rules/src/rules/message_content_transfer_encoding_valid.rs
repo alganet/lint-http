@@ -38,7 +38,7 @@ impl Rule for MessageContentTransferEncodingValid {
             }
 
             // RFC 2045 defines a single token value here; if commas are present it's likely malformed
-            let parts: Vec<&str> = crate::helpers::headers::parse_list_header(s).collect();
+            let parts: Vec<&str> = crate::helpers::headers::list_members(s).collect();
             // cite(RFC 2045 § 6.1): "mechanism := "7bit" / "8bit" / "binary" / "quoted-printable" / "base64" / ietf-token / x-token"
             if parts.len() > 1 {
                 return Some(
@@ -46,7 +46,15 @@ impl Rule for MessageContentTransferEncodingValid {
                 );
             }
 
-            let tok = parts[0];
+            // `parts[0]` was an index, and `,` is the value that makes it panic:
+            // every member of that value is empty, none of them is an element, so
+            // the walk hands back nothing at all. The length test above only
+            // refuses *more* than one member. A value listing no member says the
+            // same thing as one with nothing in it, which is the branch above.
+            // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+            let Some(tok) = parts.first().copied() else {
+                return Some("the value is empty".into());
+            };
             if let Some(c) = crate::helpers::token::find_invalid_token_char(tok) {
                 return Some(format!("the value contains an invalid character: '{}'", c));
             }
@@ -170,6 +178,11 @@ mod tests {
     #[case(Some("X-My-New-Encoding"), true)]
     #[case(Some("base64, gzip"), true)]
     #[case(Some("bad@token"), true)]
+    // A value of nothing but commas listed no member and indexed the walk's
+    // empty result: the linter panicked rather than reporting the field. The
+    // length test above only refused *more* than one member.
+    #[case(Some(","), true)]
+    #[case(Some(" , "), true)]
     fn content_transfer_encoding_cases(
         #[case] hdr: Option<&str>,
         #[case] expect_violation: bool,

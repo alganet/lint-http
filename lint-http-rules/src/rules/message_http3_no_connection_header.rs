@@ -197,7 +197,7 @@ fn check_forbidden_headers(headers: &hyper::HeaderMap) -> Option<String> {
 fn check_te_header(headers: &hyper::HeaderMap) -> Option<String> {
     if let Some(val) = headers.get("te") {
         if let Ok(s) = val.to_str() {
-            let has_non_trailers = crate::helpers::headers::parse_list_header(s)
+            let has_non_trailers = crate::helpers::headers::list_members(s)
                 .any(|token| !token.eq_ignore_ascii_case("trailers"));
             if has_non_trailers {
                 return Some(
@@ -504,7 +504,7 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        // Empty TE is not a violation (parse_list_header filters empty tokens)
+        // Empty TE is not a violation (list_members filters empty tokens)
         assert!(v.is_none());
     }
 

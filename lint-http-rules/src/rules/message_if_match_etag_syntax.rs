@@ -46,7 +46,7 @@ impl Rule for MessageIfMatchEtagSyntax {
             // strongly (§13.1.1), so weak tags are accepted, not flagged (see §4.1).
             // cite(RFC 9110 § 13.1.1): "If-Match = "*" / #entity-tag"
             let mut seen_any = false;
-            for member in crate::helpers::headers::parse_list_header(s) {
+            for member in crate::helpers::headers::list_members(s) {
                 seen_any = true;
                 if let Err(msg) = crate::helpers::headers::validate_entity_tag(member) {
                     return Some(Violation {

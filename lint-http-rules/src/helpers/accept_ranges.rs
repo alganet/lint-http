@@ -95,7 +95,7 @@ pub fn read_advertisement(resp: &crate::http_transaction::ResponseInfo) -> Adver
 
             let mut saw_a_unit = false;
             // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
-            for token in crate::helpers::headers::parse_list_header(value) {
+            for token in crate::helpers::headers::list_members(value) {
                 // A range unit is a token and nothing narrower: the set is open
                 // by design, so a name this code has never heard of is a name it
                 // has to carry rather than reject.
