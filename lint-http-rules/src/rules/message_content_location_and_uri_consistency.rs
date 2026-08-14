@@ -43,17 +43,34 @@ impl Rule for MessageContentLocationAndUriConsistency {
 
         // Neither alternative of the grammar is a `#(...)` list, so the §5.3 exception
         // does not apply and a message carries at most one Content-Location field line.
-        // The damage is quiet rather than loud: "," is a legal sub-delim inside a path
-        // and query, so a recipient combining two field lines gets "/a,/b" — a
-        // well-formed URI that identifies neither representation.
+        //
+        // The preamble is `helpers::headers::singleton_field_preamble`'s, and the
+        // sentence appended to it is the one `message_referer_uri_valid` appends,
+        // word for word, because the two fields carry the same production and the
+        // comma is the same character in it. That sentence used to live in this
+        // comment while the four neighbours put theirs in the message, so the
+        // damage the rule knew about was the one thing it did not tell an
+        // operator — along with how many lines there were and what they join into.
         // cite(RFC 9110 § 8.7): "Content-Location = absolute-URI / partial-URI"
-        // cite(RFC 9110 § 5.5): "Fields that only anticipate a single member as the field value are referred to as "singleton fields"."
-        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+        // cite(RFC 3986 § 2.2): "sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "=""
         if vals.len() > 1 {
+            let joined = crate::helpers::headers::combined_field_value_as_written(
+                &resp.headers,
+                "content-location",
+            )
+            .expect("the branch is reached only when the field has more than one line");
             return Some(Violation {
                 rule: self.id().into(),
                 severity: config.severity,
-                message: "Multiple Content-Location header fields present; Content-Location is a singleton field with no list alternative (RFC 9110 §8.7), so a message carries at most one Content-Location field line (RFC 9110 §5.3)".into(),
+                message: format!(
+                    "{}. The comma a recipient joins them with is a `sub-delims` character both alternatives admit inside a path or a query (RFC 3986 §2.2), so the joined value is a well-formed reference to a resource neither line named",
+                    crate::helpers::headers::singleton_field_preamble(
+                        "Content-Location",
+                        vals.len(),
+                        &crate::helpers::headers::shown_in_finding(&joined),
+                        "`Content-Location = absolute-URI / partial-URI`, and neither alternative is a comma-separated list",
+                    )
+                ),
             });
         }
 
@@ -568,8 +585,22 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("Multiple Content-Location"));
+        // Pinned rather than `contains`-ed: the message is the shared preamble
+        // plus this field's own second sentence, and a `contains` on the field
+        // name would still pass if either half went missing. It has to name how
+        // many lines there were and what a recipient joins them into, because
+        // that joined value is the whole finding — `/foo,/bar` is a well-formed
+        // reference to neither representation.
+        assert_eq!(
+            v.expect("two field lines for a singleton").message,
+            "Content-Location is written on 2 header lines, which recombine into the one value \
+             '/foo,/bar'; the field is a singleton — `Content-Location = absolute-URI / \
+             partial-URI`, and neither alternative is a comma-separated list — so a sender must \
+             not generate more than one field line for it (RFC 9110 §5.3). The comma a recipient \
+             joins them with is a `sub-delims` character both alternatives admit inside a path or \
+             a query (RFC 3986 §2.2), so the joined value is a well-formed reference to a resource \
+             neither line named"
+        );
     }
 
     #[test]

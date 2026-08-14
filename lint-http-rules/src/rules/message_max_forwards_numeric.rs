@@ -68,16 +68,15 @@ impl Rule for MessageMaxForwardsNumeric {
         if lines > 1 {
             // `Max-Forwards = 1*DIGIT` has no `#(...)` alternative anywhere in it, so
             // § 5.3's exception does not apply and one message carries at most one
-            // field line. § 5.5 says the detection is worth doing: a singleton sent
-            // with several members is exactly the error it names.
-            //
-            // cite(RFC 9110 § 5.5): "Fields that only anticipate a single member as the field value are referred to as "singleton fields"."
-            // cite(RFC 9110 § 5.5): "This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability."
-            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
-            return violation(format!(
-                "Max-Forwards is written on {} header lines, which recombine into the one value '{}'; the field is a singleton — `Max-Forwards = 1*DIGIT` has no comma-separated-list alternative — so a sender must not generate more than one field line for it (RFC 9110 §5.3)",
+            // field line. The sentence saying so is the shared one, and this is the
+            // only one of the five callers with nothing to append to it: a comma is
+            // not a `DIGIT`, so the joined value is simply malformed, which the
+            // production named in the preamble already tells the reader.
+            return violation(crate::helpers::headers::singleton_field_preamble(
+                "Max-Forwards",
                 lines,
-                value.escape_debug()
+                &value.escape_debug().to_string(),
+                "`Max-Forwards = 1*DIGIT` has no comma-separated-list alternative",
             ));
         }
 
@@ -317,13 +316,28 @@ mod tests {
     /// conforming value on its own, and the message carries a field it must not
     /// carry twice. The rule measured the lines apart and reported neither.
     #[rstest]
-    #[case(&[b"120" as &[u8], b"240"])]
-    #[case(&[b"5" as &[u8], b"5"])]
-    #[case(&[b"1" as &[u8], b"2", b"3"])]
-    fn a_singleton_field_written_on_several_lines_is_reported(#[case] lines: &[&[u8]]) {
+    #[case(&[b"120" as &[u8], b"240"], "2", "120,240")]
+    #[case(&[b"5" as &[u8], b"5"], "2", "5,5")]
+    #[case(&[b"1" as &[u8], b"2", b"3"], "3", "1,2,3")]
+    fn a_singleton_field_written_on_several_lines_is_reported(
+        #[case] lines: &[&[u8]],
+        #[case] count: &str,
+        #[case] joined: &str,
+    ) {
         let v = max_forwards(lines).expect("violation");
-        assert!(v.message.contains("singleton"), "{}", v.message);
-        assert!(v.message.contains("header lines"), "{}", v.message);
+        // This is the only one of the five callers of the shared preamble with
+        // nothing to append, so the pin is the preamble exactly -- which is also
+        // what makes it the case that would notice the shared sentence changing
+        // under the other four.
+        assert_eq!(
+            v.message,
+            format!(
+                "Max-Forwards is written on {count} header lines, which recombine into the one \
+                 value '{joined}'; the field is a singleton — `Max-Forwards = 1*DIGIT` has no \
+                 comma-separated-list alternative — so a sender must not generate more than one \
+                 field line for it (RFC 9110 §5.3)"
+            )
+        );
     }
 
     #[test]
