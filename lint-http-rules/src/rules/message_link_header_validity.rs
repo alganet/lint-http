@@ -939,9 +939,12 @@ mod tests {
     #[rstest]
     #[case(b"</a>; rel=", "nothing after the \"=\", where the grammar has a word")]
     #[case(b"</a>; rel=n\xe9xt", "value contains 0xE9")]
+    // The DQUOTE the value opens with is escaped on its way into the finding —
+    // it is the character being reported, and unescaped it reads as the message
+    // quoting something.
     #[case(
         b"</a>; rel=next; title=\"unterminated",
-        "Quoted-string not properly quoted: '\"unterminated'"
+        "Quoted-string not properly quoted: '\\\"unterminated'"
     )]
     fn link_param_defects_carry_the_shared_parsers_reason(
         #[case] value: &[u8],
