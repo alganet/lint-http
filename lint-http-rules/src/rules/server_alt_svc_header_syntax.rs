@@ -4,8 +4,8 @@
 
 use crate::helpers::headers::{
     combined_field_value_as_written, describe_char, quoting_is_balanced, shown_in_finding,
-    split_commas_respecting_quotes, split_semicolons_respecting_quotes, trim_ows,
-    unescape_quoted_string,
+    split_commas_respecting_quotes, split_semicolons_respecting_quotes, token_or_quoted_string,
+    trim_ows, unescape_quoted_string, WordDefect,
 };
 use crate::lint::Violation;
 use crate::rules::Rule;
@@ -208,6 +208,13 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<String> {
 /// here, so a bare `ma` is a finding rather than a name with no value. Three
 /// independent reviews have now proposed the fold; the two grammars disagree
 /// on both halves, which is what `BWS` is a tell for in either direction.
+///
+/// P2 settled it by folding the half that does *not* disagree. The value is
+/// `( token / quoted-string )` -- the same pair RFC 7838 imports from RFC 7230
+/// by name and RFC 9110 carries unchanged -- so the alternation is read by
+/// `helpers::headers::token_or_quoted_string` and every sentence about what it
+/// found is still this field's. The name, the `=` and the whitespace beside it
+/// stay here, because that is where this document differs from the other two.
 // cite(RFC 7838 § 3): "parameter     = token "=" ( token / quoted-string )"
 // cite(RFC 7838 § 3): "Each "alt-value" is followed by an OPTIONAL semicolon-separated list of additional parameters, each such "parameter" comprising a name and a value."
 // cite(RFC 7838 § 3): "Unknown parameters MUST be ignored."
@@ -244,31 +251,31 @@ fn check_parameter(shown: &str, parameter: &str) -> Option<String> {
             describe_char(c)
         ));
     }
-    let unquoted: std::borrow::Cow<'_, str> = if value.starts_with('"') {
-        match unescape_quoted_string(value) {
-                Ok(inner) => std::borrow::Cow::Owned(inner),
-                Err(e) => {
-                    return Some(format!(
-                        "Alt-Svc parameter '{}' in '{shown}' has a value that is not a well-formed `quoted-string`: {e}",
-                        shown_in_finding(name)
-                    ))
-                }
-            }
-    } else {
-        if value.is_empty() {
+    // The value half is `( token / quoted-string )`, read by the shared reader
+    // that owns the alternation; every sentence below is this field's own answer
+    // to what the reader found, because "empty" in particular is a verdict two
+    // other rules in this tree deliberately do not share.
+    let unquoted = match token_or_quoted_string(value) {
+        Ok(content) => content,
+        Err(WordDefect::Empty) => {
             return Some(format!(
                     "Alt-Svc parameter '{}' in '{shown}' has an empty value. The value half is `token / quoted-string`, and the empty string derives from neither -- a `token` is `1*tchar` and a `quoted-string` is at least its two DQUOTEs",
                     shown_in_finding(name)
-                ));
+                ))
         }
-        if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
+        Err(WordDefect::NotToken(c)) => {
             return Some(format!(
                     "Alt-Svc parameter '{}' in '{shown}' has {} in an unquoted value. The value half is `token / quoted-string`, so a character no `tchar` admits has to be written inside DQUOTEs",
                     shown_in_finding(name),
                     describe_char(c)
-                ));
+                ))
         }
-        std::borrow::Cow::Borrowed(value)
+        Err(WordDefect::NotQuotedString(e)) => {
+            return Some(format!(
+                    "Alt-Svc parameter '{}' in '{shown}' has a value that is not a well-formed `quoted-string`: {e}",
+                    shown_in_finding(name)
+                ))
+        }
     };
 
     // § 3.1 prints a syntax for this parameter, and the syntax is one

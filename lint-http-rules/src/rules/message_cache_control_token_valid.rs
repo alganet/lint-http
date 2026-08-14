@@ -141,23 +141,23 @@ fn check_cache_control_value(s: &str) -> Option<String> {
 
         if let Some(vpart) = kv.next() {
             let vpart = vpart.trim();
-            // Leniency, recorded rather than changed: `foo=` does not match the
-            // grammar above — once "=" is present the optional group requires a
-            // token (`1*tchar`) or a quoted-string, neither of which can be empty.
-            // The rule accepts it anyway, so it under-reports this one shape. That
-            // is the safe direction for a linter, and tightening it would be a
-            // behavior change. (`foo=""` is genuinely valid: quoted-string permits
-            // empty content.)
-            if vpart.is_empty() {
-                continue;
-            }
-            if vpart.starts_with('"') {
-                if let Err(e) = crate::helpers::headers::validate_quoted_string(vpart) {
+            // The `( token / quoted-string )` alternation is read by the shared
+            // helper that owns it; what stays here is what this field says about
+            // each answer.
+            match crate::helpers::headers::token_or_quoted_string(vpart) {
+                Ok(_) => {}
+                // Leniency, recorded rather than changed: `foo=` does not match the
+                // grammar above — once "=" is present the optional group requires a
+                // token (`1*tchar`) or a quoted-string, neither of which can be empty.
+                // The rule accepts it anyway, so it under-reports this one shape. That
+                // is the safe direction for a linter, and tightening it would be a
+                // behavior change. (`foo=""` is genuinely valid: quoted-string permits
+                // empty content.)
+                Err(crate::helpers::headers::WordDefect::Empty) => continue,
+                Err(crate::helpers::headers::WordDefect::NotQuotedString(e)) => {
                     return Some(format!("Invalid quoted-string in directive value: {}", e));
                 }
-            } else {
-                // Unquoted value must be a token
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(vpart) {
+                Err(crate::helpers::headers::WordDefect::NotToken(c)) => {
                     return Some(format!(
                         "Directive value contains invalid character: '{}'",
                         c

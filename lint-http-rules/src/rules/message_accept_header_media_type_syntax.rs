@@ -273,11 +273,31 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                             });
                         }
                     } else {
-                        // The two alternatives of `parameter-value`, each handed
-                        // to the helper that owns its grammar.
+                        // `parameter-value` is `( token / quoted-string )`, and
+                        // the alternation is read by the helper that owns it.
                         // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
-                        if v.starts_with('"') {
-                            if let Err(e) = crate::helpers::headers::validate_quoted_string(v) {
+                        match crate::helpers::headers::token_or_quoted_string(v) {
+                            Ok(_) => {}
+                            // The same shape the parameter *name* above was
+                            // corrected for, left standing on the value half:
+                            // `a/b;x=` reached a `tchar` scan, which finds no
+                            // invalid character in the empty string and called it
+                            // clean. Neither alternative derives the empty string
+                            // -- `token = 1*tchar`, and the shortest
+                            // `quoted-string` is its two DQUOTEs -- so the value
+                            // as written derives from no `parameter-value`.
+                            // (`x=""` is a different value and still conforms.)
+                            Err(crate::helpers::headers::WordDefect::Empty) => {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: config.severity,
+                                    message: format!(
+                                        "Empty parameter value in '{}' of {} header: a parameter-value is a token or a quoted-string, and neither derives the empty string",
+                                        p, hdr
+                                    ),
+                                });
+                            }
+                            Err(crate::helpers::headers::WordDefect::NotQuotedString(e)) => {
                                 return Some(Violation {
                                     rule: self.id().into(),
                                     severity: config.severity,
@@ -287,15 +307,16 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                                     ),
                                 });
                             }
-                        } else if let Some(c) = crate::helpers::token::find_invalid_token_char(v) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: config.severity,
-                                message: format!(
-                                    "Invalid token '{}' in parameter value '{}' of {} header",
-                                    c, v, hdr
-                                ),
-                            });
+                            Err(crate::helpers::headers::WordDefect::NotToken(c)) => {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: config.severity,
+                                    message: format!(
+                                        "Invalid token '{}' in parameter value '{}' of {} header",
+                                        c, v, hdr
+                                    ),
+                                });
+                            }
                         }
                     }
                 }
@@ -498,6 +519,12 @@ mod tests {
     // `token = 1*tchar`: a name with no characters is not a name, and scanning
     // for an invalid character cannot notice that there are none.
     #[case(Some("text/html; =value"), true)]
+    // The same shape on the value half, which the audit that fixed the name half
+    // left standing: `parameter-value = ( token / quoted-string )` derives no
+    // empty string either, and `charset=` used to be clean for exactly the
+    // reason `=value` used to be. `""` is a different value and conforms.
+    #[case(Some("text/html; charset="), true)]
+    #[case(Some("text/html; charset=\"\""), false)]
     // No whitespace inside a media-range. The OWS in these grammars sits around
     // list elements and around the `;`, never between a type and its subtype.
     #[case(Some("text /html"), true)]
@@ -619,6 +646,32 @@ mod tests {
         // `Both`: the rule reads a response's Accept as well as a request's,
         // and §12.5.1 gives that one a meaning of its own.
         assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
+
+    /// The empty-value branch, pinned rather than merely asserted to exist. A
+    /// case that only checks `is_some()` cannot see a message whose subject and
+    /// verb phrase disagree, and this one has to name the value half so it is
+    /// not read as the parameter-name finding twelve lines above it.
+    #[test]
+    fn the_empty_parameter_value_finding_names_the_value_half() {
+        let rule = MessageAcceptHeaderMediaTypeSyntax;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_header_media_type_syntax",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("accept", "text/html; charset=")]);
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .expect("an empty parameter-value derives from neither alternative");
+        assert_eq!(
+            v.message,
+            "Empty parameter value in 'charset=' of Accept header: a parameter-value is a token or a quoted-string, and neither derives the empty string"
+        );
     }
 
     #[test]

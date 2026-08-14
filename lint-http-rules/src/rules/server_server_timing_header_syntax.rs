@@ -5,12 +5,11 @@
 use crate::helpers::headers::{
     combined_field_value_as_written, describe_char, quoted_string_end, quoting_is_balanced,
     response_field_sections, shown_in_finding, split_commas_respecting_quotes,
-    split_semicolons_respecting_quotes, trim_ows, unescape_quoted_string,
+    split_semicolons_respecting_quotes, token_or_quoted_string, trim_ows, WordDefect,
 };
 use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
 use crate::rules::Rule;
-use std::borrow::Cow;
 
 /// The two `server-timing-param-name`s this specification establishes, spelled
 /// as the two getters that read them spell their lookups.
@@ -409,8 +408,8 @@ fn check_metric(metric: &str) -> Option<String> {
 /// One `server-timing-param`, and what the two established names mean for it.
 ///
 /// **The third hand-written copy of `token <ws> "=" <ws> ( token /
-/// quoted-string )`, and the divergence is recorded here because this is the
-/// site that creates it.** `helpers::headers::parse_token_bws_word` owns
+/// quoted-string )`, and P2 answered it by splitting the walk rather than by
+/// folding it.** `helpers::headers::parse_token_bws_word` owns
 /// `token [ BWS "=" BWS word ]`; `server_alt_svc_header_syntax::check_parameter`
 /// owns RFC 7838's `parameter = token "=" ( token / quoted-string )`; and this
 /// one is that second production with `OWS` printed either side of the `=`.
@@ -419,14 +418,20 @@ fn check_metric(metric: &str) -> Option<String> {
 /// other two is, so a bare `db;desc` is a finding here and a valueless name
 /// there) and **what whitespace beside the `=` means** (a tolerated historical
 /// artefact reported separately in the helper, a *defect* in Alt-Svc, and part
-/// of the production here -- so the one thing a shared reader would have to be
-/// told per caller is the one thing all three disagree about). Alt-Svc's and
-/// this one are one terminal apart and could be folded on a flag; that is
-/// `server_alt_svc_header_syntax`'s question as much as this rule's, and
-/// neither audit may answer it alone.
+/// of the production here). Those two axes are the *left* half of the walk, and
+/// they stay at each site: a flag naming the difference would be a parameter
+/// whose only job is to say which document the caller is reading, which is what
+/// `BWS` has been the tell against in either direction.
 ///
-/// The leading-DQUOTE alternation below is separately the **sixth** copy in the
-/// tree, counted at `message_keep_alive_header_validity::validate_param_value`.
+/// What did fold is the *right* half. `( token / quoted-string )` is one
+/// production all three import from RFC 9110 unchanged, so the alternation and
+/// its two measurements are now `helpers::headers::token_or_quoted_string`'s,
+/// and this rule's three sentences about the answers are below. That reader was
+/// the **seventh** copy in the tree when it was made, not the sixth: the count
+/// this comment used to carry came from
+/// `message_keep_alive_header_validity::validate_param_value`'s list of five and
+/// added one, and the list had not been extended when Alt-Svc's audit wrote the
+/// sixth. **A copy count quoted from a neighbour is a copy count one short.**
 // cite(Server Timing, label: server-timing-param grammar): "server-timing-param = server-timing-param-name OWS "=" OWS server-timing-param-value"
 // cite(Server Timing, label: server-timing-param-name grammar): "server-timing-param-name = token"
 fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Option<String> {
@@ -493,25 +498,17 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
     }
     seen.push(name);
 
-    // `server-timing-param-value = token / quoted-string`. Neither alternative
-    // derives the empty string: `token = 1*tchar`, and the shortest
-    // `quoted-string` is the two DQUOTEs.
-    // cite(Server Timing, label: server-timing-param-value grammar): "server-timing-param-value = token / quoted-string"
-    if value.is_empty() {
-        return Some(format!(
-            "Server-Timing parameter '{}' has an empty value: a server-timing-param-value is a token or a quoted-string, and neither of those is nothing",
-            shown_in_finding(param)
-        ));
-    }
-
-    let text = if value.starts_with('"') {
-        // Where the `quoted-string` ends decides whether anything follows it,
-        // and something following it is the case § 2 has a user agent ignore.
-        // Being told to ignore a thing is not being told one may write it --
-        // the value still has to derive from one of the two alternatives, and
-        // `"abc"x` derives from neither.
-        //
-        // cite(Server Timing § 2): "User agents MUST ignore extraneous characters found after a server-timing-param-value but before the next server-timing-param and before the end of the current server-timing-metric."
+    // Where a leading `quoted-string` ends decides whether anything follows it,
+    // and something following it is the case § 2 has a user agent ignore. Being
+    // told to ignore a thing is not being told one may write it -- the value
+    // still has to derive from one of the two alternatives, and `"abc"x` derives
+    // from neither. Asked here rather than left to the shared reader, which
+    // reports an unbalanced or trailing-content value as one defect: this field
+    // has a sentence about exactly the trailing-content half and says what a
+    // recipient does with it, which the generic message cannot.
+    //
+    // cite(Server Timing § 2): "User agents MUST ignore extraneous characters found after a server-timing-param-value but before the next server-timing-param and before the end of the current server-timing-metric."
+    if value.starts_with('"') {
         let end = quoted_string_end(value).expect("the field value's quoting is balanced");
         if end + 1 != value.len() {
             return Some(format!(
@@ -520,45 +517,50 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
                 shown_in_finding(&value[end + 1..])
             ));
         }
-        // Balanced quoting and nothing after the close still leaves the
-        // interior to judge, and the value a user agent stores is the
-        // unescaped one -- it collects the quoted string with the extract-value
-        // flag set. Those are one call rather than two: `unescape_quoted_string`
-        // opens by asking `validate_quoted_string`, so validating separately
-        // would run the interior walk twice and leave a discarded `Err` behind.
-        // The neighbour records the same fold at the same production.
-        //
-        // **The error arm is a boundary rather than a live finding, and saying
-        // so is the point.** Every value reaching this rule crossed a
-        // `hyper::HeaderValue`, whose own predicate is `b >= 32 && b != 127 ||
-        // b == b'\t'` -- so no octet that could fail the interior walk is in the
-        // string at all: the controls are refused at the door, HTAB and every
-        // `obs-text` octet are admitted by both `qdtext` and `quoted-pair`, an
-        // unescaped DQUOTE before the end was found by `quoted_string_end`
-        // above, and a trailing backslash would have unbalanced the quoting. The
-        // arm stays because the grammar's reader is where the grammar's question
-        // is answered; a rule that decided it by omission would be one capture
-        // format away from being wrong.
-        match unescape_quoted_string(value) {
-            Ok(inner) => Cow::Owned(inner),
-            Err(e) => {
-                return Some(format!(
-                    "Server-Timing parameter '{}' has a malformed quoted-string value: {e}",
-                    shown_in_finding(name)
-                ))
-            }
+    }
+
+    // `server-timing-param-value = token / quoted-string` is the shared reader's
+    // alternation under this document's name for it, so the reading is its and
+    // the three sentences below are this field's. The value a user agent stores
+    // is the unescaped one -- it collects the quoted string with the
+    // extract-value flag set -- which is what the reader returns.
+    //
+    // **The malformed-quoted-string arm is a boundary rather than a live
+    // finding, and saying so is the point.** Every value reaching this rule
+    // crossed a `hyper::HeaderValue`, whose own predicate is `b >= 32 && b != 127
+    // || b == b'\t'` -- so no octet that could fail the interior walk is in the
+    // string at all: the controls are refused at the door, HTAB and every
+    // `obs-text` octet are admitted by both `qdtext` and `quoted-pair`, an
+    // unescaped DQUOTE before the end was found by `quoted_string_end` above, and
+    // a trailing backslash would have unbalanced the quoting. The arm stays
+    // because the grammar's reader is where the grammar's question is answered; a
+    // rule that decided it by omission would be one capture format away from
+    // being wrong.
+    //
+    // cite(Server Timing, label: server-timing-param-value grammar): "server-timing-param-value = token / quoted-string"
+    let text = match token_or_quoted_string(value) {
+        Ok(content) => content,
+        // Neither alternative derives the empty string: `token = 1*tchar`, and
+        // the shortest `quoted-string` is the two DQUOTEs.
+        Err(WordDefect::Empty) => {
+            return Some(format!(
+                "Server-Timing parameter '{}' has an empty value: a server-timing-param-value is a token or a quoted-string, and neither of those is nothing",
+                shown_in_finding(param)
+            ))
         }
-    } else {
-        if let Some(c) = find_invalid_token_char(value) {
+        Err(WordDefect::NotToken(c)) => {
             return Some(format!(
                 "Server-Timing server-timing-param-value '{}' holds {}, and the value is not quoted: a bare value is a token, whose characters are all visible US-ASCII and not delimiters",
                 shown_in_finding(value),
                 describe_char(c)
-            ));
+            ))
         }
-        // A `token` is its own unescaping, so this half borrows where the other
-        // owns.
-        Cow::Borrowed(value)
+        Err(WordDefect::NotQuotedString(e)) => {
+            return Some(format!(
+                "Server-Timing parameter '{}' has a malformed quoted-string value: {e}",
+                shown_in_finding(name)
+            ))
+        }
     };
 
     established_param_advice(metric, name, &text)

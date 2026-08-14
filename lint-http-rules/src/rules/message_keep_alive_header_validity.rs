@@ -4,9 +4,8 @@
 
 use crate::helpers::headers::{
     combined_field_value_as_written, describe_char, is_nominated_by_connection, shown_in_finding,
-    split_commas_respecting_quotes, trim_ows, validate_quoted_string,
+    split_commas_respecting_quotes, token_or_quoted_string, trim_ows, WordDefect,
 };
-use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
 use crate::rules::Rule;
 
@@ -536,58 +535,55 @@ fn validate_keepalive_param(member: &str, max_timeout_seconds: u64) -> Result<()
 ///
 /// The alternation is decided by the first octet, because only one branch of it
 /// can begin with a DQUOTE: `token` excludes that character as a `tspecials`.
+/// That decision, and the two measurements behind it, is
+/// [`token_or_quoted_string`]'s -- **written out seven times in this tree until
+/// P2 gave it a home**, here and in `message_pragma_token_valid`,
+/// `message_cache_control_token_valid`,
+/// `message_accept_header_media_type_syntax`,
+/// `server_alt_svc_header_syntax::check_parameter`,
+/// `server_server_timing_header_syntax::check_param` and privately inside
+/// [`parse_token_bws_word`]. What could not be shared and is not shared is the
+/// wording, and the verdict on an empty value: two of the seven tolerate it on
+/// the record and five do not.
 ///
-/// That decision -- leading DQUOTE means measure a `quoted-string`, otherwise
-/// measure a `token` -- is now written out **five** times: here,
-/// `message_pragma_token_valid`, `message_cache_control_token_valid`,
-/// `message_accept_header_media_type_syntax`, and privately inside
-/// [`parse_token_bws_word`]. The five agree today. They are not converted here
-/// because each carries its own sentence for the empty case and its own wording
-/// for the finding, so a shared version changes what four rules report and is
-/// their own audits' work -- but the divergence is recorded at the site that
-/// created the fifth copy.
+/// This document's `token` and `quoted-string` are RFC 2068's, and the reader's
+/// are RFC 9110's. The seventeen `tspecials` are § 5.6.2's delimiters, both
+/// alphabets stop at US-ASCII, and RFC 2068's own prose licenses the backslash
+/// inside a quoted-string -- which is what RFC 2616 § 2.2 later wrote into the
+/// production and RFC 9110 § 5.6.4 still has. So the two documents' pairs are
+/// the same pair, and the cites below are why that is a reading rather than an
+/// assumption.
 ///
+/// [`token_or_quoted_string`]: crate::helpers::headers::token_or_quoted_string
 /// [`parse_token_bws_word`]: crate::helpers::headers::parse_token_bws_word
 // cite(RFC 2068 § 3.7): "value          = token | quoted-string"
+// cite(RFC 2068 § 2.2): "token          = 1*<any CHAR except CTLs or tspecials>"
+// cite(RFC 2068 § 2.2): "quoted-string  = ( <"> *(qdtext) <"> )"
+// cite(RFC 2068 § 2.2): "The backslash character ("\") may be used as a single-character quoting mechanism only within quoted-string and comment constructs."
 fn validate_param_value(value: &str) -> Result<(), String> {
-    // Neither alternative derives the empty string -- `token` is `1*<...>` and a
-    // `quoted-string` is at least its two DQUOTEs -- so a member ending on its
-    // `=` has a value the grammar cannot generate.
-    let Some(first) = value.chars().next() else {
-        return Err(
+    match token_or_quoted_string(value) {
+        Ok(_) => Ok(()),
+        // Neither alternative derives the empty string -- `token` is `1*<...>`
+        // and a `quoted-string` is at least its two DQUOTEs -- so a member
+        // ending on its `=` has a value the grammar cannot generate. No
+        // sentence in this document tolerates it, so it is a finding here.
+        Err(WordDefect::Empty) => Err(
             "has nothing after its \"=\", and neither a token nor a quoted-string derives the \
              empty string"
                 .into(),
-        );
-    };
-
-    if first == '"' {
-        // This document's production omits `quoted-pair` from the alternation
-        // while its own prose licenses the backslash inside a quoted-string;
-        // the reading here follows the prose, which is what RFC 2616 §2.2
-        // later wrote into the production and what RFC 9110 §5.6.4 still has.
-        // cite(RFC 2068 § 2.2): "quoted-string  = ( <"> *(qdtext) <"> )"
-        // cite(RFC 2068 § 2.2): "The backslash character ("\") may be used as a single-character quoting mechanism only within quoted-string and comment constructs."
-        //
-        // The helper builds its own message and puts the value into it raw. The
-        // only octets a `HeaderValue` can carry that `describe_octet` would have
-        // named are `obs-text`, and those are `qdtext` -- so one reaches a
-        // finding here only inside a quoted-string that is already malformed.
-        // Rendering them is the helper's to fix, at its twenty-odd callers.
-        return validate_quoted_string(value)
-            .map_err(|e| format!("has a value that is not a well-formed quoted-string: {e}"));
-    }
-
-    // The seventeen `tspecials` are RFC 9110 §5.6.2's delimiters and both
-    // alphabets stop at US-ASCII, so the shared `tchar` helper is this
-    // document's `token` under another name and no second copy is written here.
-    // cite(RFC 2068 § 2.2): "token          = 1*<any CHAR except CTLs or tspecials>"
-    match find_invalid_token_char(value) {
-        Some(c) => Err(format!(
+        ),
+        Err(WordDefect::NotToken(c)) => Err(format!(
             "has {} in its value, and a value that is not a quoted-string is a token",
             describe_char(c)
         )),
-        None => Ok(()),
+        // The reader builds this half of its message and puts the value into it
+        // raw. The only octets a `HeaderValue` can carry that `describe_octet`
+        // would have named are `obs-text`, and those are `qdtext` -- so one
+        // reaches a finding here only inside a quoted-string that is already
+        // malformed. Rendering them is the helper's to fix, at its callers.
+        Err(WordDefect::NotQuotedString(e)) => Err(format!(
+            "has a value that is not a well-formed quoted-string: {e}"
+        )),
     }
 }
 
