@@ -57,6 +57,15 @@ pub struct Mailbox {
 pub enum MailboxDefect {
     /// A comma outside every `quoted-string`, `comment` and `angle-addr`.
     ///
+    /// **Found by the reader below and not by a splitter, and that is why there
+    /// is no shared bracket-aware splitter in `helpers::headers`.** The one
+    /// other bracketed member list in the tree — `Link`'s
+    /// `link-value = "<" URI-Reference ">" …` — has a flat, private one, and the
+    /// two cannot be the same function: `comment` names itself, so what a comma
+    /// can hide inside here is balanced and recursive. A flat scanner would
+    /// report `Alice (a, b) <alice@example.com>`, which is one conforming
+    /// mailbox.
+    ///
     /// Kept apart from every other syntax defect because it is the one whose
     /// answer is a *neighbouring production*: the value derives from
     /// `mailbox-list`, which is defined two lines below `mailbox` in the same

@@ -173,17 +173,17 @@ sources:
     snippet: Apply link options from parsed header attributes to options given attribs
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 646
+      line: 656
   - label: message_link_header_validity (2)
     snippet: If attribs["as"] does not exist, then return false.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 647
+      line: 657
   - label: message_link_header_validity (3)
     snippet: To process link headers given a Document doc, a response response, and a "pre-media" or "media" phase
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 645
+      line: 655
   - label: message_refresh_header_syntax_valid
     snippet: 'For meta elements with an http-equiv attribute in the Refresh state, the content attribute must have a value consisting either of:'
     cited_by:
@@ -1106,7 +1106,7 @@ sources:
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 205
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 447
+      line: 457
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 108
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
@@ -1160,7 +1160,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 794
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 728
+      line: 738
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 220
   - label: lint-http-rules/src/helpers/uri.rs (14)
@@ -1474,7 +1474,7 @@ sources:
     snippet: WSP            =  SP / HTAB ; white space
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 171
+      line: 180
 - label: RFC 5322
   url: https://www.rfc-editor.org/rfc/rfc5322.txt
   type: text/plain
@@ -1484,13 +1484,13 @@ sources:
     snippet: quoted-pair = ("\" (VCHAR / WSP)) / obs-qp
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 155
+      line: 164
   - label: lint-http-rules/src/helpers/mailbox.rs (2)
     section: § 3.2.2
     snippet: CFWS = (1*([FWS] comment) [FWS]) / FWS
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 242
+      line: 251
   - label: lint-http-rules/src/helpers/mailbox.rs (3)
     section: § 3.2.2
     snippet: FWS = ([*WSP CRLF] 1*WSP) / obs-FWS
@@ -1502,91 +1502,91 @@ sources:
     snippet: ccontent = ctext / quoted-pair / comment
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 256
+      line: 265
   - label: lint-http-rules/src/helpers/mailbox.rs (5)
     section: § 3.2.2
     snippet: comment = "(" *([FWS] ccontent) [FWS] ")"
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 255
+      line: 264
   - label: lint-http-rules/src/helpers/mailbox.rs (6)
     section: § 3.2.2
     snippet: ctext = %d33-39 / ; Printable US-ASCII %d42-91 / ; characters not including %d93-126 / ; "(", ")", or "\" obs-ctext
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 141
+      line: 150
   - label: lint-http-rules/src/helpers/mailbox.rs (7)
     section: § 3.2.3
     snippet: atext = ALPHA / DIGIT / ; Printable US-ASCII "!" / "#" / ; characters not including "$" / "%" / ; specials. Used for atoms. "&" / "'" / "*" / "+" / "-" / "/" / "=" / "?" / "^" / "_" / "`" / "{" / "|" / "}" / "~"
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 109
+      line: 118
   - label: lint-http-rules/src/helpers/mailbox.rs (8)
     section: § 3.2.3
     snippet: atom = [CFWS] 1*atext [CFWS]
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 458
+      line: 467
   - label: lint-http-rules/src/helpers/mailbox.rs (9)
     section: § 3.2.3
     snippet: dot-atom = [CFWS] dot-atom-text [CFWS]
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 323
+      line: 332
   - label: lint-http-rules/src/helpers/mailbox.rs (10)
     section: § 3.2.3
     snippet: dot-atom-text = 1*atext *("." 1*atext)
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 324
+      line: 333
   - label: lint-http-rules/src/helpers/mailbox.rs (11)
     section: § 3.2.3
     snippet: specials = "(" / ")" / ; Special characters that do "<" / ">" / ; not appear in atext "[" / "]" / ":" / ";" / "@" / "\" / "," / "." / DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 88
+      line: 97
   - label: lint-http-rules/src/helpers/mailbox.rs (12)
     section: § 3.2.4
     snippet: qcontent = qtext / quoted-pair
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 302
+      line: 311
   - label: lint-http-rules/src/helpers/mailbox.rs (13)
     section: § 3.2.4
     snippet: qtext = %d33 / ; Printable US-ASCII %d35-91 / ; characters not including %d93-126 / ; "\" or the quote character obs-qtext
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 135
+      line: 144
   - label: lint-http-rules/src/helpers/mailbox.rs (14)
     section: § 3.2.4
     snippet: quoted-string = [CFWS] DQUOTE *([FWS] qcontent) [FWS] DQUOTE [CFWS]
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 301
+      line: 310
   - label: lint-http-rules/src/helpers/mailbox.rs (15)
     section: § 3.2.5
     snippet: phrase = 1*word / obs-phrase
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 456
+      line: 465
   - label: lint-http-rules/src/helpers/mailbox.rs (16)
     section: § 3.2.5
     snippet: word = atom / quoted-string
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 457
+      line: 466
   - label: lint-http-rules/src/helpers/mailbox.rs (17)
     section: § 3.4
     snippet: angle-addr = [CFWS] "<" addr-spec ">" [CFWS] / obs-angle-addr
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 87
+      line: 96
   - label: lint-http-rules/src/helpers/mailbox.rs (18)
     section: § 3.4
     snippet: display-name = phrase
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 455
+      line: 464
   - label: lint-http-rules/src/helpers/mailbox.rs (19)
     section: § 3.4
     snippet: mailbox = name-addr / addr-spec
@@ -1608,13 +1608,13 @@ sources:
     snippet: name-addr = [display-name] angle-addr
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 86
+      line: 95
   - label: lint-http-rules/src/helpers/mailbox.rs (22)
     section: § 3.4.1
     snippet: An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain.
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 400
+      line: 409
   - label: lint-http-rules/src/helpers/mailbox.rs (23)
     section: § 3.4.1
     snippet: In the dot-atom form, this is interpreted as an Internet domain name (either a host name or a mail exchanger name) as described in [RFC1034], [RFC1035], and [RFC1123].
@@ -1628,37 +1628,37 @@ sources:
     snippet: The locally interpreted string is either a quoted-string or a dot-atom.
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 390
+      line: 399
   - label: lint-http-rules/src/helpers/mailbox.rs (25)
     section: § 3.4.1
     snippet: addr-spec = local-part "@" domain
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 381
+      line: 390
   - label: lint-http-rules/src/helpers/mailbox.rs (26)
     section: § 3.4.1
     snippet: domain = dot-atom / domain-literal / obs-domain
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 383
+      line: 392
   - label: lint-http-rules/src/helpers/mailbox.rs (27)
     section: § 3.4.1
     snippet: domain-literal = [CFWS] "[" *([FWS] dtext) [FWS] "]" [CFWS]
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 363
+      line: 372
   - label: lint-http-rules/src/helpers/mailbox.rs (28)
     section: § 3.4.1
     snippet: dtext = %d33-90 / ; Printable US-ASCII %d94-126 / ; characters not including obs-dtext ; "[", "]", or "\"
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 147
+      line: 156
   - label: lint-http-rules/src/helpers/mailbox.rs (29)
     section: § 3.4.1
     snippet: local-part = dot-atom / quoted-string / obs-local-part
     cited_by:
     - file: lint-http-rules/src/helpers/mailbox.rs
-      line: 382
+      line: 391
   - label: lint-http-rules/src/helpers/mailbox.rs (30)
     section: § 4
     snippet: Though these syntactic forms MUST NOT be generated according to the grammar in section 3, they MUST be accepted and parsed by a conformant receiver.
@@ -3615,7 +3615,7 @@ sources:
     snippet: 'This document uses the Augmented Backus-Naur Form (ABNF) [RFC5234] notation of [RFC7230], including the #rule, and explicitly includes the following rules from it'
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 575
+      line: 585
   - label: message_link_header_validity (2)
     section: § 1.2
     snippet: The requirements regarding conformance and error handling highlighted in [RFC7230], Section 2.5 apply to this document.
@@ -3627,25 +3627,25 @@ sources:
     snippet: Registered relation type names MUST conform to the reg-rel-type rule (see Section 3.3) and MUST be compared character by character in a case-insensitive fashion.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 632
+      line: 642
   - label: message_link_header_validity (4)
     section: § 2.1.2
     snippet: When extension relation types are compared, they MUST be compared as strings (after converting to URIs if serialised in a different format) in a case-insensitive fashion, character by character.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 718
+      line: 728
   - label: message_link_header_validity (5)
     section: § 2.2
     snippet: The names of target attributes SHOULD conform to the token rule, but SHOULD NOT include any of the characters "%", "'", or "*", for portability across serialisations and MUST be compared in a case-insensitive fashion.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 598
+      line: 608
   - label: message_link_header_validity (6)
     section: § 3
     snippet: Individual link-params specify their syntax in terms of the value after any necessary unquoting
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 574
+      line: 584
   - label: message_link_header_validity (7)
     section: § 3
     snippet: 'Link       = #link-value link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )'
@@ -3657,7 +3657,7 @@ sources:
     snippet: Note that any link-param can be generated with values using either the token or the quoted-string syntax; therefore, recipients MUST be able to parse both forms.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 573
+      line: 583
   - label: message_link_header_validity (9)
     section: § 3
     snippet: The Link header field provides a means for serialising one or more links into HTTP headers.
@@ -3669,97 +3669,97 @@ sources:
     snippet: link-param = token BWS [ "=" BWS ( token / quoted-string ) ]
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 572
+      line: 582
   - label: message_link_header_validity (11)
     section: § 3
     snippet: link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 446
+      line: 456
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 507
+      line: 517
   - label: message_link_header_validity (12)
     section: § 3.1
     snippet: Each link-value conveys one target IRI as a URI-Reference (after conversion to one, if necessary; see [RFC3987], Section 3.1) inside angle brackets ("<>").
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 535
+      line: 545
   - label: message_link_header_validity (13)
     section: § 3.3
     snippet: Note that extension relation types are REQUIRED to be absolute URIs in Link header fields and MUST be quoted when they contain characters not allowed in tokens
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 717
+      line: 727
   - label: message_link_header_validity (14)
     section: § 3.3
     snippet: The rel parameter MUST be present but MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 499
+      line: 509
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 663
+      line: 673
   - label: message_link_header_validity (15)
     section: § 3.3
     snippet: The rel parameter can, however, contain multiple link relation types.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 679
+      line: 689
   - label: message_link_header_validity (16)
     section: § 3.3
     snippet: The relation type of a link conveyed in the Link header field is conveyed in the "rel" parameter's value.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 662
+      line: 672
   - label: message_link_header_validity (17)
     section: § 3.3
     snippet: ext-rel-type   = URI ; Section 3 of [RFC3986]
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 716
+      line: 726
   - label: message_link_header_validity (18)
     section: § 3.3
     snippet: reg-rel-type   = LOALPHA *( LOALPHA / DIGIT / "." / "-" )
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 715
+      line: 725
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 761
+      line: 771
   - label: message_link_header_validity (19)
     section: § 3.3
     snippet: relation-type  = reg-rel-type / ext-rel-type
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 714
+      line: 724
   - label: message_link_header_validity (20)
     section: § 3.3
     snippet: relation-type *( 1*SP relation-type )
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 678
+      line: 688
   - label: message_link_header_validity (21)
     section: § 3.4.1
     snippet: The title attribute MUST NOT appear more than once in a given link; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 501
+      line: 511
   - label: message_link_header_validity (22)
     section: § 3.4.1
     snippet: The title* link-param MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 502
+      line: 512
   - label: message_link_header_validity (23)
     section: § 3.4.1
     snippet: The type attribute MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 503
+      line: 513
   - label: message_link_header_validity (24)
     section: § 3.4.1
     snippet: There MUST NOT be more than one media attribute in a link-value; occurrences after the first MUST be ignored by parsers.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 500
+      line: 510
 - label: RFC 8297
   url: https://www.rfc-editor.org/rfc/rfc8297.txt
   type: text/plain
@@ -5563,7 +5563,7 @@ sources:
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 421
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 467
+      line: 477
   - label: lint-http-rules/src/helpers/headers.rs (22)
     section: § 5.6.4
     snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
@@ -6715,7 +6715,7 @@ sources:
     snippet: A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 590
+      line: 600
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 204
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
@@ -6727,7 +6727,7 @@ sources:
     snippet: A sender MUST NOT generate BWS in messages.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
-      line: 589
+      line: 599
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 203
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs

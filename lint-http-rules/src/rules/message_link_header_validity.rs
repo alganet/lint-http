@@ -439,10 +439,20 @@ fn validate_link(value: &str, is_response: bool) -> Result<(), String> {
 /// and it is the finding reported; what the tolerance buys is a splitter that
 /// does not have to know where a member begins.
 ///
-/// Written here rather than beside
-/// [`split_commas_respecting_quotes`](crate::helpers::headers::split_commas_respecting_quotes)
-/// because this is the only field in the tree whose members are bracketed. The
-/// shared answer moves there on the second caller, as `shown_in_finding` did.
+/// **Written here rather than beside
+/// [`split_commas_respecting_quotes`](crate::helpers::headers::split_commas_respecting_quotes),
+/// and that is a decision rather than a deferral.** This is the only field in
+/// the tree whose members are bracketed, and the one other value that carries a
+/// bracketed sub-production — `From`, whose `mailbox` may take the `name-addr`
+/// alternative and its `angle-addr` — cannot use a splitter at all. RFC 5322's
+/// `comment` names itself, so the structure a comma can hide inside there is
+/// balanced and recursive; `helpers::mailbox` steps over quoted strings,
+/// comments and angle brackets with a real reader, and asking a flat
+/// bracket-aware splitter for that answer would be a false-positive generator.
+///
+/// So the shared answer still moves on a second caller, and the candidate that
+/// looked like one is the argument for keeping this private: **two productions
+/// can both bracket something and still need different machines to read it.**
 // cite(RFC 8288 § 3): "link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )"
 // cite(RFC 3986 § 2.2): "sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "=""
 fn split_link_values(s: &str) -> Vec<&str> {

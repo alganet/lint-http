@@ -378,6 +378,10 @@ mod tests {
     #[case("<alice@example.com>")]
     #[case("\"Doe, John\" <john@example.com>")]
     #[case("alice@example.com (Alice)")]
+    // A comma inside a `comment`, which `ctext` admits — and `comment` names
+    // itself, so this is the value that says why the list-separator search here
+    // is a reader and not a bracket-aware splitter.
+    #[case("Alice (a, b) <alice@example.com>")]
     #[case("alice@[192.0.2.1]")]
     #[case("first.last@sub.example.com")]
     fn conforming_mailboxes_are_silent(#[case] from: &str) {
