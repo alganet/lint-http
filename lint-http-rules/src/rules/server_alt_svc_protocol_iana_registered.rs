@@ -113,6 +113,14 @@ fn parse_allowed_config(
 
 /// The `protocol-id` written back out as the octets it stands for.
 ///
+/// **Deliberately not `helpers::uri::decode_unreserved`, and the two must not be
+/// folded.** That function decodes an `unreserved` triplet and leaves every
+/// other one alone, because § 2.4 warns that decoding a delimiter moves the
+/// component boundaries. This one decodes them all, because § 3.1 makes an ALPN
+/// protocol name an opaque octet sequence — there are no components inside it
+/// for a decoded delimiter to bound. One question, two callers, two answers,
+/// each resting on its own sentence.
+///
 /// RFC 7838 § 3 makes the production a percent-*encoding* of the name rather
 /// than the name itself, and its own escaping table is the round trip:
 /// `w%3Dx%3Ay#z` is the ALPN protocol name `w=x:y#z`. So every triplet is

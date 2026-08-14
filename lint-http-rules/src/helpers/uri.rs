@@ -515,6 +515,83 @@ pub fn remove_dot_segments(path: &str) -> String {
     output
 }
 
+/// One URI component with § 6.2.2's two percent-encoding normalizations applied:
+/// every triplet standing for an `unreserved` character written as that
+/// character, and the hexadecimal of every triplet that stays encoded in upper
+/// case.
+///
+/// **Only `unreserved`, and § 2.4 is why.** Decoding a `gen-delims` or a
+/// `sub-delims` octet moves where the component boundaries are — `%2F` inside a
+/// segment is data, and `/` between two segments is not the same thing — so a
+/// caller handing a whole path to a decoder that took every triplet would get
+/// back a string whose structure the sender never wrote. That is the exact
+/// inverse of the decision at
+/// `server_alt_svc_protocol_iana_registered::alpn_protocol_name`, which decodes
+/// **every** triplet because RFC 7301 § 3.1 makes an ALPN protocol name an
+/// opaque octet sequence with no components for a delimiter to bound. One
+/// question, two answers, both cited; the two functions must not be folded.
+///
+/// **The second normalization is free here and required at one caller.** A
+/// triplet this leaves encoded is still put in one form, which is what lets two
+/// authorities that differ only in `%2f` versus `%2F` compare equal. The other
+/// caller compares against a literal made of `unreserved` characters, where a
+/// surviving triplet can never match whatever its case — so applying § 6.2.2.1
+/// cannot change its verdict, and having one function is worth more than having
+/// two that differ by a `format!`.
+///
+/// The walk is over `char`s and not over `str::as_bytes`, because callers hand
+/// this a value carrying one `char` per octet: an octet at or above %x80 is a
+/// single `char` here and two UTF-8 bytes, and a byte walk would take it apart
+/// into two octets that were never on the wire. The two characters after a `%`
+/// are tested for being hexadecimal before they are read as a number, because
+/// `from_str_radix` accepts a leading `+` and no `pct-encoded` does.
+///
+/// **Not part of [`normalize_path_and_query`], which is § 6.2.2's *third*
+/// normalization and named for all of them.** Folding this into it would widen
+/// what every one of that function's callers compares.
+// cite(RFC 3986 § 2.3): "unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~""
+// cite(RFC 3986 § 2.3): "URIs that differ in the replacement of an unreserved character with its corresponding percent-encoded US-ASCII octet are equivalent"
+// cite(RFC 3986 § 6.2.2.2): "These URIs should be normalized by decoding any percent-encoded octet that corresponds to an unreserved character, as described in Section 2.3."
+// cite(RFC 3986 § 6.2.2.1): "For all URIs, the hexadecimal digits within a percent-encoding triplet (e.g., "%3a" versus "%3A") are case-insensitive and therefore should be normalized to use uppercase letters for the digits A-F."
+// cite(RFC 3986 § 2.4): "When a URI is dereferenced, the components and subcomponents significant to the scheme-specific dereferencing process (if any) must be parsed and separated before the percent-encoded octets within those components can be safely decoded, as otherwise the data may be mistaken for component delimiters."
+pub fn decode_unreserved(component: &str) -> String {
+    let chars: Vec<char> = component.chars().collect();
+    let mut out = String::with_capacity(component.len());
+    let mut i = 0;
+
+    while i < chars.len() {
+        let octet = (chars[i] == '%' && i + 2 < chars.len())
+            .then(|| {
+                let hex: String = chars[i + 1..i + 3].iter().collect();
+                hex.chars()
+                    .all(|c| c.is_ascii_hexdigit())
+                    .then(|| u8::from_str_radix(&hex, 16).ok())
+                    .flatten()
+            })
+            .flatten();
+
+        match octet {
+            Some(octet)
+                if octet.is_ascii_alphanumeric() || matches!(octet, b'-' | b'.' | b'_' | b'~') =>
+            {
+                out.push(octet as char);
+                i += 3;
+            }
+            Some(octet) => {
+                out.push('%');
+                out.push_str(&format!("{:02X}", octet));
+                i += 3;
+            }
+            None => {
+                out.push(chars[i]);
+                i += 1;
+            }
+        }
+    }
+
+    out
+}
+
 /// Apply syntax-based normalization to a path-and-query string: dot-segments
 /// go, the query is carried through untouched.
 ///
@@ -815,6 +892,35 @@ pub fn validate_host_and_optional_port(value: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+
+    /// The two normalizations § 6.2.2 asks for on percent-encoding, and the one
+    /// § 2.4 forbids.
+    #[test]
+    fn decode_unreserved_leaves_delimiters_encoded() {
+        // `%2F` is a `gen-delims` octet: decoding it would move a component
+        // boundary, which is the mistake RFC 3986 § 2.4 names.
+        assert_eq!(decode_unreserved("a%2Fb"), "a%2Fb");
+        assert_eq!(decode_unreserved("a%2Cb"), "a%2Cb");
+        // An `unreserved` octet is decoded, in either hexadecimal case.
+        assert_eq!(decode_unreserved("%2Ewell%2dknown"), ".well-known");
+        // A triplet that stays encoded is still put in one form, which is what
+        // lets two authorities differing only in the case of their hexadecimal
+        // compare equal (§ 6.2.2.1).
+        assert_eq!(decode_unreserved("a%2fb"), "a%2Fb");
+        // A truncated or non-hexadecimal run is left exactly as written; whether
+        // it is well formed is another rule's finding.
+        assert_eq!(decode_unreserved("%2"), "%2");
+        assert_eq!(decode_unreserved("%zz"), "%zz");
+        assert_eq!(decode_unreserved("%%41"), "%A");
+        // `from_str_radix` would read this as %x0A; no `pct-encoded` writes a
+        // sign, so the two characters are measured against `HEXDIG` first.
+        assert_eq!(decode_unreserved("%+A"), "%+A");
+        // A captured target read back through `lint` is an arbitrary string:
+        // the two positions after a `%` can be inside a multi-byte code point,
+        // and slicing them would panic.
+        assert_eq!(decode_unreserved("%é4"), "%é4");
+        assert_eq!(decode_unreserved("café"), "café");
+    }
     use super::*;
 
     #[test]
