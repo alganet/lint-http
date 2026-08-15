@@ -4,7 +4,8 @@
 
 use crate::helpers::headers::{describe_char, shown_in_finding};
 use crate::helpers::uri::{
-    extract_path_from_request_target, remove_dot_segments, scheme_authority_marker,
+    extract_path_from_request_target, is_sub_delim, is_unreserved, remove_dot_segments,
+    scheme_authority_marker,
 };
 use crate::lint::Violation;
 use crate::rules::Rule;
@@ -32,22 +33,23 @@ const WELL_KNOWN_SEGMENT: &str = ".well-known";
 /// segments and the other two terminate the path. So the two checks are the
 /// same question asked at two widths, and the neighbour owns the wider one.
 ///
-/// Written privately: nothing else in the tree asks for a `segment-nz` yet, and
-/// the shared answer moves to `helpers::uri` on the second caller.
+/// Still written privately, and the reason has moved: `pchar` has one reader in
+/// the tree, but the two sets it is built out of had five and four, so what went
+/// to `helpers::uri` is [`is_unreserved`] and [`is_sub_delim`] rather than this
+/// function. The line below is now `pchar`'s own alternation and nothing else —
+/// the two shared sets, then the two characters this production adds to them,
+/// then the `%`. A second reader of the whole alphabet moves *this* to the
+/// helper module; a fifth reader of either set changes nothing, because the sets
+/// are already there.
+///
+/// The cardinality is the caller's: `segment-nz = 1*pchar`, and a character-set
+/// predicate is never a floor — the empty name is reported one branch above,
+/// against that `1*`.
 // cite(RFC 3986 § 3.3, label: pchar): "pchar         = unreserved / pct-encoded / sub-delims / ":" / "@""
-// cite(RFC 3986 § 2.3, label: unreserved): "unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~""
-// cite(RFC 3986 § 2.2, label: sub-delims): "sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "=""
 // cite(RFC 3986 § 2.1): "pct-encoded = "%" HEXDIG HEXDIG"
 fn first_non_pchar(name: &str) -> Option<char> {
-    name.chars().find(|c| {
-        !(c.is_ascii_alphanumeric()
-            || matches!(c, '-' | '.' | '_' | '~')
-            || matches!(
-                c,
-                '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '='
-            )
-            || matches!(c, ':' | '@' | '%'))
-    })
+    name.chars()
+        .find(|&c| !(is_unreserved(c) || is_sub_delim(c) || matches!(c, ':' | '@' | '%')))
 }
 
 /// Whether one path segment *is* the reserved segment.
