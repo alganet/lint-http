@@ -5336,6 +5336,8 @@ sources:
       line: 25
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
       line: 21
+    - file: lint-http-rules/src/rules/server_response_426_upgrade.rs
+      line: 77
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.3
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).
@@ -5434,6 +5436,8 @@ sources:
       line: 113
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 82
+    - file: lint-http-rules/src/rules/server_response_426_upgrade.rs
+      line: 126
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 138
   - label: lint-http-rules/src/helpers/headers.rs (12)
@@ -5828,6 +5832,8 @@ sources:
       line: 68
     - file: lint-http-rules/src/rules/server_response_405_allow.rs
       line: 125
+    - file: lint-http-rules/src/rules/server_response_426_upgrade.rs
+      line: 89
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
       line: 169
   - label: lint-http-rules/src/helpers/headers.rs (35)
@@ -7444,6 +7450,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_upgrade_header_syntax_valid.rs
       line: 191
+    - file: lint-http-rules/src/rules/server_response_426_upgrade.rs
+      line: 37
   - label: protocol grammar
     section: § 7.8
     snippet: protocol = protocol-name ["/" protocol-version] protocol-name = token protocol-version = token
@@ -8202,6 +8210,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_response_405_allow.rs
       line: 163
+  - label: server_response_426_upgrade
+    section: § 15.5.22
+    snippet: The 426 (Upgrade Required) status code indicates that the server refuses to perform the request using the current protocol but might be willing to do so after the client upgrades to a different protocol.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_426_upgrade.rs
+      line: 125
+  - label: server_response_426_upgrade (2)
+    section: § 15.5.22
+    snippet: The server MUST send an Upgrade header field in a 426 response to indicate the required protocol(s) (Section 7.8).
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_426_upgrade.rs
+      line: 20
+  - label: server_response_426_upgrade (3)
+    section: § 7.8
+    snippet: A server that sends a 426 (Upgrade Required) response MUST send an Upgrade header field to indicate the acceptable protocols, in order of descending preference.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_response_426_upgrade.rs
+      line: 124
   - label: server_response_location_on_redirect
     section: § 15.4.1
     snippet: For request methods other than HEAD, the server SHOULD generate content in the 300 response containing a list of representation metadata and URI reference(s) from which the user or user agent can choose the one most preferred.
@@ -9512,6 +9538,8 @@ sources:
       line: 160
     - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
       line: 182
+    - file: lint-http-rules/src/rules/server_response_426_upgrade.rs
+      line: 60
   - label: message_connection_upgrade (2)
     section: § 8.2.2
     snippet: This includes the Connection header field and those listed as having connection-specific semantics in Section 7.6.1 of [HTTP] (that is, Proxy-Connection, Keep-Alive, Transfer-Encoding, and Upgrade).
@@ -9866,6 +9894,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
       line: 48
+    - file: lint-http-rules/src/rules/server_response_426_upgrade.rs
+      line: 61
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
       line: 115
   - label: server_no_body_for_1xx_204_304
