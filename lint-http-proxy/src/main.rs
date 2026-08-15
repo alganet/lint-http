@@ -743,6 +743,7 @@ severity = "warn"
             payload_length,
             fin: true,
             rsv: 0,
+            masked: None,
         }
     }
 

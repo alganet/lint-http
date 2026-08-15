@@ -172,6 +172,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.stateful_websocket_frame_masking]
+enabled = true
+severity = "warn"
+
 [rules.stateful_http3_goaway_semantics]
 enabled = true
 severity = "warn"

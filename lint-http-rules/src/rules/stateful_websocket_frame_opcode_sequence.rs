@@ -339,6 +339,7 @@ impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
             payload_length,
             extensions,
             rsv: _,
+            masked: _,
         } = &event.kind
         else {
             return None;
@@ -522,6 +523,7 @@ mod tests {
                 opcode,
                 rsv: 0,
                 extensions: Default::default(),
+                masked: None,
                 payload_length,
             },
         }
