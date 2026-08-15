@@ -198,8 +198,8 @@ impl Rule for MessageKeepAliveHeaderValidity {
          \n\
          - **The field over HTTP/2 and HTTP/3.** Both versions forbid connection-specific fields \
          outright, which is a different finding from a malformed value and belongs to the rules \
-         that own the version. `message_http3_no_connection_header` reports the HTTP/3 half; \
-         nothing in this catalogue reports the HTTP/2 half. The connection-option requirement here \
+         that own the version. `message_no_connection_specific_fields` reports both halves, each \
+         against the version that carried the field section it is in. The connection-option requirement here \
          is gated to HTTP/1.x for the same reason — demanding `Connection: keep-alive` of an \
          HTTP/2 message would be advice to violate RFC 9113 §8.2.2.\
          \n\
@@ -408,7 +408,7 @@ fn judge(
 /// The gate is the message's own version. `Connection` has no meaning in HTTP/2
 /// or HTTP/3 and both forbid the field outright, so asking an HTTP/2 sender for
 /// a connection option would be asking it to violate RFC 9113 §8.2.2 —
-/// `message_http3_no_connection_header` owns the HTTP/3 half of that question.
+/// `message_no_connection_specific_fields` owns that question for both versions.
 // cite(RFC 9110 § 7.6.1): "Keep-Alive (Section 19.7.1 of [RFC2068])"
 fn missing_connection_option(headers: &hyper::HeaderMap, version: &str) -> Option<String> {
     if !crate::http_version::is_major(version, 1) {
