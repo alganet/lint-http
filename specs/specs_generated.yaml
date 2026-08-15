@@ -17,17 +17,17 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2328
+      line: 2338
   - label: lint-http-rules/src/helpers/headers.rs (2)
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2323
+      line: 2333
   - label: lint-http-rules/src/helpers/headers.rs (3)
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2322
+      line: 2332
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -264,7 +264,7 @@ sources:
     snippet: A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2387
+      line: 2409
   - label: message_refresh_header_syntax_valid
     snippet: A code point is found that is not a URL unit.
     cited_by:
@@ -1011,6 +1011,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
       line: 157
+  - label: authority grammar
+    section: § 3.2
+    snippet: authority   = [ userinfo "@" ] host [ ":" port ]
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 2380
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 175
   - label: lint-http-rules/src/helpers/ipv6.rs
     section: § 3.2.2
     snippet: A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]").
@@ -1175,12 +1183,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 210
-  - label: authority grammar
-    section: § 3.2
-    snippet: authority   = [ userinfo "@" ] host [ ":" port ]
-    cited_by:
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 175
   - label: lint-http-rules/src/helpers/uri.rs (18)
     section: § 3.2.1
     snippet: The user information, if present, is followed by a commercial at-sign ("@") that delimits it from the host.
@@ -2072,7 +2074,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2324
+      line: 2334
     - file: lint-http-rules/src/helpers/uri.rs
       line: 292
   - label: lint-http-rules/src/helpers/uri.rs

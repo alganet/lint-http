@@ -120,7 +120,7 @@ impl Rule for MessageAccessControlAllowOriginValid {
                 spec: "Fetch",
                 section: Some("3.2"),
                 url: "https://fetch.spec.whatwg.org/#origin-header",
-                note: "Governing origin syntax: `serialized-origin` has no path component (not even a trailing slash), and `origin-or-null`'s `null` is case-sensitive",
+                note: "Governing origin syntax: `serialized-origin` ends at its authority, so a path (not even a trailing slash), a query or a fragment all disqualify it, and `origin-or-null`'s `null` is case-sensitive",
             },
             crate::rules::SpecRef {
                 spec: "RFC 6454",
@@ -241,10 +241,15 @@ mod tests {
         );
     }
 
+    // § 3.2 terminates an authority at "/", "?" or "#", and a serialized origin
+    // ends where its authority does. Only the first of the three reached this
+    // rule until the shared validator stopped enumerating them by hand.
     #[rstest]
     #[case("https://example.com/")]
     #[case("https://example.com/path")]
-    fn origin_with_path_or_trailing_slash_is_violation(#[case] val: &str) {
+    #[case("https://example.com?x=1")]
+    #[case("https://example.com#frag")]
+    fn origin_with_anything_after_the_authority_is_violation(#[case] val: &str) {
         let rule = MessageAccessControlAllowOriginValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,

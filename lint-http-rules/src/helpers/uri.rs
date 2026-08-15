@@ -1847,6 +1847,22 @@ mod tests {
         // invalid scheme in Origin
         let m = validate_origin_value("1http://example.com").unwrap();
         assert!(m.contains("Invalid scheme"));
+
+        // This function names the path itself, because § 3.2's *first*
+        // terminator is the one an `Origin` sender most plausibly wrote by
+        // accident. The other two are the shared predicate's answer and get its
+        // generic reason — which is what the comment at the delegation says
+        // callers may rely on, and the two messages are asserted here so the
+        // split between them is a decision and not a coincidence.
+        let path = validate_origin_value("https://example.com/p").unwrap();
+        assert_eq!(path, "Origin must not include a path");
+        for after in ["https://example.com?x=1", "https://example.com#frag"] {
+            assert_eq!(
+                validate_origin_value(after).unwrap(),
+                "Origin is not a valid serialized origin",
+                "for {after}"
+            );
+        }
     }
 
     #[test]

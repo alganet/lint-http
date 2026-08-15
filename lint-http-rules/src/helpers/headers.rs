@@ -2316,6 +2316,16 @@ pub fn media_type_subtype_suffix(subtype: &str) -> Option<&str> {
 /// even a bare trailing slash, which a byte-for-byte origin comparison rejects.
 /// This is a conservative validator: it ensures scheme chars, presence of host,
 /// and numeric port (if present). It does not attempt full IDNA or host label validation.
+///
+/// **"Nothing may follow the authority" is § 3.2's sentence, and it names three
+/// characters.** This function used to enumerate one of them — a
+/// `rest.contains('/')` — so `https://example.com?x=1` and
+/// `https://example.com#f` were serialized origins to every caller. The
+/// terminators are not re-enumerated here now:
+/// [`crate::helpers::uri::authority_component`] is where that sentence is read
+/// and cited, and what this function adds is the *grammar's* half — a
+/// serialized-origin ends where its authority does, so any character that
+/// function stopped at is a character the production does not generate.
 // Both callers (Timing-Allow-Origin, Access-Control-Allow-Origin) take their value
 // grammar from Fetch, whose production supplants RFC 6454's. The two agree on the
 // shape checked here — an authority and nothing after it — so both are quoted.
@@ -2332,31 +2342,43 @@ pub fn is_valid_serialized_origin(val: &str) -> bool {
         return false;
     }
 
-    // Split scheme://rest
-    let parts: Vec<&str> = s.splitn(2, "://").collect();
-    if parts.len() != 2 {
+    // The `://` is located rather than split on, because a `://` further along
+    // is data rather than a delimiter: `scheme_authority_marker` is that
+    // question's one answer and argues at its own site why `find("://")` is not.
+    let Some(marker) = crate::helpers::uri::scheme_authority_marker(s) else {
+        return false;
+    };
+    let scheme = &s[..marker];
+
+    // `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )` was written out here
+    // a third time, and `validate_scheme_name`'s own doc comment already counts
+    // the two copies it was extracted from. This one was missed because it sits
+    // in `helpers::headers`, on the shelf keyed by the field rather than by the
+    // question — the same reason the sixteen-bit port predicate was missed.
+    if crate::helpers::uri::validate_scheme_name(scheme).is_err() {
         return false;
     }
-    let scheme = parts[0];
-    let rest = parts[1];
 
-    // Scheme: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) per RFC3986
-    let mut chars = scheme.chars();
-    match chars.next() {
-        Some(c) if c.is_ascii_alphabetic() => (),
-        _ => return false,
-    }
-    if !chars.all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.') {
+    // Where the authority ends is § 3.2's sentence and not this function's; the
+    // grammar above is what makes stopping short of the value's end a defect,
+    // since a serialized-origin is a scheme, a `://` and an authority and
+    // nothing else. Enumerating the terminators here instead is how `?` and `#`
+    // stayed acceptable for as long as `/` did not.
+    let Some(rest) = crate::helpers::uri::authority_component(s) else {
+        return false;
+    };
+    if rest != &s[marker + "://".len()..] {
         return false;
     }
 
-    // rest should be host[:port] and must not contain '/', whitespace or userinfo '@'
-    if rest.is_empty()
-        || rest.contains('/')
-        || rest.contains('\t')
-        || rest.contains(' ')
-        || rest.contains('@')
-    {
+    // An empty authority names no host. Whitespace is not one of § 3.2's
+    // terminators, so it arrives here *inside* the authority and is rejected on
+    // its own; the userinfo is rejected because neither grammar quoted above has
+    // one — `authority = [ userinfo "@" ] host [ ":" port ]` writes the
+    // subcomponent that `serialized-origin = scheme "://" host [ ":" port ]`
+    // leaves out, and the at-sign is the whole difference between them.
+    // cite(RFC 3986 § 3.2, label: authority grammar): "authority   = [ userinfo "@" ] host [ ":" port ]"
+    if rest.is_empty() || rest.contains('\t') || rest.contains(' ') || rest.contains('@') {
         return false;
     }
 
@@ -2657,6 +2679,18 @@ mod tests {
         assert!(!is_valid_serialized_origin("https://example.com/path"));
         assert!(!is_valid_serialized_origin("https://example.com:8080/"));
         assert!(!is_valid_serialized_origin("https://[::1]/path"));
+
+        // § 3.2 ends the authority at three characters and the slash is one of
+        // them. The other two were accepted here until the terminator sentence
+        // stopped being enumerated by hand — and only in the shape below,
+        // because a port or a bracketed literal put the trailing junk in front
+        // of a reader that was already strict about it.
+        assert!(!is_valid_serialized_origin("https://example.com?x=1"));
+        assert!(!is_valid_serialized_origin("https://example.com#frag"));
+        assert!(!is_valid_serialized_origin("https://example.com?"));
+        assert!(!is_valid_serialized_origin("https://example.com#"));
+        assert!(!is_valid_serialized_origin("https://example.com:8080?x=1"));
+        assert!(!is_valid_serialized_origin("https://[::1]#frag"));
 
         assert!(!is_valid_serialized_origin("example.com"));
         assert!(!is_valid_serialized_origin("https:///foo"));
