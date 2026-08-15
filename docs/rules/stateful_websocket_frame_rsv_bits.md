@@ -20,7 +20,7 @@ Reports a WebSocket frame whose RSV1, RSV2 or RSV3 bit is set in a session whose
 
 **Where these findings come from.** The relay reads frames through tokio-tungstenite, whose parser refuses a non-zero reserved bit before the proxy is handed a message, and whose assembled `Message` variants carry no frame header to read one from. So every finding here is reachable through `lint`, over a capture file written by something other than this proxy — which is a reason to say so, not a reason to soften them: a capture is a record of what was on the wire.
 
-**Not reported: what the bits mean when an extension is negotiated.** Whether the accepted extension actually defines the bit that was set, whether the extension was one the client offered, and whether the `Sec-WebSocket-Extensions` value derives from §9.1's `extension-list` grammar are three other questions; the second is `stateful_websocket_handshake_validity`'s.
+**Not reported: what the bits mean when an extension is negotiated.** Whether the accepted extension actually defines the bit that was set, whether the extension was one the client offered, and whether the `Sec-WebSocket-Extensions` value derives from §9.1's `extension-list` grammar are three other questions; the second is `stateful_websocket_handshake_validity`'s and the third is `message_sec_websocket_extensions_syntax`'s.
 
 ## Specifications
 
