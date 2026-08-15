@@ -75,16 +75,17 @@ impl Rule for MessageContentLocationAndUriConsistency {
         }
 
         for hv in vals {
-            // `to_str` admits only visible US-ASCII, which is the range a URI is
-            // written in anyway — every octet outside it must be percent-encoded.
+            // One `char` per octet, which is what the branch above already does
+            // for the joined value. `to_str` stood here and refused every octet
+            // at or above %x80 with the message *"is not valid UTF-8"* — a claim
+            // about an encoding where the truth is about the URI alphabet, and
+            // one that put the octet class most obviously outside that alphabet
+            // beyond the reach of the check that names it. The finding for such
+            // an octet is the alphabet's, below.
             // cite(RFC 9110 § 5.5): "Field values are usually constrained to the range of US-ASCII characters [USASCII]."
-            let Ok(s) = hv.to_str() else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: "Content-Location header value is not valid UTF-8".into(),
-                });
-            };
+            // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+            let value = crate::helpers::headers::field_line_as_written(hv);
+            let s = value.as_str();
 
             // No honest quote for this one, and it is worth saying so. An empty
             // value is a *legal* `partial-URI` — `relative-part` admits
@@ -101,15 +102,28 @@ impl Rule for MessageContentLocationAndUriConsistency {
             }
 
             // What follows validates the value as a URI reference, which is what
-            // the field definition says it is; a URI has no room for whitespace,
-            // and SP is the canonical example of an octet that must be encoded.
+            // the field definition says it is. The alphabet comes first, before
+            // any component question: the union of every component's character
+            // set is a floor and not a ceiling, so a character passing here has
+            // only been found somewhere in the generic syntax.
+            //
+            // **The sentence below was already here and the check under it was
+            // one sixth of it.** `contains_whitespace` found SP, HTAB, CR, LF
+            // and FF; `<`, `>`, `"`, `{`, `}`, `|`, `\`, `^`, `` ` `` and every
+            // octet at or above %x80 are the rest of the characters no URI is
+            // composed from, and each of them was clean in a field whose value
+            // *is* a URI reference.
+            //
             // cite(RFC 9110 § 8.7): "The field value is either an absolute-URI or a partial-URI."
             // cite(RFC 3986 § 2): "A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols."
-            if crate::helpers::uri::contains_whitespace(s) {
+            if let Some(c) = crate::helpers::uri::find_non_uri_char(s) {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
-                    message: "Content-Location header must not contain whitespace".into(),
+                    message: format!(
+                        "Content-Location value holds {}, which no part of a URI is composed from: an octet outside that set is percent-encoded before the reference is formed, or the value is not a URI reference at all",
+                        crate::helpers::headers::describe_char(c)
+                    ),
                 });
             }
 
@@ -239,7 +253,7 @@ impl Rule for MessageContentLocationAndUriConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Content-Location` header values. The value must be a well-formed URI reference (`absolute-URI / partial-URI`) with no whitespace, sound percent-encoding and a valid scheme where one is present, and — since neither alternative of the grammar is a comma-separated list — a message carries at most one `Content-Location` field line (RFC 9110 §5.3).\n\nFor 2xx responses the rule additionally compares the value against the request target, resolving a `partial-URI` against it first as RFC 9110 §8.7 requires (\"after conversion to absolute form\"), so a relative reference that names the target resource is not reported.\n\n**A difference is not a protocol error.** RFC 9110 §8.7 attaches no requirement to a differing `Content-Location`: it means \"the origin server claims that the URI is an identifier for a different resource\", which is exactly what a negotiated variant, a 201 pointing at the created resource, or a POST report is supposed to say. The rule reports the difference as an advisory — `config_example.toml` ships it at `info` — because the claim \"can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP\", so it is worth a human glance and nothing stronger. Raise the severity only if your deployment intends `Content-Location` to always echo the target."
+        "Validate `Content-Location` header values. The value must be a well-formed URI reference (`absolute-URI / partial-URI`) written only with characters a URI is composed from (RFC 3986 §2, which excludes whitespace and the nine visible characters that are not URI characters either — less-than, greater-than, double quote, the two braces, pipe, backslash, caret and backtick — along with every octet at or above %x80), sound percent-encoding and a valid scheme where one is present, and — since neither alternative of the grammar is a comma-separated list — a message carries at most one `Content-Location` field line (RFC 9110 §5.3).\n\nFor 2xx responses the rule additionally compares the value against the request target, resolving a `partial-URI` against it first as RFC 9110 §8.7 requires (\"after conversion to absolute form\"), so a relative reference that names the target resource is not reported.\n\n**A difference is not a protocol error.** RFC 9110 §8.7 attaches no requirement to a differing `Content-Location`: it means \"the origin server claims that the URI is an identifier for a different resource\", which is exactly what a negotiated variant, a 201 pointing at the created resource, or a POST report is supposed to say. The rule reports the difference as an advisory — `config_example.toml` ships it at `info` — because the claim \"can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP\", so it is worth a human glance and nothing stronger. Raise the severity only if your deployment intends `Content-Location` to always echo the target."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -314,7 +328,7 @@ impl Rule for MessageContentLocationAndUriConsistency {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("(contains whitespace)"),
+                label: Some("(holds a character no URI is composed from)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Location: /bad path",
             },
             Example {
@@ -413,23 +427,49 @@ mod tests {
         assert!(v.unwrap().message.contains("Invalid percent-encoding"));
     }
 
-    #[test]
-    fn whitespace_in_value_reports_violation() {
+    /// The space is one of eleven, and the other ten were clean until the check
+    /// stopped being `contains_whitespace`. Each is reported by the character it
+    /// names, so a message asserting the finding cannot pass on the wrong one.
+    #[rstest]
+    #[case(b"/a b", "' '")]
+    #[case(b"/a<b", "'<'")]
+    #[case(b"/a>b", "'>'")]
+    #[case(b"/a\"b", "'\"'")]
+    #[case(b"/a{b", "'{'")]
+    #[case(b"/a}b", "'}'")]
+    #[case(b"/a|b", "'|'")]
+    #[case(b"/a\\b", "'\\'")]
+    #[case(b"/a^b", "'^'")]
+    #[case(b"/a`b", "'`'")]
+    // The octet, not its UTF-8 encoding: writing this case as the Rust string
+    // "/a\u{e9}b" puts %xC3 %xA9 on the wire, and the finding named %xC3.
+    #[case(b"/a\xe9b", "0xE9")]
+    fn a_character_no_uri_is_composed_from_reports_violation(
+        #[case] value: &[u8],
+        #[case] shown: &str,
+    ) {
+        use hyper::header::{HeaderName, HeaderValue};
         let rule = MessageContentLocationAndUriConsistency;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_content_location_and_uri_consistency",
         ]);
-        let tx = crate::test_helpers::make_test_transaction_with_response(
-            200,
-            &[("content-location", "/a b")],
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers.append(
+            HeaderName::from_static("content-location"),
+            HeaderValue::from_bytes(value).expect("a test Content-Location value"),
         );
         let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("must not contain whitespace"));
+        let v = v.unwrap_or_else(|| panic!("expected a violation for {value:?}"));
+        assert!(
+            v.message
+                .contains(&format!("holds {shown}, which no part of a URI")),
+            "{}",
+            v.message
+        );
     }
 
     #[test]

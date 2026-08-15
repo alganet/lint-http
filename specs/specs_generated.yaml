@@ -1018,7 +1018,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 2380
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 175
+      line: 170
   - label: lint-http-rules/src/helpers/ipv6.rs
     section: § 3.2.2
     snippet: A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]").
@@ -1028,7 +1028,7 @@ sources:
     - file: lint-http-rules/src/helpers/ipv6.rs
       line: 68
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1003
+      line: 1019
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 142
   - label: lint-http-rules/src/helpers/ipv6.rs (2)
@@ -1038,17 +1038,19 @@ sources:
     - file: lint-http-rules/src/helpers/ipv6.rs
       line: 69
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1004
+      line: 1020
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 2
     snippet: A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 76
+      line: 71
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 313
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
       line: 109
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 107
+      line: 118
   - label: lint-http-rules/src/helpers/uri.rs (2)
     section: § 2.1
     snippet: A percent-encoded octet is encoded as a character triplet, consisting of the percent character "%" followed by the two hexadecimal digits representing that octet's numeric value.
@@ -1060,7 +1062,7 @@ sources:
     snippet: A percent-encoding mechanism is used to represent a data octet in a component when that octet's corresponding character is outside the allowed set or is being used as a delimiter of, or within, the component.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 77
+      line: 72
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
       line: 108
   - label: lint-http-rules/src/helpers/uri.rs (4)
@@ -1082,7 +1084,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 13
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 124
+      line: 119
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
       line: 49
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
@@ -1094,21 +1096,21 @@ sources:
     snippet: A component's ABNF syntax rule will not use the reserved or gen-delims rule names directly; instead, each syntax rule lists the characters allowed within that component (i.e., not delimiting it), and any of those characters that are also in the reserved set are "reserved" for use as subcomponent delimiters within the component.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 78
+      line: 73
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 123
+      line: 118
   - label: lint-http-rules/src/helpers/uri.rs (8)
     section: § 2.2
     snippet: gen-delims  = ":" / "/" / "?" / "#" / "[" / "]" / "@"
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 122
+      line: 117
   - label: sub-delims
     section: § 2.2
     snippet: sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 107
+      line: 102
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 55
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
@@ -1122,7 +1124,7 @@ sources:
     snippet: URIs that differ in the replacement of an unreserved character with its corresponding percent-encoded US-ASCII octet are equivalent
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 635
+      line: 651
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
       line: 72
   - label: lint-http-rules/src/helpers/uri.rs (10)
@@ -1130,27 +1132,27 @@ sources:
     snippet: percent-encoded octets in the ranges of ALPHA (%41-%5A and %61-%7A), DIGIT (%30-%39), hyphen (%2D), period (%2E), underscore (%5F), or tilde (%7E) should not be created by URI producers and, when found in a URI, should be decoded to their corresponding unreserved characters by URI normalizers
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 722
+      line: 738
   - label: lint-http-rules/src/helpers/uri.rs (11)
     section: § 2.3
     snippet: unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~"
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 93
+      line: 88
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 634
+      line: 650
   - label: lint-http-rules/src/helpers/uri.rs (12)
     section: § 2.4
     snippet: The only exception is for percent-encoded octets corresponding to characters in the unreserved set, which can be decoded at any time.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 721
+      line: 737
   - label: lint-http-rules/src/helpers/uri.rs (13)
     section: § 2.4
     snippet: When a URI is dereferenced, the components and subcomponents significant to the scheme-specific dereferencing process (if any) must be parsed and separated before the percent-encoded octets within those components can be safely decoded, as otherwise the data may be mistaken for component delimiters.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 638
+      line: 654
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
       line: 60
   - label: lint-http-rules/src/helpers/uri.rs (14)
@@ -1158,21 +1160,21 @@ sources:
     snippet: hier-part   = "//" authority path-abempty / path-absolute / path-rootless / path-empty
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 208
+      line: 203
   - label: lint-http-rules/src/helpers/uri.rs (15)
     section: § 3.1
     snippet: Scheme names consist of a sequence of characters beginning with a letter and followed by any combination of letters, digits, plus ("+"), period ("."), or hyphen ("-").
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 901
+      line: 917
   - label: lint-http-rules/src/helpers/uri.rs (16)
     section: § 3.1
     snippet: scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 239
+      line: 234
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 900
+      line: 916
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
       line: 738
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
@@ -1182,47 +1184,47 @@ sources:
     snippet: The authority component is preceded by a double slash ("//") and is terminated by the next slash ("/"), question mark ("?"), or number sign ("#") character, or by the end of the URI.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 210
+      line: 205
   - label: lint-http-rules/src/helpers/uri.rs (18)
     section: § 3.2.1
     snippet: The user information, if present, is followed by a commercial at-sign ("@") that delimits it from the host.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 177
+      line: 172
   - label: lint-http-rules/src/helpers/uri.rs (19)
     section: § 3.2.1
     snippet: userinfo    = *( unreserved / pct-encoded / sub-delims / ":" )
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 176
+      line: 171
   - label: lint-http-rules/src/helpers/uri.rs (20)
     section: § 3.2.2
     snippet: IP-literal = "[" ( IPv6address / IPvFuture  ) "]"
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 933
+      line: 949
   - label: lint-http-rules/src/helpers/uri.rs (21)
     section: § 3.2.2
     snippet: IPvFuture  = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 973
+      line: 989
   - label: host grammar
     section: § 3.2.2
     snippet: host        = IP-literal / IPv4address / reg-name
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 423
+      line: 439
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 929
+      line: 945
   - label: reg-name
     section: § 3.2.2
     snippet: reg-name    = *( unreserved / pct-encoded / sub-delims )
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 211
+      line: 206
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 930
+      line: 946
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
       line: 107
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
@@ -1236,11 +1238,11 @@ sources:
     snippet: The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1005
+      line: 1021
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1046
+      line: 1062
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1072
+      line: 1088
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 51
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
@@ -1252,13 +1254,13 @@ sources:
     snippet: URI producers and normalizers should omit the port component and its ":" delimiter if port is empty or if its value would be the same as that of the scheme's default.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1073
+      line: 1089
   - label: pchar
     section: § 3.3
     snippet: pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 143
+      line: 138
     - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
       line: 105
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
@@ -1268,7 +1270,7 @@ sources:
     snippet: A path segment that contains a colon character (e.g., "this:that") cannot be used as the first segment of a relative-path reference, as it would be mistaken for a scheme name.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 144
+      line: 139
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 91
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
@@ -1278,19 +1280,19 @@ sources:
     snippet: A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 766
+      line: 782
   - label: relative-part
     section: § 4.2
     snippet: relative-part = "//" authority path-abempty / path-absolute / path-noscheme / path-empty
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 209
+      line: 204
   - label: absolute-URI
     section: § 4.3
     snippet: absolute-URI  = scheme ":" hier-part [ "?" query ]
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 207
+      line: 202
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 65
     - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
@@ -1300,43 +1302,43 @@ sources:
     snippet: If the base URI has a defined authority component and an empty path, then return a string consisting of "/" concatenated with the reference's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 738
+      line: 754
   - label: lint-http-rules/src/helpers/uri.rs (27)
     section: § 5.2.3
     snippet: return a string consisting of the reference's path component appended to all but the last segment of the base URI's path
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 742
+      line: 758
   - label: lint-http-rules/src/helpers/uri.rs (28)
     section: § 5.2.4
     snippet: This is done after the path is extracted from a reference, whether or not the path was relative, in order to remove any invalid or extraneous dot-segments prior to forming the target URI.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 554
+      line: 570
   - label: lint-http-rules/src/helpers/uri.rs (29)
     section: § 5.4.2
     snippet: Some applications fail to separate the reference's query and/or fragment components from the path component before merging it with the base path and removing dot-segments.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 720
+      line: 736
   - label: lint-http-rules/src/helpers/uri.rs (30)
     section: § 5.4.2
     snippet: parsers must remove the dot-segments "." and ".." when they are complete components of a path, but not when they are only part of a segment.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 724
+      line: 740
   - label: lint-http-rules/src/helpers/uri.rs (31)
     section: § 6.2.2
     snippet: Syntax-based normalization includes such techniques as case normalization, percent-encoding normalization, and removal of dot-segments.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 719
+      line: 735
   - label: lint-http-rules/src/helpers/uri.rs (32)
     section: § 6.2.2.1
     snippet: For all URIs, the hexadecimal digits within a percent-encoding triplet (e.g., "%3a" versus "%3A") are case-insensitive and therefore should be normalized to use uppercase letters for the digits A-F.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 637
+      line: 653
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 91
   - label: lint-http-rules/src/helpers/uri.rs (33)
@@ -1344,9 +1346,9 @@ sources:
     snippet: The other generic syntax components are assumed to be case-sensitive unless specifically defined otherwise by the scheme (see Section 6.2.3).
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 725
+      line: 741
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 194
+      line: 208
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
       line: 151
   - label: lint-http-rules/src/helpers/uri.rs (34)
@@ -1354,9 +1356,9 @@ sources:
     snippet: the scheme and host are case-insensitive and therefore should be normalized to lowercase
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 424
+      line: 440
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 193
+      line: 207
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 196
   - label: lint-http-rules/src/helpers/uri.rs (35)
@@ -1364,13 +1366,13 @@ sources:
     snippet: These URIs should be normalized by decoding any percent-encoded octet that corresponds to an unreserved character, as described in Section 2.3.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 636
+      line: 652
   - label: lint-http-rules/src/helpers/uri.rs (36)
     section: § 6.2.2.3
     snippet: URI normalizers should remove dot-segments by applying the remove_dot_segments algorithm to the path, as described in Section 5.2.4.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 723
+      line: 739
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
       line: 161
   - label: message_host_and_authority_consistency
@@ -2050,7 +2052,7 @@ sources:
     snippet: Reserved port numbers include values at the edges of each range, e.g., 0, 1023, 1024, etc., which may be used to extend these ranges or the overall port number space in the future.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1048
+      line: 1064
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 93
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
@@ -2060,7 +2062,7 @@ sources:
     snippet: TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1047
+      line: 1063
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 92
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
@@ -2076,13 +2078,13 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 2334
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 292
+      line: 294
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 285
+      line: 287
 - label: RFC 6455
   url: https://www.rfc-editor.org/rfc/rfc6455.txt
   type: text/plain
@@ -5426,6 +5428,8 @@ sources:
       line: 156
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
       line: 248
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 86
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 84
     - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
@@ -5957,7 +5961,7 @@ sources:
     snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 339
+      line: 355
     - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
       line: 111
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
@@ -5967,7 +5971,7 @@ sources:
     snippet: Host = uri-host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1071
+      line: 1087
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 161
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
@@ -5979,7 +5983,7 @@ sources:
     snippet: In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 341
+      line: 357
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 23
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
@@ -5991,7 +5995,7 @@ sources:
     snippet: The "Host" header field in a request provides the host and port information from the target URI, enabling the origin server to distinguish among resources while servicing requests for multiple host names.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 340
+      line: 356
   - label: message_accept_and_content_type_negotiation
     section: § 12.1
     snippet: A user agent cannot rely on proactive negotiation preferences being consistently honored, since the origin server might not implement proactive negotiation for the requested resource or might decide that sending a response that doesn't conform to the user agent's preferences is better than sending a 406 (Not Acceptable) response.
@@ -6503,7 +6507,7 @@ sources:
     - file: lint-http-rules/src/rules/message_content_disposition_token_valid.rs
       line: 151
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 80
+      line: 85
   - label: message_content_encoding_and_type_consistency
     section: § 15.4.5
     snippet: a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates
@@ -6553,31 +6557,31 @@ sources:
     snippet: For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 226
+      line: 240
   - label: message_content_location_and_uri_consistency (3)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its field value refers to a URI that differs from the target URI, then the origin server claims that the URI is an identifier for a different resource corresponding to the enclosed representation.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 225
+      line: 239
   - label: message_content_location_and_uri_consistency (4)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its value refers (after conversion to absolute form) to a URI that is the same as the target URI, then the recipient MAY consider the content to be a current representation of that resource at the time indicated by the message origination date.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 139
+      line: 153
   - label: message_content_location_and_uri_consistency (5)
     section: § 8.7
     snippet: In the latter case (Section 4), the referenced URI is relative to the target URI ([URI], Section 5).
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 166
+      line: 180
   - label: message_content_location_and_uri_consistency (6)
     section: § 8.7
     snippet: Such a claim can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 227
+      line: 241
   - label: message_content_location_and_uri_consistency (7)
     section: § 8.7
     snippet: The "Content-Location" header field references a URI that can be used as an identifier for a specific resource corresponding to the representation in this message's content.
@@ -6589,7 +6593,7 @@ sources:
     snippet: The field value is either an absolute-URI or a partial-URI.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 106
+      line: 117
   - label: message_content_type_iana_registered
     section: § 8.3.1
     snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].
@@ -8967,7 +8971,7 @@ sources:
     snippet: A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 345
+      line: 361
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 77
   - label: request-target forms
@@ -8975,9 +8979,9 @@ sources:
     snippet: request-target = origin-form / absolute-form / authority-form / asterisk-form
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 377
+      line: 393
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 450
+      line: 466
     - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
       line: 13
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
@@ -8987,19 +8991,19 @@ sources:
     snippet: If the request-target is in authority-form, the target URI's authority component is the request-target.  Otherwise, the target URI's authority component is the field value of the Host header field.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 343
+      line: 359
   - label: lint-http-rules/src/helpers/uri.rs (3)
     section: § 3.3
     snippet: If there is no Host header field or if its field value is empty or invalid, the target URI's authority component is empty.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 344
+      line: 360
   - label: lint-http-rules/src/helpers/uri.rs (4)
     section: § 3.3
     snippet: The target URI is the request-target when the request-target is in absolute-form.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 342
+      line: 358
     - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
       line: 86
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
