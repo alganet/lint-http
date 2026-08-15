@@ -47,9 +47,13 @@ impl Rule for MessageEtagSyntax {
             };
 
             let t = s.trim();
-            // `validate_entity_tag` accepts `*` (it is legal in If-Match/If-None-Match
-            // lists), but an ETag value must be an entity-tag, which `*` is not — so
-            // reject it here, before delegating the entity-tag grammar to the helper.
+            // The `*` kept its own branch, and the reason changed. It stood here
+            // because `validate_entity_tag` admitted a `*` -- which no
+            // `entity-tag` generates, and the helper refuses now -- so the branch
+            // is no longer a correction of the helper. It stays because this
+            // finding is worth more than the helper's: `*` is the one non-tag an
+            // `ETag` plausibly holds, written by a server copying the shape of
+            // the conditional fields that do take it.
             // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
             if t == "*" {
                 return Some(Violation {

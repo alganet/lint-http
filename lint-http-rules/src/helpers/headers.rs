@@ -1900,14 +1900,23 @@ pub fn validate_ext_value(val: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Validate an entity-tag (ETag) value. Accepts '*' or an entity-tag
-/// which may be weak (prefix 'W/'). Returns Ok(()) on success or Err(msg) describing the problem.
+/// Validate an entity-tag, which may be weak (prefix `W/`). Returns `Ok(())` on
+/// success or `Err(msg)` describing the problem.
+///
+/// **`*` is not one, and this function used to say it was.** The production has
+/// two parts and neither generates it; the `*` belongs to `If-Match` and
+/// `If-None-Match`, whose own grammars are `"*" / #entity-tag` — an alternation,
+/// so there the `*` is the **whole field value** and never a member of the list.
+/// Accepting it here put it in both places at once, and every caller answered
+/// that the same way: three of the five excluded `*` on the line before calling
+/// (`message_etag_syntax` with a finding of its own, `stateful_range_request_and_caching`
+/// with a `return`), and the two that did not were the two the `*` was
+/// ostensibly for — where it made `If-None-Match: "abc", *` a conforming list.
+/// **A tolerance that every honest caller has to undo is not a tolerance.**
+// cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
 pub fn validate_entity_tag(val: &str) -> Result<(), String> {
     // cite(RFC 9110 § 8.8.3, label: entity-tag grammar): "entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE"
     let s = val.trim();
-    if s == "*" {
-        return Ok(());
-    }
 
     let rest = if let Some(stripped) = s.strip_prefix("W/") {
         stripped
@@ -3134,8 +3143,15 @@ mod tests {
     // Entity-tag helper tests
     #[test]
     fn validate_entity_tag_cases() {
-        assert!(validate_entity_tag("*").is_ok());
+        // The production is `[ weak ] opaque-tag` and neither part generates a
+        // `*`. This asserted the opposite, which is how `If-None-Match: "abc", *`
+        // passed as a conforming list; the `*` is the *other* alternative of the
+        // two conditional fields' own grammars, and each of them decides it on
+        // the whole field value now.
+        assert!(validate_entity_tag("*").is_err());
         assert!(validate_entity_tag("\"abc\"").is_ok());
+        // `etagc` admits the comma, so this is one tag and not two.
+        assert!(validate_entity_tag("\"a,b\"").is_ok());
         assert!(validate_entity_tag("W/\"abc\"").is_ok());
         assert!(validate_entity_tag(" W/\"abc\" ").is_ok()); // leading/trailing whitespace tolerated
         assert!(validate_entity_tag("abc").is_err()); // missing quotes

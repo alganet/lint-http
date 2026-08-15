@@ -17,17 +17,17 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2338
+      line: 2347
   - label: lint-http-rules/src/helpers/headers.rs (2)
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2333
+      line: 2342
   - label: lint-http-rules/src/helpers/headers.rs (3)
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2332
+      line: 2341
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -264,7 +264,7 @@ sources:
     snippet: A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2409
+      line: 2418
   - label: message_refresh_header_syntax_valid
     snippet: A code point is found that is not a URL unit.
     cited_by:
@@ -1016,7 +1016,7 @@ sources:
     snippet: authority   = [ userinfo "@" ] host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2380
+      line: 2389
     - file: lint-http-rules/src/helpers/uri.rs
       line: 170
   - label: lint-http-rules/src/helpers/ipv6.rs
@@ -2074,7 +2074,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2334
+      line: 2343
     - file: lint-http-rules/src/helpers/uri.rs
       line: 294
   - label: lint-http-rules/src/helpers/uri.rs
@@ -5310,6 +5310,10 @@ sources:
       line: 211
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1594
+    - file: lint-http-rules/src/rules/message_if_match_etag_syntax.rs
+      line: 36
+    - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
+      line: 36
     - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
       line: 64
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
@@ -5365,7 +5369,7 @@ sources:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 59
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
-      line: 77
+      line: 81
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 217
     - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
@@ -5391,7 +5395,7 @@ sources:
     snippet: A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2057
+      line: 2066
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 151
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
@@ -5484,6 +5488,10 @@ sources:
       line: 72
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 235
+    - file: lint-http-rules/src/rules/message_if_match_etag_syntax.rs
+      line: 82
+    - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
+      line: 83
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
       line: 406
     - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
@@ -5585,7 +5593,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1168
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1986
+      line: 1995
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 109
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
@@ -5689,7 +5697,7 @@ sources:
     snippet: Parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2276
+      line: 2285
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 155
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
@@ -5701,9 +5709,9 @@ sources:
     snippet: parameter       = parameter-name "=" parameter-value
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1984
+      line: 1993
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2011
+      line: 2020
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 380
   - label: lint-http-rules/src/helpers/headers.rs (29)
@@ -5711,11 +5719,11 @@ sources:
     snippet: parameter-name  = token
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1985
+      line: 1994
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2012
+      line: 2021
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2193
+      line: 2202
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 381
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
@@ -5725,7 +5733,7 @@ sources:
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2207
+      line: 2216
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 382
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
@@ -5741,9 +5749,9 @@ sources:
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1983
+      line: 1992
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2056
+      line: 2065
     - file: lint-http-rules/src/rules/client_expect_header_valid.rs
       line: 379
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
@@ -5813,7 +5821,7 @@ sources:
     snippet: The type and subtype tokens are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2138
+      line: 2147
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
       line: 44
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
@@ -5839,7 +5847,7 @@ sources:
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2157
+      line: 2166
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
       line: 88
   - label: media-type grammar
@@ -5847,7 +5855,7 @@ sources:
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2072
+      line: 2081
     - file: lint-http-rules/src/rules/message_media_type_suffix_validity.rs
       line: 107
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
@@ -5857,7 +5865,7 @@ sources:
     snippet: type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2137
+      line: 2146
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
@@ -5870,13 +5878,25 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 140
+  - label: lint-http-rules/src/helpers/headers.rs (40)
+    section: § 8.8.3
+    snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1916
+    - file: lint-http-rules/src/rules/message_etag_syntax.rs
+      line: 57
+    - file: lint-http-rules/src/rules/message_if_match_etag_syntax.rs
+      line: 54
+    - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
+      line: 55
   - label: entity-tag grammar
     section: § 8.8.3
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1906
-  - label: lint-http-rules/src/helpers/headers.rs (40)
+      line: 1918
+  - label: lint-http-rules/src/helpers/headers.rs (41)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
     cited_by:
@@ -6642,12 +6662,6 @@ sources:
       line: 172
   - label: message_etag_syntax
     section: § 8.8.3
-    snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_etag_syntax.rs
-      line: 53
-  - label: message_etag_syntax (2)
-    section: § 8.8.3
     snippet: The "ETag" field in a response provides the current entity tag for the selected representation, as determined at the conclusion of handling the request.
     cited_by:
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
@@ -6763,7 +6777,15 @@ sources:
     snippet: 'If-Match = "*" / #entity-tag'
     cited_by:
     - file: lint-http-rules/src/rules/message_if_match_etag_syntax.rs
-      line: 47
+      line: 53
+  - label: message_if_match_etag_syntax (2)
+    section: § 8.8.3
+    snippet: etagc      = %x21 / %x23-7E / obs-text ; VCHAR except double quotes, plus obs-text
+    cited_by:
+    - file: lint-http-rules/src/rules/message_if_match_etag_syntax.rs
+      line: 77
+    - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
+      line: 78
   - label: message_if_modified_since_date_format
     section: § 13.1.3
     snippet: If-Modified-Since = HTTP-date
@@ -6787,7 +6809,7 @@ sources:
     snippet: 'If-None-Match = "*" / #entity-tag'
     cited_by:
     - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
-      line: 48
+      line: 54
     - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
       line: 99
   - label: message_if_unmodified_since_date_format
