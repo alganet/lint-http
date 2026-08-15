@@ -17,6 +17,27 @@ pub struct RuleConfig {
 
 /// Parse severity from config for a given rule.
 /// Returns RuleConfig with parsed severity. Fails if severity is not explicitly configured.
+///
+/// **What it costs, exactly.** Two independent lookups of the same rule id:
+/// [`get_rule_severity_required`] and [`get_rule_enabled_required`] each hash
+/// `rule_id` against `Config::rules`, take the value as a table and probe that
+/// table for their own key. Thirteen rules that read this after their gates say
+/// why in the comment placing the call, and word it "several map probes plus a
+/// hash over the rule id" — the hash is two. That is why the call belongs
+/// **after** whatever gate ends the rule: a version comparison or an event-kind
+/// discriminant is a few instructions against this.
+///
+/// **And half of it is answered before the rule runs.** Nothing at lint time
+/// reads [`RuleConfig::enabled`]: `PreparedEngine` partitions the catalogue with
+/// `Config::is_enabled` when it is built, so a disabled rule is never dispatched
+/// and the flag this function returns is discarded at all 174 of its
+/// `check_transaction` / `check_event` call sites. The second lookup is not
+/// dead, though — it is the *presence* check that makes a rule table without
+/// `enabled` an error rather than a default, which is what the two
+/// `validate` defaults want at startup, and they are this function's only other
+/// callers. Splitting the two readings apart would change what an unvalidated
+/// config does at lint time, so it is carried in RULECITES §6 rather than done
+/// here.
 pub fn parse_rule_config(cfg: &crate::config::Config, rule_id: &str) -> anyhow::Result<RuleConfig> {
     let severity = get_rule_severity_required(cfg, rule_id)?;
     let enabled = get_rule_enabled_required(cfg, rule_id)?;

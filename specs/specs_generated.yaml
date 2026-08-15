@@ -4077,25 +4077,25 @@ sources:
     snippet: The extension_data field of the quic_transport_parameters extension defined in [QUIC-TLS] contains the QUIC transport parameters
     cited_by:
     - file: lint-http-rules/src/rules/server_quic_transport_parameters.rs
-      line: 59
+      line: 58
   - label: server_quic_transport_parameters (2)
     section: § 18.2
     snippet: Idle timeout is disabled when both endpoints omit this transport parameter or specify a value of 0.
     cited_by:
     - file: lint-http-rules/src/rules/server_quic_transport_parameters.rs
-      line: 141
+      line: 147
   - label: server_quic_transport_parameters (3)
     section: § 18.2
     snippet: the initial flow control limit for locally initiated bidirectional streams
     cited_by:
     - file: lint-http-rules/src/rules/server_quic_transport_parameters.rs
-      line: 99
+      line: 105
   - label: server_quic_transport_parameters (4)
     section: § 18.2
     snippet: the initial value for the maximum amount of data that can be sent on the connection
     cited_by:
     - file: lint-http-rules/src/rules/server_quic_transport_parameters.rs
-      line: 84
+      line: 90
 - label: RFC 9110
   url: https://www.rfc-editor.org/rfc/rfc9110.txt
   type: text/plain
@@ -4703,7 +4703,7 @@ sources:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 233
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 93
+      line: 97
   - label: client_request_target_form_checks (3)
     section: § 7.1
     snippet: For historical reasons, the parsed target URI components, collectively referred to as the "request target", are sent within the message control data and the Host header field
@@ -4729,7 +4729,7 @@ sources:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 234
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 94
+      line: 98
   - label: client_request_target_form_checks (6)
     section: § 7.1
     snippet: This reconstruction is specific to each major protocol version.
@@ -4981,7 +4981,7 @@ sources:
     - file: lint-http-proxy/src/proxy/websocket.rs
       line: 144
     - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
-      line: 58
+      line: 63
     - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
       line: 54
   - label: lint-http-rules/src/helpers/accept_ranges.rs
@@ -9605,7 +9605,7 @@ sources:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 125
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 51
+      line: 49
   - label: lint-http-proxy/src/h3_instrument.rs (3)
     section: § 7.2.6
     snippet: The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint.
@@ -9613,7 +9613,7 @@ sources:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 131
     - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
-      line: 33
+      line: 51
   - label: lint-http-proxy/src/h3_instrument.rs (4)
     section: § 7.2.7
     snippet: The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate.
@@ -9621,7 +9621,7 @@ sources:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 128
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
-      line: 36
+      line: 34
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs
     section: § 4.3.2
     snippet: HTTP/3 does not define a way to carry the version or reason phrase that is included in an HTTP/1.1 status line.
@@ -9641,7 +9641,7 @@ sources:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
       line: 63
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 178
+      line: 182
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 162
   - label: message_extension_headers_registered
@@ -9675,7 +9675,7 @@ sources:
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 269
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 122
+      line: 126
   - label: message_host_and_authority_consistency (3)
     section: § 4.3.1
     snippet: If these fields are present, they MUST NOT be empty.
@@ -9687,51 +9687,51 @@ sources:
     snippet: An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/3 endpoints as malformed.
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 78
+      line: 82
   - label: message_http3_no_connection_header (2)
     section: § 4.2
     snippet: HTTP/3 does not use the Connection header field to indicate connection-specific fields; in this protocol, connection-specific metadata is conveyed by other means.
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 48
+      line: 47
   - label: message_http3_no_connection_header (3)
     section: § 4.2
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers".
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 95
+      line: 99
     - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 196
+      line: 200
   - label: message_http3_pseudo_headers_validity
     section: § 4.3.1
     snippet: All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4.
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 38
+      line: 42
   - label: message_http3_pseudo_headers_validity (2)
     section: § 4.3.1
     snippet: This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of / (ASCII 0x2f).
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 107
+      line: 111
   - label: message_http3_pseudo_headers_validity (3)
     section: § 4.3.2
     snippet: For responses, a single ":status" pseudo-header field is defined that carries the HTTP status code; see Section 15 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 153
+      line: 157
   - label: message_http3_pseudo_headers_validity (4)
     section: § 4.3.2
     snippet: This pseudo-header field MUST be included in all responses; otherwise, the response is malformed (see Section 4.1.2).
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 154
+      line: 158
   - label: message_http3_pseudo_headers_validity (5)
     section: § 4.4
     snippet: The :authority pseudo-header field contains the host and port to connect to
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 54
+      line: 58
   - label: server_alt_svc_h3_advertisement_valid
     section: § 3.1.1
     snippet: An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token.
@@ -9743,7 +9743,7 @@ sources:
     snippet: HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/server_http3_status_code_validity.rs
-      line: 43
+      line: 48
     - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
       line: 115
   - label: server_no_body_for_1xx_204_304
@@ -9763,59 +9763,59 @@ sources:
     snippet: HTTP/3 does not use server-initiated bidirectional streams
     cited_by:
     - file: lint-http-rules/src/rules/server_quic_transport_parameters.rs
-      line: 100
+      line: 106
   - label: server_quic_transport_parameters (2)
     section: § 6.1
     snippet: In order to permit these streams to open, an HTTP/3 server SHOULD configure non-zero minimum values for the number of permitted streams and the initial stream flow-control window.
     cited_by:
     - file: lint-http-rules/src/rules/server_quic_transport_parameters.rs
-      line: 69
+      line: 75
     - file: lint-http-rules/src/rules/server_quic_transport_parameters.rs
-      line: 114
+      line: 120
   - label: server_quic_transport_parameters (3)
     section: § 6.2
     snippet: Endpoints that excessively restrict the number of streams or the flow-control window of these streams will increase the chance that the remote peer reaches the limit early and becomes blocked.
     cited_by:
     - file: lint-http-rules/src/rules/server_quic_transport_parameters.rs
-      line: 127
+      line: 133
   - label: stateful_http3_goaway_semantics
     section: § 5.2
     snippet: Endpoints MUST NOT initiate new requests or promise new pushes on the connection after receipt of a GOAWAY frame from the peer.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
-      line: 96
+      line: 110
   - label: stateful_http3_goaway_semantics (2)
     section: § 5.2
     snippet: Receiving a GOAWAY containing a larger identifier than previously received MUST be treated as a connection error of type H3_ID_ERROR.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
-      line: 57
+      line: 75
   - label: stateful_http3_goaway_semantics (3)
     section: § 5.2
     snippet: The server sends a client-initiated bidirectional stream ID; the client sends a push ID.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
-      line: 50
+      line: 68
     - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
-      line: 89
+      line: 103
   - label: stateful_http3_max_push_id
     section: § 7.2.7
     snippet: A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
-      line: 62
+      line: 66
   - label: stateful_http3_max_push_id (2)
     section: § 7.2.7
     snippet: A server MUST NOT send a MAX_PUSH_ID frame.  A client MUST treat the receipt of a MAX_PUSH_ID frame as a connection error of type H3_FRAME_UNEXPECTED.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
-      line: 46
+      line: 50
   - label: stateful_http3_max_push_id (3)
     section: § 7.2.7
     snippet: The maximum push ID is unset when an HTTP/3 connection is created, meaning that a server cannot push until it receives a MAX_PUSH_ID frame
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
-      line: 93
+      line: 97
   - label: stateful_http3_settings_frame
     section: § 11.2.2
     snippet: The entries in Table 3 are registered by this document
@@ -9827,31 +9827,31 @@ sources:
     snippet: A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 68
+      line: 73
   - label: stateful_http3_settings_frame (3)
     section: § 7.2.4
     snippet: An implementation MUST ignore any parameter with an identifier it does not understand
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 127
+      line: 132
   - label: stateful_http3_settings_frame (4)
     section: § 7.2.4
     snippet: SETTINGS frames always apply to an entire HTTP/3 connection, never a single stream
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 62
+      line: 67
   - label: stateful_http3_settings_frame (5)
     section: § 7.2.4
     snippet: The same setting identifier MUST NOT occur more than once in the SETTINGS frame
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 110
+      line: 115
   - label: stateful_http3_settings_frame (6)
     section: § 7.2.4.1
     snippet: These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR
     cited_by:
     - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 91
+      line: 96
 - label: RFC 9218
   url: https://www.rfc-editor.org/rfc/rfc9218.txt
   type: text/plain

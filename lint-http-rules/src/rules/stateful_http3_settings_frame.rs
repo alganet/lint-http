@@ -44,8 +44,6 @@ impl ProtocolRule for StatefulHttp3SettingsFrame {
         history: &ProtocolEventHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // The event this rule recognizes is the SETTINGS frame itself; every
         // other protocol event is out of scope.
         // cite(RFC 9114 § 7.2.4): "The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate"
@@ -56,6 +54,13 @@ impl ProtocolRule for StatefulHttp3SettingsFrame {
             } => (settings, *direction),
             _ => return None,
         };
+
+        // Read after the match, not before it. `lint_protocol_event` hands every
+        // enabled protocol rule every event on the connection, so this
+        // discriminant is the rule's whole scope and it ends the rule for all but
+        // one frame type; `parse_rule_config` looks the rule id up twice (its doc
+        // comment costs it).
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         // Scanning the whole connection history — rather than a single stream —
         // is what makes a second SETTINGS visible at all.

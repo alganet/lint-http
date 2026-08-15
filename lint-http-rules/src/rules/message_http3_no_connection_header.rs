@@ -39,7 +39,6 @@ impl Rule for MessageHttp3NoConnectionHeader {
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to HTTP/3 transactions. Scoping cite: HTTP/3's field model
         // is why this rule exists. (The previous cite here — the *intermediary*
         // MUST-remove sentence — did not govern this request version gate; it is
@@ -50,6 +49,11 @@ impl Rule for MessageHttp3NoConnectionHeader {
         if !crate::http_version::is_major(&tx.request.version, 3) {
             return None;
         }
+
+        // Read after the gate, not before it: one digit comparison ends the rule
+        // for every message that is not HTTP/3, and `parse_rule_config` looks the
+        // rule id up twice (its doc comment costs it).
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         // Check request headers.
         if let Some(msg) = check_forbidden_headers(&tx.request.headers) {

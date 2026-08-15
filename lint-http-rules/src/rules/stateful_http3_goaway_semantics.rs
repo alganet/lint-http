@@ -29,7 +29,25 @@ impl ProtocolRule for StatefulHttp3GoawaySemantics {
         history: &ProtocolEventHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // The configuration is read when a finding is built, not on entry. The
+        // other six rules of this family have one gate apiece and read it after
+        // that gate; this one dispatches on the event kind into two arms, and
+        // inside each the finding is a comparison against the history — so the
+        // last point at which nothing is decided yet is the branch that reports.
+        // Every enabled protocol rule sees every event on the connection, and
+        // `parse_rule_config` looks the rule id up twice (its doc comment costs
+        // it). Written once here rather than at both report sites: `?` inside the
+        // closure ends the closure, and returning its `None` is what the two
+        // sites do with it.
+        let report = |message: String| -> Option<Violation> {
+            Some(Violation {
+                rule: self.id().into(),
+                severity: crate::rules::parse_rule_config(cfg, self.id())
+                    .ok()?
+                    .severity,
+                message,
+            })
+        };
         // cite(RFC 9114 § 7.2.6): "The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint."
         match &event.kind {
             // RFC 9114 §5.2: the identifier in a GOAWAY frame MUST NOT
@@ -57,15 +75,11 @@ impl ProtocolRule for StatefulHttp3GoawaySemantics {
                         // cite(RFC 9114 § 5.2): "Receiving a GOAWAY containing a larger identifier than previously received MUST be treated as a connection error of type H3_ID_ERROR."
                         if let (Some(curr), Some(prev)) = (current_id, prev_id) {
                             if curr > prev {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "HTTP/3 GOAWAY identifier {} increased from previous {} \
-                                         (RFC 9114 §5.2)",
-                                        curr, prev
-                                    ),
-                                });
+                                return report(format!(
+                                    "HTTP/3 GOAWAY identifier {} increased from previous {} \
+                                     (RFC 9114 §5.2)",
+                                    curr, prev
+                                ));
                             }
                         }
                         break; // Only check the most recent prior same-sender GOAWAY
@@ -96,15 +110,11 @@ impl ProtocolRule for StatefulHttp3GoawaySemantics {
                         // cite(RFC 9114 § 5.2): "Endpoints MUST NOT initiate new requests or promise new pushes on the connection after receipt of a GOAWAY frame from the peer."
                         if let Some(goaway_id) = goaway_id {
                             if stream_id > goaway_id {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!(
-                                        "HTTP/3 stream {} opened after server GOAWAY with last \
-                                         stream ID {} (RFC 9114 §5.2)",
-                                        stream_id, goaway_id
-                                    ),
-                                });
+                                return report(format!(
+                                    "HTTP/3 stream {} opened after server GOAWAY with last \
+                                     stream ID {} (RFC 9114 §5.2)",
+                                    stream_id, goaway_id
+                                ));
                             }
                         }
                         break; // Only the most recent server GOAWAY sets the limit
@@ -217,6 +227,54 @@ mod tests {
 
     fn make_stream_opened(conn: Uuid, stream_id: u64) -> ProtocolEvent {
         make_event(conn, ProtocolEventKind::H3StreamOpened { stream_id })
+    }
+
+    /// A rule table carrying `enabled` and no `severity`: `parse_rule_config`
+    /// fails on it, and the two report sites turn that into silence.
+    fn make_config_without_severity() -> crate::config::Config {
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        cfg.rules.insert(
+            "stateful_http3_goaway_semantics".to_string(),
+            toml::Value::Table(table),
+        );
+        cfg
+    }
+
+    /// The configuration is read where the finding is built, not on entry — the
+    /// only one of this family's seven rules where that is a closure rather than
+    /// a moved statement, so it is the only one whose ordering a test can see.
+    /// The other six are held by the borrow checker: the binding has to precede
+    /// its uses. What this pins is the `?`, which is what keeps an unreadable
+    /// configuration silencing the rule rather than defaulting a severity for
+    /// it.
+    #[rstest::rstest]
+    #[case::the_goaway_arm(Some(4), 10, None)]
+    #[case::the_stream_opened_arm(Some(4), 0, Some(10))]
+    fn an_unreadable_configuration_silences_both_arms(
+        #[case] prior_id: Option<u64>,
+        #[case] goaway_id: u64,
+        #[case] opened_stream: Option<u64>,
+    ) {
+        let rule = StatefulHttp3GoawaySemantics;
+        let conn = Uuid::new_v4();
+        let (history, evt) = match opened_stream {
+            None => (
+                ProtocolEventHistory::new(vec![make_goaway(conn, prior_id)]),
+                make_goaway(conn, Some(goaway_id)),
+            ),
+            Some(stream_id) => (
+                ProtocolEventHistory::new(vec![make_server_goaway(conn, Some(goaway_id))]),
+                make_stream_opened(conn, stream_id),
+            ),
+        };
+
+        // The same traffic under a readable configuration is a finding.
+        assert!(rule.check_event(&evt, &history, &make_config()).is_some());
+        assert!(rule
+            .check_event(&evt, &history, &make_config_without_severity())
+            .is_none());
     }
 
     // ── GOAWAY stream ID must not increase ──────────────────────────────

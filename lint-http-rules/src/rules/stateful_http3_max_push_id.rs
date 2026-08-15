@@ -29,8 +29,6 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
         history: &ProtocolEventHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // The event this rule recognizes is the MAX_PUSH_ID frame itself; every
         // other protocol event is out of scope.
         // cite(RFC 9114 § 7.2.7): "The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate."
@@ -38,6 +36,12 @@ impl ProtocolRule for StatefulHttp3MaxPushId {
             ProtocolEventKind::H3MaxPushId { push_id, direction } => (*push_id, *direction),
             _ => return None,
         };
+
+        // Read after the match, not before it: every protocol rule sees every
+        // event on the connection, so this discriminant ends the rule for all but
+        // one frame type, and `parse_rule_config` looks the rule id up twice (its
+        // doc comment costs it).
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         // MAX_PUSH_ID is a client-only frame: a server sending one at all is the
         // violation, whatever its value. This became checkable once the upstream
