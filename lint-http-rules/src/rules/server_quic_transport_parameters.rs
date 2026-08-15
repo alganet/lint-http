@@ -475,6 +475,7 @@ mod tests {
                 opcode: 1,
                 rsv: 0,
                 extensions: Default::default(),
+                masked: None,
                 payload_length: 10,
             },
         };

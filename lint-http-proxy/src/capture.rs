@@ -716,6 +716,7 @@ mod tests {
             payload_length: 5,
             fin: true,
             rsv: 0,
+            masked: None,
         });
         session.duration_ms = 100;
         session.close_code = Some(1000);
@@ -753,6 +754,7 @@ mod tests {
             payload_length: 5,
             fin: true,
             rsv: 0,
+            masked: None,
         });
 
         // Write a transaction, then a websocket_session, then another transaction

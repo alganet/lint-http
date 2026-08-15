@@ -125,6 +125,7 @@ mod tests {
                 opcode: 1,
                 rsv: 0,
                 extensions: crate::protocol_event::NegotiatedExtensions::Unrecorded,
+                masked: None,
                 payload_length: 10,
             },
         }

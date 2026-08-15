@@ -123,6 +123,14 @@ pub enum ProtocolEventKind {
         /// and not two.
         #[serde(default)]
         extensions: NegotiatedExtensions,
+        /// The MASK bit, when the record holds one. `None` is *not recorded* --
+        /// an assembled message has no frame header to read it from, and every
+        /// event written before this field existed reads back as it -- and
+        /// never *not masked*, which is the value RFC 6455 § 5.1 makes a
+        /// client's defect. Only the raw frame path can answer this, so a rule
+        /// asking it must treat the absent case as no evidence.
+        #[serde(default)]
+        masked: Option<bool>,
     },
 
     // ── HTTP/3 connection-level ────────────────────────────────────────
@@ -313,6 +321,7 @@ mod tests {
             opcode: 1,
             rsv: 0,
             extensions: NegotiatedExtensions::Unrecorded,
+            masked: None,
             payload_length: 42,
         });
         let json = serde_json::to_string(&evt).unwrap();

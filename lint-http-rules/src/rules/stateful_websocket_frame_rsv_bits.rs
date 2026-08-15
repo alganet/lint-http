@@ -232,6 +232,7 @@ mod tests {
                 rsv,
                 payload_length: 3,
                 extensions,
+                masked: None,
             },
         }
     }

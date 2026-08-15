@@ -526,21 +526,27 @@ fn message_to_info(
     // its own line out of it.
     //
     // cite(RFC 6455 § 5.2): "%x0 denotes a continuation frame * %x1 denotes a text frame * %x2 denotes a binary frame * %x3-7 are reserved for further non-control frames * %x8 denotes a connection close * %x9 denotes a ping * %xA denotes a pong"
-    let (opcode, payload_length, fin, rsv) = match msg {
+    let (opcode, payload_length, fin, rsv, masked) = match msg {
         // Assembled messages: tungstenite has already defragmented, so FIN is
-        // implicitly true and RSV bits are not available.
-        tokio_tungstenite::tungstenite::Message::Text(s) => (1, s.len() as u64, true, 0u8),
-        tokio_tungstenite::tungstenite::Message::Binary(b) => (2, b.len() as u64, true, 0),
-        tokio_tungstenite::tungstenite::Message::Ping(b) => (9, b.len() as u64, true, 0),
-        tokio_tungstenite::tungstenite::Message::Pong(b) => (10, b.len() as u64, true, 0),
+        // implicitly true and the RSV and MASK bits are not available. `None`
+        // is the honest record for the mask -- an assembled message has no
+        // header, and *not recorded* is not *not masked*, which is the value
+        // RFC 6455 § 5.1 makes a client's defect.
+        tokio_tungstenite::tungstenite::Message::Text(s) => (1, s.len() as u64, true, 0u8, None),
+        tokio_tungstenite::tungstenite::Message::Binary(b) => (2, b.len() as u64, true, 0, None),
+        tokio_tungstenite::tungstenite::Message::Ping(b) => (9, b.len() as u64, true, 0, None),
+        tokio_tungstenite::tungstenite::Message::Pong(b) => (10, b.len() as u64, true, 0, None),
         tokio_tungstenite::tungstenite::Message::Close(frame) => {
             let len = frame
                 .as_ref()
                 .map(|f| 2 + f.reason.len() as u64)
                 .unwrap_or(0);
-            (8, len, true, 0)
+            (8, len, true, 0, None)
         }
-        // Raw Frame variant: extract actual FIN and RSV bits from header.
+        // Raw Frame variant: the header is there, so FIN, the RSV bits and the
+        // MASK bit are all read from it. `is_masked` is the bit rather than the
+        // key: § 5.2 defines the bit as *whether the payload data is masked*,
+        // and a key is present exactly when it is set.
         tokio_tungstenite::tungstenite::Message::Frame(f) => {
             let hdr = f.header();
             let rsv_bits = ((hdr.rsv1 as u8) << 2) | ((hdr.rsv2 as u8) << 1) | (hdr.rsv3 as u8);
@@ -549,6 +555,7 @@ fn message_to_info(
                 f.payload().len() as u64,
                 hdr.is_final,
                 rsv_bits,
+                Some(hdr.mask.is_some()),
             )
         }
     };
@@ -558,6 +565,7 @@ fn message_to_info(
         payload_length,
         fin,
         rsv,
+        masked,
     }
 }
 
@@ -573,6 +581,49 @@ mod tests {
     use std::sync::Arc as StdArc;
     use tokio::time::Instant;
     use uuid::Uuid;
+
+    /// The MASK bit reaches the event only from the raw frame path, and an
+    /// assembled message records `None` rather than `false`.
+    ///
+    /// The distinction is the whole of `stateful_websocket_frame_masking`'s
+    /// decline: `false` is RFC 6455 § 5.1's finding against a client, and an
+    /// assembled `Text` has no header to have read it from.
+    #[test]
+    fn message_to_info_records_the_mask_bit_only_where_a_header_carried_one() {
+        use crate::websocket_session::MessageDirection;
+        use tokio_tungstenite::tungstenite::protocol::frame::{
+            coding::{Data, OpCode},
+            Frame, FrameHeader,
+        };
+        use tokio_tungstenite::tungstenite::Message;
+
+        let assembled = message_to_info(&Message::text("hi"), MessageDirection::Client);
+        assert_eq!(assembled.masked, None, "an assembled message has no header");
+
+        let header = FrameHeader {
+            is_final: true,
+            opcode: OpCode::Data(Data::Text),
+            mask: Some([1, 2, 3, 4]),
+            ..Default::default()
+        };
+        let masked = message_to_info(
+            &Message::Frame(Frame::from_payload(header, b"hi"[..].into())),
+            MessageDirection::Client,
+        );
+        assert_eq!(masked.masked, Some(true));
+
+        let header = FrameHeader {
+            is_final: true,
+            opcode: OpCode::Data(Data::Text),
+            mask: None,
+            ..Default::default()
+        };
+        let unmasked = message_to_info(
+            &Message::Frame(Frame::from_payload(header, b"hi"[..].into())),
+            MessageDirection::Client,
+        );
+        assert_eq!(unmasked.masked, Some(false));
+    }
 
     /// The one line that turns a `101` into the fact a frame rule reads.
     ///

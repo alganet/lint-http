@@ -2267,6 +2267,30 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 84
+  - label: stateful_websocket_frame_masking
+    section: § 5.1
+    snippet: A client MUST close a connection if it detects a masked frame.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_masking.rs
+      line: 74
+  - label: stateful_websocket_frame_masking (2)
+    section: § 5.1
+    snippet: A server MUST NOT mask any frames that it sends to the client.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_masking.rs
+      line: 61
+  - label: stateful_websocket_frame_masking (3)
+    section: § 5.1
+    snippet: The server MUST close the connection upon receiving a frame that is not masked.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_masking.rs
+      line: 68
+  - label: stateful_websocket_frame_masking (4)
+    section: § 5.1
+    snippet: To avoid confusing network intermediaries (such as intercepting proxies) and for security reasons that are further discussed in Section 10.3, a client MUST mask all frames that it sends to the server (see Section 5.3 for further details).
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_websocket_frame_masking.rs
+      line: 60
   - label: stateful_websocket_frame_opcode_sequence
     section: § 11.8
     snippet: The opcode is an integer number between 0 and 15, inclusive.

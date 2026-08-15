@@ -36,6 +36,13 @@ pub struct WebSocketMessageInfo {
     /// RSV3=bit 0).  Zero when unavailable.
     #[serde(default)]
     pub rsv: u8,
+    /// The MASK bit, when it could be read: only the raw `Frame` variant
+    /// carries a header, so an assembled message records `None`. **Not
+    /// recorded is never *not masked*** — the second is RFC 6455 § 5.1's
+    /// finding against a client, and every record written before this field
+    /// existed would have become one.
+    #[serde(default)]
+    pub masked: Option<bool>,
 }
 
 fn default_fin() -> bool {
@@ -71,6 +78,7 @@ impl WebSocketMessageInfo {
                 rsv: self.rsv,
                 payload_length: self.payload_length,
                 extensions: extensions.clone(),
+                masked: self.masked,
             },
         }
     }
@@ -169,6 +177,7 @@ mod tests {
             payload_length: 13,
             fin: true,
             rsv: 0,
+            masked: None,
         });
         session.messages.push(WebSocketMessageInfo {
             direction: MessageDirection::Server,
@@ -176,6 +185,7 @@ mod tests {
             payload_length: 42,
             fin: true,
             rsv: 0,
+            masked: None,
         });
         session.messages.push(WebSocketMessageInfo {
             direction: MessageDirection::Client,
@@ -183,6 +193,7 @@ mod tests {
             payload_length: 2,
             fin: true,
             rsv: 0,
+            masked: None,
         });
         session.close_code = Some(1000);
         session.duration_ms = 150;
@@ -213,6 +224,7 @@ mod tests {
             payload_length: 100,
             fin: true,
             rsv: 0,
+            masked: None,
         };
         let v: serde_json::Value = serde_json::to_value(&msg).unwrap();
         assert_eq!(v["direction"].as_str(), Some("server"));
