@@ -172,11 +172,14 @@ impl Rule for StatefulRedirectChainValidity {
         let location_path_and_query =
             crate::helpers::uri::resolve_reference_path_and_query(&target_path_and_query, value)?;
 
-        // Only §6.2.2.3's path-segment normalization is applied, by the helper
-        // above. Two references differing in the percent-encoding of an
-        // `unreserved` character are equivalent under §6.2.2.2 and are not
-        // recognised here — an under-report, and the safe direction for a
-        // finding this rule offers as advice.
+        // All of §6.2.2 is applied to both sides, by the helper above: two
+        // references differing in the percent-encoding of an `unreserved`
+        // character are equivalent under §6.2.2.2, and `Location: /a%2Db`
+        // answering a request for `/a-b` is a redirect to the resource just
+        // requested however it is spelled. §6.2.3's scheme-based normalization
+        // is not applied — see the default-port note below — so the two sides
+        // still have to agree about anything only the `http` scheme's own
+        // definition makes equivalent.
         if location_path_and_query != target_path_and_query {
             return None;
         }
@@ -203,8 +206,11 @@ impl Rule for StatefulRedirectChainValidity {
         }
 
         // Two authorities differing only in a default port are equivalent under
-        // §6.2.3, and are not recognised here. Same direction as the
-        // percent-encoding case above: the rule declines rather than guesses.
+        // §6.2.3, and are not recognised here. That is a *scheme-based*
+        // normalization — the rung above the one the paths get — and it needs
+        // the scheme, which an origin-form request-target does not carry. An
+        // under-report, and the safe direction for a finding this rule offers as
+        // advice.
 
         // The last component, and the one the capture does not record. A
         // request-target in origin-form carries no scheme: RFC 9112 §3.3 takes it
@@ -244,7 +250,7 @@ impl Rule for StatefulRedirectChainValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a redirect whose `Location` resolves to the target URI of the request it answers — a redirection to where the client already is. Following it produces the same request, and following that produces the same response.\n\n**The status set is the statuses whose own definition says the field names another resource.** Five say it in as many words — `301` and `308` a *new permanent* URI (RFC 9110 §15.4.2, §15.4.9), `302` and `307` a *different* URI (§15.4.3, §15.4.8), and `303` adds that the URI in the field *\"is not considered equivalent to the target URI\"* (§15.4.4) — and a `300`'s `Location` is *\"a preferred choice's URI reference\"* among representations *\"each with its own more specific identifier\"* (§15.4.1). An unregistered 3xx is a `300` to every conforming recipient (§15) and is reported the same way.\n\n**`304`, `305`, `306` and `201` are not reported.** A `304` redirects the client to a representation it already holds rather than to another URI; `305` is deprecated and `306` reserved, so neither defines anything to follow. A `201 Created` naming the request's own target is the case §15.3.2 *defines* — a `PUT` that creates the resource where it was addressed — and that response would mean the same thing carrying no field at all.\n\n**The comparison is between absolute forms, not between strings.** The target URI is reconstructed from the request-target and the `Host` field (RFC 9112 §3.3), and the `Location` is resolved against it (§10.2.2, RFC 3986 §5), so `page`, `/dir/page` and `https://host/dir/page` are recognised as one resource, and a value naming a different host is not reported however its path reads.\n\n**Two things the capture cannot decide, and the rule declines both.** A request-target in origin-form carries no scheme — RFC 9112 §3.3 takes it from whether the connection was secured, which is not in the message — so a `Location` naming a scheme is not compared; the case that would otherwise be reported is the ordinary HTTP-to-HTTPS redirect. Likewise a reference naming a host is not compared when no `Host` field says which host was addressed.\n\n**This is advice.** No sentence forbids a server from sending it. The status definitions above *declare* what the field names rather than requiring anything of it, and the one requirement in the area — §15.4's *\"A client SHOULD detect and intervene in cyclical redirections\"* — is addressed to the client, which is the role this rule is performing. What the finding buys is that a redirect no client can resolve becomes visible.\n\n**Longer cycles are not detected, and the rule reads no history.** A cycle spanning two or more resources needs a history that spans resources; the state layer's origin-scoped query derives that origin from the request-target alone, so it is empty for the origin-form target an HTTP/1.1 request carries. Only the one-step cycle is reported.\n\nThe field's grammar, an empty value, and a response carrying more than one `Location` field line are `server_location_header_uri_valid`'s findings; a `Location` on a status with no use for one is `server_redirect_status_and_location_validity`'s; a redirect status carrying *no* `Location` is `server_response_location_on_redirect`'s."
+        "Reports a redirect whose `Location` resolves to the target URI of the request it answers — a redirection to where the client already is. Following it produces the same request, and following that produces the same response.\n\n**The status set is the statuses whose own definition says the field names another resource.** Five say it in as many words — `301` and `308` a *new permanent* URI (RFC 9110 §15.4.2, §15.4.9), `302` and `307` a *different* URI (§15.4.3, §15.4.8), and `303` adds that the URI in the field *\"is not considered equivalent to the target URI\"* (§15.4.4) — and a `300`'s `Location` is *\"a preferred choice's URI reference\"* among representations *\"each with its own more specific identifier\"* (§15.4.1). An unregistered 3xx is a `300` to every conforming recipient (§15) and is reported the same way.\n\n**`304`, `305`, `306` and `201` are not reported.** A `304` redirects the client to a representation it already holds rather than to another URI; `305` is deprecated and `306` reserved, so neither defines anything to follow. A `201 Created` naming the request's own target is the case §15.3.2 *defines* — a `PUT` that creates the resource where it was addressed — and that response would mean the same thing carrying no field at all.\n\n**The comparison is between absolute forms, not between strings.** The target URI is reconstructed from the request-target and the `Host` field (RFC 9112 §3.3), and the `Location` is resolved against it (§10.2.2, RFC 3986 §5), so `page`, `/dir/page` and `https://host/dir/page` are recognised as one resource, and a value naming a different host is not reported however its path reads. Both sides then get RFC 3986 §6.2.2's syntax-based normalization, so a dot segment and a needlessly percent-encoded `unreserved` character are spellings rather than resources: `/a%2Db` and `/a-b` are one path, and — since §2.3 names the period among the octets a normalizer decodes — so are `/dir/%2E%2E/dir/page` and `/dir/page`. `%2F` is not decoded, because that would move a segment boundary the sender never wrote (§2.4). §6.2.3's scheme-based normalization is **not** applied, so a `Location` writing out the scheme's default port does not compare equal to a target that left it off.\n\n**Two things the capture cannot decide, and the rule declines both.** A request-target in origin-form carries no scheme — RFC 9112 §3.3 takes it from whether the connection was secured, which is not in the message — so a `Location` naming a scheme is not compared; the case that would otherwise be reported is the ordinary HTTP-to-HTTPS redirect. Likewise a reference naming a host is not compared when no `Host` field says which host was addressed.\n\n**This is advice.** No sentence forbids a server from sending it. The status definitions above *declare* what the field names rather than requiring anything of it, and the one requirement in the area — §15.4's *\"A client SHOULD detect and intervene in cyclical redirections\"* — is addressed to the client, which is the role this rule is performing. What the finding buys is that a redirect no client can resolve becomes visible.\n\n**Longer cycles are not detected, and the rule reads no history.** A cycle spanning two or more resources needs a history that spans resources; the state layer's origin-scoped query derives that origin from the request-target alone, so it is empty for the origin-form target an HTTP/1.1 request carries. Only the one-step cycle is reported.\n\nThe field's grammar, an empty value, and a response carrying more than one `Location` field line are `server_location_header_uri_valid`'s findings; a `Location` on a status with no use for one is `server_redirect_status_and_location_validity`'s; a redirect status carrying *no* `Location` is `server_response_location_on_redirect`'s."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -278,6 +284,12 @@ impl Rule for StatefulRedirectChainValidity {
                 section: Some("5"),
                 url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-5",
                 note: "Reference resolution: the transform that makes a Location value and a request-target comparable",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 3986",
+                section: Some("6.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2",
+                note: "Syntax-Based Normalization: all three of its normalizations are applied to both sides after resolution — the percent-encoding decoded where the octet is unreserved, the dot segments removed, and the case of the path and query left alone. §6.2.3's scheme-based normalization is not applied",
             },
         ]
     }
@@ -442,6 +454,13 @@ mod tests {
     #[case("/a?x=1", "/a?x=1")]
     #[case("/a", "/a#section")]
     #[case("/a", "//example.com/a")]
+    // §6.2.2.2: a triplet standing for an `unreserved` character names the same
+    // resource as the character, in either direction and in the query too.
+    #[case("/a-b", "/a%2Db")]
+    #[case("/a%2Db", "/a-b")]
+    #[case("/a?x=~1", "/a?x=%7E1")]
+    // …and §2.3 names the period among those octets, so this is a dot segment.
+    #[case("/dir/page", "/dir/%2E%2E/dir/page")]
     fn a_reference_resolving_to_the_target_is_reported(#[case] target: &str, #[case] loc: &str) {
         assert!(
             judge(&exchange(target, Some("example.com"), 301, &[loc])).is_some(),
@@ -528,6 +547,10 @@ mod tests {
     #[case("/dir/page", "other")]
     #[case("/a?x=1", "/a?x=2")]
     #[case("/a", "/a/")]
+    // The other side of §6.2.2.2: `%2F` is not an `unreserved` character, so
+    // decoding it would move a segment boundary the sender never wrote. `/a%2Fb`
+    // is one segment and `/a/b` is two.
+    #[case("/a/b", "/a%2Fb")]
     fn a_reference_naming_another_resource_is_not_reported(
         #[case] target: &str,
         #[case] loc: &str,

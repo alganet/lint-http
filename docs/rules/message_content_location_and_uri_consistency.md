@@ -20,8 +20,9 @@ For 2xx responses the rule additionally compares the value against the request t
 - [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order: a sender MUST NOT emit multiple field lines for a field with no comma-separated-list alternative
 - [RFC 9110 §5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5): Field Values: singleton fields, and the US-ASCII range field values are constrained to
 - [RFC 3986 §5.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-5.2): Relative Resolution: the transform, merge and remove_dot_segments routines used to convert a partial-URI to absolute form before comparing it
-- [RFC 3986 §6.2.2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.1): Case Normalization: scheme and host fold case, the remaining components do not. The percent-triplet hex folding this section also describes is NOT applied, so `%2f` and `%2F` read as different paths
-- [RFC 3986 §6.2.2.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.3): Path Segment Normalization: dot-segments are removed from both sides before comparison. §6.2.2.2's decoding of unreserved percent-triplets is NOT applied, so `/a~b` and `/a%7Eb` read as different paths
+- [RFC 3986 §6.2.2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.1): Case Normalization: scheme and host fold case, the remaining components do not, and the hexadecimal of a percent-triplet that stays encoded is folded to upper case
+- [RFC 3986 §6.2.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.2): Percent-Encoding Normalization: a triplet standing for an unreserved character is decoded on both sides before comparison, so `/a~b` and `/a%7Eb` are one path. Nothing else is decoded — a delimiter would move the component boundaries (§2.4)
+- [RFC 3986 §6.2.2.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.3): Path Segment Normalization: dot-segments are removed from both sides before comparison, after the decoding above — §2.3 names the period among the octets a normalizer decodes, so `%2E%2E` is a dot segment. §6.2.3's scheme-based normalization is NOT applied, so a default port written out and one left off read as different authorities
 
 ## Configuration
 

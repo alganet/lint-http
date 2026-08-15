@@ -150,9 +150,14 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 let Some(req_path) = req_path_opt else {
                     continue;
                 };
-                // Both sides are normalized before they meet, so a target URI
-                // that itself carries dot-segments does not read as a different
-                // resource than an equivalent Content-Location.
+                // Both sides get all of §6.2.2 before they meet — the helper
+                // resolving the reference below applies the same three
+                // normalizations to its result — so neither a dot segment nor a
+                // needlessly percent-encoded `unreserved` character makes a
+                // `Content-Location` naming this resource read as naming another
+                // one. This branch reports a *difference*, so every equivalence
+                // §6.2.2 states and this comparison misses is a finding about a
+                // spelling.
                 let req_path = crate::helpers::uri::normalize_path_and_query(&req_path);
 
                 // "Conversion to absolute form", concretely: a `partial-URI`
@@ -267,13 +272,19 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 spec: "RFC 3986",
                 section: Some("6.2.2.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.1",
-                note: "Case Normalization: scheme and host fold case, the remaining components do not. The percent-triplet hex folding this section also describes is NOT applied, so `%2f` and `%2F` read as different paths",
+                note: "Case Normalization: scheme and host fold case, the remaining components do not, and the hexadecimal of a percent-triplet that stays encoded is folded to upper case",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 3986",
+                section: Some("6.2.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.2",
+                note: "Percent-Encoding Normalization: a triplet standing for an unreserved character is decoded on both sides before comparison, so `/a~b` and `/a%7Eb` are one path. Nothing else is decoded — a delimiter would move the component boundaries (§2.4)",
             },
             crate::rules::SpecRef {
                 spec: "RFC 3986",
                 section: Some("6.2.2.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.3",
-                note: "Path Segment Normalization: dot-segments are removed from both sides before comparison. §6.2.2.2's decoding of unreserved percent-triplets is NOT applied, so `/a~b` and `/a%7Eb` read as different paths",
+                note: "Path Segment Normalization: dot-segments are removed from both sides before comparison, after the decoding above — §2.3 names the period among the octets a normalizer decodes, so `%2E%2E` is a dot segment. §6.2.3's scheme-based normalization is NOT applied, so a default port written out and one left off read as different authorities",
             },
         ]
     }
@@ -485,6 +496,18 @@ mod tests {
     // The query rides along through resolution.
     #[case("/dir/foo?x=1", "foo?x=1", false)]
     #[case("/dir/foo?x=1", "foo?x=2", true)]
+    // §6.2.2.2: a triplet standing for an `unreserved` character identifies the
+    // same resource as the character, so the two sides agree and this branch —
+    // which reports a *difference* — has nothing to say. Either side may carry
+    // it, and the query is normalized too.
+    #[case("/dir/foo.html", "%66oo.html", false)]
+    #[case("/dir/%66oo.html", "foo.html", false)]
+    #[case("/dir/foo?x=~1", "foo?x=%7E1", false)]
+    // …and §2.3 names the period among those octets, so this resolves.
+    #[case("/dir/foo.html", "sub/%2E%2E/foo.html", false)]
+    // `%2F` is not one of them: decoding it would move a segment boundary, so
+    // `/dir/a%2Fb` is one segment and names something `/dir/a/b` does not.
+    #[case("/dir/a/b", "a%2Fb", true)]
     // A relative reference that really does name something else still reports.
     #[case("/dir/foo.html", "bar.html", true)]
     #[case("/dir/sub/foo", "../bar", true)]

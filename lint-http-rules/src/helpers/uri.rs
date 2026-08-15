@@ -593,9 +593,11 @@ pub fn remove_dot_segments(path: &str) -> String {
 /// are tested for being hexadecimal before they are read as a number, because
 /// `from_str_radix` accepts a leading `+` and no `pct-encoded` does.
 ///
-/// **Not part of [`normalize_path_and_query`], which is § 6.2.2's *third*
-/// normalization and named for all of them.** Folding this into it would widen
-/// what every one of that function's callers compares.
+/// **[`normalize_path_and_query`] runs this before its other two steps**, and
+/// § 2.4's exception is why it may: an `unreserved` octet needs no component
+/// boundary established before it can be decoded, so nothing waits on it. What
+/// that ordering buys is written at that function. Callers that want one
+/// component decoded and nothing else — a segment, a host — call this directly.
 // cite(RFC 3986 § 2.3): "unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~""
 // cite(RFC 3986 § 2.3): "URIs that differ in the replacement of an unreserved character with its corresponding percent-encoded US-ASCII octet are equivalent"
 // cite(RFC 3986 § 6.2.2.2): "These URIs should be normalized by decoding any percent-encoded octet that corresponds to an unreserved character, as described in Section 2.3."
@@ -639,15 +641,60 @@ pub fn decode_unreserved(component: &str) -> String {
     out
 }
 
-/// Apply syntax-based normalization to a path-and-query string: dot-segments
-/// go, the query is carried through untouched.
+/// Apply § 6.2.2's syntax-based normalization to a path-and-query string.
 ///
-/// Comparing two URIs that differ only in dot-segments as if they were
-/// different resources is the mistake §6.2.2.3 calls out by name.
+/// **Three normalizations, three decisions, and the third one is a decline.**
+/// The section names all three in one sentence and this function owes an answer
+/// to each of them:
+///
+/// - **§ 6.2.2.2, percent-encoding.** Every triplet standing for an
+///   `unreserved` character is written as that character, by
+///   [`decode_unreserved`]; § 2.3 names the octets a normalizer should decode
+///   and `%2E` is one of them, spelled out.
+/// - **§ 6.2.2.3, dot segments.** `remove_dot_segments`, which is the mistake
+///   that section calls out by name: comparing two URIs that differ only in
+///   dot-segments as if they named different resources.
+/// - **§ 6.2.2.1, case.** Its two halves land differently here. The
+///   hexadecimal of a triplet that stays encoded is uppercased, by the same
+///   decoder; the scheme-and-host half reaches nothing, because a
+///   path-and-query holds neither — and the section's last sentence is what
+///   keeps the rest of the value case-sensitive, so `/A` and `/a` stay two
+///   paths. The decline is the decision.
+///
+/// **The decode runs first, and § 2.4 is why it may.** Its exception says an
+/// `unreserved` octet can be decoded at any time — no component boundary has to
+/// be established for it, which is the whole reason [`decode_unreserved`] stops
+/// where it does. The consequence is the one worth stating: `%2E%2E` is a
+/// complete `..` segment once decoded, so `/a/%2E%2E/b` and `/a/../b` reach
+/// § 6.2.2.3 as the same path and leave it as `/b`. Removing the dot segments
+/// first would leave the encoded spelling standing, which is the direction a
+/// path-confusion trick is written in.
+///
+/// **The query is split off first, and only the dot segments need it.** § 5.4.2
+/// names failing to separate it as a deployed error, and the reason is one-sided:
+/// `remove_dot_segments` is a *path* routine, so leaving the query attached
+/// would collapse a `../` written inside a parameter value. The decoding runs on
+/// both halves, because § 6.2.2.2 is about a URI and not about a path — and it
+/// cannot move a boundary either way round, since no delimiter of either
+/// component is `unreserved`.
+///
+/// What keeps the decode-first order from over-reaching is the other § 5.4.2
+/// sentence: a period is only a dot segment when it is the **complete** segment,
+/// so `/a/b%2E/c` normalizes to `/a/b./c` and stays four segments long.
+// cite(RFC 3986 § 6.2.2): "Syntax-based normalization includes such techniques as case normalization, percent-encoding normalization, and removal of dot-segments."
+// cite(RFC 3986 § 5.4.2): "Some applications fail to separate the reference's query and/or fragment components from the path component before merging it with the base path and removing dot-segments."
+// cite(RFC 3986 § 2.4): "The only exception is for percent-encoded octets corresponding to characters in the unreserved set, which can be decoded at any time."
+// cite(RFC 3986 § 2.3): "percent-encoded octets in the ranges of ALPHA (%41-%5A and %61-%7A), DIGIT (%30-%39), hyphen (%2D), period (%2E), underscore (%5F), or tilde (%7E) should not be created by URI producers and, when found in a URI, should be decoded to their corresponding unreserved characters by URI normalizers"
 // cite(RFC 3986 § 6.2.2.3): "URI normalizers should remove dot-segments by applying the remove_dot_segments algorithm to the path, as described in Section 5.2.4."
+// cite(RFC 3986 § 5.4.2): "parsers must remove the dot-segments "." and ".." when they are complete components of a path, but not when they are only part of a segment."
+// cite(RFC 3986 § 6.2.2.1): "The other generic syntax components are assumed to be case-sensitive unless specifically defined otherwise by the scheme (see Section 6.2.3)."
 pub fn normalize_path_and_query(path_and_query: &str) -> String {
     let (path, query) = split_at_query(path_and_query);
-    format!("{}{}", remove_dot_segments(path), query)
+    format!(
+        "{}{}",
+        remove_dot_segments(&decode_unreserved(path)),
+        decode_unreserved(query)
+    )
 }
 
 /// Merge a relative-path reference with the path of the base URI, per RFC 3986
@@ -700,10 +747,30 @@ pub fn reference_authority(reference: &str) -> Option<String> {
 /// Returns `None` for a **non-hierarchical absolute URI** (`mailto:`, `urn:`),
 /// which has no path component in the generic-syntax sense and so has nothing
 /// comparable.
+///
+/// **The normalization is applied once, to the result**, rather than inside the
+/// transform: §5.2.2 resolves and §6.2.2 compares, and they are two documents'
+/// steps. Two of the five branches used to call the normalizer and three spelled
+/// `remove_dot_segments` out inline — a distinction with no consequence while
+/// that was all normalizing meant, and a silent hole in three branches the day
+/// §6.2.2.2 joined it. Every caller here holds a base it normalized itself and
+/// is about to compare two strings, so a branch that normalized less than the
+/// others would be comparing one side against the other's spelling.
 pub fn resolve_reference_path_and_query(
     base_path_and_query: &str,
     reference: &str,
 ) -> Option<String> {
+    resolve_reference_transform(base_path_and_query, reference)
+        .map(|resolved| normalize_path_and_query(&resolved))
+}
+
+/// RFC 3986 §5.2.2's transform alone, restricted to the path and query. The
+/// `remove_dot_segments` calls below are the transform's own — §5.2.2 writes one
+/// into three of its four path-producing branches — and not §6.2.2.3's
+/// normalization, which [`resolve_reference_path_and_query`] applies to the
+/// result. The fourth, where the reference's path is empty, takes the base's
+/// path as it stands and is left doing exactly that.
+fn resolve_reference_transform(base_path_and_query: &str, reference: &str) -> Option<String> {
     let r = reference.trim();
     // §5.2.2 carries the reference's fragment into the target untouched; it
     // identifies a secondary resource and is not part of the URI being compared.
@@ -727,14 +794,18 @@ pub fn resolve_reference_path_and_query(
         if rest.is_empty() || rest.starts_with('?') {
             return Some(format!("/{rest}"));
         }
-        return Some(normalize_path_and_query(rest));
+        let (rest_path, rest_query) = split_at_query(rest);
+        return Some(format!("{}{}", remove_dot_segments(rest_path), rest_query));
     }
 
     // A reference whose first component holds a ':' defines a scheme, so it is
     // already absolute: §5.2.2 takes its path verbatim and inherits nothing.
     let first_component = &r[..r.find(['/', '?']).unwrap_or(r.len())];
     if first_component.contains(':') {
-        return extract_path_and_query_from_request_target(r).map(|p| normalize_path_and_query(&p));
+        return extract_path_and_query_from_request_target(r).map(|p| {
+            let (path, query) = split_at_query(&p);
+            format!("{}{}", remove_dot_segments(path), query)
+        });
     }
 
     let (base_path, base_query) = split_at_query(base_path_and_query);
@@ -748,7 +819,7 @@ pub fn resolve_reference_path_and_query(
         } else {
             ref_query
         };
-        return Some(format!("{}{}", remove_dot_segments(base_path), query));
+        return Some(format!("{base_path}{query}"));
     }
 
     let merged = if ref_path.starts_with('/') {
@@ -1290,6 +1361,81 @@ mod tests {
         assert_eq!(
             resolve_reference_path_and_query("/foo", "//other.example?x=1"),
             Some("/?x=1".into())
+        );
+    }
+
+    /// § 6.2.2 names three normalizations in one sentence and this function owes
+    /// an answer to each. Every pair below fails if its own step is dropped, and
+    /// the `%2E%2E` pair fails if the two that run swap order.
+    #[test]
+    fn normalize_path_and_query_answers_all_three_of_section_6_2_2() {
+        // § 6.2.2's own worked example, path-and-query half: the two URIs it
+        // calls equivalent normalize to one string.
+        assert_eq!(
+            normalize_path_and_query("/./b/../b/%63/%7bfoo%7d"),
+            "/b/c/%7Bfoo%7D"
+        );
+        assert_eq!(normalize_path_and_query("/b/c/%7Bfoo%7D"), "/b/c/%7Bfoo%7D");
+
+        // § 6.2.2.2, in the path and in the query alike — the query is part of
+        // the URI the section is about, and only the *dot segments* are the
+        // path's alone.
+        assert_eq!(normalize_path_and_query("/a%2Db"), "/a-b");
+        assert_eq!(normalize_path_and_query("/p?q=%7Ejane"), "/p?q=~jane");
+        assert_eq!(normalize_path_and_query("/a?p=/x/../y"), "/a?p=/x/../y");
+
+        // § 6.2.2.1, first half: a triplet that stays encoded keeps its octet
+        // and gains upper-case hexadecimal. Last sentence: everything else in a
+        // path or a query is case-sensitive and is left alone.
+        assert_eq!(normalize_path_and_query("/a%2fb?x=%3a"), "/a%2Fb?x=%3A");
+        assert_eq!(normalize_path_and_query("/A/b?X=Y"), "/A/b?X=Y");
+
+        // § 6.2.2.3, applied to the *decoded* path: `%2E` is the period § 2.3
+        // names among the octets a normalizer decodes, so `%2E%2E` arrives as a
+        // complete `..` segment. Removing the dot segments first would leave the
+        // second spelling standing.
+        assert_eq!(normalize_path_and_query("/a/../b"), "/b");
+        assert_eq!(normalize_path_and_query("/a/%2E%2E/b"), "/b");
+
+        // A dot that is only part of a segment is not a dot segment, however it
+        // is spelled (§ 5.4.2).
+        assert_eq!(normalize_path_and_query("/a/b%2E/c"), "/a/b./c");
+    }
+
+    /// Every branch of the transform hands back a normalized result, because
+    /// every caller compares it against a base it normalized itself. Each
+    /// assertion below names the branch it covers.
+    #[test]
+    fn resolve_reference_normalizes_on_every_branch() {
+        // Relative-path merge.
+        assert_eq!(
+            resolve_reference_path_and_query("/dir/foo.html", "%66oo.html"),
+            Some("/dir/foo.html".into())
+        );
+        // Empty reference path, query from the reference.
+        assert_eq!(
+            resolve_reference_path_and_query("/foo", "?y=%7E2"),
+            Some("/foo?y=~2".into())
+        );
+        // Absolute-path reference.
+        assert_eq!(
+            resolve_reference_path_and_query("/foo", "/a/%2E%2E/%66oo"),
+            Some("/foo".into())
+        );
+        // Network-path reference, both of its shapes: a path, and a query with
+        // an empty `path-abempty`.
+        assert_eq!(
+            resolve_reference_path_and_query("/foo", "//other.example/a/%2E%2E/%66oo"),
+            Some("/foo".into())
+        );
+        assert_eq!(
+            resolve_reference_path_and_query("/foo", "//other.example?x=%7E"),
+            Some("/?x=~".into())
+        );
+        // Absolute reference.
+        assert_eq!(
+            resolve_reference_path_and_query("/foo", "http://example.com/a/../%66oo?x=%7E1"),
+            Some("/foo?x=~1".into())
         );
     }
 
