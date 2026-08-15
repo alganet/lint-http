@@ -1401,7 +1401,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 741
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 208
+      line: 241
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
       line: 154
   - label: lint-http-rules/src/helpers/uri.rs (34)
@@ -1411,7 +1411,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 440
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 207
+      line: 240
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 196
   - label: lint-http-rules/src/helpers/uri.rs (35)
@@ -1426,6 +1426,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 739
+  - label: message_content_location_and_uri_consistency
+    section: § 4.3
+    snippet: Some protocol elements allow only the absolute form of a URI without a fragment identifier.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 169
+    - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
+      line: 202
   - label: message_host_and_authority_consistency
     section: § 6.2.3
     snippet: Normalization should not remove delimiters when their associated component is empty unless licensed to do so by the scheme specification.
@@ -1451,12 +1459,6 @@ sources:
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 203
   - label: message_referer_uri_valid (4)
-    section: § 4.3
-    snippet: Some protocol elements allow only the absolute form of a URI without a fragment identifier.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
-      line: 202
-  - label: message_referer_uri_valid (5)
     section: § 4.4
     snippet: The most frequent examples of same-document references are relative references that are empty or include only the number sign ("#") separator followed by a fragment identifier.
     cited_by:
@@ -4577,6 +4579,8 @@ sources:
       line: 50
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
       line: 173
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 170
     - file: lint-http-rules/src/rules/message_from_header_email_syntax.rs
       line: 111
     - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
@@ -6810,53 +6814,71 @@ sources:
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 109
   - label: message_content_location_and_uri_consistency
+    section: § 4.1
+    snippet: A "partial-URI" rule is defined for protocol elements that can contain a relative URI but not a fragment component.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 167
+    - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
+      line: 200
+  - label: message_content_location_and_uri_consistency (2)
+    section: § 4.1
+    snippet: Each protocol element in HTTP that allows a URI reference will indicate in its ABNF production whether the element allows any form of reference (URI-reference), only a URI in absolute form (absolute-URI), only the path and optional query components (partial-URI), or some combination of the above.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 168
+    - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
+      line: 201
+  - label: message_content_location_and_uri_consistency (3)
     section: § 8.7
     snippet: Content-Location = absolute-URI / partial-URI
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 54
-  - label: message_content_location_and_uri_consistency (2)
+  - label: message_content_location_and_uri_consistency (4)
     section: § 8.7
     snippet: For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 240
-  - label: message_content_location_and_uri_consistency (3)
+      line: 273
+  - label: message_content_location_and_uri_consistency (5)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its field value refers to a URI that differs from the target URI, then the origin server claims that the URI is an identifier for a different resource corresponding to the enclosed representation.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 239
-  - label: message_content_location_and_uri_consistency (4)
+      line: 272
+  - label: message_content_location_and_uri_consistency (6)
     section: § 8.7
     snippet: If Content-Location is included in a 2xx (Successful) response message and its value refers (after conversion to absolute form) to a URI that is the same as the target URI, then the recipient MAY consider the content to be a current representation of that resource at the time indicated by the message origination date.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 153
-  - label: message_content_location_and_uri_consistency (5)
+      line: 186
+  - label: message_content_location_and_uri_consistency (7)
     section: § 8.7
     snippet: In the latter case (Section 4), the referenced URI is relative to the target URI ([URI], Section 5).
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 180
-  - label: message_content_location_and_uri_consistency (6)
+      line: 213
+  - label: message_content_location_and_uri_consistency (8)
     section: § 8.7
     snippet: Such a claim can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
-      line: 241
-  - label: message_content_location_and_uri_consistency (7)
+      line: 274
+  - label: message_content_location_and_uri_consistency (9)
     section: § 8.7
     snippet: The "Content-Location" header field references a URI that can be used as an identifier for a specific resource corresponding to the representation in this message's content.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 41
-  - label: message_content_location_and_uri_consistency (8)
+  - label: message_content_location_and_uri_consistency (10)
     section: § 8.7
     snippet: The field value is either an absolute-URI or a partial-URI.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 117
+    - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
+      line: 166
   - label: message_content_type_iana_registered
     section: § 8.3.1
     snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].
@@ -7419,55 +7441,43 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 333
-  - label: message_referer_uri_valid (6)
-    section: § 4.1
-    snippet: A "partial-URI" rule is defined for protocol elements that can contain a relative URI but not a fragment component.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
-      line: 200
-  - label: message_referer_uri_valid (7)
-    section: § 4.1
-    snippet: Each protocol element in HTTP that allows a URI reference will indicate in its ABNF production whether the element allows any form of reference (URI-reference), only a URI in absolute form (absolute-URI), only the path and optional query components (partial-URI), or some combination of the above.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
-      line: 201
   - label: partial-URI
     section: § 4.1
     snippet: partial-URI   = relative-part [ "?" query ]
     cited_by:
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 146
-  - label: message_referer_uri_valid (8)
+  - label: message_referer_uri_valid (6)
     section: § 4.2.1
     snippet: A sender MUST NOT generate an "http" URI with an empty host identifier.
     cited_by:
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 274
-  - label: message_referer_uri_valid (9)
+  - label: message_referer_uri_valid (7)
     section: § 4.2.1
     snippet: The "http" URI scheme is hereby defined for minting identifiers within the hierarchical namespace governed by a potential HTTP origin server listening for TCP ([TCP]) connections on a given port.
     cited_by:
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 331
-  - label: message_referer_uri_valid (10)
+  - label: message_referer_uri_valid (8)
     section: § 4.2.2
     snippet: A client MUST ensure that its HTTP requests for an "https" resource are secured, prior to being communicated, and that it only accepts secured responses to those requests.
     cited_by:
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 330
-  - label: message_referer_uri_valid (11)
+  - label: message_referer_uri_valid (9)
     section: § 4.2.2
     snippet: A sender MUST NOT generate an "https" URI with an empty host identifier.
     cited_by:
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 275
-  - label: message_referer_uri_valid (12)
+  - label: message_referer_uri_valid (10)
     section: § 4.2.2
     snippet: Resources made available via the "https" scheme have no shared identity with the "http" scheme.  They are distinct origins with separate namespaces.
     cited_by:
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 332
-  - label: message_referer_uri_valid (13)
+  - label: message_referer_uri_valid (11)
     section: § 4.2.2
     snippet: The "https" URI scheme is hereby defined for minting identifiers within the hierarchical namespace governed by a potential origin server listening for TCP connections on a given port and capable of establishing a TLS ([TLS13]) connection that has been secured for HTTP communication.
     cited_by:
