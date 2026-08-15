@@ -154,7 +154,7 @@ impl MessageTeHeaderConstraints {
     /// most likely to be reported.
     ///
     /// What the value may hold on those versions is their own documents' requirement,
-    /// not this one's: `message_http3_no_connection_header` reports it for HTTP/3.
+    /// not this one's: `message_no_connection_specific_fields` reports it for both.
     ///
     /// cite(RFC 9110 § 7.6.1): "Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field."
     /// cite(RFC 9113 § 8.2.2): "An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields."
@@ -383,9 +383,23 @@ impl Rule for MessageTeHeaderConstraints {
             // still a `TE` field on the wire, and reading it through `to_str` made
             // the response look like one that has none.
             //
+            // Asked only of the versions that state no prohibition of their own.
+            // On HTTP/2 and HTTP/3 the exception restoring `TE` is written for a
+            // *request*, so a response carrying one is a connection-specific
+            // field and the message is malformed —
+            // `message_no_connection_specific_fields` reports that, with the
+            // version's own sentence. Reporting it here as well would be two
+            // findings for one field, and the weaker of the two would be the one
+            // saying RFC 9110 merely gives it no meaning.
+            //
             // cite(RFC 9110 § 10.1): "The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request."
             // cite(RFC 9110 § 10.1.4): "The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections."
-            if resp.headers.contains_key("te") {
+            // The gate is a condition on this branch and not an early return:
+            // the request-side checks below are this rule's main body, and a
+            // `return None` here would have taken them with it.
+            if !matches!(crate::http_version::major(&resp.version), Some(2 | 3))
+                && resp.headers.contains_key("te")
+            {
                 let value =
                     combined_field_value_as_written(&resp.headers, "te").unwrap_or_default();
                 return Some(Violation {
@@ -409,7 +423,7 @@ impl Rule for MessageTeHeaderConstraints {
     }
 
     fn description(&self) -> &'static str {
-        "Validates the `TE` request header field — the transfer codings a client is able to accept in a response, and whether it will keep a trailer section.\n\nThe field is `TE = [ t-codings *( OWS \",\" OWS t-codings ) ]` (RFC 9110 §A) and a member is `t-codings = \"trailers\" / ( transfer-coding [ weight ] )` (§10.1.4). `trailers` is a keyword occupying the whole of its alternative, so it takes neither a parameter nor a weight — the alternative that admits either is the other one. A coding may carry `transfer-parameter = token BWS \"=\" BWS ( token / quoted-string )` parameters and a `weight`, whose `q` is a `qvalue`: 0 or 1 with at most three digits after the point (§12.4.2), matched case-insensitively because RFC 9112 §7.3 says the pseudo-parameter's name is. Whitespace around a *parameter's* `=` is `BWS`, which the production admits for historical reasons only and which a sender MUST NOT generate (§5.6.3); around the *weight's* `=` it is not admitted at all, since `weight = OWS \";\" OWS \"q=\" qvalue` prints `q=` as one literal — the same three characters of whitespace, two productions, and only one of them has a sentence about bad whitespace to quote. No member may be empty (§5.6.1.1) — `TE: deflate,,gzip` is a list a sender must not generate — while an **empty field value** is a different thing and is not reported: `TE:` is a list of no members, and RFC 9112 §7.4 prints it as one of its three examples and says what it means (only `chunked` is acceptable).\n\n**The coding name itself is not measured here.** `transfer-coding` is a `token`, and `message_transfer_coding_iana_registered` is the rule that reads the names `TE` and `Transfer-Encoding` carry: it reports a name that is not a token, a member naming no coding at all, an unrecognized name, and `chunked` in `TE` — which RFC 9112 §7.4 forbids outright, since a client cannot decline a coding that is always acceptable. This rule owns what follows the name.\n\nA sender of `TE` MUST also send a `TE` connection option within `Connection` (§10.1.4), which is what stops an intermediary from forwarding a field that applies to one hop. **That requirement is asked only of the versions of HTTP that have a `Connection` field.** HTTP/2 and HTTP/3 convey connection-specific metadata by other means, and an endpoint MUST NOT generate a message carrying the field at all (RFC 9113 §8.2.2, RFC 9114 §4.2) — so a request over those versions is not reported for omitting an option it is not allowed to send. What a `TE` value may hold there — `trailers` and nothing else — is those documents' requirement rather than this rule's; `message_http3_no_connection_header` reports it for HTTP/3, and no rule reports it for HTTP/2.\n\nScope: this rule reads a request's header section, and a response's only to report that the field is there. Where the field appears on several lines in one section they are one value (§5.2), so an empty member written at a line boundary is an empty member. A value carrying an octet outside US-ASCII is measured rather than skipped: `obs-text` is an octet `field-content` admits and neither `token` nor `qvalue` does, so it is reported at the parameter that carried it instead of turning the whole field — and the connection-option requirement with it — into silence. Whether `TE` may appear in a **trailer** section is §6.5.1's question and `message_trailer_fields_validity`'s, which holds the table `TE` is listed in.\n\n**A response carrying `TE` is reported, and RFC 9110 states no prohibition.** §10.1 gathers the request context fields and §10.1.4 defines this one as describing the client's capabilities; no sentence gives a `TE` in a response a meaning, and none forbids one in so many words either. The finding says that and no more. Over HTTP/2 and HTTP/3 there is a MUST NOT — a response is not the request their exception is written for, so the field is connection-specific there and the message is malformed — and for HTTP/3 `message_http3_no_connection_header` reports it with that version's own sentence."
+        "Validates the `TE` request header field — the transfer codings a client is able to accept in a response, and whether it will keep a trailer section.\n\nThe field is `TE = [ t-codings *( OWS \",\" OWS t-codings ) ]` (RFC 9110 §A) and a member is `t-codings = \"trailers\" / ( transfer-coding [ weight ] )` (§10.1.4). `trailers` is a keyword occupying the whole of its alternative, so it takes neither a parameter nor a weight — the alternative that admits either is the other one. A coding may carry `transfer-parameter = token BWS \"=\" BWS ( token / quoted-string )` parameters and a `weight`, whose `q` is a `qvalue`: 0 or 1 with at most three digits after the point (§12.4.2), matched case-insensitively because RFC 9112 §7.3 says the pseudo-parameter's name is. Whitespace around a *parameter's* `=` is `BWS`, which the production admits for historical reasons only and which a sender MUST NOT generate (§5.6.3); around the *weight's* `=` it is not admitted at all, since `weight = OWS \";\" OWS \"q=\" qvalue` prints `q=` as one literal — the same three characters of whitespace, two productions, and only one of them has a sentence about bad whitespace to quote. No member may be empty (§5.6.1.1) — `TE: deflate,,gzip` is a list a sender must not generate — while an **empty field value** is a different thing and is not reported: `TE:` is a list of no members, and RFC 9112 §7.4 prints it as one of its three examples and says what it means (only `chunked` is acceptable).\n\n**The coding name itself is not measured here.** `transfer-coding` is a `token`, and `message_transfer_coding_iana_registered` is the rule that reads the names `TE` and `Transfer-Encoding` carry: it reports a name that is not a token, a member naming no coding at all, an unrecognized name, and `chunked` in `TE` — which RFC 9112 §7.4 forbids outright, since a client cannot decline a coding that is always acceptable. This rule owns what follows the name.\n\nA sender of `TE` MUST also send a `TE` connection option within `Connection` (§10.1.4), which is what stops an intermediary from forwarding a field that applies to one hop. **That requirement is asked only of the versions of HTTP that have a `Connection` field.** HTTP/2 and HTTP/3 convey connection-specific metadata by other means, and an endpoint MUST NOT generate a message carrying the field at all (RFC 9113 §8.2.2, RFC 9114 §4.2) — so a request over those versions is not reported for omitting an option it is not allowed to send. What a `TE` value may hold there — `trailers` and nothing else — is those documents' requirement rather than this rule's; `message_no_connection_specific_fields` reports it for both of them.\n\nScope: this rule reads a request's header section, and a response's only to report that the field is there. Where the field appears on several lines in one section they are one value (§5.2), so an empty member written at a line boundary is an empty member. A value carrying an octet outside US-ASCII is measured rather than skipped: `obs-text` is an octet `field-content` admits and neither `token` nor `qvalue` does, so it is reported at the parameter that carried it instead of turning the whole field — and the connection-option requirement with it — into silence. Whether `TE` may appear in a **trailer** section is §6.5.1's question and `message_trailer_fields_validity`'s, which holds the table `TE` is listed in.\n\n**A response carrying `TE` is reported, and RFC 9110 states no prohibition.** §10.1 gathers the request context fields and §10.1.4 defines this one as describing the client's capabilities; no sentence gives a `TE` in a response a meaning, and none forbids one in so many words either. The finding says that and no more. **It is asked only of a response carried by HTTP/1.x.** Over HTTP/2 and HTTP/3 there is a MUST NOT — a response is not the request their exception is written for, so the field is connection-specific there and the message is malformed — and `message_no_connection_specific_fields` reports it on each with that version's own sentence, which is the stronger of the two readings. Reporting it here as well would be two findings for one field."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -478,7 +492,7 @@ impl Rule for MessageTeHeaderConstraints {
                 spec: "RFC 9114",
                 section: Some("4.2"),
                 url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2",
-                note: "The same for HTTP/3. `message_http3_no_connection_header` is the rule that enforces the value restriction",
+                note: "The same for HTTP/3. `message_no_connection_specific_fields` is the rule that enforces the value restriction, on both versions",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",
@@ -790,7 +804,7 @@ mod tests {
     /// The versions that forbid the `Connection` field cannot be asked for one —
     /// and `TE: trailers`, the one value they allow, is the case most likely to be
     /// reported. What the value may hold there is those documents' requirement, and
-    /// `message_http3_no_connection_header` reports it for HTTP/3.
+    /// `message_no_connection_specific_fields` reports it for both of them.
     #[rstest]
     #[case("HTTP/2.0")]
     #[case("HTTP/2.0")]
@@ -831,6 +845,54 @@ mod tests {
     fn a_response_carrying_te_is_carrying_an_undefined_field(#[case] value: &[u8]) {
         let v = response(value).expect("violation");
         assert!(v.message.contains("request context field"), "{}", v.message);
+    }
+
+    /// The versions whose own documents make the same response a *malformed
+    /// message* are left to the rule that carries their sentence, or one field
+    /// draws two findings and the weaker one is this.
+    #[rstest]
+    #[case("HTTP/2.0")]
+    #[case("HTTP/3.0")]
+    fn a_response_on_a_version_with_its_own_prohibition_is_left_to_that_rule(
+        #[case] version: &str,
+    ) {
+        let rule = MessageTeHeaderConstraints;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let resp = tx.response.as_mut().expect("response");
+        resp.version = version.to_string();
+        resp.headers = crate::test_helpers::make_headers_from_pairs(&[("te", "trailers")]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "{v:?}");
+    }
+
+    /// That gate is a condition on the response branch, not an early return —
+    /// the difference is every request-side finding in this rule. Written as a
+    /// `return None` it would have silenced them all whenever the response
+    /// arrived on one of those versions.
+    #[rstest]
+    #[case("HTTP/2.0")]
+    #[case("HTTP/3.0")]
+    fn the_response_gate_does_not_silence_the_request_half(#[case] response_version: &str) {
+        let rule = MessageTeHeaderConstraints;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.version = "HTTP/1.1".into();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("te", "deflate;;q=0.5")]);
+        let resp = tx.response.as_mut().expect("response");
+        resp.version = response_version.to_string();
+        resp.headers = crate::test_helpers::make_headers_from_pairs(&[("te", "trailers")]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some(), "the request's own TE defect went unreported");
     }
 
     #[test]

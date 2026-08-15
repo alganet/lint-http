@@ -843,7 +843,7 @@ severity = "error"
 enabled = true
 severity = "error"
 
-[rules.message_http3_no_connection_header]
+[rules.message_no_connection_specific_fields]
 enabled = true
 severity = "error"
 

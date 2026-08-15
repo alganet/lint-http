@@ -1493,6 +1493,8 @@ sources:
       line: 141
     - file: lint-http-rules/src/helpers/uri.rs
       line: 35
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 241
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 70
   - label: lint-http-rules/src/helpers/mailbox.rs
@@ -4271,7 +4273,7 @@ sources:
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 57
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 386
+      line: 395
   - label: client_expect_header_valid (2)
     section: § 10.1.1
     snippet: A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request
@@ -4898,6 +4900,8 @@ sources:
       line: 155
     - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
       line: 89
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 77
   - label: lint-http-core/src/http_version.rs (3)
     section: § 2.5
     snippet: The first digit (major version) indicates the messaging syntax, whereas the second digit (minor version) indicates the highest minor version within that major version to which the sender is conformant (able to understand for future communication).
@@ -4962,8 +4966,8 @@ sources:
       line: 968
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
       line: 60
-    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 16
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 40
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (8)
     section: § 7.6.1
     snippet: Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message).
@@ -5314,6 +5318,8 @@ sources:
       line: 36
     - file: lint-http-rules/src/rules/message_max_forwards_numeric.rs
       line: 64
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 215
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 25
     - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
@@ -6950,6 +6956,40 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_multipart_content_type_and_body_consistency.rs
       line: 226
+  - label: message_no_connection_specific_fields
+    section: § 10.1.4
+    snippet: The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 191
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 362
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 396
+  - label: message_no_connection_specific_fields (2)
+    section: § 7.6.1
+    snippet: 'This includes but is not limited to:'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 41
+  - label: t-codings
+    section: § A
+    snippet: t-codings = "trailers" / ( transfer-coding [ weight ] )
+    cited_by:
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 239
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 105
+  - label: message_no_connection_specific_fields (3)
+    section: § A
+    snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
+    cited_by:
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 240
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 65
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 201
   - label: message_prefer_header_valid
     section: § 5.6.1.2
     snippet: 'In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:'
@@ -7286,39 +7326,25 @@ sources:
       line: 181
   - label: message_te_header_constraints (2)
     section: § 10.1.4
-    snippet: The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 362
-    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 387
-  - label: message_te_header_constraints (3)
-    section: § 10.1.4
     snippet: The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding.
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 26
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 377
-  - label: message_te_header_constraints (4)
+  - label: message_te_header_constraints (3)
     section: § 5.6.3
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.  A sender MUST NOT generate BWS in messages.  A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 236
-  - label: message_te_header_constraints (5)
+  - label: message_te_header_constraints (4)
     section: § A
     snippet: TE = [ t-codings *( OWS "," OWS t-codings ) ]
     cited_by:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 47
-  - label: message_te_header_constraints (6)
-    section: § A
-    snippet: t-codings = "trailers" / ( transfer-coding [ weight ] )
-    cited_by:
-    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 105
-  - label: message_te_header_constraints (7)
+  - label: message_te_header_constraints (5)
     section: § A
     snippet: transfer-coding = token *( OWS ";" OWS transfer-parameter )
     cited_by:
@@ -7326,14 +7352,6 @@ sources:
       line: 87
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 128
-  - label: message_te_header_constraints (8)
-    section: § A
-    snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
-    cited_by:
-    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 65
-    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 201
   - label: message_timing_allow_origin_validity
     section: § 5.6.1.2
     snippet: 'A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism'
@@ -9438,16 +9456,22 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
       line: 61
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 150
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 268
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 160
     - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
-      line: 184
+      line: 182
   - label: message_connection_upgrade (2)
     section: § 8.2.2
     snippet: This includes the Connection header field and those listed as having connection-specific semantics in Section 7.6.1 of [HTTP] (that is, Proxy-Connection, Keep-Alive, Transfer-Encoding, and Upgrade).
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
       line: 62
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 39
   - label: message_header_field_names_token
     section: § 8.2.1
     snippet: HTTP/2 implementations SHOULD validate field names and values according to their definitions in Sections 5.1 and 5.5 of [HTTP], respectively, and treat messages that contain prohibited characters as malformed
@@ -9568,10 +9592,30 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 179
-  - label: message_te_header_constraints
+  - label: message_no_connection_specific_fields
+    section: § 8.2.2
+    snippet: An intermediary transforming an HTTP/1.x message to HTTP/2 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/2 endpoints as malformed (Section 8.1.1).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 135
+  - label: message_no_connection_specific_fields (2)
+    section: § 8.2.2
+    snippet: Any message containing connection-specific header fields MUST be treated as malformed (Section 8.1.1).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 151
+  - label: message_no_connection_specific_fields (3)
+    section: § 8.2.2
+    snippet: HTTP/2 does not use the Connection header field (Section 7.6.1 of [HTTP]) to indicate connection-specific header fields; in this protocol, connection-specific metadata is conveyed by other means.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 58
+  - label: message_no_connection_specific_fields (4)
     section: § 8.2.2
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".
     cited_by:
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 175
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 161
   - label: stateful_101_switching_protocols
@@ -9672,8 +9716,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
       line: 63
-    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 182
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 152
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 162
   - label: message_extension_headers_registered
@@ -9714,26 +9758,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 270
-  - label: message_http3_no_connection_header
-    section: § 4.2
-    snippet: An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/3 endpoints as malformed.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 82
-  - label: message_http3_no_connection_header (2)
-    section: § 4.2
-    snippet: HTTP/3 does not use the Connection header field to indicate connection-specific fields; in this protocol, connection-specific metadata is conveyed by other means.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 47
-  - label: message_http3_no_connection_header (3)
-    section: § 4.2
-    snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers".
-    cited_by:
-    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 99
-    - file: lint-http-rules/src/rules/message_http3_no_connection_header.rs
-      line: 200
   - label: message_http3_pseudo_headers_validity
     section: § 4.3.1
     snippet: All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4.
@@ -9764,6 +9788,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
       line: 58
+  - label: message_no_connection_specific_fields
+    section: § 4.2
+    snippet: An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/3 endpoints as malformed.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 136
+  - label: message_no_connection_specific_fields (2)
+    section: § 4.2
+    snippet: HTTP/3 does not use the Connection header field to indicate connection-specific fields; in this protocol, connection-specific metadata is conveyed by other means.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 59
+  - label: message_no_connection_specific_fields (3)
+    section: § 4.2
+    snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
+      line: 176
   - label: server_alt_svc_h3_advertisement_valid
     section: § 3.1.1
     snippet: An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token.
@@ -9783,13 +9825,13 @@ sources:
     snippet: Interim responses do not contain content or trailer sections.
     cited_by:
     - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
-      line: 189
+      line: 187
   - label: server_no_body_for_1xx_204_304 (2)
     section: § 4.1
     snippet: Transfer codings (see Section 7 of [HTTP/1.1]) are not defined for HTTP/3; the Transfer-Encoding header field MUST NOT be used.
     cited_by:
     - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
-      line: 185
+      line: 183
   - label: server_quic_transport_parameters
     section: § 6.1
     snippet: HTTP/3 does not use server-initiated bidirectional streams
