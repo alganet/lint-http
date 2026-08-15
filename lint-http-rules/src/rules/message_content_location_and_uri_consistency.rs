@@ -147,6 +147,39 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 });
             }
 
+            // The value's production is not `URI-reference`, and the fragment
+            // is the whole difference: `URI` and `relative-ref` each end in an
+            // optional `[ "#" fragment ]` group, and § 8.7 hands this field the
+            // two rules that are those two with the group dropped. A number
+            // sign is the only character that opens the component and appears
+            // in no other one — `query` is `*( pchar / "/" / "?" )` and `pchar`
+            // has none — so finding one is finding a fragment, and a
+            // percent-encoded `%23` is data and is not this.
+            //
+            // Unlike `Referer`, no MUST NOT names the component for this field:
+            // the finding rests on the grammar and § 2.2's sender requirement
+            // alone, and the message cites those rather than borrowing the
+            // neighbour's stronger sentence. The same character reaching the
+            // 2xx comparison below used to be silently carried into resolution,
+            // which is a reading `partial-URI` does not have.
+            //
+            // cite(RFC 9110 § 8.7): "The field value is either an absolute-URI or a partial-URI."
+            // cite(RFC 9110 § 4.1): "A "partial-URI" rule is defined for protocol elements that can contain a relative URI but not a fragment component."
+            // cite(RFC 9110 § 4.1): "Each protocol element in HTTP that allows a URI reference will indicate in its ABNF production whether the element allows any form of reference (URI-reference), only a URI in absolute form (absolute-URI), only the path and optional query components (partial-URI), or some combination of the above."
+            // cite(RFC 3986 § 4.3): "Some protocol elements allow only the absolute form of a URI without a fragment identifier."
+            // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+            if let Some(hash) = s.find('#') {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "Content-Location value '{}' carries the fragment component '{}': neither alternative of `Content-Location = absolute-URI / partial-URI` generates one — each is a URI rule with the `[ \"#\" fragment ]` group dropped (RFC 9110 §4.1, RFC 3986 §4.3) — so the value derives from no reading of the grammar (RFC 9110 §2.2)",
+                        crate::helpers::headers::shown_in_finding(s),
+                        crate::helpers::headers::shown_in_finding(&s[hash..])
+                    ),
+                });
+            }
+
             // Both halves of the gate come from one sentence: the comparison is
             // scoped to 2xx, and it is a comparison of the value *after
             // conversion to absolute form*, not of the two strings.
@@ -253,7 +286,7 @@ impl Rule for MessageContentLocationAndUriConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Content-Location` header values. The value must be a well-formed URI reference (`absolute-URI / partial-URI`) written only with characters a URI is composed from (RFC 3986 §2, which excludes whitespace and the nine visible characters that are not URI characters either — less-than, greater-than, double quote, the two braces, pipe, backslash, caret and backtick — along with every octet at or above %x80), sound percent-encoding and a valid scheme where one is present, and — since neither alternative of the grammar is a comma-separated list — a message carries at most one `Content-Location` field line (RFC 9110 §5.3).\n\nFor 2xx responses the rule additionally compares the value against the request target, resolving a `partial-URI` against it first as RFC 9110 §8.7 requires (\"after conversion to absolute form\"), so a relative reference that names the target resource is not reported.\n\n**A difference is not a protocol error.** RFC 9110 §8.7 attaches no requirement to a differing `Content-Location`: it means \"the origin server claims that the URI is an identifier for a different resource\", which is exactly what a negotiated variant, a 201 pointing at the created resource, or a POST report is supposed to say. The rule reports the difference as an advisory — `config_example.toml` ships it at `info` — because the claim \"can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP\", so it is worth a human glance and nothing stronger. Raise the severity only if your deployment intends `Content-Location` to always echo the target."
+        "Validate `Content-Location` header values. The value must derive from `Content-Location = absolute-URI / partial-URI`: written only with characters a URI is composed from (RFC 3986 §2, which excludes whitespace and the nine visible characters that are not URI characters either — less-than, greater-than, double quote, the two braces, pipe, backslash, caret and backtick — along with every octet at or above %x80), sound percent-encoding and a valid scheme where one is present, and — since neither alternative of the grammar is a comma-separated list — a message carries at most one `Content-Location` field line (RFC 9110 §5.3).\n\n**The value is not a `URI-reference`, and the fragment is the whole difference.** `URI` and `relative-ref` each end in an optional `[ \"#\" fragment ]` group; `absolute-URI` and `partial-URI` are those two rules with the group dropped, which RFC 9110 §4.1 states in as many words. So `Content-Location: /foo#frag` derives from no reading of the grammar and is reported. Unlike `Referer` — the other field carrying this production — no MUST NOT names the component here: the finding rests on the grammar and §2.2's sender requirement alone, and the message cites those. A percent-encoded `%23` is data, not a fragment.\n\nFor 2xx responses the rule additionally compares the value against the request target, resolving a `partial-URI` against it first as RFC 9110 §8.7 requires (\"after conversion to absolute form\"), so a relative reference that names the target resource is not reported.\n\n**A difference is not a protocol error.** RFC 9110 §8.7 attaches no requirement to a differing `Content-Location`: it means \"the origin server claims that the URI is an identifier for a different resource\", which is exactly what a negotiated variant, a 201 pointing at the created resource, or a POST report is supposed to say. The rule reports the difference as an advisory — `config_example.toml` ships it at `info` — because the claim \"can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP\", so it is worth a human glance and nothing stronger. Raise the severity only if your deployment intends `Content-Location` to always echo the target."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -275,6 +308,24 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 section: Some("5.5"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
                 note: "Field Values: singleton fields, and the US-ASCII range field values are constrained to",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("4.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1",
+                note: "URI References: a `partial-URI` is the rule for elements that carry a relative URI but no fragment, and an element's ABNF production is what says which forms it allows — the sentence behind reporting a fragment in this field",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9110",
+                section: Some("2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+                note: "The sender MUST NOT behind the fragment finding: unlike Referer's, this field's section names no component, so a fragment is a protocol element matching no ABNF rule and nothing more",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 3986",
+                section: Some("4.3"),
+                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4.3",
+                note: "Absolute URI: the form without a fragment identifier — the other half of the alternation, saying the same thing about its half",
             },
             crate::rules::SpecRef {
                 spec: "RFC 3986",
@@ -335,6 +386,11 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 compliance: Compliance::NonCompliant,
                 label: Some("(two field lines — Content-Location is a singleton)"),
                 snippet: "HTTP/1.1 200 OK\nContent-Location: /foo\nContent-Location: /bar",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a fragment: neither alternative of the grammar generates one)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Location: /foo#frag",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -511,13 +567,49 @@ mod tests {
         assert!(v.is_some());
     }
 
+    /// This test used to assert the exact opposite — that `/foo#frag` was
+    /// *ignored for matching* — which was the tolerance RULECITES P33 named:
+    /// the fragment is the one component `URI-reference` has and this field's
+    /// production does not, and the rule was carrying it into resolution.
     #[test]
-    fn fragment_in_content_location_is_ignored_for_matching() {
+    fn a_fragment_is_reported_against_both_halves_of_the_alternation() {
         let rule = MessageContentLocationAndUriConsistency;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_content_location_and_uri_consistency",
         ]);
         let tx = make_tx_with_req_uri("/foo", 200, &[("content-location", "/foo#frag")]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(
+            v.expect("a fragment is a finding").message,
+            "Content-Location value '/foo#frag' carries the fragment component '#frag': neither \
+             alternative of `Content-Location = absolute-URI / partial-URI` generates one — each \
+             is a URI rule with the `[ \"#\" fragment ]` group dropped (RFC 9110 §4.1, RFC 3986 \
+             §4.3) — so the value derives from no reading of the grammar (RFC 9110 §2.2)"
+        );
+
+        // The `absolute-URI` half, and an empty fragment: the group is absent
+        // from that rule too, and `#` alone still opens the component.
+        for value in ["http://example.com/foo#s", "/foo#"] {
+            let tx = make_tx_with_req_uri("/foo", 200, &[("content-location", value)]);
+            let v = rule.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            );
+            assert!(
+                v.is_some_and(|v| v.message.contains("carries the fragment component")),
+                "{value}"
+            );
+        }
+
+        // A percent-encoded `%23` is data, not a fragment — and it is not an
+        // `unreserved` octet, so neither side decodes it and the two spellings
+        // match byte for byte.
+        let tx = make_tx_with_req_uri("/foo%23bar", 200, &[("content-location", "/foo%23bar")]);
         let v = rule.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),

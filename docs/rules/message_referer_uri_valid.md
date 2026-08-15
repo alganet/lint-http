@@ -30,7 +30,7 @@ Reads the `Referer` request header field against the production RFC 9110 §10.1.
 - **Whether the value names the resource the request actually came from.** §10.1.3 permits a user agent to *"truncate parts other than the referring origin"*, so a value naming less than the full URI is conforming, and nothing in a single transaction knows what the referring resource was.
 - **Whether an `http` or `https` authority resolves, or a port is one a transport could carry.** `port` is `*DIGIT` (RFC 3986 §3.2.3), which bounds nothing at either end.
 
-**What other rules own.** A fragment on the *request target* is `client_request_target_no_fragment`'s, on every version; a malformed percent-encoding in the target is `client_request_uri_percent_encoding_valid`'s. The same `absolute-URI / partial-URI` production governs `Content-Location` (RFC 9110 §8.7), whose rule does not read the fragment question.
+**What other rules own.** A fragment on the *request target* is `client_request_target_no_fragment`'s, on every version; a malformed percent-encoding in the target is `client_request_uri_percent_encoding_valid`'s. The same `absolute-URI / partial-URI` production governs `Content-Location` (RFC 9110 §8.7), whose rule reads the same fragment question from the grammar and RFC 9110 §2.2 alone — no MUST NOT names the component for that field.
 
 ## Specifications
 
