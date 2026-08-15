@@ -33,7 +33,7 @@ use uuid::Uuid;
 
 use crate::lint::Violation;
 use crate::protocol_event::{
-    MessageDirection, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
+    MessageDirection, NegotiatedExtensions, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
 };
 use crate::rules::ProtocolRule;
 
@@ -49,6 +49,26 @@ struct Frame {
     fin: bool,
     opcode: u8,
     payload_length: u64,
+    /// What the `101` that opened this session accepted. Three of this rule's
+    /// findings have an *unless an extension* clause in their own sentence, and
+    /// until the capture carried this they were reported through it.
+    extensions: NegotiatedExtensions,
+}
+
+impl Frame {
+    /// Whether the escape clause the reserved opcodes and § 5.4's interleaving
+    /// rule share is in evidence for this frame.
+    ///
+    /// **Only `Accepted` stands a finding down.** `Unrecorded` is every capture
+    /// written before the field existed and every one written elsewhere, and
+    /// reading it as *"no extension"* would be inventing evidence in the
+    /// direction that reports; reading it as *"some extension"* would silence
+    /// findings this rule has always made. It is neither, so the frame is
+    /// measured as it was before — which is the only change-free answer for
+    /// the captures that exist.
+    fn an_extension_was_negotiated(&self) -> bool {
+        matches!(self.extensions, NegotiatedExtensions::Accepted(_))
+    }
 }
 
 impl Frame {
@@ -80,14 +100,14 @@ impl StatefulWebsocketFrameOpcodeSequence {
     /// frame below 8 and a further *control* frame above 10 — so the finding
     /// says which.
     ///
-    /// **The escape this rule cannot see.** § 5.8 hands both ranges to
-    /// extensions, and § 5.8 also says the endpoints negotiate any extension
-    /// during the opening handshake. That negotiation is `Sec-WebSocket-Extensions`
-    /// in an exchange the handshake rules read; a frame event carries no
-    /// handshake and no session state derived from one, so an opcode an
-    /// extension gave a meaning to is reported here anyway. Published in
-    /// `description()` rather than hedged into the message, because the frame on
-    /// its own really does derive from no defined frame type.
+    /// **The escape, and it is in evidence now.** § 5.8 hands both ranges to
+    /// extensions and says the endpoints negotiate any extension during the
+    /// opening handshake. That negotiation is `Sec-WebSocket-Extensions` in an
+    /// exchange the handshake rules read — and the frame event carries the
+    /// `101`'s answer, so a session that accepted an extension stands both
+    /// findings down rather than publishing the over-report in
+    /// `description()`, which is what this rule did until the capture recorded
+    /// it. A capture that does not say is measured as before.
     ///
     /// **And the registry is open.** § 11.8 registers opcodes by Standards
     /// Action, so a value assigned after this was written would land in the same
@@ -107,6 +127,17 @@ impl StatefulWebsocketFrameOpcodeSequence {
                  hold, so no frame header on any wire carried this value",
                 frame.opcode
             ));
+        }
+
+        // The escape clause, now in evidence. § 5.8 reserves both ranges *for
+        // use by extensions*, and a session whose `101` accepted one is a
+        // session where the opcode may have been given a meaning this document
+        // does not define -- which is what the two findings below would
+        // otherwise deny. Silence here is narrower than the rule used to be and
+        // only for the captures that carry the handshake; see
+        // `Frame::an_extension_was_negotiated` for why `Unrecorded` is not it.
+        if frame.an_extension_was_negotiated() {
+            return None;
         }
 
         // cite(RFC 6455 § 5.2): "If an unknown opcode is received, the receiving endpoint MUST _Fail the WebSocket Connection_."
@@ -270,11 +301,14 @@ impl StatefulWebsocketFrameOpcodeSequence {
         }
 
         // A second message started before the first was terminated. The escape
-        // clause names an extension, which is the same thing a frame event
-        // cannot show as the reserved opcodes above.
+        // clause names an extension, and the handshake that would have
+        // negotiated one now travels with the frame -- so this finding stands
+        // down for a session that accepted one, on the same terms as the
+        // reserved opcodes above.
         // cite(RFC 6455 § 5.4): "The fragments of one message MUST NOT be interleaved between the fragments of another message unless an extension has been negotiated that can interpret the interleaving."
         // cite(RFC 6455 § 5.4): "An unfragmented message consists of a single frame with the FIN bit set (Section 5.2) and an opcode other than 0."
-        if frame.opcode != 0 && open_fragment == Some(true) {
+        if frame.opcode != 0 && open_fragment == Some(true) && !frame.an_extension_was_negotiated()
+        {
             return Some(format!(
                 "opens a second message (opcode {}) while this endpoint's previous message is \
                  still fragmented and unterminated",
@@ -303,7 +337,8 @@ impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
             fin,
             opcode,
             payload_length,
-            ..
+            extensions,
+            rsv: _,
         } = &event.kind
         else {
             return None;
@@ -314,6 +349,7 @@ impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
             fin: *fin,
             opcode: *opcode,
             payload_length: *payload_length,
+            extensions: extensions.clone(),
         };
 
         // One frame carries one finding, and the order is the order a receiver
@@ -341,7 +377,7 @@ impl ProtocolRule for StatefulWebsocketFrameOpcodeSequence {
     }
 
     fn description(&self) -> &'static str {
-        "Reads each WebSocket frame the relay observed and asks three groups of questions, in the order a receiving endpoint reaches them.\n\n**What the opcode is.** The opcode field is four bits, so a recorded value above 15 is one no frame header carried (RFC 6455 §11.8 gives the field its range).  Opcodes 3-7 are reserved for further non-control frames and 11-15 for further control frames; a frame carrying one denotes no frame type the document defines, and §5.2 has the receiving endpoint fail the connection on an unknown opcode.\n\n**What the frame's class requires of it.** §5.5 identifies a control frame by the high bit of its opcode and then states two things about it in one sentence: its payload is 125 bytes or less, and it is never fragmented — so a control frame with the FIN bit clear is reported alongside an oversized one.  A Close frame's body is optional, but a body that exists opens with a two-byte status code, so a Close carrying exactly one payload byte is too short to be either.\n\n**What the frames before it allow.** Once an endpoint has sent a Close, §5.5.1 ends what it may send; a data frame — continuation, Text or Binary — following that endpoint's own Close is reported, and the other direction is left alone, since it is still finishing the closing handshake.  §5.4's fragmentation rules supply the rest: a continuation frame with no fragmented message open in that direction has nothing to continue, and a Text or Binary frame arriving while one is still open interleaves two messages.  Control frames are stepped over when answering that question, because §5.4 permits them in the middle of a fragmented message.\n\n**Two things a frame event cannot show.** §5.8 hands opcodes 3-7 and 11-15, and the reserved bits, to extensions negotiated in the opening handshake, and §5.4's interleaving rule has the same escape.  A frame event carries no handshake, so `Sec-WebSocket-Extensions` is invisible here and both findings are reported whether or not an extension gave the frame a meaning.  The reserved bits themselves are recorded on the event and read by no rule in this catalogue.\n\n**Where these findings come from.** The relay reads frames through tokio-tungstenite, which refuses every defect above before the proxy is handed a message, and which defragments — so a relayed message reaches this rule as a single frame with FIN set.  These findings are therefore reachable through `lint`, over capture files written by something other than this proxy."
+        "Reads each WebSocket frame the relay observed and asks three groups of questions, in the order a receiving endpoint reaches them.\n\n**What the opcode is.** The opcode field is four bits, so a recorded value above 15 is one no frame header carried (RFC 6455 §11.8 gives the field its range).  Opcodes 3-7 are reserved for further non-control frames and 11-15 for further control frames; a frame carrying one denotes no frame type the document defines, and §5.2 has the receiving endpoint fail the connection on an unknown opcode.\n\n**What the frame's class requires of it.** §5.5 identifies a control frame by the high bit of its opcode and then states two things about it in one sentence: its payload is 125 bytes or less, and it is never fragmented — so a control frame with the FIN bit clear is reported alongside an oversized one.  A Close frame's body is optional, but a body that exists opens with a two-byte status code, so a Close carrying exactly one payload byte is too short to be either.\n\n**What the frames before it allow.** Once an endpoint has sent a Close, §5.5.1 ends what it may send; a data frame — continuation, Text or Binary — following that endpoint's own Close is reported, and the other direction is left alone, since it is still finishing the closing handshake.  §5.4's fragmentation rules supply the rest: a continuation frame with no fragmented message open in that direction has nothing to continue, and a Text or Binary frame arriving while one is still open interleaves two messages.  Control frames are stepped over when answering that question, because §5.4 permits them in the middle of a fragmented message.\n\n**The escape clause, and when it is in evidence.** §5.8 hands opcodes 3-7 and 11-15, and the reserved bits, to extensions negotiated in the opening handshake, and §5.4's interleaving rule has the same escape.  Each frame event now records what the `101` accepted in `Sec-WebSocket-Extensions`, so a session that accepted an extension stands those three findings down — the opcode may have been given a meaning this document does not define, and deciding which is that extension's document's business.  A capture that does not record the handshake — every one written before the field existed, and every one written by something other than this proxy — is measured exactly as before: reading its silence as *no extension* would invent evidence, and reading it as *some extension* would silence findings this rule has always made.  The reserved bits are `stateful_websocket_frame_rsv_bits`'s, on the same three-state reading.\n\n**Where these findings come from.** The relay reads frames through tokio-tungstenite, which refuses every defect above before the proxy is handed a message, and which defragments — so a relayed message reaches this rule as a single frame with FIN set.  These findings are therefore reachable through `lint`, over capture files written by something other than this proxy."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -449,6 +485,7 @@ mod tests {
     use crate::protocol_event::MessageDirection;
     use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
     use chrono::Utc;
+    use rstest::rstest;
     use uuid::Uuid;
 
     fn make_config() -> crate::config::Config {
@@ -484,9 +521,18 @@ mod tests {
                 fin,
                 opcode,
                 rsv: 0,
+                extensions: Default::default(),
                 payload_length,
             },
         }
+    }
+
+    /// The same frame, in a session whose `101` accepted `accepted`.
+    fn with_extensions(mut event: ProtocolEvent, accepted: NegotiatedExtensions) -> ProtocolEvent {
+        if let ProtocolEventKind::WebSocketFrame { extensions, .. } = &mut event.kind {
+            *extensions = accepted;
+        }
+        event
     }
 
     /// History is newest-first, and these fixtures are written oldest-first
@@ -822,5 +868,100 @@ mod tests {
             },
         };
         assert_eq!(judge(&evt, &ProtocolEventHistory::empty()), None);
+    }
+
+    /// § 5.8 reserves both opcode ranges *for use by extensions*, and the
+    /// handshake that would have negotiated one now travels with the frame.
+    /// Three fixtures, one per finding that has the escape clause in its own
+    /// sentence, each reported under `NoneAccepted` and silent under
+    /// `Accepted` — so neither half of the gate can be deleted with these
+    /// green.
+    #[rstest]
+    #[case(3)]
+    #[case(7)]
+    #[case(11)]
+    #[case(15)]
+    fn a_reserved_opcode_stands_down_under_an_accepted_extension(#[case] opcode: u8) {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let event = make_ws_event(conn, session, MessageDirection::Client, opcode, 3);
+        let empty = ProtocolEventHistory::new(Vec::new());
+
+        let reported = judge(
+            &with_extensions(event.clone(), NegotiatedExtensions::NoneAccepted),
+            &empty,
+        );
+        assert!(
+            reported.is_some(),
+            "opcode {opcode} with nothing negotiated"
+        );
+
+        let silent = judge(
+            &with_extensions(
+                event.clone(),
+                NegotiatedExtensions::Accepted("x-frame-thing".into()),
+            ),
+            &empty,
+        );
+        assert!(silent.is_none(), "opcode {opcode}: {silent:?}");
+
+        // The capture that does not say is measured exactly as it was before
+        // the field existed, which is what keeps this change from silencing an
+        // old capture file.
+        assert!(
+            judge(&event, &empty).is_some(),
+            "opcode {opcode} unrecorded"
+        );
+    }
+
+    /// § 5.4's interleaving MUST carries the same *unless an extension* clause.
+    #[test]
+    fn interleaving_stands_down_under_an_accepted_extension() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let opener = make_ws_frame(conn, session, MessageDirection::Client, 1, 3, false);
+        let second = make_ws_frame(conn, session, MessageDirection::Client, 2, 3, true);
+        let history = history_of(vec![opener]);
+
+        let reported = judge(
+            &with_extensions(second.clone(), NegotiatedExtensions::NoneAccepted),
+            &history,
+        );
+        assert!(
+            reported.is_some_and(|m| m.contains("opens a second message")),
+            "the finding this case exists for"
+        );
+
+        let silent = judge(
+            &with_extensions(
+                second.clone(),
+                NegotiatedExtensions::Accepted("x-interleave".into()),
+            ),
+            &history,
+        );
+        assert!(silent.is_none(), "{silent:?}");
+        assert!(
+            judge(&second, &history).is_some(),
+            "unrecorded is unchanged"
+        );
+    }
+
+    /// The findings with no escape clause are unmoved by the negotiation: an
+    /// extension is licensed to define a reserved opcode, not to fragment a
+    /// control frame or to send data after a Close.
+    #[test]
+    fn a_finding_whose_sentence_has_no_escape_clause_is_not_gated() {
+        let (conn, session) = (Uuid::new_v4(), Uuid::new_v4());
+        let oversized = make_ws_event(conn, session, MessageDirection::Client, 9, 126);
+        let empty = ProtocolEventHistory::new(Vec::new());
+        let v = judge(
+            &with_extensions(
+                oversized,
+                NegotiatedExtensions::Accepted("permessage-deflate".into()),
+            ),
+            &empty,
+        );
+        assert!(
+            v.is_some_and(|m| m.contains("125")),
+            "the control-frame cap"
+        );
     }
 }

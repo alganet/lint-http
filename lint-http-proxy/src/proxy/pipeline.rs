@@ -176,6 +176,7 @@ mod tests {
                 fin: true,
                 opcode: 1,
                 rsv: 0,
+                extensions: Default::default(),
                 payload_length: 2,
             },
         };

@@ -190,6 +190,7 @@ pub(super) async fn handle_websocket_upgrade(
             debug!("websocket relay starting without a connection permit (at capacity)");
         }
         let relay_shutdown = shared.shutdown.clone();
+        let negotiated = accepted_extensions(&headers);
         tokio::spawn(async move {
             let _relay_permit = relay_permit;
             // Wait for both sides to complete the upgrade
@@ -208,6 +209,7 @@ pub(super) async fn handle_websocket_upgrade(
                 tx_id,
                 captures_clone,
                 connection_id,
+                negotiated,
                 pe_pipeline,
                 relay_shutdown,
             )
@@ -327,6 +329,40 @@ async fn connect_upstream_for_upgrade(
     }
 }
 
+/// What a `101` settled about extensions, read from the response and not from
+/// the offer.
+///
+/// **Presence is the whole decision, and that is why the value is not parsed
+/// here.** RFC 6455 § 9.1 makes the server's list the extensions in use, and a
+/// client's own field only an offer it may not act on — so a `101` with no such
+/// field is the connection's answer that nothing was accepted, which is what
+/// lets a frame rule read the reserved bits and opcodes at all. A `101` that
+/// carries the field stands those findings down whatever it holds: which
+/// extension defines which bit is that extension's document's business.
+///
+/// **An unreadable value is still a field.** Reading it through a UTF-8 decoder
+/// would turn a `Sec-WebSocket-Extensions` carrying `obs-text` into a handshake
+/// that accepted nothing — a claim about the exchange, and the one direction
+/// that *licenses* findings. The shared as-written reader gives one `char` per
+/// octet and joins the lines the way § 5.2 does, so the record holds what the
+/// server wrote.
+///
+/// The absent case is `NoneAccepted` and never `Unrecorded`: this proxy watched
+/// the handshake, so it knows a difference a capture written elsewhere cannot
+/// state.
+///
+// cite(RFC 6455 § 9.1): "The extensions listed by the server in response represent the extensions actually in use for the connection."
+fn accepted_extensions(headers: &hyper::HeaderMap) -> crate::protocol_event::NegotiatedExtensions {
+    use crate::protocol_event::NegotiatedExtensions;
+    match crate::helpers::headers::combined_field_value_as_written(
+        headers,
+        "sec-websocket-extensions",
+    ) {
+        Some(value) => NegotiatedExtensions::Accepted(value),
+        None => NegotiatedExtensions::NoneAccepted,
+    }
+}
+
 /// Build the protocol event for a single relayed WebSocket frame, stamped with
 /// its arrival time. Thin wrapper over the shared
 /// [`WebSocketMessageInfo::frame_event`] mapping so live and offline replay
@@ -335,18 +371,26 @@ fn ws_frame_event(
     connection_id: uuid::Uuid,
     session_id: uuid::Uuid,
     info: &crate::websocket_session::WebSocketMessageInfo,
+    extensions: &crate::protocol_event::NegotiatedExtensions,
 ) -> crate::protocol_event::ProtocolEvent {
-    info.frame_event(chrono::Utc::now(), connection_id, session_id)
+    info.frame_event(chrono::Utc::now(), connection_id, session_id, extensions)
 }
 
 /// Relay WebSocket messages between client and server, recording each message
 /// for capture. Uses tokio-tungstenite for proper RFC 6455 frame parsing.
+///
+/// The eighth parameter is what the handshake settled about extensions, and it
+/// is passed rather than re-read because the `101` this session came from is
+/// gone by the time the relay runs — the same reason `tx_id` is passed. Its
+/// caller carries the same allow, for the same reason.
+#[allow(clippy::too_many_arguments)]
 async fn relay_websocket(
     client_io: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
     server_io: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
     tx_id: uuid::Uuid,
     captures: CaptureWriter,
     connection_id: uuid::Uuid,
+    extensions: crate::protocol_event::NegotiatedExtensions,
     pipeline: ProtocolEventPipeline,
     shutdown: CancellationToken,
 ) {
@@ -368,6 +412,8 @@ async fn relay_websocket(
     let close_code = Arc::new(tokio::sync::Mutex::new(None::<u16>));
     let start = Instant::now();
 
+    let ext_c2s = extensions.clone();
+    let ext_s2c = extensions.clone();
     let msgs_c2s = messages.clone();
     let viols_c2s = violations.clone();
     let close_c2s = close_code.clone();
@@ -384,7 +430,7 @@ async fn relay_websocket(
                         }
                     }
                     // Emit protocol event and lint it
-                    let pe = ws_frame_event(connection_id, session_id, &info);
+                    let pe = ws_frame_event(connection_id, session_id, &info, &ext_c2s);
                     let v = pipe_c2s.commit(&pe);
                     if !v.is_empty() {
                         viols_c2s.lock().await.extend(v);
@@ -416,7 +462,7 @@ async fn relay_websocket(
                         }
                     }
                     // Emit protocol event and lint it
-                    let pe = ws_frame_event(connection_id, session_id, &info);
+                    let pe = ws_frame_event(connection_id, session_id, &info, &ext_s2c);
                     let v = pipe_s2c.commit(&pe);
                     if !v.is_empty() {
                         viols_s2c.lock().await.extend(v);
@@ -444,6 +490,7 @@ async fn relay_websocket(
     let duration_ms = start.elapsed().as_millis() as u64;
     let mut session = WebSocketSession::new(tx_id);
     session.id = session_id;
+    session.extensions = extensions;
     session.duration_ms = duration_ms;
     session.messages = match Arc::try_unwrap(messages) {
         Ok(mutex) => mutex.into_inner(),
@@ -526,6 +573,57 @@ mod tests {
     use std::sync::Arc as StdArc;
     use tokio::time::Instant;
     use uuid::Uuid;
+
+    /// The one line that turns a `101` into the fact a frame rule reads.
+    ///
+    /// The absent case is the load-bearing one: it says *the server accepted
+    /// nothing*, which is what licenses `stateful_websocket_frame_rsv_bits` to
+    /// report a reserved bit at all. The `obs-text` case is the mirror — a
+    /// field that is there and unreadable must not become "accepted nothing",
+    /// or an unreadable handshake would start licensing findings.
+    #[test]
+    fn accepted_extensions_reads_the_response_field() {
+        use crate::protocol_event::NegotiatedExtensions;
+        use hyper::header::{HeaderName, HeaderValue};
+
+        let name = HeaderName::from_static("sec-websocket-extensions");
+
+        let mut none = hyper::HeaderMap::new();
+        none.insert(
+            hyper::header::UPGRADE,
+            HeaderValue::from_static("websocket"),
+        );
+        assert_eq!(
+            accepted_extensions(&none),
+            NegotiatedExtensions::NoneAccepted
+        );
+
+        let mut one = hyper::HeaderMap::new();
+        one.insert(name.clone(), HeaderValue::from_static("permessage-deflate"));
+        assert_eq!(
+            accepted_extensions(&one),
+            NegotiatedExtensions::Accepted("permessage-deflate".into())
+        );
+
+        // Several field lines in one section are one value.
+        let mut two = hyper::HeaderMap::new();
+        two.append(name.clone(), HeaderValue::from_static("foo"));
+        two.append(name.clone(), HeaderValue::from_static("bar; baz=2"));
+        assert_eq!(
+            accepted_extensions(&two),
+            NegotiatedExtensions::Accepted("foo,bar; baz=2".into())
+        );
+
+        let mut obs = hyper::HeaderMap::new();
+        obs.insert(
+            name,
+            HeaderValue::from_bytes(&[0xff]).expect("obs-text is a field-content"),
+        );
+        assert!(
+            matches!(accepted_extensions(&obs), NegotiatedExtensions::Accepted(_)),
+            "an unreadable value is still a field the server sent"
+        );
+    }
 
     fn test_pe_pipeline() -> ProtocolEventPipeline {
         let cfg = StdArc::new(crate::config::Config::default());
@@ -691,6 +789,7 @@ mod tests {
                 tx_id,
                 cw_clone,
                 uuid::Uuid::new_v4(),
+                crate::protocol_event::NegotiatedExtensions::NoneAccepted,
                 test_pe_pipeline(),
                 tokio_util::sync::CancellationToken::new(),
             )
@@ -1053,6 +1152,7 @@ mod tests {
                 tx_id,
                 cw_clone,
                 uuid::Uuid::new_v4(),
+                crate::protocol_event::NegotiatedExtensions::NoneAccepted,
                 test_pe_pipeline(),
                 tokio_util::sync::CancellationToken::new(),
             )
@@ -1144,6 +1244,7 @@ mod tests {
                 tx_id,
                 cw_clone,
                 uuid::Uuid::new_v4(),
+                crate::protocol_event::NegotiatedExtensions::NoneAccepted,
                 test_pe_pipeline(),
                 tokio_util::sync::CancellationToken::new(),
             )
@@ -1197,6 +1298,7 @@ mod tests {
                 tx_id,
                 cw_clone,
                 uuid::Uuid::new_v4(),
+                crate::protocol_event::NegotiatedExtensions::NoneAccepted,
                 test_pe_pipeline(),
                 shutdown_relay,
             )
@@ -1411,6 +1513,7 @@ mod tests {
                 tx_id,
                 cw_clone,
                 uuid::Uuid::new_v4(),
+                crate::protocol_event::NegotiatedExtensions::NoneAccepted,
                 test_pe_pipeline(),
                 tokio_util::sync::CancellationToken::new(),
             )
