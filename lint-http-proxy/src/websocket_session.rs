@@ -49,11 +49,16 @@ impl WebSocketMessageInfo {
     /// its arrival time, offline replay (the `lint` subcommand) with the
     /// session timestamp — everything else must stay identical or replay
     /// results drift from live ones.
+    /// `extensions` is the session's, not the message's: what the `101`
+    /// accepted is one fact for the whole connection, so it is stored once on
+    /// [`WebSocketSession`] and stamped onto each frame here — the frame is
+    /// where a rule needs it, and the session record is where it belongs.
     pub fn frame_event(
         &self,
         timestamp: DateTime<Utc>,
         connection_id: Uuid,
         session_id: Uuid,
+        extensions: &crate::protocol_event::NegotiatedExtensions,
     ) -> crate::protocol_event::ProtocolEvent {
         crate::protocol_event::ProtocolEvent {
             timestamp,
@@ -65,6 +70,7 @@ impl WebSocketMessageInfo {
                 opcode: self.opcode,
                 rsv: self.rsv,
                 payload_length: self.payload_length,
+                extensions: extensions.clone(),
             },
         }
     }
@@ -84,6 +90,13 @@ pub struct WebSocketSession {
     /// Protocol-level violations detected during the session.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub violations: Vec<crate::lint::Violation>,
+    /// What the `101` that opened this session accepted in
+    /// `Sec-WebSocket-Extensions`. Recorded once per session and stamped onto
+    /// every frame event, because the rules that need it read a frame; see
+    /// [`NegotiatedExtensions`](crate::protocol_event::NegotiatedExtensions)
+    /// for why *"none accepted"* and *"not recorded"* are separate states.
+    #[serde(default)]
+    pub extensions: crate::protocol_event::NegotiatedExtensions,
 }
 
 impl WebSocketSession {
@@ -96,6 +109,7 @@ impl WebSocketSession {
             messages: Vec::new(),
             close_code: None,
             violations: Vec::new(),
+            extensions: crate::protocol_event::NegotiatedExtensions::Unrecorded,
         }
     }
 }
@@ -103,6 +117,47 @@ impl WebSocketSession {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A session record written before the field existed reads back as
+    /// `Unrecorded`, and that is what keeps `lint` over an old capture file
+    /// from turning noisy: every frame it replays carries "the handshake is
+    /// not in evidence" rather than "the server accepted nothing".
+    #[test]
+    fn a_session_written_without_the_field_replays_as_unrecorded() {
+        let json = serde_json::json!({
+            "id": Uuid::new_v4(),
+            "transaction_id": Uuid::new_v4(),
+            "timestamp": Utc::now(),
+            "duration_ms": 12,
+            "messages": [{
+                "direction": "client",
+                "opcode": 1,
+                "payload_length": 3,
+            }],
+        })
+        .to_string();
+        let session: WebSocketSession = serde_json::from_str(&json).expect("an older session");
+        assert_eq!(
+            session.extensions,
+            crate::protocol_event::NegotiatedExtensions::Unrecorded
+        );
+
+        let event = session.messages[0].frame_event(
+            session.timestamp,
+            session.id,
+            session.id,
+            &session.extensions,
+        );
+        let crate::protocol_event::ProtocolEventKind::WebSocketFrame { extensions, .. } =
+            &event.kind
+        else {
+            panic!("a frame event");
+        };
+        assert_eq!(
+            *extensions,
+            crate::protocol_event::NegotiatedExtensions::Unrecorded
+        );
+    }
 
     #[test]
     fn serde_roundtrip() {

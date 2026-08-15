@@ -382,7 +382,12 @@ fn lint_websocket_session(
     );
     let mut violations = Vec::new();
     for msg in &session.messages {
-        let event = msg.frame_event(session.timestamp, session.id, session.id);
+        let event = msg.frame_event(
+            session.timestamp,
+            session.id,
+            session.id,
+            &session.extensions,
+        );
         violations.extend(engine.lint_protocol_event(&event, cfg, &event_store));
         event_store.record_event(&event);
     }

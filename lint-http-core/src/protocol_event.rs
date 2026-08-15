@@ -42,6 +42,48 @@ fn default_direction_client() -> MessageDirection {
     MessageDirection::Client
 }
 
+/// What the opening handshake of a WebSocket session negotiated, carried on
+/// every frame of that session.
+///
+/// **Three states, because two of them are the same word in English and not the
+/// same fact.** A frame-level rule asking about RFC 6455's reserved bits and
+/// reserved opcodes needs to know whether *any* extension was negotiated, since
+/// the specification hands both to extensions and requires the negotiation to
+/// happen in the opening handshake — which is an HTTP exchange a
+/// [`ProtocolRule`](crate::rules::ProtocolRule) never sees. So the answer
+/// travels with the frame, and *"the server accepted no extension"* is a
+/// different record from *"this capture does not say"*: the first licenses a
+/// finding, and the second is why [`Unrecorded`](Self::Unrecorded) is the
+/// serde default. Every event written before this field existed deserializes to
+/// it, and so does every capture written by something other than this proxy.
+///
+/// The value is repeated per frame rather than held once per session on
+/// purpose. A rule decides per frame, and the alternative — a session-opened
+/// event read out of the history — is bounded by `max_protocol_event_history`,
+/// so a long session would silently stop answering the question.
+///
+/// **The response's field is the whole of the agreement**, which is what makes
+/// a missing one an answer rather than a silence: a client's own
+/// `Sec-WebSocket-Extensions` is an offer it may not act on, and the sentence
+/// below says the server's list is what is in use.
+///
+/// cite(RFC 6455 § 5.8): "The endpoints of a connection MUST negotiate the use of any extensions during the opening handshake."
+/// cite(RFC 6455 § 9.1): "The extensions listed by the server in response represent the extensions actually in use for the connection."
+/// cite(RFC 6455 § 9.1): "Note that the client is only offering to use any advertised extensions and MUST NOT use them unless the server indicates that it wishes to use the extension."
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NegotiatedExtensions {
+    /// The capture does not record the handshake this session was opened by.
+    #[default]
+    Unrecorded,
+    /// The `101` carried no `Sec-WebSocket-Extensions` field, so the server
+    /// accepted none.
+    NoneAccepted,
+    /// The `Sec-WebSocket-Extensions` value the `101` carried, as the server
+    /// wrote it.
+    Accepted(String),
+}
+
 /// A single protocol-level event observed on a connection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProtocolEvent {
@@ -74,6 +116,13 @@ pub enum ProtocolEventKind {
         rsv: u8,
         /// Payload length in bytes.
         payload_length: u64,
+        /// What the `101` that opened this session accepted, so that a rule
+        /// reading the bits and opcodes RFC 6455 reserves for extensions can
+        /// tell an extension's frame from a defect. See
+        /// [`NegotiatedExtensions`] for why the absent case is three states
+        /// and not two.
+        #[serde(default)]
+        extensions: NegotiatedExtensions,
     },
 
     // ── HTTP/3 connection-level ────────────────────────────────────────
@@ -263,6 +312,7 @@ mod tests {
             fin: true,
             opcode: 1,
             rsv: 0,
+            extensions: NegotiatedExtensions::Unrecorded,
             payload_length: 42,
         });
         let json = serde_json::to_string(&evt).unwrap();
