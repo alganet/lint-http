@@ -1350,7 +1350,7 @@ sources:
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 208
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
-      line: 151
+      line: 154
   - label: lint-http-rules/src/helpers/uri.rs (34)
     section: § 6.2.2.1
     snippet: the scheme and host are case-insensitive and therefore should be normalized to lowercase
@@ -1373,8 +1373,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 739
-    - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
-      line: 161
   - label: message_host_and_authority_consistency
     section: § 6.2.3
     snippet: Normalization should not remove delimiters when their associated component is empty unless licensed to do so by the scheme specification.
@@ -1424,13 +1422,13 @@ sources:
     snippet: path-absolute = "/" [ segment-nz *( "/" segment ) ]
     cited_by:
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
-      line: 150
+      line: 153
   - label: segment-nz
     section: § 3.3
     snippet: segment-nz    = 1*pchar
     cited_by:
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
-      line: 236
+      line: 255
   - label: server_location_header_uri_valid
     section: § 4.1
     snippet: URI-reference = URI / relative-ref
@@ -3981,13 +3979,13 @@ sources:
     snippet: Furthermore, defining well-known locations usurps the origin's control over its own URI space [RFC7320].
     cited_by:
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
-      line: 206
+      line: 225
   - label: message_well_known_uri_format (2)
     section: § 1
     snippet: To address these uses, this memo reserves a path prefix in HTTP, HTTPS, WebSocket (WS), and Secure WebSocket (WSS) URIs for these "well-known locations", "/.well-known/".
     cited_by:
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
-      line: 218
+      line: 237
   - label: message_well_known_uri_format (3)
     section: § 1
     snippet: Well-known URIs can also be used with other URI schemes, but only when those schemes' definitions explicitly allow it.
@@ -4005,7 +4003,7 @@ sources:
     snippet: Also, this specification does not define a format or media type for the resource located at "/.well-known/", and clients should not expect a resource to exist at that location.
     cited_by:
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
-      line: 237
+      line: 256
   - label: message_well_known_uri_format (6)
     section: § 3
     snippet: Applications that wish to mint new well-known URIs MUST register them, following the procedures in Section 5.1, subject to the following requirements.
@@ -4017,25 +4015,25 @@ sources:
     snippet: For example, "/.well-known/example" is a well-known URI, whereas "/foo/.well-known/example" is not.
     cited_by:
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
-      line: 205
+      line: 224
   - label: message_well_known_uri_format (8)
     section: § 3
     snippet: Registered names MUST conform to the "segment-nz" production in [RFC3986].
     cited_by:
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
-      line: 235
+      line: 254
   - label: message_well_known_uri_format (9)
     section: § 3
     snippet: Registrations MAY also contain additional information, such as the syntax of additional path components, query strings, and/or fragment identifiers to be appended to the well-known URI
     cited_by:
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
-      line: 251
+      line: 270
   - label: message_well_known_uri_format (10)
     section: § 3
     snippet: This means they cannot contain the "/" character.
     cited_by:
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
-      line: 250
+      line: 269
   - label: message_well_known_uri_format (11)
     section: § 3
     snippet: This specification updates the "http" [RFC7230] and "https" [RFC7230] schemes to support well-known URIs.
@@ -4047,7 +4045,7 @@ sources:
     snippet: Well-known URIs are rooted in the top of the path's hierarchy; they are not well-known by definition in other parts of the path.
     cited_by:
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
-      line: 204
+      line: 223
   - label: message_well_known_uri_format (13)
     section: § 5.2
     snippet: If a URI scheme explicitly has been specified to use well-known URIs as per Section 3, the value changes to a reference to that specification.
