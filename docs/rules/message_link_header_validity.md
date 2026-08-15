@@ -20,14 +20,15 @@ Parses the `Link` field of a request and of a response — every field line of o
 
 **Commas inside a member are data.** A `URI-Reference` admits `,` as a `sub-delim` and a `quoted-string` admits it as `qdtext`; §3.3 says so in as many words when it requires an extension relation type to be quoted if it holds one. The members are therefore cut at the commas outside both `<>` and `""`, and `Link: </a,b>; rel=next` is one link and not two malformed ones.
 
-**What §3.4.1's `as` finding rests on, and where.** No RFC requires an `as` parameter of anything: `preload` and `as` are HTML's, and the sentence that makes their pairing observable is in the HTML Standard's *Processing `Link` headers* algorithm, which runs over a **response**'s header list and returns early when `attribs["as"]` does not exist. So the member is not malformed — it is discarded by the recipient it was written for, and the finding says that rather than inventing a requirement. On a request it is not reported at all, because that algorithm never sees one.
+**What §3.4.1's `as` findings rest on, and where.** No RFC requires an `as` parameter of anything: `preload` and `as` are HTML's, and the sentences that make their pairing observable are in the HTML Standard's *Processing `Link` headers* algorithm, which runs over a **response**'s header list and returns early when `attribs["as"]` does not exist — or when its value translates to null. So the member is not malformed — it is discarded by the recipient it was written for, and both findings say that rather than inventing a requirement. On a request neither is reported at all, because that algorithm never sees one.
+
+**An `as` value is measured against HTML's six preload destinations, not Fetch's table.** *Translate a preload destination* refuses membership before Fetch's *translate a potential destination* is ever consulted, so the set is `fetch`, `font`, `image`, `script`, `style`, `track` — and `as=document`, a Fetch destination, is discarded like any other non-member, while `as=fetch` conforms. The match keeps case, and deliberately: the neighbouring steps of the same algorithm say *"an ASCII case-insensitive match"* about `crossorigin` and `fetchpriority` in as many words and this step says nothing of the kind, so `as=Font` is a string the set does not hold. A repeated `as` is not reported and only the first is judged: RFC 8288's parsing algorithm deduplicates only the four attributes §3.4.1 bounds, and the map read HTML performs takes the first entry.
 
 **RFC 8297 requires nothing of a `Link` in a 103.** Its five modals are two MUST NOTs and a SHOULD NOT addressed to the client about what it does with fields it received, plus two MAYs handed to the server; none of them is about this field's content. The status-gated check this replaces asked a 103's members for a `rel` and let every other response omit it — a narrower rendering of §3.3's MUST, which is stated once for every link-value there is.
 
 **What this rule does not decide.**
 
 - **What a `media` value holds.** §1.1 imports its production — `media-query-list` — from the dated 2012 CSS3 Media Queries Recommendation: a grammar in CSS's formalism rather than ABNF, from a document this catalogue does not read, whose own error handling folds a query it cannot parse to `not all` rather than refusing it. Measuring a value against the pinned 2012 grammar would adjudicate a drift this catalogue has not audited — the Media Queries syntax senders write today derives range forms the 2012 document does not print — and a floor loose enough to sidestep the drift would measure nothing. §3.4.1's one MUST about the value (quote it if it holds a `;` or `,`) needs no rule, because the serialisation enforces it itself: unquoted, those characters are this field's own delimiters, so the value never arrives as one value to ask about.
-- **Whether an `as` value names a preload destination.** The same HTML algorithm drops the member when `as` translates to nothing, but the set of destinations lives in Fetch and would have to be transcribed and kept in step here. Being wrong about it costs a false report on an otherwise conforming member, so the question is carried rather than guessed at.
 - **Where a relative `URI-Reference` resolves.** §3.1 and §3.2 make that a parser's MUST and it needs a base the field does not carry.
 - **`rev`.** §3.3 deprecates it in a sentence holding no BCP 14 keyword at all, so nothing there makes writing it a defect.
 - **Whether the target exists, or the relation type is registered.** §2.1.1.2 registers relation types under Specification Required and §2.1.2 hands every unregistered name to the URI form, so an unrecognised lowercase name is an extension the registry has not been asked about — not a finding.
@@ -52,6 +53,7 @@ Parses the `Link` field of a request and of a response — every field line of o
 - [RFC 6838 §4.2](https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2): Naming Requirements: `restricted-name`, the production behind both halves of a `type` value. It opens on a letter or digit and closes at 127 characters, and §3.4.1's ABNF for the value ends at the subtype-name, so there is no parameters group and no wildcard here
 - [HTML Semantics §4.2.4.4](https://html.spec.whatwg.org/multipage/semantics.html#processing-link-headers): *Processing `Link` headers* — the algorithm that reads this field out of a **response** and, for `rel=preload`, returns early when `as` does not exist. The only published sentence pairing the two, and the reason that finding is worded as a member being discarded rather than as a MUST
 - [HTML Links §4.6.8.20](https://html.spec.whatwg.org/multipage/links.html#link-type-preload): Where the `preload` keyword itself is defined, and where it says the resource is fetched *according to the preload destination given by the `as` attribute*. The old reference here named a retired W3C Preload specification in its note while pointing at this page
+- [HTML Links §4.6.8.20](https://html.spec.whatwg.org/multipage/links.html#preload-destination): *Preload destination* — the six strings the header path admits — and *translate a preload destination*, which returns null for anything else before Fetch's own translation is consulted. The reason the table here holds six values and not Fetch's twenty
 - [RFC 8297 §2](https://www.rfc-editor.org/rfc/rfc8297.html#section-2): Early Hints. Named because a check here used to be gated on the 103 status and rest on this document: it states nothing about a `Link` member's content, and its modals are addressed to the client
 
 ## Configuration
@@ -141,6 +143,13 @@ Link: <https://example.com/>; rel = next
 ```http
 HTTP/1.1 103 Early Hints
 Link: <https://example.com/script.js>; rel=preload
+```
+
+### ❌ Bad (as=document is a Fetch destination, but not one of HTML's six preload destinations)
+
+```http
+HTTP/1.1 200 OK
+Link: <https://example.com/next>; rel=preload; as=document
 ```
 
 ### ❌ Bad (an invalid character in a parameter name)
