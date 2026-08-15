@@ -94,7 +94,15 @@ impl Rule for MessageMediaTypeSuffixValidity {
                 Ok(p) => p,
                 Err(_) => return None,
             };
-            let subtype = parsed.subtype.trim();
+            // Not trimmed again. `parse_media_type` has already excluded the
+            // `OWS` its production prints, and it prints none inside
+            // `type "/" subtype` — so a second `str::trim` here removed nothing
+            // legal and, on a value read one `char` per octet, removed %xA0 from
+            // a malformed subtype and left this rule judging the suffix of a
+            // name that is not well formed. That is the finding its own
+            // `description()` promises to leave to the rule that owns it.
+            // cite(RFC 9110 § 8.3.1, label: media-type grammar): "media-type = type "/" subtype parameters"
+            let subtype = parsed.subtype;
 
             // `parse_media_type` is structural — it finds the "/" and checks that
             // neither half is empty — so a subtype full of characters no subtype
@@ -194,7 +202,7 @@ impl Rule for MessageMediaTypeSuffixValidity {
             headers
                 .get_all(name)
                 .iter()
-                .map(|hv| String::from_utf8_lossy(hv.as_bytes()).into_owned())
+                .map(crate::helpers::headers::field_line_as_written)
                 .collect()
         };
 
@@ -423,6 +431,13 @@ mod tests {
     // here as bad *suffixes*, naming the wrong defect and saying it twice.
     #[case(b"application/ld+json\xe4", false)]
     #[case("application/ld+jso\u{ad}n".as_bytes(), false)]
+    // %xA0 is the one the second trim reached. `parse_media_type` has already
+    // excluded the `OWS` its production prints and prints none inside
+    // `type "/" subtype`, so the extra `str::trim` this rule ran took an
+    // `obs-text` octet off a malformed subtype and then judged its suffix —
+    // reporting `+bogus` about a name that is not a name.
+    #[case(b"application/vnd.x+bogus\xA0", false)]
+    #[case(b"application/vnd.x+json\xA0", false)]
     // A subtype that is only a suffix has no base name to qualify.
     #[case(b"application/+json", true)]
     // Well-formed names are still judged on their suffix.

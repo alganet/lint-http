@@ -43,7 +43,7 @@ impl Rule for MessageTransferEncodingChunkedFinal {
                 // finding: it silently reorders the sequence this rule exists
                 // to judge, because the codings on that line are the ones
                 // between the lines that remain.
-                let val = String::from_utf8_lossy(hv.as_bytes());
+                let val = crate::helpers::headers::field_line_as_written(hv);
                 if !crate::helpers::headers::quoting_is_balanced(&val) {
                     return None;
                 }
@@ -64,8 +64,8 @@ impl Rule for MessageTransferEncodingChunkedFinal {
                     // all is `message_transfer_coding_iana_registered`'s finding.
                     // The trim is `OWS` because that is the whitespace the
                     // production prints around the `;`. `str::trim` would take
-                    // more, and on a value read through `from_utf8_lossy` there
-                    // is more to take: %xC2 %xA0 arrives as one `char` that
+                    // more, and on a value read one `char` per octet there is
+                    // more to take: %xA0 arrives as U+00A0, which
                     // `char::is_whitespace` admits and no `token` does.
                     // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
                     // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
@@ -85,7 +85,7 @@ impl Rule for MessageTransferEncodingChunkedFinal {
         // cite(RFC 9112 § 9.6): "The "close" connection option is defined as a signal that the sender will close this connection after completion of the response."
         let announces_close = |headers: &hyper::HeaderMap| -> bool {
             headers.get_all("connection").iter().any(|hv| {
-                let val = String::from_utf8_lossy(hv.as_bytes());
+                let val = crate::helpers::headers::field_line_as_written(hv);
                 // Bound rather than returned directly: the iterator borrows
                 // `val`, and as a tail expression it outlives it. Not a style
                 // choice -- inlining it does not compile.
@@ -642,14 +642,14 @@ mod tests {
 
     /// `a_response_that_announces_close_is_not_reported` with the exemption
     /// spelled in an octet that is not a `tchar`. `connection-option = token`,
-    /// so `close<%xC2%xA0>` is not the `close` option and the response has said
+    /// so `close<%xA0>` is not the `close` option and the response has said
     /// nothing — the value is read with `from_utf8_lossy` and the pair arrives as
     /// one `char` `str::trim` calls whitespace, so the list walk used to hand
     /// back `close` and excuse the message.
     ///
     /// The same octet on the coding itself is the other half: the name in front
     /// of the `;` is `OWS`-trimmed now, so a request whose only coding is
-    /// `chunked<%xC2%xA0>` has applied something that is not `chunked` and never
+    /// `chunked<%xA0>` has applied something that is not `chunked` and never
     /// framed the result. Both used to read as the bare token.
     #[test]
     fn an_obs_text_octet_is_not_whitespace_in_the_connection_option() {
@@ -658,7 +658,7 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_octet_pairs(&[
                 ("transfer-encoding", b"chunked, gzip".as_slice()),
-                ("connection", b"close\xC2\xA0".as_slice()),
+                ("connection", b"close\xA0".as_slice()),
             ]);
 
         let v = rule.check_transaction(
@@ -679,7 +679,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_octet_pairs(&[(
             "transfer-encoding",
-            b"chunked\xC2\xA0".as_slice(),
+            b"chunked\xA0".as_slice(),
         )]);
 
         let v = rule.check_transaction(

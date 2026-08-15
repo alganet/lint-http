@@ -41,8 +41,7 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
         // octet -- both are `token` -- so one appearing where a name belongs
         // simply fails to match anything, which is the right outcome; dropping
         // the line instead hid every *other* name on it.
-        let decode =
-            |hv: &hyper::header::HeaderValue| String::from_utf8_lossy(hv.as_bytes()).into_owned();
+        let decode = crate::helpers::headers::field_line_as_written;
 
         let check = |headers: &hyper::HeaderMap, side: &str| -> Option<Violation> {
             // `content-coding` is a bare `token` with no parameters, so every comma
@@ -61,9 +60,9 @@ impl Rule for MessageCompressionAndTransferEncodingConsistency {
                     // `message_content_encoding_iana_registered` is already
                     // reporting as malformed. It cannot invent an overlap -- the
                     // text before the `;` is text the sender wrote.
-                    // The trim is `OWS`, not `str::trim`: `decode` is
-                    // `from_utf8_lossy`, so %xC2 %xA0 reaches here as one `char`
-                    // `char::is_whitespace` admits and no `token` does, and
+                    // The trim is `OWS`, not `str::trim`: the value is read one
+                    // `char` per octet, so %xA0 reaches here as U+00A0 —
+                    // `char::is_whitespace` admits it and no `token` does, and
                     // taking it would turn a name no production writes into
                     // `gzip`.
                     // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
@@ -330,7 +329,7 @@ mod tests {
 
     /// `Some("gzip"), Some("chunked, gzip")` — the first `overlap_cases` row —
     /// with one `obs-text` octet on the `Content-Encoding` name. `content-coding
-    /// = token`, so `gzip<%xC2%xA0>` is not the `gzip` coding and the two fields
+    /// = token`, so `gzip<%xA0>` is not the `gzip` coding and the two fields
     /// name nothing in common. The value is read with `from_utf8_lossy`, so the
     /// pair arrives as one `char`; the list walk trimmed it and the name split
     /// below trimmed it again, and the finding claimed an overlap between a
@@ -339,8 +338,8 @@ mod tests {
     /// Both name splits are exercised, because they are two separate trims on
     /// two separate productions and only one of them was covered.
     #[rstest]
-    #[case(b"gzip\xC2\xA0", b"chunked, gzip")]
-    #[case(b"gzip", b"chunked, gzip\xC2\xA0")]
+    #[case(b"gzip\xA0", b"chunked, gzip")]
+    #[case(b"gzip", b"chunked, gzip\xA0")]
     fn a_coding_name_carrying_obs_text_overlaps_nothing(#[case] ce: &[u8], #[case] te: &[u8]) {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =

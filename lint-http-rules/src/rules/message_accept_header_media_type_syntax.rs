@@ -56,7 +56,13 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                 // does not start a parameter.
                 let mut parts =
                     crate::helpers::headers::split_semicolons_respecting_quotes(member).into_iter();
-                let media = parts.next().unwrap_or("").trim();
+                // `OWS`, not `str::trim`: the `;` this split on prints `OWS`
+                // around it and nothing wider, and on a value read one `char`
+                // per octet `str::trim` removes %xA0 and %x85 — which are
+                // `obs-text`, and no `subtype` admits one.
+                // cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
+                // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+                let media = crate::helpers::headers::trim_ows(parts.next().unwrap_or(""));
                 // A member that is all parameters has no media-range to carry
                 // them: `[ weight ]` is optional, the media-range is not.
                 if media.is_empty() {
@@ -346,7 +352,7 @@ impl Rule for MessageAcceptHeaderMediaTypeSyntax {
                 // a value carrying one is a value this rule still has to judge.
                 // Skipping it meant a bare `*` sitting on the same line as an
                 // obs-text parameter was reported by nothing at all.
-                let val = String::from_utf8_lossy(hv.as_bytes());
+                let val = crate::helpers::headers::field_line_as_written(hv);
                 if let Some(v) = check_val(hdr, &val) {
                     return Some(v);
                 }
@@ -475,6 +481,32 @@ static REGISTRATION: &dyn crate::rules::Rule = &MessageAcceptHeaderMediaTypeSynt
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// The media-range is `OWS`-trimmed after the split on `;`, not
+    /// `str::trim`-trimmed, and the two differ only on a value read one `char`
+    /// per octet. %xA0 is `obs-text` and no `subtype` admits one, so
+    /// `text/html<%xA0>` is a finding — `str::trim` removed it and left a
+    /// conforming media-range behind. Invisible while the value came through
+    /// `from_utf8_lossy`, which spelled the octet U+FFFD and left it in place.
+    #[test]
+    fn an_obs_text_octet_is_part_of_the_media_range() {
+        let rule = MessageAcceptHeaderMediaTypeSyntax;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "message_accept_header_media_type_syntax",
+        ]);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_octet_pairs(&[(
+            "accept",
+            b"text/html\xA0".as_slice(),
+        )]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some(), "text/html carrying %xA0 drew nothing");
+    }
 
     #[rstest]
     #[case(Some("text/html"), false)]
