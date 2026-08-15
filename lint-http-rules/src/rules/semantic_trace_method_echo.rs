@@ -164,7 +164,9 @@ impl Rule for SemanticTraceMethodEcho {
             crate::rules::SpecRef {
                 spec: "RFC 9110",
                 section: Some("B.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-B.3",
+                // `appendix-B.3`, not `section-B.3`: an appendix anchors under
+                // its own prefix, and the `section-` form scrolls nowhere.
+                url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.3",
                 note: "Changes from RFC 7231 — the normative requirement to use `message/http` in TRACE responses was removed, which is why this rule no longer asks for it",
             },
         ]

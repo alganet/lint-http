@@ -4528,6 +4528,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
       line: 130
+  - label: client_proxy_connection_discouraged
+    section: § 7.6.1
+    snippet: Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_proxy_connection_discouraged.rs
+      line: 54
+    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
+      line: 59
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 159
   - label: client_range_header_syntax_valid
     section: § 14.1.1
     snippet: A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit.
@@ -5312,6 +5322,8 @@ sources:
       line: 211
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1594
+    - file: lint-http-rules/src/rules/client_proxy_connection_discouraged.rs
+      line: 73
     - file: lint-http-rules/src/rules/message_if_match_etag_syntax.rs
       line: 36
     - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
@@ -6496,21 +6508,13 @@ sources:
       line: 93
   - label: message_connection_upgrade (2)
     section: § 7.6.1
-    snippet: Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
-      line: 59
-    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 159
-  - label: message_connection_upgrade (3)
-    section: § 7.6.1
     snippet: When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field.
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
       line: 41
     - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
       line: 239
-  - label: message_connection_upgrade (4)
+  - label: message_connection_upgrade (3)
     section: § 7.8
     snippet: A sender of Upgrade MUST also send an "Upgrade" connection option in the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
     cited_by:
@@ -8836,6 +8840,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_host_header.rs
       line: 125
+  - label: client_proxy_connection_discouraged
+    section: § C.2.2
+    snippet: As a result, clients are encouraged not to send the Proxy-Connection header field in any requests.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_proxy_connection_discouraged.rs
+      line: 28
+  - label: client_proxy_connection_discouraged (2)
+    section: § C.2.2
+    snippet: One attempted solution was the introduction of a Proxy-Connection header field, targeted specifically at proxies.  In practice, this was also unworkable, because proxies are often deployed in multiple layers, bringing about the same problem discussed above.
+    cited_by:
+    - file: lint-http-rules/src/rules/client_proxy_connection_discouraged.rs
+      line: 84
   - label: client_request_target_form_checks
     section: § 3.2
     snippet: A recipient SHOULD NOT attempt to autocorrect and then process the request without a redirect, since the invalid request-line might be deliberately crafted to bypass security filters along the request chain.

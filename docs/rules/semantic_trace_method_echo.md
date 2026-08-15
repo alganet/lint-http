@@ -25,7 +25,7 @@ Reports a TRACE request that carries content, and a TRACE request that carries o
 - [RFC 9110 §6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4): Content — the octet stream left after framing is removed, which is what the content check measures instead of the presence of a framing field
 - [RFC 9110 §11.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2): `Authorization` carries the user agent's credentials; §11.7.2 says the same of `Proxy-Authorization` for a proxy
 - [RFC 6265 §4.2.1](https://www.rfc-editor.org/rfc/rfc6265.html#section-4.2.1): `Cookie` is the field a user agent returns stored cookies in — the second kind of data §9.3.8's example names
-- [RFC 9110 §B.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-B.3): Changes from RFC 7231 — the normative requirement to use `message/http` in TRACE responses was removed, which is why this rule no longer asks for it
+- [RFC 9110 §B.3](https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.3): Changes from RFC 7231 — the normative requirement to use `message/http` in TRACE responses was removed, which is why this rule no longer asks for it
 
 ## Configuration
 
