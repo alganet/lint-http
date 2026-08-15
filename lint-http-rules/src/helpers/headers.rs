@@ -219,6 +219,58 @@ pub fn combined_field_value_as_written(headers: &HeaderMap, name: &str) -> Optio
     )
 }
 
+/// One field line's value, one `char` per octet.
+///
+/// [`combined_field_value_as_written`]'s per-line sibling, and the one the tree
+/// was missing. A field whose grammar is *not* a list — `Content-Type` is the
+/// example, and a second field line of one is another rule's finding — is read
+/// line by line, and joining the lines first would answer a question § 5.2 only
+/// asks of a list. So the loop is `get_all(name)` and what it needs is this: the
+/// same octet-for-`char` decode, applied to the line in hand.
+///
+/// **`String::from_utf8_lossy(hv.as_bytes())` is not this function**, which is
+/// what eleven rules reached for while it did not exist. That decoder reads the
+/// octets as UTF-8 and hands back the text they spell: a sender's %xC3 %xA9 —
+/// two `obs-text` octets — arrives as the single `char` U+00E9, and an octet that
+/// begins no valid sequence arrives as U+FFFD, which is a character no sender can
+/// write and no `field-content` admits. Every verdict of the shape *"is this
+/// US-ASCII"* survives either decode, because both put the result at or above
+/// %x80. What does not survive is anything that **counts** the octets, every
+/// finding that **names** one — `boundary contains invalid character '<U+FFFD>'`
+/// reports a character the message did not carry — and, the one that actually
+/// moved verdicts when the callers were converted, **anything that trims Unicode
+/// whitespace**. U+FFFD is not whitespace and U+00A0 is, so a `str::trim` that
+/// left a lossy value alone removes an as-written one; three sites had that trim
+/// and are `trim_ows` now. Converting a caller means sweeping it for `str::trim`,
+/// not only for `len` and `format!`.
+///
+/// cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+/// cite(RFC 9110 § 5.5): "field-content  = field-vchar [ 1*( SP / HTAB / field-vchar ) field-vchar ]"
+pub fn field_line_as_written(hv: &hyper::header::HeaderValue) -> String {
+    hv.as_bytes().iter().copied().map(char::from).collect()
+}
+
+/// The octets an as-written value stands for, or `None` if it is not one.
+///
+/// The inverse of [`field_line_as_written`] and of
+/// [`combined_field_value_as_written`], and the answer for the one caller shape
+/// that needs it: a rule comparing a *value* against the *body*, where the body
+/// is octets and no amount of care with `char`s will make the two meet.
+/// `str::as_bytes` is the trap — on a string holding one `char` per octet it
+/// re-encodes, so U+00A0 comes back out as %xC2 %xA0 and a boundary the sender
+/// wrote as three octets is hunted for as four.
+///
+/// `None` rather than a truncation when a `char` will not fit in an octet, so a
+/// caller that hands this a string from somewhere else finds out. Every `char` in
+/// an as-written value is below U+0100 by construction — and that is also the
+/// limit of what the guard can notice: U+00E9 *is* what the octet %xE9 reads as,
+/// so a genuine `"é"` and an as-written %xE9 are one string and no function can
+/// separate them. What `None` catches is a string that was never an as-written
+/// value at all, which is the mistake that produces octets nobody wrote.
+pub fn as_written_octets(s: &str) -> Option<Vec<u8>> {
+    s.chars().map(|c| u8::try_from(c as u32).ok()).collect()
+}
+
 /// The field sections a response can carry, in the order they arrive on the
 /// wire, each with the name a finding calls it by.
 ///
@@ -478,14 +530,18 @@ pub fn extract_strong_validators_from_response(
 /// trim. It shows on the two readers that do not go through it, and it shows
 /// differently on each.
 ///
-/// [`combined_field_value_as_written`] carries one `char` per octet, so the
-/// disagreement is exactly two characters wide: U+00A0 and U+0085, which are the
-/// octets %xA0 and %x85. **`String::from_utf8_lossy` is wider than that** — a
-/// field value is octets, and any UTF-8 sequence a sender writes decodes to the
-/// `char` it spells, so U+2003, U+3000, U+1680 and U+2028 are all reachable
-/// alongside %xC2 %xA0 and %xC2 %x85. Every one of them is `obs-text` on the wire
-/// — the very octet class no `token` admits — and trimming any of them hands the
-/// member's own grammar a value the sender did not write.
+/// [`combined_field_value_as_written`] and [`field_line_as_written`] carry one
+/// `char` per octet, so the disagreement is exactly two characters wide: U+00A0
+/// and U+0085, which are the octets %xA0 and %x85. Both are `obs-text` a sender
+/// wrote *inside* a member — the very octet class no `token` admits — and
+/// trimming either hands the member's own grammar a value the sender did not
+/// write.
+///
+/// It used to be wider, because some callers read their value with
+/// `String::from_utf8_lossy`, which decodes the octets as UTF-8 and so admits
+/// every whitespace `char` there is — U+2003, U+3000, U+1680, U+2028. No caller
+/// does that now; the reason it was wrong for more than the trim is written at
+/// [`field_line_as_written`].
 ///
 /// The split is naive: a DQUOTE is not read as opening a `quoted-string`. That is
 /// the grammar's answer where the element admits none, and the wrong one where it
@@ -2352,6 +2408,52 @@ mod tests {
         assert_eq!(get_header_str(&map, "x-missing"), None);
     }
 
+    /// The three decodes of one field line, side by side, on the value that
+    /// tells them apart. `to_str` refuses it outright; `from_utf8_lossy` reads
+    /// the octets as UTF-8 and hands back the text they spell; this one hands
+    /// back the octets. %xC3 %xA9 is two `obs-text` octets a sender wrote and
+    /// U+00E9 is not either of them, and %xA0 begins no valid sequence at all —
+    /// so the lossy reading names a character (U+FFFD) that no `field-content`
+    /// admits and no message carried.
+    #[test]
+    fn field_line_as_written_is_the_octets_and_from_utf8_lossy_is_not() {
+        let hv = HeaderValue::from_bytes(b"caf\xC3\xA9").unwrap();
+        assert!(hv.to_str().is_err());
+        assert_eq!(String::from_utf8_lossy(hv.as_bytes()), "café");
+        assert_eq!(
+            field_line_as_written(&hv)
+                .chars()
+                .map(|c| c as u32)
+                .collect::<Vec<_>>(),
+            [0x63, 0x61, 0x66, 0xC3, 0xA9]
+        );
+
+        let lone = HeaderValue::from_bytes(b"x\xA0y").unwrap();
+        assert!(String::from_utf8_lossy(lone.as_bytes()).contains('\u{FFFD}'));
+        assert_eq!(field_line_as_written(&lone), "x\u{A0}y");
+    }
+
+    /// The inverse round-trips. A caller comparing a value against a body needs
+    /// the octets back; `as_bytes` would re-encode U+00A0 into the two it is not.
+    ///
+    /// **The `None` guard reaches above U+00FF and no lower, and that is not a
+    /// gap that can be closed.** `as_written_octets("é")` is `Some([0xE9])`,
+    /// because U+00E9 is exactly what the octet %xE9 reads as — the two strings
+    /// are the same string, and no function can tell which one a caller meant.
+    /// What the guard catches is a string that was never an as-written value at
+    /// all, which is the mistake worth catching: it fails loudly instead of
+    /// truncating U+1F600 into one octet nobody wrote.
+    #[test]
+    fn as_written_octets_inverts_the_reader_and_refuses_what_was_never_one() {
+        let hv = HeaderValue::from_bytes(b"x\xA0y\xFF").unwrap();
+        let written = field_line_as_written(&hv);
+        assert_eq!(as_written_octets(&written).as_deref(), Some(hv.as_bytes()));
+        assert_ne!(written.as_bytes(), hv.as_bytes(), "as_bytes re-encodes");
+
+        assert_eq!(as_written_octets("é"), Some(vec![0xE9]));
+        assert_eq!(as_written_octets("😀"), None);
+    }
+
     #[test]
     fn test_list_members() {
         let input = " foo, bar , , baz ";
@@ -2359,16 +2461,15 @@ mod tests {
         assert_eq!(tokens, vec!["foo", "bar", "baz"]);
     }
 
-    /// The two spellings a caller can hand this walk, characterised rather than
-    /// regressed: [`list_members`] already trimmed `OWS`, so this passes on the
-    /// tree before `parse_list_header` was folded into it. What it pins is which
-    /// *values* now reach here — a value read one `char` per octet carries %xA0
-    /// as U+00A0, and a value read through `String::from_utf8_lossy` carries the
-    /// same octet's UTF-8 spelling %xC2 %xA0 as the same `char`. Either way it is
-    /// `obs-text` a sender wrote *inside* the member, which is the octet class no
-    /// `token` admits, so it has to survive the trim and reach the check that
-    /// owns the member's grammar. The conversion's own regressions are the eight
-    /// rule-level tests named in RULECITES §6's P17 entry.
+    /// Characterised rather than regressed: [`list_members`] already trimmed
+    /// `OWS`, so this passes on the tree before `parse_list_header` was folded
+    /// into it. What it pins is which *values* now reach here — every caller
+    /// reads its field one `char` per octet, so %xA0 arrives as U+00A0 and %x85
+    /// as U+0085. Both are `obs-text` a sender wrote *inside* the member, which
+    /// is the octet class no `token` admits, so they have to survive the trim and
+    /// reach the check that owns the member's grammar. The conversion's own
+    /// regressions are the eight rule-level tests named in RULECITES §6's P17
+    /// entry.
     #[test]
     fn list_members_trims_ows_and_not_the_obs_text_that_looks_like_space() {
         assert_eq!(

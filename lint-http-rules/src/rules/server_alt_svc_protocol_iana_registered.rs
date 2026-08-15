@@ -168,6 +168,15 @@ fn alpn_protocol_name(protocol_id: &str) -> Vec<u8> {
 /// exactly the ones a message will not hold as themselves — so a name that is
 /// visible US-ASCII throughout reads as itself and any other is named octet by
 /// octet.
+///
+/// The `from_utf8_lossy` here is the one in this tree that is exact, and the
+/// guard above it is why: inside that branch every octet is visible US-ASCII, so
+/// the decode has nothing to substitute and nothing to fold. Everywhere else the
+/// same call was a defect, because it reads octets as UTF-8 and hands back the
+/// text they spell — [`field_line_as_written`] is the reader those callers
+/// wanted. Left as it is on purpose, with the reason at the site.
+///
+/// [`field_line_as_written`]: crate::helpers::headers::field_line_as_written
 fn shown_alpn_name(name: &[u8]) -> String {
     if name.iter().all(|b| (0x20..0x7f).contains(b)) {
         format!("'{}'", shown_in_finding(&String::from_utf8_lossy(name)))

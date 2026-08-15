@@ -63,8 +63,14 @@ impl Rule for MessageMultipartContentTypeAndBodyConsistency {
                 // which refuses `obs-text` — legal inside a `quoted-string`, so
                 // a boundary is not unreadable merely because a neighbouring
                 // parameter carries one.
+                //
+                // One `char` per octet, and not `String::from_utf8_lossy`, which
+                // is what this said until the boundary was followed as far as the
+                // body: that decoder reads the octets as UTF-8 and hands back the
+                // text they spell, so %xA0 arrives as U+FFFD — a character no
+                // sender can write — and the scan hunted the body for it.
                 // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-                let s = String::from_utf8_lossy(hv.as_bytes());
+                let s = crate::helpers::headers::field_line_as_written(hv);
                 if let Some(boundary) = crate::helpers::headers::extract_multipart_boundary(&s) {
                     if let Some(v) = check_body_delimiters(which, &boundary, body.as_ref(), &config)
                     {
@@ -180,13 +186,25 @@ struct DelimiterScan {
     appears_off_line: bool,
 }
 
-fn scan_delimiter_lines(body: &[u8], boundary: &str) -> DelimiterScan {
+/// `boundary` is the octets the field line carried, not text.
+///
+/// The body is octets and the comparison below is octet for octet, so the
+/// boundary has to arrive the same way. It used to arrive as a `&str` from
+/// `String::from_utf8_lossy`, and both halves of that were wrong: an octet
+/// beginning no valid UTF-8 sequence became U+FFFD, so a boundary of `x<%xA0>y`
+/// was hunted for as `x<%xEF %xBF %xBD>y`; and `str::as_bytes` on the `char`-per
+/// -octet reading that replaces it would re-encode, making the same boundary
+/// `x<%xC2 %xA0>y`. Neither is in the body. `obs-text` is legal in the
+/// `quoted-string` alternative a boundary may be written in, so this is a value a
+/// conforming sender can produce — and it was reported for a body that carried it
+/// correctly.
+fn scan_delimiter_lines(body: &[u8], boundary: &[u8]) -> DelimiterScan {
     // The two hyphens are not decoration: `dash-boundary` is what the body
     // carries, and the boundary parameter is only its tail.
     // cite(RFC 2046 § 5.1.1): "dash-boundary := "--" boundary"
     // cite(RFC 2046 § 5.1.1): "The boundary delimiter line is then defined as a line consisting entirely of two hyphen characters ("-", decimal value 45) followed by the boundary parameter value from the Content-Type header field, optional linear whitespace, and a terminating CRLF."
-    let dash_boundary = ["--", boundary].concat();
-    let db = dash_boundary.as_bytes();
+    let dash_boundary = [b"--".as_slice(), boundary].concat();
+    let db = dash_boundary.as_slice();
     let mut scan = DelimiterScan::default();
 
     if db.len() > body.len() {
@@ -263,7 +281,15 @@ fn check_body_delimiters(
     body: &[u8],
     config: &crate::rules::RuleConfig,
 ) -> Option<Violation> {
-    let scan = scan_delimiter_lines(body, boundary);
+    // The boundary is text for the three findings below and octets for the scan,
+    // and the two are not the same string. `boundary` is the as-written reading —
+    // one `char` per octet — so this is the exact inverse of the decode that made
+    // it, and the only reason it can fail is a caller passing a value from
+    // somewhere else. There is no such caller, and `None` says so rather than
+    // truncating one into a boundary nobody wrote.
+    let octets = crate::helpers::headers::as_written_octets(boundary)?;
+    let scan = scan_delimiter_lines(body, &octets);
+    let shown = crate::helpers::headers::shown_in_finding(boundary);
 
     // Nothing outside the delimiter lines is judged, and that is the spec's
     // instruction rather than this rule's convenience: the preamble and the
@@ -274,10 +300,10 @@ fn check_body_delimiters(
         let detail = if scan.appears_off_line {
             format!(
                 "the text '--{}' occurs in the body but never at the start of a line, so it delimits nothing",
-                boundary
+                shown
             )
         } else {
-            format!("body does not contain boundary marker '--{}'", boundary)
+            format!("body does not contain boundary marker '--{}'", shown)
         };
         return Some(Violation {
             rule: MessageMultipartContentTypeAndBodyConsistency.id().into(),
@@ -297,7 +323,7 @@ fn check_body_delimiters(
             severity: config.severity,
             message: format!(
                 "Invalid multipart Content-Type in {}: the only boundary delimiter line is the terminating '--{}--', so the body encapsulates no part",
-                which, boundary
+                which, shown
             ),
         });
     }
@@ -344,6 +370,62 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none());
+    }
+
+    /// `valid_multipart_with_final_boundary_ok` with one `obs-text` octet in the
+    /// boundary, which is legal inside the `quoted-string` alternative and is the
+    /// case this rule has to compare octet for octet. The delimiter lines carry
+    /// the same octet the field line did, so the body encapsulates its part and
+    /// there is nothing to report.
+    ///
+    /// It was reported, because the boundary reached the body scan as *text*: the
+    /// field line went through `String::from_utf8_lossy`, which turns %xA0 into
+    /// U+FFFD, and the scan then compared `--x<U+FFFD>y` against a body holding
+    /// `--x<%xA0>y`. Re-encoding the same string as UTF-8 does not help either —
+    /// U+00A0 is two octets — so what this needs is the boundary as the octets it
+    /// was written in.
+    #[test]
+    fn a_boundary_carrying_obs_text_is_matched_octet_for_octet() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_octet_pairs(&[(
+                "content-type",
+                b"multipart/mixed; boundary=\"x\xA0y\"".as_slice(),
+            )]);
+        tx.response_body = Some(Bytes::from_static(
+            b"--x\xA0y\r\nContent-Type: text/plain\r\n\r\nhi\r\n--x\xA0y--\r\n",
+        ));
+        let rule = MessageMultipartContentTypeAndBodyConsistency;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "{v:?}");
+    }
+
+    /// The other half of reading the boundary as octets: the three findings name
+    /// it, and a boundary may hold characters that corrupt the sentence carrying
+    /// them. `shown_in_finding` escapes those and leaves `obs-text` legible, so a
+    /// backslash a `quoted-pair` produced reads as a backslash rather than as an
+    /// escape nobody wrote.
+    #[test]
+    fn a_boundary_named_in_a_finding_is_escaped() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-type", r#"multipart/mixed; boundary="a\\b""#)],
+        );
+        tx.response_body = Some(Bytes::from_static(b"no delimiter here"));
+        let rule = MessageMultipartContentTypeAndBodyConsistency;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let message = v
+            .expect("a body with no delimiter line is a finding")
+            .message;
+        assert!(message.contains(r"--a\\b"), "{message}");
     }
 
     #[test]
@@ -748,7 +830,11 @@ mod tests {
         body.resize(16 * 1024 * 1024, b'x');
 
         let started = std::time::Instant::now();
-        let scan = scan_delimiter_lines(&body, &boundary);
+        // The same conversion production uses. `boundary.as_bytes()` happens to
+        // agree here because this fixture is ASCII, and copying that spelling is
+        // exactly the re-encoding trap `scan_delimiter_lines` documents.
+        let octets = crate::helpers::headers::as_written_octets(&boundary).expect("as-written");
+        let scan = scan_delimiter_lines(&body, &octets);
         let elapsed = started.elapsed();
 
         assert!(scan.opens_a_part && scan.closes);

@@ -82,7 +82,7 @@ impl Rule for MessageContentTypeWellFormed {
                 // obs-text is *not* legal, in a `token`, the checks below already
                 // reject it, so the decode decides nothing on its own.
                 // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-                let s = String::from_utf8_lossy(hv.as_bytes());
+                let s = crate::helpers::headers::field_line_as_written(hv);
                 if let Some(v) = check_content_type(which, &s, &config) {
                     return Some(v);
                 }

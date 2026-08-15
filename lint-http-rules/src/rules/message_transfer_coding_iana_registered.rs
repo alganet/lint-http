@@ -147,7 +147,15 @@ impl Rule for MessageTransferCodingIanaRegistered {
                 // awareness: a `quoted-string` can only appear in a
                 // transfer-parameter value, which is behind a `;` already, so
                 // nothing quoted ever precedes the first one.
-                let token = part.split(';').next().unwrap().trim();
+                // `OWS` and not `str::trim`. The production prints `OWS` around
+                // the `;` and nothing wider, and the value reaching here is read
+                // one `char` per octet — so `str::trim` took %xA0 and %x85 off a
+                // coding name and handed the lookup below a name the sender did
+                // not write. It was invisible while the value came through
+                // `from_utf8_lossy`, which spelled those octets U+FFFD.
+                // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
+                // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+                let token = crate::helpers::headers::trim_ows(part.split(';').next().unwrap());
                 // `trailers` occupies the first alternative of `t-codings`, so
                 // it is a member of TE that is not a coding name and has no
                 // registry question to answer. It is skipped rather than looked
@@ -330,9 +338,12 @@ impl Rule for MessageTransferCodingIanaRegistered {
         // other octet the production excludes.
         // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
         // cite(RFC 9110 § 5.6.4): "qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text"
-        fn decode(hv: &hyper::header::HeaderValue) -> std::borrow::Cow<'_, str> {
-            String::from_utf8_lossy(hv.as_bytes())
-        }
+        // One `char` per octet, and not `String::from_utf8_lossy`: that decoder
+        // reads the octets as UTF-8, so a sender's two `obs-text` octets arrive
+        // as the one `char` they spell and an octet beginning no valid sequence
+        // arrives as U+FFFD — a character no sender can write, and the one a
+        // finding naming the character would then name.
+        use crate::helpers::headers::field_line_as_written as decode;
 
         // Transfer-Encoding is defined for both directions: it names the codings
         // applied to *this message's* body, whichever way it is travelling.
@@ -511,6 +522,28 @@ mod tests {
             }),
         );
         cfg
+    }
+
+    /// The coding name is `OWS`-trimmed and not `str::trim`-trimmed, and the
+    /// difference is only visible on a value read one `char` per octet. %xA0 is
+    /// `obs-text`, which no `token` admits, so `gzip<%xA0>` is a coding name this
+    /// rule must report — `str::trim` removed it and looked up `gzip`, which is
+    /// registered. It was hidden while the value came through `from_utf8_lossy`,
+    /// where the same octet spelled U+FFFD and no trim touched it.
+    #[test]
+    fn an_obs_text_octet_is_part_of_the_coding_name() {
+        let rule = MessageTransferCodingIanaRegistered;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_octet_pairs(
+            &[("transfer-encoding", b"gzip\xA0".as_slice())],
+        );
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        );
+        assert!(v.is_some(), "gzip carrying %xA0 drew nothing");
     }
 
     #[rstest]

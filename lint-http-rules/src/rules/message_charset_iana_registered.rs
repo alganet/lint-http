@@ -246,7 +246,7 @@ impl Rule for MessageCharsetIanaRegistered {
                 // reported by nothing at all. Where obs-text is not legal, in an
                 // unquoted `token`, the check below already rejects it.
                 // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-                let s = String::from_utf8_lossy(hv.as_bytes());
+                let s = crate::helpers::headers::field_line_as_written(hv);
                 if let Some(v) = check_header(which, &s) {
                     return Some(v);
                 }

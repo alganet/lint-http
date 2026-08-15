@@ -47,7 +47,7 @@ impl Rule for MessageMultipartBoundarySyntax {
                 // obs-text appears in the boundary itself the character check
                 // below rejects it, as `bcharsnospace` is US-ASCII throughout.
                 // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-                let s = String::from_utf8_lossy(hv.as_bytes());
+                let s = crate::helpers::headers::field_line_as_written(hv);
                 if let Some(v) = check_multipart_boundary(which, &s, &config) {
                     return Some(v);
                 }

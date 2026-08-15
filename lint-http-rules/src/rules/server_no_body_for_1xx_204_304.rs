@@ -154,7 +154,7 @@ impl Rule for ServerNoBodyFor1xx204304 {
                 // first field line and that is all this is -- a second line is
                 // another instance of the same forbidden field, not a second
                 // finding, and nothing here is measuring a length.
-                let shown = String::from_utf8_lossy(value.as_bytes()).into_owned();
+                let shown = crate::helpers::headers::field_line_as_written(value);
                 return Some(self.report(
                     config.severity,
                     status,

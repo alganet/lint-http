@@ -84,9 +84,12 @@ impl Rule for MessageLanguageTagFormatValid {
         // The replacement character the decode leaves behind is not
         // alphanumeric, so the character check below reports it like any other
         // octet the grammar does not admit.
-        fn decode(hv: &hyper::header::HeaderValue) -> std::borrow::Cow<'_, str> {
-            String::from_utf8_lossy(hv.as_bytes())
-        }
+        // One `char` per octet, and not `String::from_utf8_lossy`: that decoder
+        // reads the octets as UTF-8, so a sender's two `obs-text` octets arrive
+        // as the one `char` they spell and an octet beginning no valid sequence
+        // arrives as U+FFFD — a character no sender can write, and the one a
+        // finding naming the character would then name.
+        use crate::helpers::headers::field_line_as_written as decode;
 
         // `#language-tag`: a list of tags and nothing else. There is no
         // wildcard and no weight here, so a `*` or a `;q=` reaches the tag
@@ -113,10 +116,10 @@ impl Rule for MessageLanguageTagFormatValid {
                     // a weight at all is `message_accept_language_weight_validity`'s
                     // subject, and this rule reads only the range in front of it.
                     // `OWS` and not `str::trim`, which is what the walk above
-                    // settled: `decode` is `from_utf8_lossy`, so %xC2 %xA0
-                    // arrives as one `char` `char::is_whitespace` admits — and
-                    // this rule's own description says an octet outside visible
-                    // US-ASCII is reported rather than skipped.
+                    // settled: the value is read one `char` per octet, so %xA0
+                    // arrives as U+00A0, which `char::is_whitespace` admits —
+                    // and this rule's own description says an octet outside
+                    // visible US-ASCII is reported rather than skipped.
                     // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
                     // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
                     let lang = crate::helpers::headers::trim_ows(member.split(';').next().unwrap());
@@ -509,13 +512,13 @@ mod tests {
     /// What `description()`'s *"An octet outside visible US-ASCII is reported,
     /// not skipped"* claims, on the two spellings that used to escape it. The
     /// value is read with `from_utf8_lossy` precisely so such an octet reaches
-    /// `check_tag` — and %xC2 %xA0 arrives as one `char` `str::trim` calls
+    /// `check_tag` — and %xA0 arrives as U+00A0, which `str::trim` calls
     /// whitespace, so the list walk took it off `Content-Language` and the
     /// weight split took it off `Accept-Language`. Both trims are `OWS` now, and
     /// no `language-tag` or `language-range` admits either octet.
     #[rstest]
-    #[case("content-language", b"en-US\xC2\xA0")]
-    #[case("accept-language", b"en-US\xC2\xA0")]
+    #[case("content-language", b"en-US\xA0")]
+    #[case("accept-language", b"en-US\xA0")]
     fn an_obs_text_octet_shaped_like_a_space_is_still_reported(
         #[case] field: &str,
         #[case] value: &[u8],
@@ -533,6 +536,6 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some(), "{field} carrying %xC2 %xA0 drew nothing");
+        assert!(v.is_some(), "{field} carrying %xA0 drew nothing");
     }
 }
