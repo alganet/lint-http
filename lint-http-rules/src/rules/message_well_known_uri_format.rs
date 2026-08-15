@@ -4,7 +4,7 @@
 
 use crate::helpers::headers::{describe_char, shown_in_finding};
 use crate::helpers::uri::{
-    extract_path_from_request_target, is_sub_delim, is_unreserved, remove_dot_segments,
+    extract_path_from_request_target, is_sub_delim, is_unreserved, normalize_path_and_query,
     scheme_authority_marker,
 };
 use crate::lint::Violation;
@@ -141,11 +141,14 @@ impl Rule for MessageWellKnownUriFormat {
         // percent-encoding, because a path is case-sensitive: `/.WELL-KNOWN/x`
         // is a different path and is not a well-known URI.
         //
-        // Asked of the value as written, and asked first. `remove_dot_segments`
-        // only removes complete `.` and `..` segments, so it neither creates the
-        // reserved segment nor destroys one — a path with none written in it has
-        // none after normalization either, and the two allocations below are
-        // skipped for every request but a handful.
+        // Asked of the value as written, and asked first, so that the
+        // normalization below is skipped for every request but a handful. The
+        // probe is complete because neither half of that normalization can
+        // *create* this segment where the written path has none: removing dot
+        // segments only deletes complete `.` and `..` segments, and the decode
+        // can only turn `%2Ewell-known` into `.well-known` — which is the
+        // spelling `is_well_known_segment` already recognises, and the reason it
+        // decodes rather than comparing literally.
         //
         // cite(RFC 3986 § 3.3, label: path-absolute): "path-absolute = "/" [ segment-nz *( "/" segment ) ]"
         // cite(RFC 3986 § 6.2.2.1): "The other generic syntax components are assumed to be case-sensitive unless specifically defined otherwise by the scheme (see Section 6.2.3)."
@@ -158,8 +161,21 @@ impl Rule for MessageWellKnownUriFormat {
         // resource as `/.well-known/x`, and reporting it as a prefix buried in
         // the path would be a finding about a spelling rather than about a path.
         //
-        // cite(RFC 3986 § 6.2.2.3): "URI normalizers should remove dot-segments by applying the remove_dot_segments algorithm to the path, as described in Section 5.2.4."
-        let path = remove_dot_segments(&written);
+        // **The order is the shared normalizer's and it is not the order this
+        // rule used to run.** `remove_dot_segments` stood here on the value *as
+        // written*, with the decode happening per segment afterwards — so
+        // `%2E%2E` was never a `..` segment, and `/foo/%2E%2E/.well-known/x` was
+        // reported as a buried prefix while `/foo/../.well-known/x`, the same
+        // path, was clean. § 2.4's exception is what licenses decoding first:
+        // an `unreserved` octet needs no component boundary established for it,
+        // so it can be decoded before the boundaries are read.
+        //
+        // The function is `normalize_path_and_query` because this is one
+        // question with one answer, and it owns all three of § 6.2.2's
+        // normalizations including the case one it declines. The query half of
+        // its name reaches nothing here: `extract_path_from_request_target`
+        // has already ended the value at the `?`.
+        let path = normalize_path_and_query(&written);
 
         let mut segments = path.split('/');
         if segments.next() != Some("") {
@@ -180,14 +196,17 @@ impl Rule for MessageWellKnownUriFormat {
             })
         };
 
-        // A path is reported as written; when its dot segments moved the
-        // segment being talked about, the resolved form is named beside it, so
-        // the reader can see which string the finding is about.
+        // A path is reported as written; when normalizing it moved the segment
+        // being talked about, the normalized form is named beside it, so the
+        // reader can see which string the finding is about. **Not "whose dot
+        // segments resolve to"** — that named one of the two normalizations, and
+        // a value differing only in a `%2E` would have been described as having
+        // dot segments it does not have written in it.
         let shown = if path == written {
             format!("'{}'", shown_in_finding(&written))
         } else {
             format!(
-                "'{}' (whose dot segments resolve to '{}')",
+                "'{}' (which normalizes to '{}')",
                 shown_in_finding(&written),
                 shown_in_finding(&path)
             )
@@ -265,7 +284,7 @@ impl Rule for MessageWellKnownUriFormat {
     }
 
     fn description(&self) -> &'static str {
-        "Reads the request target's path component against RFC 8615's definition of a well-known URI: *\"A well-known URI is a URI [RFC3986] whose path component begins with the characters \"/.well-known/\", provided that the scheme is explicitly defined to support well-known URIs.\"*\n\n**Every finding here is advice, and the rule says so in each message.** RFC 8615 states five BCP 14 requirements and all five are addressed to an application minting or registering a name — it MUST register it, the name MUST conform to `segment-nz`, the name SHOULD be precise, an alternative port MUST be specified by the application, and a registration MAY carry additional path components. **None of them is a requirement on a request target.** The sentences a request can be measured against are definitions, so what this rule reports is that a path is not a well-known URI, never that sending it was forbidden: §1 names an origin's control over its own URI space as the thing this memo takes care not to usurp, and the paths below are ordinary resources of that origin.\n\n**What is reported.**\n\n- **A `.well-known` segment that is not the first one.** §3: *\"Well-known URIs are rooted in the top of the path's hierarchy; they are not well-known by definition in other parts of the path.\"* — with the document's own counter-example, `/foo/.well-known/example`.\n- **A path that is exactly `/.well-known`.** The prefix §1 reserves includes its trailing slash, so this is one character short of it.\n- **An empty name after the prefix** (`/.well-known/`, and `/.well-known//name`). A registered name *\"MUST conform to the \"segment-nz\" production\"*, which is `1*pchar` — a cardinality floor an empty segment does not clear — and §3 adds that it defines no format or media type for the resource at the prefix itself.\n- **A name holding a character `pchar` does not generate.** The same `segment-nz`, read for its alphabet.\n\n**Only the first segment after the prefix is the name.** *\"This means they cannot contain the \"/\" character.\"* is about the registered name, and the MAY beside it licenses *\"the syntax of additional path components, query strings, and/or fragment identifiers to be appended to the well-known URI\"* — so `/.well-known/est/simpleenroll` names `est` and is not a finding.\n\n**The path is read as a path, not as a string.** It is walked as segments, so `/.well-knownfoo` — an ordinary path that happens to begin with the same characters — draws nothing. Dot segments are removed first (RFC 3986 §6.2.2.3), so `/a/../.well-known/x` is the well-known URI it resolves to. A percent-encoded `unreserved` octet is decoded before the segment is compared, because RFC 3986 §2.3 makes `%2Ewell-known` and `.well-known` the same segment; nothing else is decoded, since decoding a delimiter would move the component boundaries (§2.4). Case is **not** normalized: §6.2.2.1 leaves path components case-sensitive, so `/.WELL-KNOWN/x` is a different path.\n\n**The scheme proviso is the second half of the definition.** RFC 8615 updates the `http` and `https` schemes to support well-known URIs and no others; other schemes carry them *\"only when those schemes' definitions explicitly allow it\"*, which the \"Well-Known URI Support\" column of the URI Schemes registry tracks (§5.2). An origin-form target names no scheme and needs none, because an HTTP request's target URI is an `http` or an `https` one either way. An **absolute-form target naming any other scheme** — how a request to a forward proxy is written — draws nothing: which schemes have been added to that column since 2019 is an open registry this rule does not read, so the effect is a finding not made, never a finding made wrongly.\n\n**What this rule declines, and why.**\n\n- **Whether the name is registered.** The registry is Specification Required and §3.1 lets third parties register a widely deployed name, so an unregistered name is a name awaiting a registration, not a defect. No sentence makes requesting one wrong, and there is no list to check it against that would not go stale between releases.\n- **The `SHOULD` for precise names.** *\"Registered names for a specific application SHOULD be correspondingly precise; \"squatting\" on generic terms is not encouraged.\"* — a judgement about a name's meaning, made by the registry's experts.\n- **The port.** *\"Typically, applications will use the default port for the given scheme; if an alternative port is used, it MUST be explicitly specified by the application in question.\"* Deciding it means reading the registration that named the port, which no capture carries.\n- **Whether a resource exists at the prefix.** §3's *\"clients should not expect a resource to exist at that location\"* is lowercase, and §2 makes the BCP 14 keywords apply *\"when, and only when, they appear in all capitals\"*.\n\n**What other rules own.** A malformed percent-encoding anywhere in the request target, and any character outside the set a URI is composed from, are `client_request_uri_percent_encoding_valid`'s findings, asked of the whole target; the `pchar` check here is the same question at a narrower width, and within a path segment the only characters it adds are `[` and `]`. A fragment on the request target is `client_request_target_no_fragment`'s, and which of the four request-target forms may carry a path is `client_request_target_form_checks`'."
+        "Reads the request target's path component against RFC 8615's definition of a well-known URI: *\"A well-known URI is a URI [RFC3986] whose path component begins with the characters \"/.well-known/\", provided that the scheme is explicitly defined to support well-known URIs.\"*\n\n**Every finding here is advice, and the rule says so in each message.** RFC 8615 states five BCP 14 requirements and all five are addressed to an application minting or registering a name — it MUST register it, the name MUST conform to `segment-nz`, the name SHOULD be precise, an alternative port MUST be specified by the application, and a registration MAY carry additional path components. **None of them is a requirement on a request target.** The sentences a request can be measured against are definitions, so what this rule reports is that a path is not a well-known URI, never that sending it was forbidden: §1 names an origin's control over its own URI space as the thing this memo takes care not to usurp, and the paths below are ordinary resources of that origin.\n\n**What is reported.**\n\n- **A `.well-known` segment that is not the first one.** §3: *\"Well-known URIs are rooted in the top of the path's hierarchy; they are not well-known by definition in other parts of the path.\"* — with the document's own counter-example, `/foo/.well-known/example`.\n- **A path that is exactly `/.well-known`.** The prefix §1 reserves includes its trailing slash, so this is one character short of it.\n- **An empty name after the prefix** (`/.well-known/`, and `/.well-known//name`). A registered name *\"MUST conform to the \"segment-nz\" production\"*, which is `1*pchar` — a cardinality floor an empty segment does not clear — and §3 adds that it defines no format or media type for the resource at the prefix itself.\n- **A name holding a character `pchar` does not generate.** The same `segment-nz`, read for its alphabet.\n\n**Only the first segment after the prefix is the name.** *\"This means they cannot contain the \"/\" character.\"* is about the registered name, and the MAY beside it licenses *\"the syntax of additional path components, query strings, and/or fragment identifiers to be appended to the well-known URI\"* — so `/.well-known/est/simpleenroll` names `est` and is not a finding.\n\n**The path is read as a path, not as a string.** It is walked as segments, so `/.well-knownfoo` — an ordinary path that happens to begin with the same characters — draws nothing. The percent-encoded `unreserved` octets are decoded first — RFC 3986 §2.4's exception says they can be decoded at any time, needing no component boundary established for them — and the dot segments are removed from the decoded path (§6.2.2.3), so `/a/../.well-known/x` and `/a/%2E%2E/.well-known/x` are the one path they both name, and `%2Ewell-known` and `.well-known` are the one segment §2.3 makes them. Nothing else is decoded, since decoding a delimiter would move the component boundaries (§2.4). Case is **not** normalized: §6.2.2.1 leaves path components case-sensitive, so `/.WELL-KNOWN/x` is a different path.\n\n**The scheme proviso is the second half of the definition.** RFC 8615 updates the `http` and `https` schemes to support well-known URIs and no others; other schemes carry them *\"only when those schemes' definitions explicitly allow it\"*, which the \"Well-Known URI Support\" column of the URI Schemes registry tracks (§5.2). An origin-form target names no scheme and needs none, because an HTTP request's target URI is an `http` or an `https` one either way. An **absolute-form target naming any other scheme** — how a request to a forward proxy is written — draws nothing: which schemes have been added to that column since 2019 is an open registry this rule does not read, so the effect is a finding not made, never a finding made wrongly.\n\n**What this rule declines, and why.**\n\n- **Whether the name is registered.** The registry is Specification Required and §3.1 lets third parties register a widely deployed name, so an unregistered name is a name awaiting a registration, not a defect. No sentence makes requesting one wrong, and there is no list to check it against that would not go stale between releases.\n- **The `SHOULD` for precise names.** *\"Registered names for a specific application SHOULD be correspondingly precise; \"squatting\" on generic terms is not encouraged.\"* — a judgement about a name's meaning, made by the registry's experts.\n- **The port.** *\"Typically, applications will use the default port for the given scheme; if an alternative port is used, it MUST be explicitly specified by the application in question.\"* Deciding it means reading the registration that named the port, which no capture carries.\n- **Whether a resource exists at the prefix.** §3's *\"clients should not expect a resource to exist at that location\"* is lowercase, and §2 makes the BCP 14 keywords apply *\"when, and only when, they appear in all capitals\"*.\n\n**What other rules own.** A malformed percent-encoding anywhere in the request target, and any character outside the set a URI is composed from, are `client_request_uri_percent_encoding_valid`'s findings, asked of the whole target; the `pchar` check here is the same question at a narrower width, and within a path segment the only characters it adds are `[` and `]`. A fragment on the request target is `client_request_target_no_fragment`'s, and which of the four request-target forms may carry a path is `client_request_target_form_checks`'."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -328,7 +347,7 @@ impl Rule for MessageWellKnownUriFormat {
                 spec: "RFC 3986",
                 section: Some("6.2.2.3"),
                 url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.3",
-                note: "Path Segment Normalization — dot segments are removed before the path's hierarchy is read",
+                note: "Path Segment Normalization — dot segments are removed before the path's hierarchy is read, and *after* the `unreserved` octets are decoded, so an encoded `%2E%2E` is the dot segment it stands for",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9112",
@@ -457,15 +476,51 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_resolved_path_is_named_beside_the_one_that_was_written() {
-        let v = check("/foo/./.well-known/example").expect("reported");
+    /// Both normalizations put a second string in the finding, which is why the
+    /// parenthetical names normalization rather than dot segments: the second
+    /// case here has no dot segment written in it.
+    #[rstest]
+    #[case("/foo/./.well-known/example", "/foo/.well-known/example")]
+    #[case("/foo/%2Ewell-known/example", "/foo/.well-known/example")]
+    fn a_normalized_path_is_named_beside_the_one_that_was_written(
+        #[case] written: &str,
+        #[case] normalized: &str,
+    ) {
+        let v = check(written).expect("reported");
         assert!(
-            v.message.starts_with(
-                "Request target path '/foo/./.well-known/example' (whose dot segments resolve to '/foo/.well-known/example') carries a `.well-known` segment"
-            ),
+            v.message.starts_with(&format!(
+                "Request target path '{written}' (which normalizes to '{normalized}') carries a `.well-known` segment"
+            )),
             "{}",
             v.message
+        );
+    }
+
+    /// **Two spellings of one path used to get two answers.** § 2.4 lets an
+    /// `unreserved` octet be decoded at any time, so `%2E` is the period it
+    /// stands for and an encoded dot segment is a dot segment. The rule removed
+    /// the dot segments from the value *as written* and decoded per segment
+    /// afterwards, so `/foo/../.well-known/x` was clean and
+    /// `/foo/%2E%2E/.well-known/x` — the same path — was reported as a prefix
+    /// buried in the hierarchy.
+    ///
+    /// The claim is agreement, not silence: the third pair below is buried in
+    /// both spellings, because removing its single `.` leaves the `a` in front.
+    #[rstest]
+    #[case("/foo/../.well-known/x", "/foo/%2E%2E/.well-known/x")]
+    #[case("/foo/../.well-known/x", "/foo/%2e%2e/.well-known/x")]
+    #[case("/foo/../%2Ewell-known/x", "/foo/%2E%2E/%2Ewell-known/x")]
+    #[case("/a/./.well-known/x", "/a/%2E/.well-known/x")]
+    #[case("/.well-known/", "/%2Ewell-known/")]
+    fn an_encoded_dot_segment_is_the_dot_segment_it_stands_for(
+        #[case] plain: &str,
+        #[case] encoded: &str,
+    ) {
+        let (a, b) = (message(plain), message(encoded));
+        assert_eq!(
+            a.is_some(),
+            b.is_some(),
+            "{plain} and {encoded} are one path and got different verdicts:\n  {a:?}\n  {b:?}"
         );
     }
 
