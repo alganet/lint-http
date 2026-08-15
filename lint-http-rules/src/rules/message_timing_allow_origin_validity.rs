@@ -344,11 +344,17 @@ mod tests {
         assert!(v.is_none());
     }
 
+    // § 3.2 terminates an authority at "/", "?" or "#", and a serialized origin
+    // ends where its authority does. Only the first of the three reached this
+    // rule until the shared validator stopped enumerating them by hand.
     #[rstest]
     #[case("https://a/")]
     #[case("https://a/path")]
     #[case("https://ok.example, https://b/path")]
-    fn member_with_path_or_trailing_slash_is_violation(#[case] val: &str) {
+    #[case("https://a?x=1")]
+    #[case("https://a#frag")]
+    #[case("https://ok.example, https://b#frag")]
+    fn member_with_anything_after_the_authority_is_violation(#[case] val: &str) {
         let rule = MessageTimingAllowOriginValidity;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
