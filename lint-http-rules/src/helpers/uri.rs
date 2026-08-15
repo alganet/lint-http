@@ -53,11 +53,6 @@ pub fn check_percent_encoding(s: &str) -> Option<String> {
     None
 }
 
-/// Return `true` if the string contains any ASCII whitespace characters.
-pub fn contains_whitespace(s: &str) -> bool {
-    s.chars().any(|c| c.is_ascii_whitespace())
-}
-
 /// The first character of `s` that no `URI-reference` admits, or `None` when
 /// every character is one a URI may be written with.
 ///
@@ -265,11 +260,18 @@ pub fn extract_origin_if_absolute(s: &str) -> Option<String> {
     }
     let origin = format!("{scheme}://{authority}");
 
-    // Basic validation: scheme valid, no whitespace
+    // Basic validation: the scheme is a scheme, and every character is one a URI
+    // may be written with. The second was `contains_whitespace`, which asked one
+    // sixth of that question — SP, HTAB, CR, LF and FF, and not `<`, `>`, `"`,
+    // `{`, `}`, `|`, `\`, `^`, `` ` `` or any octet at or above %x80. A value
+    // holding one of those is not a URI, so it carries no origin, which is what
+    // this function's `None` says. The narrower `reg-name` alphabet is a
+    // different question and not this function's: what an authority may hold is
+    // asked where an authority is *validated*, and this one is reconstructing.
     if validate_scheme_if_present(&origin).is_some() {
         return None;
     }
-    if contains_whitespace(&origin) {
+    if find_non_uri_char(&origin).is_some() {
         return None;
     }
     Some(origin)
@@ -298,8 +300,22 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
         if validate_scheme_if_present(s_trim).is_some() {
             return Some("Invalid scheme in Origin".into());
         }
-        if contains_whitespace(s_trim) {
-            return Some("Origin contains whitespace".into());
+        // The alphabet, before the authority question below it. This was
+        // `contains_whitespace`, one sixth of the same set, so an `Origin` value
+        // holding `<`, `` ` `` or an octet at or above %x80 reached the
+        // serialized-origin predicate — which asks where the authority ends and
+        // not what it may hold — and was returned valid.
+        //
+        // A floor rather than a ceiling: `reg-name` is narrower than the
+        // URI-wide alphabet, so a character passing here has only been found
+        // somewhere in the generic syntax.
+        //
+        // cite(RFC 3986 § 2): "A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols."
+        if let Some(c) = find_non_uri_char(s_trim) {
+            return Some(format!(
+                "Origin holds {}, which no part of a URI is composed from",
+                crate::helpers::headers::describe_char(c)
+            ));
         }
         // The authority itself — host present, bracketed IPv6 well formed, port
         // numeric and in range, no userinfo — is checked by the shared
@@ -1220,10 +1236,22 @@ mod tests {
         assert!(check_percent_encoding("/caf\u{e9}/ok%20").is_none());
     }
 
+    /// What `contains_whitespace` used to assert, asked of the function that
+    /// replaced it — and the five characters beside the space, which that
+    /// predicate answered `false` for at every one of its three callers.
     #[test]
     fn whitespace_detection() {
-        assert!(contains_whitespace("hello world"));
-        assert!(!contains_whitespace("/path/no-space"));
+        assert!(find_non_uri_char("hello world").is_some());
+        assert!(find_non_uri_char("/path/no-space").is_none());
+        for c in [
+            '<', '>', '"', '{', '}', '|', '\\', '^', '`', '\u{80}', '\u{ff}',
+        ] {
+            assert_eq!(
+                find_non_uri_char(&format!("/p{c}ath")),
+                Some(c),
+                "for {c:?}"
+            );
+        }
     }
 
     #[test]
@@ -1854,6 +1882,21 @@ mod tests {
         // generic reason — which is what the comment at the delegation says
         // callers may rely on, and the two messages are asserted here so the
         // split between them is a decision and not a coincidence.
+        // The alphabet, at the two callers `contains_whitespace` was left
+        // running at. Neither could see a character outside the URI set that was
+        // not whitespace, so `<` reached the serialized-origin predicate — which
+        // asks where the authority *ends*, not what it may hold — and passed.
+        let angle = validate_origin_value("https://exa<mple.com").unwrap();
+        assert_eq!(
+            angle,
+            "Origin holds '<', which no part of a URI is composed from"
+        );
+        assert_eq!(extract_origin_if_absolute("http://exa<mple.com/p"), None);
+        assert_eq!(
+            extract_origin_if_absolute("http://exa\u{ff}mple.com/p"),
+            None
+        );
+
         let path = validate_origin_value("https://example.com/p").unwrap();
         assert_eq!(path, "Origin must not include a path");
         for after in ["https://example.com?x=1", "https://example.com#frag"] {

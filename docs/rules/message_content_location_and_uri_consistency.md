@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate `Content-Location` header values. The value must be a well-formed URI reference (`absolute-URI / partial-URI`) with no whitespace, sound percent-encoding and a valid scheme where one is present, and — since neither alternative of the grammar is a comma-separated list — a message carries at most one `Content-Location` field line (RFC 9110 §5.3).
+Validate `Content-Location` header values. The value must be a well-formed URI reference (`absolute-URI / partial-URI`) written only with characters a URI is composed from (RFC 3986 §2, which excludes whitespace and the nine visible characters that are not URI characters either — less-than, greater-than, double quote, the two braces, pipe, backslash, caret and backtick — along with every octet at or above %x80), sound percent-encoding and a valid scheme where one is present, and — since neither alternative of the grammar is a comma-separated list — a message carries at most one `Content-Location` field line (RFC 9110 §5.3).
 
 For 2xx responses the rule additionally compares the value against the request target, resolving a `partial-URI` against it first as RFC 9110 §8.7 requires ("after conversion to absolute form"), so a relative reference that names the target resource is not reported.
 
@@ -80,7 +80,7 @@ HTTP/1.1 200 OK
 Content-Location: /bad%2G
 ```
 
-### ❌ Bad (contains whitespace)
+### ❌ Bad (holds a character no URI is composed from)
 
 ```http
 HTTP/1.1 200 OK
