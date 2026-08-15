@@ -2323,8 +2323,29 @@ pub fn media_type_subtype_suffix(subtype: &str) -> Option<&str> {
 /// Validate a serialized-origin as defined by RFC 6454: scheme "://" host [":" port]
 /// The grammar has no path component, so nothing may follow the authority — not
 /// even a bare trailing slash, which a byte-for-byte origin comparison rejects.
-/// This is a conservative validator: it ensures scheme chars, presence of host,
-/// and numeric port (if present). It does not attempt full IDNA or host label validation.
+///
+/// **Each of the three parts is read by the function that owns its production**,
+/// and none of them is transcribed here: [`crate::helpers::uri::validate_scheme_name`]
+/// for `scheme`, [`crate::helpers::uri::validate_uri_host`] for `host`, and
+/// [`crate::helpers::uri::port_number`] for `port`. What is left is the
+/// composition — the `://` between the first two, and that the authority is the
+/// whole of what follows it.
+///
+/// **It measured where the authority ended and nothing about what it held.** The
+/// host was checked for emptiness, a space, a tab and an at-sign, so
+/// `https://exa|mple.com`, `https://a<b>c` and `https://a^b` were serialized
+/// origins — none of `|`, `<`, `>`, `^`, `` ` ``, `\`, `"`, `{`, `}` or any octet
+/// at or above %x80 is in `unreserved`, `sub-delims` or a `pct-encoded`, so none
+/// is in any `reg-name`. Two more went with it: `%zz` and `%4` passed because
+/// nothing asked `check_percent_encoding`, and `https://[foo]` passed because
+/// `helpers::ipv6::parse_bracketed_ipv6` handed its bracketed content back
+/// unexamined — which its own doc comment said in as many words, and which was
+/// what condemned it: this was its last caller and the function is gone.
+///
+/// **The conservatism that remains is about IDNA and label syntax**, which is a
+/// different question from the alphabet: a `reg-name` is a character set and no
+/// more, so `a..b` and a 300-character label are registered names here and are
+/// not domains anywhere.
 ///
 /// **"Nothing may follow the authority" is § 3.2's sentence, and it names three
 /// characters.** This function used to enumerate one of them — a
@@ -2380,47 +2401,35 @@ pub fn is_valid_serialized_origin(val: &str) -> bool {
         return false;
     }
 
-    // An empty authority names no host. Whitespace is not one of § 3.2's
-    // terminators, so it arrives here *inside* the authority and is rejected on
-    // its own; the userinfo is rejected because neither grammar quoted above has
-    // one — `authority = [ userinfo "@" ] host [ ":" port ]` writes the
-    // subcomponent that `serialized-origin = scheme "://" host [ ":" port ]`
-    // leaves out, and the at-sign is the whole difference between them.
+    // `authority = [ userinfo "@" ] host [ ":" port ]` is the production this
+    // one is *not*: the origin grammars above write `host [ ":" port ]` and no
+    // userinfo, so the at-sign that would delimit one is a character no
+    // `reg-name` holds and `validate_uri_host` refuses it as such. The split is
+    // at the first colon and bracket-aware, which is why an `IP-literal`'s own
+    // colons do not become a port.
     // cite(RFC 3986 § 3.2, label: authority grammar): "authority   = [ userinfo "@" ] host [ ":" port ]"
-    if rest.is_empty() || rest.contains('\t') || rest.contains(' ') || rest.contains('@') {
+    let (host, port) = crate::helpers::uri::split_host_and_port(rest);
+
+    // `reg-name = *( unreserved / pct-encoded / sub-delims )` derives the empty
+    // string, so this is not the grammar's line. An origin naming no host names
+    // nothing to compare against, and every caller here is comparing origins.
+    if host.is_empty() {
+        return false;
+    }
+    if crate::helpers::uri::validate_uri_host(host).is_err() {
         return false;
     }
 
-    if let Some(colon_pos) = rest.rfind(':') {
-        // If colon exists, treat as host:port candidate. But IPv6 address may contain ':' and be bracketed.
-        if rest.starts_with('[') {
-            // Use the ipv6 helper to parse bracketed IPv6 and optional port
-            if let Some((_, port_opt)) = crate::helpers::ipv6::parse_bracketed_ipv6(rest) {
-                if let Some(port_str) = port_opt {
-                    return crate::helpers::uri::port_number(port_str).is_some();
-                }
-                return true;
-            } else {
-                return false; // malformed or unmatched '['
-            }
-        }
-
-        let host = &rest[..colon_pos];
-        let port = &rest[colon_pos + 1..];
-        if host.is_empty() || port.is_empty() {
-            return false;
-        }
-        // Sixteen bits, and the licence to ask that of *this* value is the URL
-        // Standard's rather than a transport's: an origin's port is not a run of
-        // digits that happens to reach a TCP port, it is declared to be an
-        // integer of that width. `0` is one of them, so an origin naming it is a
-        // serialized origin; the shared reader rejected it until this was read.
-        // cite(URL): "A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port."
-        return crate::helpers::uri::port_number(port).is_some();
+    // Sixteen bits, and the licence to ask that of *this* value is the URL
+    // Standard's rather than a transport's: an origin's port is not a run of
+    // digits that happens to reach a TCP port, it is declared to be an integer
+    // of that width. `0` is one of them, so an origin naming it is a serialized
+    // origin; the shared reader rejected it until this was read.
+    // cite(URL): "A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port."
+    match port {
+        Some(port) => crate::helpers::uri::port_number(port).is_some(),
+        None => true,
     }
-
-    // No port: ensure host is non-empty
-    !rest.is_empty()
 }
 
 #[cfg(test)]
@@ -2708,6 +2717,58 @@ mod tests {
         assert!(!is_valid_serialized_origin("https://user@example.com"));
         assert!(!is_valid_serialized_origin("https://[::1"));
         assert!(!is_valid_serialized_origin(""));
+    }
+
+    /// **The authority's contents, which this predicate measured nothing of.**
+    /// It asked the host for emptiness, a space, a tab and an at-sign; the host
+    /// has a production, and each of these values fails it.
+    #[test]
+    fn an_origins_host_is_measured_against_its_own_production() {
+        // **The host's own alphabet, which nothing here used to ask.** None of
+        // these is in `unreserved`, `sub-delims` or a `pct-encoded`, so none is
+        // in any `reg-name` — and each was a serialized origin to all three
+        // callers while the host was checked for emptiness, a space, a tab and
+        // an at-sign and for nothing else.
+        for c in [
+            '|', '<', '>', '"', '{', '}', '\\', '^', '`', '\u{80}', '\u{ff}',
+        ] {
+            assert!(
+                !is_valid_serialized_origin(&format!("https://exa{c}mple.com")),
+                "for {c:?}"
+            );
+            assert!(
+                !is_valid_serialized_origin(&format!("https://exa{c}mple.com:8080")),
+                "for {c:?} with a port"
+            );
+        }
+
+        // A `pct-encoded` is three characters and the last two are `HEXDIG`. The
+        // alphabet walk alone would admit these, which is why `validate_uri_host`
+        // asks `check_percent_encoding` before it.
+        assert!(!is_valid_serialized_origin("https://a%zzb.example"));
+        assert!(!is_valid_serialized_origin("https://a%4"));
+        assert!(is_valid_serialized_origin("https://a%41b.example"));
+
+        // `IP-literal = "[" ( IPv6address / IPvFuture ) "]"`, and the inner text
+        // used to be handed back unexamined — so a bracketed anything was a
+        // host. `[v7.abc]` passed then for no reason and passes now for the
+        // production's.
+        assert!(!is_valid_serialized_origin("https://[foo]"));
+        assert!(!is_valid_serialized_origin("https://[]"));
+        assert!(is_valid_serialized_origin("https://[v7.abc]"));
+
+        // A `reg-name` holds no colon, so the second one is not a port
+        // delimiter; the split is at the first colon and this used to be read
+        // right to left, which made `a:b` a host and `80` its port.
+        assert!(!is_valid_serialized_origin("https://a:b:80"));
+
+        // The explicit space and tab checks went with the host's own production,
+        // which admits neither -- and `port_number` refuses a non-digit, so the
+        // other half of the authority is covered by the reader that owns it.
+        assert!(!is_valid_serialized_origin("https://exa mple.com"));
+        assert!(!is_valid_serialized_origin("https://exa\tmple.com"));
+        assert!(!is_valid_serialized_origin("https://example.com: 80"));
+        assert!(!is_valid_serialized_origin("https://example.com:8 0"));
     }
 
     use rstest::rstest;

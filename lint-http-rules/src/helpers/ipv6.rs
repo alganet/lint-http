@@ -2,51 +2,32 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! Utilities for parsing and validating IPv6 bracketed literals used in headers.
+//! One heuristic about an IPv6 literal written without its brackets.
 //!
-//! These helpers focus on safely handling syntax like "[::1]" and "[::1]:443" and
-//! small utilities to detect problematic unbracketed IPv6+port patterns.
+//! **What is left here is not a shelf, it is a remainder.** The module held three
+//! functions and two have gone to `helpers::uri`, each because the question it
+//! answered was about a URI component and not about an address family: a port's
+//! namespace (`parse_port_str` -> `port_number`) and where a bracketed host ends
+//! (`parse_bracketed_ipv6` -> `split_host_and_port` + `validate_uri_host`). The
+//! one below stays because its question really is about the brackets --
+//! *what does a value that has none but looks like it wants them mean* -- which
+//! no component rule asks, because no component rule generates such a value.
 
-/// Given a string starting at an IPv6 bracket '[', parse the bracketed content and
-/// optional trailing port.
-///
-/// Returns `Some((inner, port_opt))` when the bracketed section is syntactically valid
-/// and the trailing part is either empty or a `:port` sequence (port as a &str) —
-/// it does not validate the numeric range of the port.
-///
-/// Returns `None` when the bracket is unmatched, the inner part is empty, or the
-/// trailing part is present but not in the form `:digits`.
-///
-/// The sentence cited below is about the brackets and nothing else, which is all
-/// this function decides. `IP-literal = "[" ( IPv6address / IPvFuture ) "]"` is
-/// deliberately *not* quoted here: the inner text is handed back unexamined, so
-/// quoting a production that constrains it would claim a check that happens --
-/// when it happens at all -- in the caller.
-pub fn parse_bracketed_ipv6(s: &str) -> Option<(&str, Option<&str>)> {
-    // cite(RFC 3986 § 3.2.2): "A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]")."
-    if !s.starts_with('[') {
-        return None;
-    }
-    let closing = s.find(']')?;
-    // require at least one char inside the brackets
-    if closing <= 1 {
-        return None;
-    }
-    let inner = &s[1..closing];
-    let tail = &s[closing + 1..];
-    if tail.is_empty() {
-        return Some((inner, None));
-    }
-    // tail must start with ':' followed by at least one digit
-    if !tail.starts_with(':') {
-        return None;
-    }
-    let port = &tail[1..];
-    if port.is_empty() || !port.chars().all(|c| c.is_ascii_digit()) {
-        return None;
-    }
-    Some((inner, Some(port)))
-}
+// `parse_bracketed_ipv6` was here, and its own doc comment is what condemned it:
+// *"the inner text is handed back unexamined, so quoting a production that
+// constrains it would claim a check that happens -- when it happens at all -- in
+// the caller."* It happened in no caller. Its last one,
+// `helpers::headers::is_valid_serialized_origin`, therefore read `https://[foo]`
+// as an origin, and the two halves it answered are `helpers::uri`'s:
+// `split_host_and_port` finds the port past the `]`, and `validate_uri_host`
+// quotes `IP-literal = "[" ( IPv6address / IPvFuture ) "]"` and measures the
+// inner text against it.
+//
+// Second function to leave this module for `helpers::uri`, after `parse_port_str`
+// below, and for the same reason both times: **the shelf is keyed by a construct
+// of the document rather than by a question**, so a function about *where a host
+// ends* and a function about *what a port is* were filed under the address family
+// that happens to need brackets.
 
 // `parse_port_str` was here. It answered "is this a port in the sixteen-bit
 // namespace", which is a question about a URI component and not about an IPv6
@@ -93,43 +74,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_bracketed_ipv6_ok_without_port() {
-        assert_eq!(parse_bracketed_ipv6("[::1]"), Some(("::1", None)));
-        assert_eq!(parse_bracketed_ipv6("[::1]:"), None);
-    }
-
-    #[test]
-    fn parse_bracketed_ipv6_ok_with_port() {
-        assert_eq!(
-            parse_bracketed_ipv6("[::1]:443"),
-            Some(("::1", Some("443")))
-        );
-        assert_eq!(
-            parse_bracketed_ipv6("[fe80::1]:80"),
-            Some(("fe80::1", Some("80")))
-        );
-    }
-
-    #[test]
-    fn parse_bracketed_ipv6_rejects_malformed() {
-        assert_eq!(parse_bracketed_ipv6("[::1"), None);
-        assert_eq!(parse_bracketed_ipv6("[]"), None);
-        assert_eq!(parse_bracketed_ipv6("[::1]extra"), None);
-        assert_eq!(parse_bracketed_ipv6("[::1]:notnum"), None);
-    }
-
-    #[test]
     fn looks_like_unbracketed_ipv6_with_port_cases() {
         assert!(looks_like_unbracketed_ipv6_with_port("fe80::1:80"));
         assert!(!looks_like_unbracketed_ipv6_with_port("example.com:80"));
         assert!(!looks_like_unbracketed_ipv6_with_port("::1"));
-    }
-
-    #[test]
-    fn parse_bracketed_ipv6_rejects_non_bracket_input() {
-        // Input not starting with '[' should return None
-        assert_eq!(parse_bracketed_ipv6("example.com:80"), None);
-        // Unbracketed IPv6-like string should also be rejected by this helper
-        assert_eq!(parse_bracketed_ipv6("::1:80"), None);
     }
 }

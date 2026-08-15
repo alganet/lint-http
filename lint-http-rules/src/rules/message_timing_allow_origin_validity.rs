@@ -354,6 +354,12 @@ mod tests {
     #[case("https://a?x=1")]
     #[case("https://a#frag")]
     #[case("https://ok.example, https://b#frag")]
+    // The authority's *contents*, unmeasured until the host was asked its own
+    // production rather than asked for a space, a tab and an at-sign.
+    #[case("https://exa|mple.com")]
+    #[case("https://ok.example, https://a<b>c")]
+    #[case("https://a%zzb")]
+    #[case("https://[foo]")]
     fn member_with_anything_after_the_authority_is_violation(#[case] val: &str) {
         let rule = MessageTimingAllowOriginValidity;
         let tx = crate::test_helpers::make_test_transaction_with_response(
