@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-`If-None-Match` is either `*` or a comma-separated list of entity-tags (RFC 9110 §13.1.2). Each entity-tag follows the grammar in RFC 9110 §8.8.3 and may be weak (prefix `W/`); `If-None-Match` is evaluated with the weak comparison function, so weak tags are valid syntax here. This rule validates that field syntax (quoting, escaping, and prohibition of control characters); it does not perform the comparison.
+`If-None-Match` is either `*` or a comma-separated list of entity-tags (RFC 9110 §13.1.2). **The two are alternatives**, so the `*` is the whole field value: `If-None-Match: "abc", *` derives from neither and is reported, and because a repeated field name makes one value (§5.2), so does the same pair written on two field lines. `etagc` admits the comma, so a tag such as `"a,b"` is one member and not two. Each entity-tag follows the grammar in RFC 9110 §8.8.3 and may be weak (prefix `W/`); `If-None-Match` is evaluated with the weak comparison function, so weak tags are valid syntax here. This rule validates that field syntax (quoting, escaping, and prohibition of control characters); it does not perform the comparison.
 
 ## Specifications
 
