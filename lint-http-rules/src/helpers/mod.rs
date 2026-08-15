@@ -28,6 +28,15 @@
 //! unchanged and is what decides it: a shared answer moves on the second caller,
 //! and that caller has to be asking the same question, not merely reading the
 //! same publisher.**
+//!
+//! **And the second caller can be a caller of one *ingredient* rather than of
+//! the function.** `first_non_pchar` in `message_well_known_uri_format` had one
+//! caller and stayed there, while the two sets it is composed of —
+//! `uri::is_unreserved` and `uri::is_sub_delim` — had five readers and four,
+//! written out character for character each time. A grammar that builds its component rules
+//! by naming one set and adding to it will produce that shape every time, so the
+//! count that decides the move is the count of the *smallest thing two sites
+//! share*, not of the function one of them happens to have wrapped it in.
 
 pub mod accept_ranges;
 pub mod auth;

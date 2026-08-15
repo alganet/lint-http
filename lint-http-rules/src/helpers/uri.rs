@@ -80,19 +80,52 @@ pub fn find_non_uri_char(s: &str) -> Option<char> {
     s.chars().find(|&c| !is_uri_char(c))
 }
 
-/// Whether `c` is one of the characters a URI is composed from.
+/// Whether `c` is in RFC 3986's `unreserved` set.
+///
+/// One of the two character sets RFC 3986 builds its general component
+/// alphabets out of. Five of its productions name the pair and then add
+/// something different beside it — `userinfo`, `IPvFuture`, `reg-name`,
+/// `segment-nz-nc`, `pchar` — which is why this is a predicate and not a
+/// transcription per site: the set is the shared answer and the divergence is
+/// each caller's own line. Five sites in this crate read it (`reg-name`,
+/// `pchar`, `IPvFuture`, the URI-wide alphabet, and [`decode_unreserved`], which
+/// asks it of a decoded octet rather than of a written character).
 // cite(RFC 3986 § 2.3): "unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~""
-// cite(RFC 3986 § 2.2): "gen-delims  = ":" / "/" / "?" / "#" / "[" / "]" / "@""
+pub fn is_unreserved(c: char) -> bool {
+    c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '~')
+}
+
+/// Whether `c` is in RFC 3986's `sub-delims` set.
+///
+/// The other of the two, and it never travels alone: every component rule of
+/// the generic syntax that names this set names [`is_unreserved`]'s beside it.
+/// The one place `sub-delims` appears without it is `reserved = gen-delims /
+/// sub-delims`, which is a set definition rather than a component's alphabet —
+/// and §2.2 says a component rule never names *that* one at all. Four sites in
+/// this crate read it, one fewer than its partner, because a decoder asks which
+/// octets it may write out and no `sub-delims` octet is one of them.
 // cite(RFC 3986 § 2.2): "sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "=""
+pub fn is_sub_delim(c: char) -> bool {
+    matches!(
+        c,
+        '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '='
+    )
+}
+
+/// Whether `c` is one of the characters a URI is composed from.
+///
+/// `gen-delims` stays written out here because this is the only reading in the
+/// tree that wants it: §2.2 says a component rule never names the set directly,
+/// so a *component* alphabet borrows characters from it one at a time — `pchar`
+/// takes `:` and `@`, `IPvFuture` takes `:` — and only a question asked of the
+/// whole URI takes all seven.
+// cite(RFC 3986 § 2.2): "gen-delims  = ":" / "/" / "?" / "#" / "[" / "]" / "@""
+// cite(RFC 3986 § 2.2): "A component's ABNF syntax rule will not use the reserved or gen-delims rule names directly; instead, each syntax rule lists the characters allowed within that component (i.e., not delimiting it), and any of those characters that are also in the reserved set are "reserved" for use as subcomponent delimiters within the component."
 // cite(RFC 3986 § 2.1): "pct-encoded = "%" HEXDIG HEXDIG"
 fn is_uri_char(c: char) -> bool {
-    c.is_ascii_alphanumeric()
-        || matches!(c, '-' | '.' | '_' | '~')
+    is_unreserved(c)
+        || is_sub_delim(c)
         || matches!(c, ':' | '/' | '?' | '#' | '[' | ']' | '@')
-        || matches!(
-            c,
-            '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '='
-        )
         || c == '%'
 }
 
@@ -620,9 +653,11 @@ pub fn decode_unreserved(component: &str) -> String {
             .flatten();
 
         match octet {
-            Some(octet)
-                if octet.is_ascii_alphanumeric() || matches!(octet, b'-' | b'.' | b'_' | b'~') =>
-            {
+            // The set is ASCII-only and `u8 as char` is the identity there, so
+            // asking [`is_unreserved`] of the decoded octet answers exactly what
+            // a byte-wise copy of it would — this is the same set as the other
+            // four sites, read at the one place it arrives as an octet.
+            Some(octet) if is_unreserved(octet as char) => {
                 out.push(octet as char);
                 i += 3;
             }
@@ -887,10 +922,12 @@ pub fn validate_scheme_name(scheme: &str) -> Result<(), String> {
 /// `unreserved` — so a dotted quad that is out of range is a perfectly good
 /// registered name and is not a syntax finding here. What separates the
 /// alternatives is the brackets, which appear in no other host form.
+///
+/// The two sets `reg-name` is written out of are [`is_unreserved`] and
+/// [`is_sub_delim`], and their productions are quoted there rather than here:
+/// this function composes them, it does not transcribe them.
 // cite(RFC 3986 § 3.2.2): "host        = IP-literal / IPv4address / reg-name"
 // cite(RFC 3986 § 3.2.2): "reg-name    = *( unreserved / pct-encoded / sub-delims )"
-// cite(RFC 3986 § 2.3): "unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~""
-// cite(RFC 3986 § 2.2): "sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "=""
 pub fn validate_uri_host(host: &str) -> Result<(), String> {
     if let Some(rest) = host.strip_prefix('[') {
         // cite(RFC 3986 § 3.2.2): "IP-literal = "[" ( IPv6address / IPvFuture  ) "]""
@@ -916,15 +953,11 @@ pub fn validate_uri_host(host: &str) -> Result<(), String> {
     if let Some(msg) = check_percent_encoding(host) {
         return Err(msg);
     }
+    // The production read left to right: `unreserved`, the `%` that opens a
+    // `pct-encoded`, `sub-delims`, and nothing else — no `:` and no `@`, which
+    // is the whole of the difference between this alphabet and `pchar`'s.
     for c in host.chars() {
-        if !(c.is_ascii_alphanumeric()
-            || c == '%'
-            || matches!(c, '-' | '.' | '_' | '~')
-            || matches!(
-                c,
-                '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '='
-            ))
-        {
+        if !(is_unreserved(c) || c == '%' || is_sub_delim(c)) {
             return Err(format!("invalid character '{}' in host '{}'", c, host));
         }
     }
@@ -950,14 +983,9 @@ fn is_ipvfuture(s: &str) -> bool {
         return false;
     }
     !tail.is_empty()
-        && tail.chars().all(|c| {
-            c.is_ascii_alphanumeric()
-                || matches!(c, '-' | '.' | '_' | '~' | ':')
-                || matches!(
-                    c,
-                    '!' | '$' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '='
-                )
-        })
+        && tail
+            .chars()
+            .all(|c| is_unreserved(c) || is_sub_delim(c) || c == ':')
 }
 
 /// Where the `uri-host` ends and `":" port` begins, with neither half examined.
@@ -1058,6 +1086,86 @@ pub fn validate_host_and_optional_port(value: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+
+    /// Both sets, spelled out from the productions rather than composed from the
+    /// predicates, and asserted over the whole US-ASCII range — four component
+    /// alphabets and one decoder now rest on these two functions, so a character
+    /// added or dropped here is added or dropped in all five.
+    #[test]
+    fn the_two_character_sets_are_what_their_productions_print() {
+        // unreserved  = ALPHA / DIGIT / "-" / "." / "_" / "~"
+        let unreserved: Vec<char> = ('a'..='z')
+            .chain('A'..='Z')
+            .chain('0'..='9')
+            .chain("-._~".chars())
+            .collect();
+        // sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+        let sub_delims: Vec<char> = "!$&'()*+,;=".chars().collect();
+        assert_eq!(sub_delims.len(), 11);
+
+        for c in (0u8..=0x7F).map(char::from) {
+            assert_eq!(
+                is_unreserved(c),
+                unreserved.contains(&c),
+                "unreserved disagrees about {c:?}"
+            );
+            assert_eq!(
+                is_sub_delim(c),
+                sub_delims.contains(&c),
+                "sub-delims disagrees about {c:?}"
+            );
+        }
+
+        // Neither set reaches past US-ASCII: every octet at or above %x80 has to
+        // be percent-encoded before the URI is formed.
+        for c in (0x80u8..=0xFF).map(char::from) {
+            assert!(!is_unreserved(c) && !is_sub_delim(c), "{c:?}");
+        }
+    }
+
+    /// The four alphabets built on those sets differ exactly where their
+    /// productions differ, and nowhere else. This is the property the extraction
+    /// was for: the divergence is one line per caller, and it is this one.
+    #[test]
+    fn the_component_alphabets_differ_only_by_what_their_productions_add() {
+        for c in (0u8..=0x7F).map(char::from) {
+            let shared = is_unreserved(c) || is_sub_delim(c);
+
+            // reg-name = *( unreserved / pct-encoded / sub-delims ). Asked of a
+            // character standing between two others, and with `%` left out of
+            // the sweep: a lone `%` is not the alphabet's answer but
+            // `pct-encoded`'s, which `validate_uri_host` asks separately and
+            // first. The two assertions below the loop are that half.
+            let reg_name = c == '%' || validate_uri_host(&format!("a{c}b")).is_ok();
+            assert_eq!(reg_name, shared || c == '%', "reg-name: {c:?}");
+
+            // pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
+            let pchar = is_unreserved(c) || is_sub_delim(c) || matches!(c, ':' | '@' | '%');
+            assert_eq!(pchar, reg_name || matches!(c, ':' | '@'), "pchar: {c:?}");
+
+            // IPvFuture's tail = 1*( unreserved / sub-delims / ":" ) — the one
+            // of the four that admits no `pct-encoded`, so no `%`.
+            assert_eq!(
+                is_ipvfuture(&format!("v1.{c}")),
+                shared || c == ':',
+                "IPvFuture: {c:?}"
+            );
+
+            // The URI-wide alphabet adds all seven `gen-delims` at once, which
+            // §2.2 says no component rule does.
+            assert_eq!(
+                is_uri_char(c),
+                shared || c == '%' || matches!(c, ':' | '/' | '?' | '#' | '[' | ']' | '@'),
+                "URI alphabet: {c:?}"
+            );
+        }
+
+        // `pct-encoded` is the triplet and not the `%`, and it is a separate
+        // question from the alphabet at every one of the four sites.
+        assert!(validate_uri_host("a%41b").is_ok());
+        assert!(validate_uri_host("a%zzb").is_err());
+        assert!(validate_uri_host("a%4").is_err());
+    }
 
     /// The two normalizations § 6.2.2 asks for on percent-encoding, and the one
     /// § 2.4 forbids.
