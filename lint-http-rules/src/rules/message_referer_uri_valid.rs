@@ -31,16 +31,14 @@ fn shown_referer(value: &str) -> String {
 
 /// `Some(value with the password elided)`, or `None` when there is nothing to
 /// elide. Separate from [`shown_referer`] so the userinfo finding can say which
-/// of the two it is showing.
+/// of the two it is showing. The elision itself is
+/// [`crate::helpers::uri::userinfo_password_withheld`]'s, shared with the two
+/// pseudo-header rules that print an authority; what stays here is putting the
+/// redacted authority back into the whole reference this rule shows.
 fn redacted_userinfo(value: &str) -> Option<String> {
-    let (Some(userinfo), _) = split_userinfo(authority_component(value)?) else {
-        return None;
-    };
-    let (user, secret) = userinfo.split_once(':')?;
-    if secret.is_empty() {
-        return None;
-    }
-    Some(value.replacen(&format!("{userinfo}@"), &format!("{user}:...@"), 1))
+    let authority = authority_component(value)?;
+    let redacted = crate::helpers::uri::userinfo_password_withheld(authority)?;
+    Some(value.replacen(authority, &redacted, 1))
 }
 
 impl Rule for MessageRefererUriValid {

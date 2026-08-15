@@ -37,7 +37,15 @@ fn connect_authority_finding(authority: &str) -> Option<String> {
     // makes the host look like a port to any reader splitting on the colon.
     // The form is a `uri-host` and a `port` and has no third component, and the
     // sentence naming the two is one paragraph above the grammar.
+    //
+    // What is shown is the elided form: a userinfo is where credentials
+    // travel, and a report printing the password would be one more place they
+    // are written down in clear. The elision is the shared helper's, with
+    // RFC 3986 § 3.2.1's sentence on it.
     if authority.contains('@') {
+        let shown = crate::helpers::uri::userinfo_password_withheld(authority)
+            .map(|redacted| crate::helpers::headers::shown_in_finding(&redacted))
+            .unwrap_or(shown);
         return Some(format!(
             "CONNECT ':authority' '{shown}' carries a userinfo subcomponent and its '@' \
              delimiter: the field is only the host and port number of the tunnel destination"
@@ -307,17 +315,22 @@ impl Rule for MessageHttp2PseudoHeadersValidity {
             // The MUST NOT names the two schemes it is about, and the scheme is
             // the left half of the value being read -- so a userinfo under some
             // other scheme is outside it and is not reported.
+            //
+            // The password half is withheld from the finding: the elision is
+            // the shared helper's, with RFC 3986 § 3.2.1's sentence on it.
             // cite(RFC 9113 § 8.3.1): "":authority" MUST NOT include the deprecated userinfo subcomponent for "http" or "https" schemed URIs."
             if authority.contains('@')
                 && (scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https"))
             {
+                let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
+                    .unwrap_or_else(|| authority.to_string());
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
                     message: format!(
                         "Authority '{}' of an '{scheme}' target carries the deprecated userinfo \
                          subcomponent and its '@' delimiter",
-                        crate::helpers::headers::shown_in_finding(&authority)
+                        crate::helpers::headers::shown_in_finding(&shown)
                     ),
                 });
             }
@@ -782,6 +795,25 @@ mod tests {
             reported,
             "{target}: {message:?}"
         );
+    }
+
+    /// Both userinfo findings withhold the password: the finding is about
+    /// credentials arriving where a server logs, and a lint report must not be
+    /// one more place they are written down in clear (RFC 3986 § 3.2.1). A
+    /// userinfo with no secret is shown as written — the same sentence exempts
+    /// an empty tail.
+    #[test]
+    fn userinfo_findings_withhold_the_password() {
+        let msg = judge_request("CONNECT", "user:s3cret@example.com:443").expect("reported");
+        assert!(msg.contains("'user:...@example.com:443'"), "{msg}");
+        assert!(!msg.contains("s3cret"), "{msg}");
+
+        let msg = judge_request("GET", "http://user:s3cret@example.com/p").expect("reported");
+        assert!(msg.contains("'user:...@example.com'"), "{msg}");
+        assert!(!msg.contains("s3cret"), "{msg}");
+
+        let msg = judge_request("GET", "https://user@example.com/p").expect("reported");
+        assert!(msg.contains("'user@example.com'"), "{msg}");
     }
 
     #[rstest]
