@@ -4535,7 +4535,7 @@ sources:
     - file: lint-http-rules/src/rules/client_proxy_connection_discouraged.rs
       line: 54
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
-      line: 59
+      line: 60
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 159
   - label: client_range_header_syntax_valid
@@ -4975,7 +4975,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 968
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
-      line: 60
+      line: 61
     - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
       line: 40
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (8)
@@ -5428,6 +5428,8 @@ sources:
       line: 124
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 49
+    - file: lint-http-rules/src/rules/message_upgrade_header_syntax_valid.rs
+      line: 143
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 113
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
@@ -5522,6 +5524,8 @@ sources:
       line: 77
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
       line: 75
+    - file: lint-http-rules/src/rules/message_upgrade_header_syntax_valid.rs
+      line: 159
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 259
     - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
@@ -6505,13 +6509,13 @@ sources:
     snippet: In contrast, a connection-specific field received without a corresponding connection option usually indicates that the field has been improperly forwarded by an intermediary and ought to be ignored by the recipient.
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
-      line: 93
+      line: 94
   - label: message_connection_upgrade (2)
     section: § 7.6.1
     snippet: When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field.
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
-      line: 41
+      line: 42
     - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
       line: 239
   - label: message_connection_upgrade (3)
@@ -6519,13 +6523,15 @@ sources:
     snippet: A sender of Upgrade MUST also send an "Upgrade" connection option in the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
-      line: 42
+      line: 43
   - label: Upgrade grammar, sender-expanded
     section: § A
     snippet: Upgrade = [ protocol *( OWS "," OWS protocol ) ]
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
-      line: 43
+      line: 44
+    - file: lint-http-rules/src/rules/message_upgrade_header_syntax_valid.rs
+      line: 125
   - label: message_content_disposition_token_valid
     section: § 5.5
     snippet: Field values are usually constrained to the range of US-ASCII characters [USASCII].
@@ -7412,6 +7418,38 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 268
+  - label: message_upgrade_header_syntax_valid
+    section: § 5.5
+    snippet: HTTP field values consist of a sequence of characters in a format defined by the field's grammar.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_upgrade_header_syntax_valid.rs
+      line: 124
+  - label: message_upgrade_header_syntax_valid (2)
+    section: § 5.6.1.1
+    snippet: '#element => [ 1#element ]'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_upgrade_header_syntax_valid.rs
+      line: 142
+    - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
+      line: 248
+  - label: message_upgrade_header_syntax_valid (3)
+    section: § 7.8
+    snippet: A client MAY send a list of protocol names in the Upgrade header field of a request to invite the server to switch to one or more of the named protocols, in order of descending preference, before sending the final response.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_upgrade_header_syntax_valid.rs
+      line: 190
+  - label: message_upgrade_header_syntax_valid (4)
+    section: § 7.8
+    snippet: A server MAY send an Upgrade header field in any other response to advertise that it implements support for upgrading to the listed protocols, in order of descending preference, when appropriate for a future request.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_upgrade_header_syntax_valid.rs
+      line: 191
+  - label: protocol grammar
+    section: § 7.8
+    snippet: protocol = protocol-name ["/" protocol-version] protocol-name = token protocol-version = token
+    cited_by:
+    - file: lint-http-rules/src/rules/message_upgrade_header_syntax_valid.rs
+      line: 29
   - label: message_user_agent_token_valid
     section: § 10.1.5
     snippet: A sender SHOULD NOT generate information in product-version that is not a version identifier
@@ -7437,66 +7475,60 @@ sources:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 392
   - label: message_via_header_syntax_valid (2)
-    section: § 5.6.1.1
-    snippet: '#element => [ 1#element ]'
-    cited_by:
-    - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
-      line: 248
-  - label: message_via_header_syntax_valid (3)
     section: § 5.6.3
     snippet: OWS = *( SP / HTAB )
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 200
-  - label: message_via_header_syntax_valid (4)
+  - label: message_via_header_syntax_valid (3)
     section: § 7.6.3
     snippet: A proxy MUST send an appropriate Via header field, as described below, in each message that it forwards.
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 34
-  - label: message_via_header_syntax_valid (5)
+  - label: message_via_header_syntax_valid (4)
     section: § 7.6.3
     snippet: A sender MAY generate comments to identify the software of each recipient, analogous to the User-Agent and Server header fields.
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 420
-  - label: message_via_header_syntax_valid (6)
+  - label: message_via_header_syntax_valid (5)
     section: § 7.6.3
     snippet: An HTTP-to-HTTP gateway MUST send an appropriate Via header field in each inbound request message and MAY send a Via header field in forwarded response messages.
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 43
-  - label: message_via_header_syntax_valid (7)
+  - label: message_via_header_syntax_valid (6)
     section: § 7.6.3
     snippet: For brevity, the protocol-name is omitted when the received protocol is HTTP.
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 312
-  - label: message_via_header_syntax_valid (8)
+  - label: message_via_header_syntax_valid (7)
     section: § 7.6.3
     snippet: However, comments in Via are optional, and a recipient MAY remove them prior to forwarding the message.
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 421
-  - label: message_via_header_syntax_valid (9)
+  - label: message_via_header_syntax_valid (8)
     section: § 7.6.3
     snippet: However, if the real host is considered to be sensitive information, a sender MAY replace it with a pseudonym.
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 370
-  - label: message_via_header_syntax_valid (10)
+  - label: message_via_header_syntax_valid (9)
     section: § 7.6.3
     snippet: The "Via" header field indicates the presence of intermediate protocols and recipients between the user agent and the server (on requests) or between the origin server and the client (on responses)
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 21
-  - label: message_via_header_syntax_valid (11)
+  - label: message_via_header_syntax_valid (10)
     section: § 7.6.3
     snippet: The received-by portion is normally the host and optional port number of a recipient server or client that subsequently forwarded the message.
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 369
-  - label: message_via_header_syntax_valid (12)
+  - label: message_via_header_syntax_valid (11)
     section: § 7.6.3
     snippet: 'Via = #( received-protocol RWS received-by [ RWS comment ] )'
     cited_by:
@@ -7504,7 +7536,7 @@ sources:
       line: 247
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 303
-  - label: message_via_header_syntax_valid (13)
+  - label: message_via_header_syntax_valid (12)
     section: § 7.6.3
     snippet: received-by = pseudonym [ ":" port ] pseudonym = token
     cited_by:
@@ -7512,25 +7544,25 @@ sources:
       line: 367
     - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
       line: 484
-  - label: message_via_header_syntax_valid (14)
+  - label: message_via_header_syntax_valid (13)
     section: § 7.6.3
     snippet: received-protocol = [ protocol-name "/" ] protocol-version
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 309
-  - label: message_via_header_syntax_valid (15)
+  - label: message_via_header_syntax_valid (14)
     section: § 7.8
     snippet: protocol-name = token
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 310
-  - label: message_via_header_syntax_valid (16)
+  - label: message_via_header_syntax_valid (15)
     section: § 7.8
     snippet: protocol-version = token
     cited_by:
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 311
-  - label: message_via_header_syntax_valid (17)
+  - label: message_via_header_syntax_valid (16)
     section: § B.2
     snippet: For simplicity, we have removed uri-host from the received-by production because it can be encompassed by the existing grammar for pseudonym.
     cited_by:
@@ -9471,7 +9503,7 @@ sources:
     snippet: An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields.
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
-      line: 61
+      line: 62
     - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
       line: 150
     - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
@@ -9485,7 +9517,7 @@ sources:
     snippet: This includes the Connection header field and those listed as having connection-specific semantics in Section 7.6.1 of [HTTP] (that is, Proxy-Connection, Keep-Alive, Transfer-Encoding, and Upgrade).
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
-      line: 62
+      line: 63
     - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
       line: 39
   - label: message_header_field_names_token
@@ -9731,7 +9763,7 @@ sources:
     snippet: An endpoint MUST NOT generate an HTTP/3 field section containing connection-specific fields; any message containing connection-specific fields MUST be treated as malformed.
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
-      line: 63
+      line: 64
     - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
       line: 152
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
