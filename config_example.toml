@@ -99,6 +99,10 @@ severity = "info"
 enabled = false
 severity = "warn"
 
+[rules.message_sec_websocket_extensions_syntax]
+enabled = true
+severity = "warn"
+
 [rules.client_cache_respect]
 enabled = true
 severity = "warn"
