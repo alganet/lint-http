@@ -6,61 +6,11 @@ use crate::helpers::headers::{
     combined_field_value_as_written, describe_octet, is_nominated_by_connection, shown_in_finding,
     trim_ows,
 };
-use crate::helpers::websocket::sec_websocket_key_defect;
+use crate::helpers::websocket::{sec_websocket_key_defect, version_production_defect};
 use crate::lint::Violation;
 use crate::rules::Rule;
 
 pub struct ClientSecWebsocketHeadersConsistency;
-
-/// Which of `version`'s terminals a `Sec-WebSocket-Version` value failed, worded for
-/// the operator who has to go and look at it.
-///
-/// The production is three alternatives over one to three digits, plus a comment
-/// bounding the number they spell. Reading it as "the value 13 and nothing else" --
-/// which is what a `!= "13"` comparison does -- collapses six different mistakes
-/// into one sentence, and the advice that sentence gives ("expected 13") is not
-/// something the sender of `Sec-WebSocket-Version: 013` can act on.
-///
-/// The alternation on its own derives `256` through `299`; the comment printed
-/// beneath it is what stops there, which is why it is quoted with the productions
-/// rather than separately.
-// cite(RFC 6455 § 4.3, label: Sec-WebSocket-Version): "Sec-WebSocket-Version-Client = version"
-// cite(RFC 6455 § 4.3, label: version): "version = DIGIT | (NZDIGIT DIGIT) | ("1" DIGIT DIGIT) | ("2" DIGIT DIGIT) ; Limited to 0-255 range, with no leading zeros"
-fn version_production_defect(value: &str) -> Option<String> {
-    if value.is_empty() {
-        return Some(
-            "it is empty, and every alternative of `version` spells at least one DIGIT".into(),
-        );
-    }
-    if let Some(c) = value.chars().find(|c| !c.is_ascii_digit()) {
-        return Some(format!(
-            "it contains {}, and `version` is spelled in DIGITs alone",
-            describe_octet(c as u8)
-        ));
-    }
-    if value.len() > 3 {
-        return Some(format!(
-            "it is {} characters, and no alternative of `version` is longer than three digits",
-            value.len()
-        ));
-    }
-    if value.len() > 1 && value.starts_with('0') {
-        return Some(
-            "it carries a leading zero, and the production admits none: `NZDIGIT` is the \
-             first digit of every alternative longer than one"
-                .into(),
-        );
-    }
-    // Three digits beginning with a `2` do derive from the alternation, and the
-    // comment printed under it is what stops at 255 -- so this last one is
-    // arithmetic rather than shape.
-    if value.parse::<u16>().is_ok_and(|n| n > 255) {
-        return Some(
-            "it is above 255, which is where the comment printed under the production stops".into(),
-        );
-    }
-    None
-}
 
 impl ClientSecWebsocketHeadersConsistency {
     /// The `Connection` half of the handshake: the field has to be there and it has
@@ -285,7 +235,7 @@ impl Rule for ClientSecWebsocketHeadersConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Measures a WebSocket opening handshake — a `GET` whose `Upgrade` field names `websocket` — against the requirements RFC 6455 § 4.1 lists for it:\n\n- The request's HTTP version is at least `1.1`.\n- `Connection` names the `Upgrade` connection-option.\n- `Sec-WebSocket-Version` derives from the `version` production and names version `13`. A value that derives from the production but names another version is RFC 6455 § 4.4's version advertisement: it is reported as a handshake for a protocol this document does not define, and the answer it asks a server for is a `400` listing the versions the server speaks.\n- `Sec-WebSocket-Key` is a base64-encoded sixteen-octet nonce. Whether that nonce was *chosen* randomly, which the same sentence also requires, is not something one captured message states.\n- `Sec-WebSocket-Protocol`, when present, is a list of at least one subprotocol name, each a non-empty `token`, and no name written twice.\n\nOnly HTTP/1.x messages are measured. Over HTTP/2 and HTTP/3 the opening handshake is an extended CONNECT carrying a `:protocol` pseudo-header field (RFC 8441, RFC 9220), the `Connection` and `Upgrade` fields this rule reads are forbidden outright, and `Sec-WebSocket-Key` is not processed — so demanding them there would be advice a sender must not follow.\n\n`Host` is asked for by the same list and reported by `client_host_header`; the server's half of the handshake is `stateful_websocket_handshake_validity`'s. RFC 6455 § 4.1 also requires an `Origin` field from a browser client, and nothing in a capture says whether a client is one — § 4.2.1 says as much, telling a server not to read a missing `Origin` as evidence either way — so no rule here reports its absence."
+        "Measures a WebSocket opening handshake — a `GET` whose `Upgrade` field names `websocket` — against the requirements RFC 6455 § 4.1 lists for it:\n\n- The request's HTTP version is at least `1.1`.\n- `Connection` names the `Upgrade` connection-option.\n- `Sec-WebSocket-Version` derives from the `version` production and names version `13`. A value that derives from the production but names another version is RFC 6455 § 4.4's version advertisement: it is reported as a handshake for a protocol this document does not define, and the answer it asks a server for is a `400` listing the versions the server speaks — which `server_sec_websocket_version_advertisement` is the rule that reads.\n- `Sec-WebSocket-Key` is a base64-encoded sixteen-octet nonce. Whether that nonce was *chosen* randomly, which the same sentence also requires, is not something one captured message states.\n- `Sec-WebSocket-Protocol`, when present, is a list of at least one subprotocol name, each a non-empty `token`, and no name written twice.\n\nOnly HTTP/1.x messages are measured. Over HTTP/2 and HTTP/3 the opening handshake is an extended CONNECT carrying a `:protocol` pseudo-header field (RFC 8441, RFC 9220), the `Connection` and `Upgrade` fields this rule reads are forbidden outright, and `Sec-WebSocket-Key` is not processed — so demanding them there would be advice a sender must not follow.\n\n`Host` is asked for by the same list and reported by `client_host_header`; the server's half of the handshake is `stateful_websocket_handshake_validity`'s. RFC 6455 § 4.1 also requires an `Origin` field from a browser client, and nothing in a capture says whether a client is one — § 4.2.1 says as much, telling a server not to read a missing `Origin` as evidence either way — so no rule here reports its absence."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {

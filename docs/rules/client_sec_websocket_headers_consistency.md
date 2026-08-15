@@ -12,7 +12,7 @@ Measures a WebSocket opening handshake — a `GET` whose `Upgrade` field names `
 
 - The request's HTTP version is at least `1.1`.
 - `Connection` names the `Upgrade` connection-option.
-- `Sec-WebSocket-Version` derives from the `version` production and names version `13`. A value that derives from the production but names another version is RFC 6455 § 4.4's version advertisement: it is reported as a handshake for a protocol this document does not define, and the answer it asks a server for is a `400` listing the versions the server speaks.
+- `Sec-WebSocket-Version` derives from the `version` production and names version `13`. A value that derives from the production but names another version is RFC 6455 § 4.4's version advertisement: it is reported as a handshake for a protocol this document does not define, and the answer it asks a server for is a `400` listing the versions the server speaks — which `server_sec_websocket_version_advertisement` is the rule that reads.
 - `Sec-WebSocket-Key` is a base64-encoded sixteen-octet nonce. Whether that nonce was *chosen* randomly, which the same sentence also requires, is not something one captured message states.
 - `Sec-WebSocket-Protocol`, when present, is a list of at least one subprotocol name, each a non-empty `token`, and no name written twice.
 
