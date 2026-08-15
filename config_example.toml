@@ -103,6 +103,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.server_sec_websocket_version_advertisement]
+enabled = true
+severity = "warn"
+
 [rules.client_cache_respect]
 enabled = true
 severity = "warn"
