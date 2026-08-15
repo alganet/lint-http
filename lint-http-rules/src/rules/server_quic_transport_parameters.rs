@@ -52,7 +52,6 @@ impl ProtocolRule for ServerQuicTransportParameters {
         _history: &ProtocolEventHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // The event carries the contents of the quic_transport_parameters TLS
         // extension (this cite was re-homed here from the bidi check below, where
         // it did not belong — it describes the extension, not a stream rule).
@@ -61,6 +60,13 @@ impl ProtocolRule for ServerQuicTransportParameters {
             ProtocolEventKind::QuicTransportParams { params, .. } => params,
             _ => return None,
         };
+
+        // Read after the match, not before it: every protocol rule sees every
+        // event on the connection, and this extension arrives once per
+        // connection, so the discriminant ends the rule for very nearly all of
+        // them; `parse_rule_config` looks the rule id up twice (its doc comment
+        // costs it).
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         // "number of permitted streams" half of §6.1's SHOULD. §18.2: a 0 (or
         // absent) grant only defers stream opening until a MAX_STREAMS frame, so

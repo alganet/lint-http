@@ -22,7 +22,6 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
         _history: &crate::transaction_history::TransactionHistory,
         cfg: &crate::config::Config,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to HTTP/3 transactions. The version gate is scoping, not a
         // normative check, so it carries no cite; each requirement below cites the
         // sentence it enforces. What it reads is the major digit and not a string:
@@ -31,6 +30,11 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
         if !crate::http_version::is_major(&tx.request.version, 3) {
             return None;
         }
+
+        // Read after the gate, not before it: one digit comparison ends the rule
+        // for every request that is not HTTP/3, and `parse_rule_config` looks the
+        // rule id up twice (its doc comment costs it).
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         // :method is required. (The :scheme half of the same sentence is not
         // checked — the canonical model does not retain scheme for origin-form
