@@ -5384,6 +5384,8 @@ sources:
       line: 41
     - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
       line: 40
+    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
+      line: 77
   - label: lint-http-rules/src/helpers/headers.rs (11)
     section: § 5.5
     snippet: A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value.
@@ -6766,6 +6768,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_if_modified_since_date_format.rs
       line: 64
+    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
+      line: 76
   - label: message_if_modified_since_date_format (2)
     section: § 5.5
     snippet: A field value does not include leading or trailing whitespace
@@ -6782,6 +6786,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
       line: 48
+    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
+      line: 99
   - label: message_if_unmodified_since_date_format
     section: § 13.1.4
     snippet: If-Unmodified-Since = HTTP-date
@@ -8290,6 +8296,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
       line: 62
+    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
+      line: 100
   - label: stateful_conditional_request_handling
     section: § 13.1.2
     snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
@@ -8417,7 +8425,7 @@ sources:
     - file: lint-http-rules/src/rules/server_vary_and_cache_consistency.rs
       line: 45
     - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
-      line: 148
+      line: 171
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 4.2.1
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or * If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
@@ -8765,7 +8773,7 @@ sources:
     snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request
     cited_by:
     - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
-      line: 169
+      line: 192
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.txt
   type: text/plain

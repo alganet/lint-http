@@ -55,8 +55,31 @@ impl Rule for StatefulVaryHeaderCacheValidity {
         // Only a conditional request reuses a stored validator — the precondition header ties
         // the request to a specific stored representation whose Vary key we can check.
         // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
-        let has_inm = req.headers.contains_key("if-none-match");
-        let has_ims = req.headers.contains_key("if-modified-since");
+        // One value, however many field lines carry it: `#entity-tag` is a list,
+        // so § 5.2's join applies here exactly as it does to the `Vary` the walk
+        // below reads. Octet-level, for the reason that reader gives — `to_str`
+        // folds an `obs-text` octet into "no such field", which is a claim about
+        // the message where the truth is about the value.
+        let inm_value =
+            crate::helpers::headers::combined_field_value_as_written(&req.headers, "if-none-match");
+        let has_inm = inm_value.is_some();
+
+        // The same sentence, and the opposite consequence, because
+        // `If-Modified-Since = HTTP-date` is not a list. A second field line does
+        // not extend this value: § 5.2 joins the lines with a comma and no
+        // `HTTP-date` holds one, so such a message names no stored validator
+        // rather than either of two — the branch below asked each line in turn
+        // and took whichever matched, which is picking a validator by position.
+        // The duplication itself is a sender defect that no rule in the
+        // catalogue reports, and it is not this rule's question either way.
+        //
+        // cite(RFC 9110 § 13.1.3): "If-Modified-Since = HTTP-date"
+        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+        let ims_value = crate::helpers::headers::combined_field_value_as_written(
+            &req.headers,
+            "if-modified-since",
+        );
+        let has_ims = ims_value.is_some();
         if !has_inm && !has_ims {
             // nothing to check when client is not reusing a cached validator
             return None;
@@ -64,16 +87,19 @@ impl Rule for StatefulVaryHeaderCacheValidity {
 
         // `If-None-Match: *` names no specific stored representation (it matches any existing
         // one), so there is no single Vary key to trace — skip it.
-        if has_inm {
-            for hv in req.headers.get_all("if-none-match").iter() {
-                if let Ok(s) = hv.to_str() {
-                    for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
-                        if member == "*" {
-                            return None;
-                        }
-                    }
-                }
-            }
+        //
+        // **The wildcard is the whole field value, not a member.** The grammar is
+        // an alternation and § 13.1.2's own sentence says *when the field value
+        // is "*"* — so a `*` sought among the members stood this rule down on
+        // two values that are not the wildcard: `"etag1", *`, which derives from
+        // neither alternative, and the pair of field lines `If-None-Match:
+        // "etag1,` / `If-None-Match: *`, where the join leaves an unterminated
+        // quoted-string holding one member and no `*` at all.
+        //
+        // cite(RFC 9110 § 13.1.2): "If-None-Match = "*" / #entity-tag"
+        // cite(RFC 9110 § 13.1.2): "The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*""
+        if inm_value.as_deref().map(crate::helpers::headers::trim_ows) == Some("*") {
+            return None;
         }
 
         // find the prior transaction that supplied the validator
@@ -86,48 +112,45 @@ impl Rule for StatefulVaryHeaderCacheValidity {
                 if has_inm {
                     if let Some(etag) = resp.headers.get("etag").and_then(|hv| hv.to_str().ok()) {
                         // Does current request present an If-None-Match that
-                        // matches this etag?
-                        for inm_val in req.headers.get_all("if-none-match").iter() {
-                            if let Ok(inm_str) = inm_val.to_str() {
-                                if crate::helpers::headers::inm_matches_known(inm_str, etag) {
-                                    matched_past = Some(past);
-                                    matched_validator = Some(etag.trim().to_string());
-                                    break;
-                                }
+                        // matches this etag? Asked of the same joined value the
+                        // gate above read, so the field is read one way: a
+                        // per-line walk here would have made the pair of lines
+                        // `If-None-Match: "eta` / `If-None-Match: g1"` two
+                        // members where § 5.2 makes them one entity-tag.
+                        if let Some(inm) = inm_value.as_deref() {
+                            if crate::helpers::headers::inm_matches_known(inm, etag) {
+                                matched_past = Some(past);
+                                matched_validator = Some(etag.trim().to_string());
+                                break;
                             }
-                        }
-                        if matched_past.is_some() {
-                            break;
                         }
                     }
                 }
-                // if we haven't matched yet and we have IMS, try that
-                if matched_past.is_none() && has_ims {
+                // The ETag branch above breaks this loop the moment it matches,
+                // so `matched_past` is `None` at every evaluation of this line —
+                // the `matched_past.is_none() &&` it used to carry could not be
+                // false, before this iteration or after it. The precedence it
+                // reads as is real and is the `break`'s.
+                if has_ims {
                     if let Some(lm) = resp
                         .headers
                         .get("last-modified")
                         .and_then(|hv| hv.to_str().ok())
                     {
                         let lm_trimmed = lm.trim();
-                        for ims_hdr in req.headers.get_all("if-modified-since").iter() {
-                            if let Ok(ims_val) = ims_hdr.to_str() {
-                                let ims_str = ims_val.trim();
-                                // only compare if both look like valid HTTP dates
-                                if crate::http_date::is_valid_http_date(ims_str) {
-                                    // simple string equality is acceptable here; the
-                                    // canonicalization rules are handled in other
-                                    // rules and our goal is just to locate the
-                                    // matching transaction.
-                                    if ims_str == lm_trimmed {
-                                        matched_past = Some(past);
-                                        matched_validator = Some(lm_trimmed.to_string());
-                                        break;
-                                    }
+                        if let Some(ims_str) = ims_value.as_deref().map(str::trim) {
+                            // only compare if both look like valid HTTP dates
+                            if crate::http_date::is_valid_http_date(ims_str) {
+                                // simple string equality is acceptable here; the
+                                // canonicalization rules are handled in other
+                                // rules and our goal is just to locate the
+                                // matching transaction.
+                                if ims_str == lm_trimmed {
+                                    matched_past = Some(past);
+                                    matched_validator = Some(lm_trimmed.to_string());
+                                    break;
                                 }
                             }
-                        }
-                        if matched_past.is_some() {
-                            break;
                         }
                     }
                 }
@@ -359,6 +382,129 @@ mod tests {
         // nominated field beside an `obs-text` octet drew nothing at all.
         assert!(judge(&[b"caf\xe9, accept-encoding"]).is_some());
         assert!(judge(&[b"caf\xe9", b"accept-encoding"]).is_some());
+    }
+
+    /// The three ways the walk this rule used to hold could not read its
+    /// `If-None-Match`. Every fixture is the `mismatch_on_vary_field_triggers`
+    /// exchange below with the conditional header written differently — so the
+    /// finding is the same one, and what changes is whether the rule believes
+    /// the client wrote the wildcard.
+    #[test]
+    fn the_requests_if_none_match_is_one_value_and_the_wildcard_is_all_of_it() {
+        use hyper::header::{HeaderName, HeaderValue};
+        let judge_against = |etag: &str, inm: &[&[u8]]| {
+            let mut past = make_resp_tx(
+                "https://example.com/foo",
+                Some("Accept-Encoding"),
+                Some(etag),
+            );
+            past.request.headers =
+                crate::test_helpers::make_headers_from_pairs(&[("Accept-Encoding", "gzip")]);
+
+            let mut tx = make_tx_with_req("https://example.com/foo");
+            tx.request.headers =
+                crate::test_helpers::make_headers_from_pairs(&[("Accept-Encoding", "deflate")]);
+            for line in inm {
+                tx.request.headers.append(
+                    HeaderName::from_static("if-none-match"),
+                    HeaderValue::from_bytes(line).expect("a test If-None-Match value"),
+                );
+            }
+            let history =
+                crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
+            StatefulVaryHeaderCacheValidity.check_transaction(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_vary_header_cache_validity",
+                ]),
+            )
+        };
+        let judge = |inm: &[&[u8]]| judge_against("\"etag1\"", inm);
+
+        // The baseline, and the wildcard the gate is for. `OWS` around a whole
+        // field value is not part of it, which is why the comparison trims.
+        assert!(judge(&[b"\"etag1\""]).is_some());
+        assert!(judge(&[b"*"]).is_none());
+        assert!(judge(&[b"  *  "]).is_none());
+
+        // `"etag1", *` derives from neither alternative of `"*" / #entity-tag`,
+        // so the client did not write the wildcard and this exchange is
+        // reportable. Sought as a member, the `*` stood the whole rule down.
+        assert!(judge(&[b"\"etag1\", *"]).is_some());
+        // § 5.2 makes these the same value as the line above, so they get the
+        // same answer. Read line by line the second line *was* the wildcard.
+        assert!(judge(&[b"\"etag1\"", b"*"]).is_some());
+
+        // Here the gate also stops firing — the quoted-string opened on the
+        // first line is still open when the comma the join writes arrives, so
+        // the value holds one member and no wildcard — and the answer does not
+        // change, because the same join that removes the `*` also makes the
+        // member stop matching the stored `"etag1"`. **The member search had two
+        // consequences at this rule and only one of them is observable**; this
+        // case is pinned so the next reader does not take it for the first.
+        assert!(judge(&[b"\"etag1,", b"*"]).is_none());
+
+        // The other half of the join, on the read that traces the validator: a
+        // quoted-string split across two field lines is one entity-tag, and the
+        // per-line walk made it two members that matched nothing. The separator
+        // § 5.2 writes is the comma alone, so the tag is `"eta,g1"`.
+        assert!(judge_against("\"eta,g1\"", &[b"\"eta", b"g1\""]).is_some());
+
+        // `to_str` refuses %xE9. The skip was per line rather than per rule, so
+        // this one always reported — it is pinned because the octet-level read
+        // is what keeps that true now that the lines are joined before the
+        // members are counted.
+        assert!(judge(&[b"\xe9", b"\"etag1\""]).is_some());
+    }
+
+    /// `If-Modified-Since` is the same sentence with the opposite consequence:
+    /// `HTTP-date` is not a list, so a second field line does not extend the
+    /// value, and the branch that read it asked each line in turn and took
+    /// whichever matched — choosing a stored representation by position.
+    #[test]
+    fn a_second_if_modified_since_line_names_no_validator() {
+        use hyper::header::{HeaderName, HeaderValue};
+        let judge = |ims: &[&str]| {
+            let mut past = make_resp_tx(
+                "https://example.com/foo",
+                Some("Accept-Encoding"),
+                Some("Wed, 21 Oct 2015 07:28:00 GMT"),
+            );
+            past.request.headers =
+                crate::test_helpers::make_headers_from_pairs(&[("Accept-Encoding", "gzip")]);
+
+            let mut tx = make_tx_with_req("https://example.com/foo");
+            tx.request.headers =
+                crate::test_helpers::make_headers_from_pairs(&[("Accept-Encoding", "deflate")]);
+            for line in ims {
+                tx.request.headers.append(
+                    HeaderName::from_static("if-modified-since"),
+                    HeaderValue::from_str(line).expect("a test If-Modified-Since value"),
+                );
+            }
+            let history =
+                crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
+            StatefulVaryHeaderCacheValidity.check_transaction(
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "stateful_vary_header_cache_validity",
+                ]),
+            )
+        };
+
+        // One line, naming the stored validator: the exchange is reported.
+        assert!(judge(&["Wed, 21 Oct 2015 07:28:00 GMT"]).is_some());
+        // Two lines are one value. An `IMF-fixdate` carries a comma of its own,
+        // so the joined value reads as a date followed by more date, and
+        // `is_valid_http_date` is what says it derives from no `HTTP-date` —
+        // which is why the second line cannot be the one that was meant.
+        assert!(judge(&[
+            "Wed, 21 Oct 2015 07:28:00 GMT",
+            "Thu, 22 Oct 2015 07:28:00 GMT"
+        ])
+        .is_none());
     }
 
     #[test]
