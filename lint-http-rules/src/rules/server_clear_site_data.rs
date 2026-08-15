@@ -9,7 +9,6 @@ pub struct ServerClearSiteData;
 
 #[derive(Debug, Clone)]
 pub struct ClearSiteDataConfig {
-    pub enabled: bool,
     pub severity: crate::lint::Severity,
     pub paths: Vec<String>,
 }
@@ -70,13 +69,8 @@ paths = ["/logout"]"#
     }
 
     let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-    let enabled = crate::rules::get_rule_enabled_required(config, rule_id)?;
 
-    Ok(ClearSiteDataConfig {
-        enabled,
-        paths,
-        severity,
-    })
+    Ok(ClearSiteDataConfig { paths, severity })
 }
 
 impl Rule for ServerClearSiteData {
@@ -90,6 +84,12 @@ impl Rule for ServerClearSiteData {
 
     fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
         parse_paths_config(config, self.id())?;
+        // The two standard keys, **after** this rule's own options, so a config
+        // naming a bad option still fails on that option. `enabled` is checked
+        // here because the parser above stopped reading it: that read ran once
+        // per message at lint time and the flag was discarded, since
+        // `PreparedEngine` had already decided whether the rule runs.
+        crate::rules::validate_rule_table(config, self.id())?;
         Ok(())
     }
 

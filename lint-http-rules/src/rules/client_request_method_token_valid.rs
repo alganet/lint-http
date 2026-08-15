@@ -7,7 +7,6 @@ use crate::rules::Rule;
 
 #[derive(Debug, Clone)]
 pub struct MethodTokenConfig {
-    pub enabled: bool,
     pub severity: crate::lint::Severity,
     pub registered_methods: Vec<String>,
 }
@@ -32,7 +31,6 @@ fn parse_method_token_config(
     rule_id: &str,
 ) -> anyhow::Result<MethodTokenConfig> {
     let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-    let enabled = crate::rules::get_rule_enabled_required(config, rule_id)?;
 
     let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
         anyhow::anyhow!(
@@ -84,7 +82,6 @@ fn parse_method_token_config(
     }
 
     Ok(MethodTokenConfig {
-        enabled,
         severity,
         registered_methods,
     })
@@ -104,6 +101,19 @@ impl Rule for ClientRequestMethodTokenValid {
     // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
+    }
+
+    /// The sixteenth rule with a required option and the only one that had no
+    /// `validate` of its own, so the trait default checked the two standard keys
+    /// and `registered_methods` was read for the first time **at lint time** —
+    /// where the `.ok()?` below turns a missing or malformed array into silence
+    /// rather than into the startup error every sibling gives.
+    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
+        parse_method_token_config(config, self.id())?;
+        // Its fifteen siblings check the two standard keys here, after their own
+        // options, so a config naming a bad option still fails on that option.
+        crate::rules::validate_rule_table(config, self.id())?;
+        Ok(())
     }
 
     fn check_transaction(

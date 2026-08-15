@@ -7,7 +7,6 @@ use crate::rules::Rule;
 
 #[derive(Debug, Clone)]
 pub struct TransferCodingConfig {
-    pub enabled: bool,
     pub severity: crate::lint::Severity,
     pub allowed: Vec<String>,
 }
@@ -17,7 +16,6 @@ fn parse_allowed_config(
     rule_id: &str,
 ) -> anyhow::Result<TransferCodingConfig> {
     let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-    let enabled = crate::rules::get_rule_enabled_required(config, rule_id)?;
 
     // get_rule_severity_required/required_enabled already asserts the rule config exists,
     // so unwrap is safe here and avoids creating an unreachable error branch.
@@ -57,7 +55,6 @@ fn parse_allowed_config(
     }
 
     Ok(TransferCodingConfig {
-        enabled,
         severity,
         allowed: out,
     })
@@ -90,6 +87,12 @@ impl Rule for MessageTransferCodingIanaRegistered {
 
     fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
         parse_allowed_config(config, self.id())?;
+        // The two standard keys, **after** this rule's own options, so a config
+        // naming a bad option still fails on that option. `enabled` is checked
+        // here because the parser above stopped reading it: that read ran once
+        // per message at lint time and the flag was discarded, since
+        // `PreparedEngine` had already decided whether the rule runs.
+        crate::rules::validate_rule_table(config, self.id())?;
         Ok(())
     }
 

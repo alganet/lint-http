@@ -50,7 +50,6 @@ fn parse_allowed_config(
     rule_id: &str,
 ) -> anyhow::Result<AltSvcProtocolConfig> {
     let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-    crate::rules::get_rule_enabled_required(config, rule_id)?;
 
     // The two calls above already assert the rule's own table exists, so asking
     // again would build an error branch nothing can reach.
@@ -207,6 +206,12 @@ impl Rule for ServerAltSvcProtocolIanaRegistered {
 
     fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
         parse_allowed_config(config, self.id())?;
+        // The two standard keys, **after** this rule's own options, so a config
+        // naming a bad option still fails on that option. `enabled` is checked
+        // here because the parser above stopped reading it: that read ran once
+        // per message at lint time and the flag was discarded, since
+        // `PreparedEngine` had already decided whether the rule runs.
+        crate::rules::validate_rule_table(config, self.id())?;
         Ok(())
     }
 

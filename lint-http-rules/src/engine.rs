@@ -32,8 +32,22 @@ pub struct PreparedEngine {
 
 impl PreparedEngine {
     /// Intersect the catalogue's precomputed scope views with `cfg.is_enabled`,
-    /// once. The per-rule `parse_rule_config` check inside each rule stays as a
-    /// harmless belt-and-suspenders.
+    /// once.
+    ///
+    /// **This is the only place `enabled` is read, and it is why the per-rule
+    /// reading went.** Each rule's `parse_rule_config` used to ask the same
+    /// question again on every transaction and discard the answer; the flag is
+    /// decided here, when the engine is built, and a rule that is not in one of
+    /// these three vectors is never dispatched.
+    ///
+    /// **`cfg` is expected to have passed `rules::validate_rules` first.** Every
+    /// binary entry point does that — they all go through
+    /// `load_validated_config` — and nothing here enforces it, so a library
+    /// caller that skips it gets a config whose rule tables were never checked
+    /// for their two required keys. What that costs is now one thing rather than
+    /// two: `is_enabled` reads a missing `enabled` as `false`, and a rule whose
+    /// table carries a `severity` and no `enabled` is filtered out here, so the
+    /// severity-only reading downstream never runs for it.
     pub fn new(cfg: &Config) -> Self {
         let enabled = |r: &&'static dyn Rule| cfg.is_enabled(r.id());
         Self {

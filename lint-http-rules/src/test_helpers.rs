@@ -10,10 +10,13 @@
 
 pub use lint_http_core::test_helpers::*;
 
-/// Create a test rule configuration with `enabled: true` and `severity: Warn`.
+/// Create a test rule configuration with `severity: Warn`.
+///
+/// It set an `enabled: true` beside the severity until the field went: whether a
+/// rule runs is `PreparedEngine`'s answer and never the rule's, so a value of
+/// this type says only how loud the finding is.
 pub fn make_test_rule_config() -> crate::rules::RuleConfig {
     crate::rules::RuleConfig {
-        enabled: true,
         severity: crate::lint::Severity::Warn,
     }
 }
