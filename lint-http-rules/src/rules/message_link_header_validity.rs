@@ -116,13 +116,26 @@ impl Rule for MessageLinkHeaderValidity {
          the commas outside both `<>` and `\"\"`, and `Link: </a,b>; rel=next` is one link and not \
          two malformed ones.\
          \n\n\
-         **What §3.4.1's `as` finding rests on, and where.** No RFC requires an `as` parameter of \
-         anything: `preload` and `as` are HTML's, and the sentence that makes their pairing \
-         observable is in the HTML Standard's *Processing `Link` headers* algorithm, which runs \
+         **What §3.4.1's `as` findings rest on, and where.** No RFC requires an `as` parameter of \
+         anything: `preload` and `as` are HTML's, and the sentences that make their pairing \
+         observable are in the HTML Standard's *Processing `Link` headers* algorithm, which runs \
          over a **response**'s header list and returns early when `attribs[\"as\"]` does not \
-         exist. So the member is not malformed — it is discarded by the recipient it was written \
-         for, and the finding says that rather than inventing a requirement. On a request it is \
-         not reported at all, because that algorithm never sees one.\
+         exist — or when its value translates to null. So the member is not malformed — it is \
+         discarded by the recipient it was written for, and both findings say that rather than \
+         inventing a requirement. On a request neither is reported at all, because that \
+         algorithm never sees one.\
+         \n\n\
+         **An `as` value is measured against HTML's six preload destinations, not Fetch's \
+         table.** *Translate a preload destination* refuses membership before Fetch's *translate \
+         a potential destination* is ever consulted, so the set is `fetch`, `font`, `image`, \
+         `script`, `style`, `track` — and `as=document`, a Fetch destination, is discarded like \
+         any other non-member, while `as=fetch` conforms. The match keeps case, and deliberately: \
+         the neighbouring steps of the same algorithm say *\"an ASCII case-insensitive match\"* \
+         about `crossorigin` and `fetchpriority` in as many words and this step says nothing of \
+         the kind, so `as=Font` is a string the set does not hold. A repeated `as` is not \
+         reported and only the first is judged: RFC 8288's parsing algorithm deduplicates only \
+         the four attributes §3.4.1 bounds, and the map read HTML performs takes the first \
+         entry.\
          \n\n\
          **RFC 8297 requires nothing of a `Link` in a 103.** Its five modals are two MUST NOTs \
          and a SHOULD NOT addressed to the client about what it does with fields it received, \
@@ -143,12 +156,6 @@ impl Rule for MessageLinkHeaderValidity {
          nothing. §3.4.1's one MUST about the value (quote it if it holds a `;` or `,`) needs no \
          rule, because the serialisation enforces it itself: unquoted, those characters are this \
          field's own delimiters, so the value never arrives as one value to ask about.\
-         \n\
-         - **Whether an `as` value names a preload destination.** The same HTML algorithm drops \
-         the member when `as` translates to nothing, but the set of destinations lives in Fetch \
-         and would have to be transcribed and kept in step here. Being wrong about it costs a \
-         false report on an otherwise conforming member, so the question is carried rather than \
-         guessed at.\
          \n\
          - **Where a relative `URI-Reference` resolves.** §3.1 and §3.2 make that a parser's MUST \
          and it needs a base the field does not carry.\
@@ -329,6 +336,15 @@ impl Rule for MessageLinkHeaderValidity {
                        specification in its note while pointing at this page",
             },
             crate::rules::SpecRef {
+                spec: "HTML Links",
+                section: Some("4.6.8.20"),
+                url: "https://html.spec.whatwg.org/multipage/links.html#preload-destination",
+                note: "*Preload destination* — the six strings the header path admits — and \
+                       *translate a preload destination*, which returns null for anything else \
+                       before Fetch's own translation is consulted. The reason the table here \
+                       holds six values and not Fetch's twenty",
+            },
+            crate::rules::SpecRef {
                 spec: "RFC 8297",
                 section: Some("2"),
                 url: "https://www.rfc-editor.org/rfc/rfc8297.html#section-2",
@@ -396,6 +412,11 @@ impl Rule for MessageLinkHeaderValidity {
                 compliance: Compliance::NonCompliant,
                 label: Some("(the HTML processing model drops a preload with no as)"),
                 snippet: "HTTP/1.1 103 Early Hints\nLink: <https://example.com/script.js>; rel=preload",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(as=document is a Fetch destination, but not one of HTML's six preload destinations)"),
+                snippet: "HTTP/1.1 200 OK\nLink: <https://example.com/next>; rel=preload; as=document",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -636,6 +657,7 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
 
     let mut seen: Vec<String> = Vec::new();
     let mut rel_value: Option<String> = None;
+    let mut as_value: Option<String> = None;
 
     for segment in split_semicolons_respecting_quotes(params_src) {
         if segment.is_empty() {
@@ -687,6 +709,18 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
                 // `link-param`, and §3.3's own ABNF for the value then asks it
                 // for a `relation-type` that neither of them has.
                 rel_value = Some(parsed.value.unwrap_or_default());
+            }
+            // Kept for the preload check after the loop. The first occurrence
+            // is the one judged: HTML's header extraction defers to RFC 8288's
+            // own parsing algorithm, whose Appendix B.3 deduplicates only
+            // `media`, `title`, `title*` and `type` — a repeated `as` survives
+            // into the attribute map, and the map read the algorithm performs
+            // takes the first. Repetition itself is bounded by nothing, so it
+            // is not a finding.
+            "as" => {
+                if as_value.is_none() {
+                    as_value = Some(parsed.value.unwrap_or_default());
+                }
             }
             // §3.4.1 prints `Language-Tag` as the whole of this value's ABNF.
             // §1.1's second import list is where the production comes from,
@@ -775,15 +809,51 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
     // cite(HTML Semantics): "To process link headers given a Document doc, a response response, and a "pre-media" or "media" phase"
     // cite(HTML Semantics): "Apply link options from parsed header attributes to options given attribs"
     // cite(HTML Semantics): "If attribs["as"] does not exist, then return false."
-    if is_response && preloads && !seen.iter().any(|n| n == "as") {
-        return Err(format!(
-            "'{}' asks for a preload with no 'as' parameter, so the HTML processing model for a response's Link headers stops before fetching anything",
-            shown_in_finding(member)
-        ));
+    if is_response && preloads {
+        let Some(as_value) = as_value else {
+            return Err(format!(
+                "'{}' asks for a preload with no 'as' parameter, so the HTML processing model for a response's Link headers stops before fetching anything",
+                shown_in_finding(member)
+            ));
+        };
+
+        // The value takes the same early return the absent parameter does,
+        // one step later: translation refuses anything outside the six-string
+        // set, the refusal is null, and null is `return false`.
+        //
+        // The match keeps case, and that is the algorithm's own contrast: the
+        // steps beside this one say *"an ASCII case-insensitive match"* about
+        // `crossorigin` and `fetchpriority` in as many words, and this step
+        // says nothing of the kind — so `Font` is a string the set does not
+        // hold.
+        // cite(HTML Semantics): "Let destination be the result of translating attribs["as"]."
+        // cite(HTML Semantics): "If destination is null, then return false."
+        // cite(HTML Semantics): "If attribs["crossorigin"] exists and is an ASCII case-insensitive match for one of the CORS settings attribute keywords"
+        if !PRELOAD_DESTINATIONS.contains(&as_value.as_str()) {
+            return Err(format!(
+                "'{}' asks for a preload whose as='{}' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything",
+                shown_in_finding(member),
+                shown_in_finding(&as_value)
+            ));
+        }
     }
 
     Ok(())
 }
+
+/// The six strings a response's `Link: rel=preload` survives HTML's
+/// *translate a preload destination* with.
+///
+/// **This is HTML's set and not Fetch's, and the difference decides
+/// findings.** The header path refuses membership here before Fetch's
+/// *translate a potential destination* is ever consulted, so Fetch's twenty-odd
+/// `destination` values are the wrong table: `as=document` names a Fetch
+/// destination and is discarded all the same. `fetch` is in the set — it
+/// translates to the empty string one call later — which is why it is not the
+/// odd one out it looks like.
+// cite(HTML Links): "A preload destination is "fetch", "font", "image", "script", "style", or "track"."
+// cite(HTML Links): "If destination is not a preload destination, then return null."
+const PRELOAD_DESTINATIONS: &[&str] = &["fetch", "font", "image", "script", "style", "track"];
 
 /// The `rel` requirement, written once for the two branches that reach it — a
 /// member with no parameters at all, and a member whose parameters do not
@@ -1037,6 +1107,14 @@ mod tests {
     // `.` and `+` are restricted-name-chars; what they mean is the suffix
     // rule's question, not this one's.
     #[case(b"<https://example.com/>; rel=alternate; type=\"application/vnd.api+json\"")]
+    // `fetch` is a preload destination (it translates to the empty string one
+    // call later), and `track` is the set's least-travelled member.
+    #[case(b"<https://example.com/data.json>; rel=preload; as=fetch")]
+    #[case(b"<https://example.com/cap.vtt>; rel=preload; as=track")]
+    // A repeated `as` is judged on its first entry only: RFC 8288's parser
+    // deduplicates only the four bounded attributes, and HTML's map read
+    // takes the first.
+    #[case(b"<https://example.com/a.css>; rel=preload; as=style; as=nonsense")]
     // %xE9 inside a quoted-string is `qdtext`, and reading the field through
     // `to_str` used to report the whole message for it.
     #[case(b"<https://example.com/>; rel=next; title=\"caf\xe9\"")]
@@ -1154,6 +1232,28 @@ mod tests {
         b"</a>; rel=alternate; type=\"text/\"",
         "member 1 writes type='text/', which does not derive from type-name \"/\" subtype-name: its subtype-name is empty"
     )]
+    // `document` is a Fetch destination and not a preload destination — the
+    // header path refuses membership before Fetch's table is consulted.
+    #[case(
+        b"</a>; rel=preload; as=document",
+        "member 1 '</a>; rel=preload; as=document' asks for a preload whose as='document' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything"
+    )]
+    // The neighbouring steps fold case in as many words; this one does not.
+    #[case(
+        b"</a>; rel=preload; as=Font",
+        "member 1 '</a>; rel=preload; as=Font' asks for a preload whose as='Font' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything"
+    )]
+    // A valueless `as` and an `as=""` both translate the empty string, which
+    // is not in the set.
+    #[case(
+        b"</a>; rel=preload; as",
+        "member 1 '</a>; rel=preload; as' asks for a preload whose as='' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything"
+    )]
+    // First entry wins, so the conforming second cannot rescue the first.
+    #[case(
+        b"</a>; rel=preload; as=nonsense; as=style",
+        "member 1 '</a>; rel=preload; as=nonsense; as=style' asks for a preload whose as='nonsense' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything"
+    )]
     fn every_branch_states_its_own_finding(#[case] value: &[u8], #[case] expected: &str) {
         assert_eq!(
             judge_response(200, value),
@@ -1200,6 +1300,14 @@ mod tests {
         );
 
         assert_eq!(judge_request(value), None);
+
+        // The value finding is gated the same way: HTML's algorithm reads a
+        // response's header list, so a request's non-destination `as` is not
+        // reported either.
+        assert_eq!(
+            judge_request(b"<https://example.com/x>; rel=preload; as=document"),
+            None
+        );
 
         // The same member with `as` is clean, and the status is not the gate:
         // a 200 carrying the field is read exactly as the 103 is.
