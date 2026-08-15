@@ -17,17 +17,17 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2347
+      line: 2368
   - label: lint-http-rules/src/helpers/headers.rs (2)
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2342
+      line: 2363
   - label: lint-http-rules/src/helpers/headers.rs (3)
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2341
+      line: 2362
   - label: message_access_control_allow_credentials_when_origin
     snippet: If credentials is `true`, then return success.
     cited_by:
@@ -264,7 +264,7 @@ sources:
     snippet: A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2418
+      line: 2428
   - label: message_refresh_header_syntax_valid
     snippet: A code point is found that is not a URL unit.
     cited_by:
@@ -1016,7 +1016,7 @@ sources:
     snippet: authority   = [ userinfo "@" ] host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2389
+      line: 2410
     - file: lint-http-rules/src/helpers/uri.rs
       line: 170
   - label: lint-http-rules/src/helpers/ipv6.rs
@@ -1024,9 +1024,7 @@ sources:
     snippet: A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]").
     cited_by:
     - file: lint-http-rules/src/helpers/ipv6.rs
-      line: 26
-    - file: lint-http-rules/src/helpers/ipv6.rs
-      line: 68
+      line: 49
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1019
     - file: lint-http-rules/src/rules/client_host_header.rs
@@ -1036,7 +1034,7 @@ sources:
     snippet: This is the only place where square bracket characters are allowed in the URI syntax.
     cited_by:
     - file: lint-http-rules/src/helpers/ipv6.rs
-      line: 69
+      line: 50
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1020
   - label: lint-http-rules/src/helpers/uri.rs
@@ -2074,7 +2072,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2343
+      line: 2364
     - file: lint-http-rules/src/helpers/uri.rs
       line: 294
   - label: lint-http-rules/src/helpers/uri.rs

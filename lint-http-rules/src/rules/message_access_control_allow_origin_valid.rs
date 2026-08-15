@@ -120,7 +120,7 @@ impl Rule for MessageAccessControlAllowOriginValid {
                 spec: "Fetch",
                 section: Some("3.2"),
                 url: "https://fetch.spec.whatwg.org/#origin-header",
-                note: "Governing origin syntax: `serialized-origin` ends at its authority, so a path (not even a trailing slash), a query or a fragment all disqualify it, and `origin-or-null`'s `null` is case-sensitive",
+                note: "Governing origin syntax: `serialized-origin` ends at its authority, so a path (not even a trailing slash), a query or a fragment all disqualify it; the host inside it is a `reg-name` or a bracketed `IP-literal`, so a character outside those productions or a malformed percent-encoding disqualifies it too; and `origin-or-null`'s `null` is case-sensitive",
             },
             crate::rules::SpecRef {
                 spec: "RFC 6454",
@@ -249,6 +249,13 @@ mod tests {
     #[case("https://example.com/path")]
     #[case("https://example.com?x=1")]
     #[case("https://example.com#frag")]
+    // The authority's *contents*, which the check measured nothing of: none of
+    // these characters is in any `reg-name`, and a `%zz` is no `pct-encoded`.
+    #[case("https://exa|mple.com")]
+    #[case("https://a<b>c")]
+    #[case("https://a^b")]
+    #[case("https://a%zzb")]
+    #[case("https://[foo]")]
     fn origin_with_anything_after_the_authority_is_violation(#[case] val: &str) {
         let rule = MessageAccessControlAllowOriginValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(

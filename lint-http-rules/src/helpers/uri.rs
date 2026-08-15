@@ -1254,6 +1254,34 @@ mod tests {
         }
     }
 
+    /// What `helpers::ipv6::parse_bracketed_ipv6` used to assert, asked of the
+    /// pair that replaced it — and the case it could not answer, which is why it
+    /// went: it handed the bracketed content back unexamined, so `[foo]` was a
+    /// host to every caller that did not re-examine it, and no caller did.
+    #[test]
+    fn a_bracketed_host_is_split_and_then_measured() {
+        assert_eq!(split_host_and_port("[::1]"), ("[::1]", None));
+        assert_eq!(split_host_and_port("[::1]:443"), ("[::1]", Some("443")));
+        assert_eq!(
+            split_host_and_port("[fe80::1]:80"),
+            ("[fe80::1]", Some("80"))
+        );
+        // The colon belongs to the address, not to a port, and the bracket is
+        // what says so.
+        assert_eq!(split_host_and_port("[::1]:"), ("[::1]", Some("")));
+
+        assert!(validate_uri_host("[::1]").is_ok());
+        assert!(validate_uri_host("[fe80::1]").is_ok());
+        // `IPvFuture` is the other alternative of `IP-literal`, and it used to
+        // pass here by accident rather than by the production.
+        assert!(validate_uri_host("[v7.abc]").is_ok());
+
+        assert!(validate_uri_host("[foo]").is_err());
+        assert!(validate_uri_host("[]").is_err());
+        assert!(validate_uri_host("[::1").is_err());
+        assert!(validate_uri_host("[::1]extra").is_err());
+    }
+
     #[test]
     fn scheme_validation() {
         assert!(validate_scheme_if_present("1http://ex").is_some());
