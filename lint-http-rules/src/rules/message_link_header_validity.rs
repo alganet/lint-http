@@ -75,7 +75,26 @@ impl Rule for MessageLinkHeaderValidity {
          link-param )` and `link-param = token BWS [ \"=\" BWS ( token / quoted-string ) ]`. On \
          top of the grammar it reports the three requirements the document states about a member: \
          that `rel` is present, that `rel` and the four attributes §3.4.1 bounds appear at most \
-         once, and that each relation type derives from one of the two productions §3.3 offers.\
+         once, and that each relation type derives from one of the two productions §3.3 offers. \
+         Two of §3.4.1's per-attribute value grammars are measured after unquoting, through the \
+         imports §1.1 makes by name: `hreflang` against RFC 5646's `Language-Tag` and `type` \
+         against RFC 6838 §4.2's `type-name \"/\" subtype-name`.\
+         \n\n\
+         **A `type` value is measured against `restricted-name`, not `token`, and it has no \
+         parameters.** §3.4.1's ABNF for the value ends at the subtype-name, so \
+         `type=\"text/html;charset=utf-8\"` derives from nothing — the `;` is an octet \
+         `restricted-name-chars` does not admit, not the start of a parameters group — and \
+         `restricted-name` opens on a letter or digit, so `type=\"*/*\"` is a finding here where \
+         `Accept`'s own grammar makes the same characters a media range. The hint itself binds \
+         nothing: the document says in as many words that it does not override `Content-Type`, \
+         and this rule reads the value's grammar, never the response it points at.\
+         \n\n\
+         **The `hreflang` check is the catalogue's conservative Language-Tag floor.** The shared \
+         validator enforces what RFC 5646 §2.1's prose states — alphanumeric subtags, \
+         hyphen-separated, at most eight characters, a first subtag of letters — and deliberately \
+         not the full ABNF, because quoting more would claim a check not performed. Every \
+         occurrence is judged: repeating the attribute is conforming (it is §3.4.1's way of \
+         saying several languages are available), and each repetition still owes the production.\
          \n\n\
          **A relation type may be a URI, and that is the document's own example.** \
          `relation-type = reg-rel-type / ext-rel-type`, where `ext-rel-type = URI` — so \
@@ -114,11 +133,16 @@ impl Rule for MessageLinkHeaderValidity {
          \n\n\
          **What this rule does not decide.**\
          \n\n\
-         - **What the serialisation-defined attributes hold.** §3.4.1 gives `hreflang` a \
-         `Language-Tag`, `media` a `media-query-list`, and `type` a `type-name \"/\" \
-         subtype-name`. Each is a production from a different document — the middle one from a \
-         CSS specification this catalogue does not read — and each is its own audit. The \
-         `link-param` grammar around them is enforced; their values are not.\
+         - **What a `media` value holds.** §1.1 imports its production — `media-query-list` — \
+         from the dated 2012 CSS3 Media Queries Recommendation: a grammar in CSS's formalism \
+         rather than ABNF, from a document this catalogue does not read, whose own error \
+         handling folds a query it cannot parse to `not all` rather than refusing it. Measuring \
+         a value against the pinned 2012 grammar would adjudicate a drift this catalogue has not \
+         audited — the Media Queries syntax senders write today derives range forms the 2012 \
+         document does not print — and a floor loose enough to sidestep the drift would measure \
+         nothing. §3.4.1's one MUST about the value (quote it if it holds a `;` or `,`) needs no \
+         rule, because the serialisation enforces it itself: unquoted, those characters are this \
+         field's own delimiters, so the value never arrives as one value to ask about.\
          \n\
          - **Whether an `as` value names a preload destination.** The same HTML algorithm drops \
          the member when `as` translates to nothing, but the set of destinations lives in Fetch \
@@ -175,7 +199,11 @@ impl Rule for MessageLinkHeaderValidity {
                 note: "The four serialisation-defined attributes this document bounds to one \
                        occurrence — `media`, `title`, `title*`, `type` — each in its own MUST \
                        NOT. `hreflang` is the one it deliberately leaves unbounded, saying that \
-                       repeating it means several languages are available",
+                       repeating it means several languages are available. Also the per-attribute \
+                       value ABNFs: `Language-Tag` for `hreflang`, `type-name \"/\" \
+                       subtype-name` for `type`, and `media-query-list` for `media` — the first \
+                       two measured here, the third declined for the reasons the description \
+                       gives",
             },
             crate::rules::SpecRef {
                 spec: "RFC 8288",
@@ -209,7 +237,12 @@ impl Rule for MessageLinkHeaderValidity {
                 url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-1.1",
                 note: "Which document's notation governs: the `#rule`, `token`, `quoted-string`, \
                        `BWS`, `OWS` and `LOALPHA` are imported rather than redefined, so the \
-                       shared helpers that transcribe them are the right readers here",
+                       shared helpers that transcribe them are the right readers here. Its \
+                       second list imports the value productions by name — `URI` and \
+                       `URI-Reference` from RFC 3986, `type-name` and `subtype-name` from \
+                       RFC 6838, `Language-Tag` from RFC 5646, and `media-query-list` from the \
+                       2012 CSS3 Media Queries Recommendation, which is why a `media` value is \
+                       the one this rule does not measure",
             },
             crate::rules::SpecRef {
                 spec: "RFC 8288",
@@ -257,6 +290,24 @@ impl Rule for MessageLinkHeaderValidity {
                 note: "`URI` — the production `ext-rel-type` is, and the reason a relation type \
                        with a scheme is read as one instead of being measured against `tchar`. \
                        `URI-Reference` (§4.1) is the target's",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 5646",
+                section: Some("2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1",
+                note: "Syntax: `Language-Tag`, the whole of §3.4.1's ABNF for an `hreflang` \
+                       value. What is enforced is the catalogue's shared conservative floor — \
+                       subtag shape, from this section's prose — not the full grammar and not \
+                       the registry",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 6838",
+                section: Some("4.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2",
+                note: "Naming Requirements: `restricted-name`, the production behind both \
+                       halves of a `type` value. It opens on a letter or digit and closes at \
+                       127 characters, and §3.4.1's ABNF for the value ends at the \
+                       subtype-name, so there is no parameters group and no wildcard here",
             },
             crate::rules::SpecRef {
                 spec: "HTML Semantics",
@@ -350,6 +401,21 @@ impl Rule for MessageLinkHeaderValidity {
                 compliance: Compliance::NonCompliant,
                 label: Some("(an invalid character in a parameter name)"),
                 snippet: "HTTP/1.1 200 OK\nLink: <https://example.com/>; rel=next; bad@=1",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(hreflang and type values, measured after unquoting)"),
+                snippet: "HTTP/1.1 200 OK\nLink: <https://example.com/de>; rel=alternate; hreflang=de; type=\"text/html\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(an hreflang value that is not a Language-Tag)"),
+                snippet: "HTTP/1.1 200 OK\nLink: <https://example.com/>; rel=alternate; hreflang=en_US",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a type value with no subtype-name after a '/')"),
+                snippet: "HTTP/1.1 200 OK\nLink: <https://example.com/>; rel=alternate; type=text",
             },
         ]
     }
@@ -614,12 +680,66 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
                 parsed.name
             ));
         }
-        if name == "rel" {
-            // A `rel` with no `=` and a `rel=""` are the same statement here:
-            // the optional group makes the first derive from `link-param`, and
-            // §3.3's own ABNF for the value then asks it for a `relation-type`
-            // that neither of them has.
-            rel_value = Some(parsed.value.unwrap_or_default());
+        match name.as_str() {
+            "rel" => {
+                // A `rel` with no `=` and a `rel=""` are the same statement
+                // here: the optional group makes the first derive from
+                // `link-param`, and §3.3's own ABNF for the value then asks it
+                // for a `relation-type` that neither of them has.
+                rel_value = Some(parsed.value.unwrap_or_default());
+            }
+            // §3.4.1 prints `Language-Tag` as the whole of this value's ABNF.
+            // §1.1's second import list is where the production comes from,
+            // and that list is quotable only up to its reference brackets —
+            // each `[RFCxxxx]` is an anchor the extractor cuts the passage at
+            // — so the sentence introducing the ABNF is the evidence here and
+            // the import is named in `specifications()`. The validator is the
+            // catalogue's shared conservative floor for RFC 5646 § 2.1, the
+            // same reader `Content-Language`'s rule uses: subtag shape, not
+            // the full grammar and not the registry, with the sentences it
+            // does enforce quoted at the helper.
+            //
+            // A valueless `hreflang` and an `hreflang=""` both arrive as the
+            // empty string and fail the way `rel=` does: the production is
+            // the value's whole grammar, and there is no value. Every
+            // occurrence is judged, because repeating this attribute is
+            // §3.4.1's own way of saying several languages are available, and
+            // each repetition still owes the production.
+            // cite(RFC 8288 § 3.4.1): "The ABNF for the hreflang parameter's value is:"
+            "hreflang" => {
+                let value = parsed.value.as_deref().unwrap_or_default();
+                if let Err(why) = crate::helpers::language::validate_language_tag(value) {
+                    return Err(format!(
+                        "writes hreflang='{}', which does not derive from Language-Tag: {}",
+                        shown_in_finding(value),
+                        why
+                    ));
+                }
+            }
+            // cite(RFC 8288 § 3.4.1): "The ABNF for the type parameter's value is:"
+            "type" => {
+                let value = parsed.value.as_deref().unwrap_or_default();
+                if let Err(why) = type_value_defect(value) {
+                    return Err(format!(
+                        "writes type='{}', which does not derive from type-name \"/\" subtype-name: {}",
+                        shown_in_finding(value),
+                        why
+                    ));
+                }
+            }
+            // `media` is the one §3.4.1 value grammar this catalogue does not
+            // read, and the decline is published in `description()`: §1.1
+            // imports `media-query-list` from the dated 2012 CSS3 Media
+            // Queries Recommendation — a grammar in CSS's formalism rather
+            // than ABNF, from a document `sources.yaml` does not carry. The
+            // section's one MUST about the value is unobservable here besides:
+            // an unquoted ';' or ',' is this field's own delimiter, so the
+            // parse that could ask the question is the parse that already cut
+            // the value apart and reported the pieces.
+            // cite(RFC 8288 § 3.4.1): "The ABNF for the media parameter's value is:"
+            // cite(RFC 8288 § 3.4.1): "Its value MUST be quoted if it contains a semicolon (";") or comma (",")."
+            "media" => {}
+            _ => {}
         }
         seen.push(name);
     }
@@ -780,6 +900,77 @@ fn is_reg_rel_type(t: &str) -> bool {
     chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '.' || c == '-')
 }
 
+/// Whether a `type` attribute's value derives from `type-name "/" subtype-name`.
+///
+/// The production is the whole of §3.4.1's ABNF for this value, so it ends at
+/// the subtype-name: there is no `parameters` group here, and a `;` after the
+/// subtype is an octet `restricted-name-chars` does not admit rather than the
+/// start of a `charset`. That is why the reader is not
+/// [`crate::helpers::headers::parse_media_type`] — that function implements
+/// RFC 9110 § 8.3.1's `media-type`, whose halves are `token` and whose tail
+/// admits parameters, and both answers are wrong here: `restricted-name` is
+/// narrower than `token` (it opens on a letter or digit, so `*/*` derives from
+/// nothing), and this value has no parameters to admit.
+// cite(RFC 6838 § 4.2): "type-name = restricted-name subtype-name = restricted-name"
+fn type_value_defect(value: &str) -> Result<(), String> {
+    let Some((type_name, subtype_name)) = value.split_once('/') else {
+        return Err("it has no '/' between a type-name and a subtype-name".into());
+    };
+    restricted_name_defect(type_name, "type-name")?;
+    restricted_name_defect(subtype_name, "subtype-name")?;
+    Ok(())
+}
+
+/// `restricted-name = restricted-name-first *126restricted-name-chars`.
+///
+/// First transcription of this production in the tree, and it stays private
+/// until a second caller arrives asking the same question. The two rules that
+/// read RFC 6838 § 4.2 before this one deliberately measured `token` instead —
+/// subtype *spelling* was a neighbour's question there, and the neighbour's
+/// grammar really is `token` — where here the spelling is the whole question,
+/// because §3.4.1 names this document's production and not RFC 9110's.
+///
+/// The `.` and `+` alternatives are quoted with the trailing comments the
+/// document prints on them; what the comments assign those characters — facet
+/// names, structured-syntax suffixes — is the neighbouring suffix rule's
+/// question, not this one's, so they are admitted here and read nowhere.
+// cite(RFC 6838 § 4.2): "Type and subtype names MUST conform to the following ABNF:"
+// cite(RFC 6838 § 4.2): "restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT"
+// cite(RFC 6838 § 4.2): "restricted-name-chars = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "-" / "^" / "_""
+// cite(RFC 6838 § 4.2): "restricted-name-chars =/ "." ; Characters before first dot always ; specify a facet name"
+// cite(RFC 6838 § 4.2): "restricted-name-chars =/ "+" ; Characters after last plus always ; specify a structured syntax suffix"
+fn restricted_name_defect(name: &str, half: &str) -> Result<(), String> {
+    let mut chars = name.chars();
+    let Some(first) = chars.next() else {
+        return Err(format!("its {half} is empty"));
+    };
+    if !first.is_ascii_alphanumeric() {
+        return Err(format!(
+            "its {half} opens on {}, where restricted-name-first admits a letter or digit",
+            describe_char(first)
+        ));
+    }
+    if let Some(c) = chars.find(|&c| {
+        !(c.is_ascii_alphanumeric()
+            || matches!(c, '!' | '#' | '$' | '&' | '-' | '^' | '_' | '.' | '+'))
+    }) {
+        return Err(format!(
+            "its {half} holds {}, which restricted-name-chars does not admit",
+            describe_char(c)
+        ));
+    }
+    // `restricted-name-first *126restricted-name-chars` closes at 127. Byte
+    // length is character length by this line: everything the two checks
+    // above admit is ASCII.
+    if name.len() > 127 {
+        return Err(format!(
+            "its {half} is {} characters long, where the production admits at most 127",
+            name.len()
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -839,6 +1030,13 @@ mod tests {
     #[case(b"")]
     // Repeating hreflang is what § 3.4.1 says several languages look like.
     #[case(b"<https://example.com/>; rel=alternate; hreflang=en; hreflang=de")]
+    // The two § 3.4.1 value grammars measured here, in both spellings of the
+    // word: a token and a quoted-string are the same value after unquoting.
+    #[case(b"<https://example.com/de>; rel=alternate; hreflang=de; type=\"text/html\"")]
+    #[case(b"<https://example.com/>; rel=alternate; hreflang=\"zh-Hant\"")]
+    // `.` and `+` are restricted-name-chars; what they mean is the suffix
+    // rule's question, not this one's.
+    #[case(b"<https://example.com/>; rel=alternate; type=\"application/vnd.api+json\"")]
     // %xE9 inside a quoted-string is `qdtext`, and reading the field through
     // `to_str` used to report the whole message for it.
     #[case(b"<https://example.com/>; rel=next; title=\"caf\xe9\"")]
@@ -925,6 +1123,36 @@ mod tests {
     #[case(
         b"</a>; rel=next, ,</b>; rel=prev",
         "member 2 is empty, and the list construct admits no empty element"
+    )]
+    #[case(
+        b"</a>; rel=alternate; hreflang=en_US",
+        "member 1 writes hreflang='en_US', which does not derive from Language-Tag: invalid character '_' in language tag"
+    )]
+    // A valueless hreflang reaches the validator as the empty string, the way
+    // `rel` with no `=` does: the production is the value's whole grammar.
+    #[case(
+        b"</a>; rel=alternate; hreflang",
+        "member 1 writes hreflang='', which does not derive from Language-Tag: empty language tag"
+    )]
+    #[case(
+        b"</a>; rel=alternate; type=text",
+        "member 1 writes type='text', which does not derive from type-name \"/\" subtype-name: it has no '/' between a type-name and a subtype-name"
+    )]
+    // `restricted-name-first` admits no asterisk, so the range every Accept
+    // rule tolerates derives from nothing here.
+    #[case(
+        b"</a>; rel=alternate; type=\"*/*\"",
+        "member 1 writes type='*/*', which does not derive from type-name \"/\" subtype-name: its type-name opens on '*', where restricted-name-first admits a letter or digit"
+    )]
+    // § 3.4.1's ABNF for the value ends at the subtype-name: there is no
+    // parameters group, so the `;` is an inadmissible octet, not a charset.
+    #[case(
+        b"</a>; rel=alternate; type=\"text/html;charset=utf-8\"",
+        "member 1 writes type='text/html;charset=utf-8', which does not derive from type-name \"/\" subtype-name: its subtype-name holds ';', which restricted-name-chars does not admit"
+    )]
+    #[case(
+        b"</a>; rel=alternate; type=\"text/\"",
+        "member 1 writes type='text/', which does not derive from type-name \"/\" subtype-name: its subtype-name is empty"
     )]
     fn every_branch_states_its_own_finding(#[case] value: &[u8], #[case] expected: &str) {
         assert_eq!(
@@ -1053,6 +1281,34 @@ mod tests {
     #[case("", false)]
     fn reg_rel_type_is_lowercase_only(#[case] t: &str, #[case] expected: bool) {
         assert_eq!(is_reg_rel_type(t), expected, "{t}");
+    }
+
+    /// `restricted-name-first *126restricted-name-chars` — the bound is 127,
+    /// counted per half, and the first character is held to the narrower rule.
+    #[test]
+    fn restricted_name_closes_at_127_characters() {
+        let ok = "a".repeat(127);
+        assert!(type_value_defect(&format!("{ok}/{ok}")).is_ok());
+
+        let long = "a".repeat(128);
+        let err = type_value_defect(&format!("{long}/html")).unwrap_err();
+        assert_eq!(
+            err,
+            "its type-name is 128 characters long, where the production admits at most 127"
+        );
+
+        // The first character answers to `restricted-name-first`, so a digit
+        // conforms where a hyphen does not — even though both are
+        // `restricted-name-chars`.
+        assert!(type_value_defect("3gpp/vnd.x").is_ok());
+        assert_eq!(
+            type_value_defect("-a/b").unwrap_err(),
+            "its type-name opens on '-', where restricted-name-first admits a letter or digit"
+        );
+        assert_eq!(
+            type_value_defect("a/").unwrap_err(),
+            "its subtype-name is empty"
+        );
     }
 
     #[test]
