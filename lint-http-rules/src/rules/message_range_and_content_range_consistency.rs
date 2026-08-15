@@ -8,7 +8,6 @@ use crate::rules::Rule;
 pub struct MessageRangeAndContentRangeConsistency;
 
 pub struct RangeConsistencyConfig {
-    pub enabled: bool,
     pub severity: crate::lint::Severity,
     /// Range units whose positions this rule may read as octet offsets.
     pub units: Vec<String>,
@@ -19,7 +18,6 @@ fn parse_units_config(
     rule_id: &str,
 ) -> anyhow::Result<RangeConsistencyConfig> {
     let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-    let enabled = crate::rules::get_rule_enabled_required(config, rule_id)?;
 
     let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
         anyhow::anyhow!(
@@ -58,7 +56,6 @@ fn parse_units_config(
     }
 
     Ok(RangeConsistencyConfig {
-        enabled,
         severity,
         units: out,
     })
@@ -106,6 +103,12 @@ impl Rule for MessageRangeAndContentRangeConsistency {
 
     fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
         parse_units_config(config, self.id())?;
+        // The two standard keys, **after** this rule's own options, so a config
+        // naming a bad option still fails on that option. `enabled` is checked
+        // here because the parser above stopped reading it: that read ran once
+        // per message at lint time and the flag was discarded, since
+        // `PreparedEngine` had already decided whether the rule runs.
+        crate::rules::validate_rule_table(config, self.id())?;
         Ok(())
     }
 

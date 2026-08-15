@@ -7,41 +7,74 @@ use crate::queries::QueryType;
 use linkme::distributed_slice;
 use std::sync::LazyLock;
 
-/// Standard configuration for rules
-/// Used as the Config type for non-configurable rules.
+/// What a rule reads from its configuration **at lint time**, which is its
+/// severity and nothing else.
+///
+/// It carried an `enabled: bool` beside the severity, and no rule ever read it
+/// back: `PreparedEngine` partitions the catalogue with `Config::is_enabled`
+/// when it is built, so a disabled rule is never dispatched and the flag was
+/// discarded at all 174 `check_transaction` / `check_event` call sites. The
+/// question is answered before the rule runs, and asking it again cost a second
+/// hash of the rule id and a second table probe on the hottest path in the
+/// crate.
+///
+/// The *presence* of `enabled` is still required, and [`validate_rule_table`] is
+/// where that is asked — at startup, once per rule, rather than once per
+/// transaction per rule.
 #[derive(Debug, Clone)]
 pub struct RuleConfig {
-    pub enabled: bool,
     pub severity: crate::lint::Severity,
 }
 
 /// Parse severity from config for a given rule.
 /// Returns RuleConfig with parsed severity. Fails if severity is not explicitly configured.
 ///
-/// **What it costs, exactly.** Two independent lookups of the same rule id:
-/// [`get_rule_severity_required`] and [`get_rule_enabled_required`] each hash
-/// `rule_id` against `Config::rules`, take the value as a table and probe that
-/// table for their own key. Thirteen rules that read this after their gates say
-/// why in the comment placing the call, and word it "several map probes plus a
-/// hash over the rule id" — the hash is two. That is why the call belongs
-/// **after** whatever gate ends the rule: a version comparison or an event-kind
-/// discriminant is a few instructions against this.
+/// **What it costs, exactly.** One lookup of the rule id:
+/// [`get_rule_severity_required`] hashes `rule_id` against `Config::rules`,
+/// takes the value as a table and probes that table for `severity`. Thirteen
+/// rules that read this after their gates say why in the comment placing the
+/// call, and word it "several map probes plus a hash over the rule id"; **it
+/// used to be two hashes and is now one**, because the `enabled` lookup beside
+/// it was answering a question already decided. The call still belongs **after**
+/// whatever gate ends the rule: a version comparison or an event-kind
+/// discriminant is a few instructions against even one hash.
 ///
-/// **And half of it is answered before the rule runs.** Nothing at lint time
-/// reads [`RuleConfig::enabled`]: `PreparedEngine` partitions the catalogue with
+/// **Why the second lookup went, and where it went to.** Nothing at lint time
+/// read the flag — `PreparedEngine` partitions the catalogue with
 /// `Config::is_enabled` when it is built, so a disabled rule is never dispatched
-/// and the flag this function returns is discarded at all 174 of its
-/// `check_transaction` / `check_event` call sites. The second lookup is not
-/// dead, though — it is the *presence* check that makes a rule table without
-/// `enabled` an error rather than a default, which is what the two
-/// `validate` defaults want at startup, and they are this function's only other
-/// callers. Splitting the two readings apart would change what an unvalidated
-/// config does at lint time, so it is carried in RULECITES §6 rather than done
-/// here.
+/// — and the only thing that lookup did on this path was make a rule whose table
+/// lacks `enabled` silent. That is a *validation* answer given at lint time, and
+/// [`validate_rule_table`] is where it belongs: the two `validate` defaults call
+/// it, `validate_rules` runs them at startup, and every binary entry point goes
+/// through `load_validated_config` first.
+///
+/// **The consequence, stated plainly, and it is narrower than it looks.** A rule
+/// whose table has a `severity` and no `enabled` used to be silent here and now
+/// returns its severity. Through `PreparedEngine` that changes nothing at all:
+/// `Config::is_enabled` reads a missing `enabled` as `false`, so such a rule is
+/// filtered out when the engine is built and this function is never reached for
+/// it — the lookup was dead *twice over* on that path. What changes is the
+/// answer for a caller invoking `check_transaction` directly, which is what the
+/// test suite does, and there the honest answer is the severity: whether the
+/// rule runs was that caller's decision, not this function's.
 pub fn parse_rule_config(cfg: &crate::config::Config, rule_id: &str) -> anyhow::Result<RuleConfig> {
     let severity = get_rule_severity_required(cfg, rule_id)?;
-    let enabled = get_rule_enabled_required(cfg, rule_id)?;
-    Ok(RuleConfig { enabled, severity })
+    Ok(RuleConfig { severity })
+}
+
+/// Both keys a rule's table must carry, checked once at startup.
+///
+/// This is the reading [`parse_rule_config`] used to perform on every
+/// transaction: `enabled` must be present and a boolean, and `severity` present
+/// and one of the three names. It is the default body of `Rule::validate` and
+/// `ProtocolRule::validate`, so a rule that overrides `validate` to check its own
+/// options is the one place the pair can be forgotten — which is why
+/// `validate_rules` also walks `Config::rules` itself before it calls any of
+/// them.
+pub fn validate_rule_table(cfg: &crate::config::Config, rule_id: &str) -> anyhow::Result<()> {
+    get_rule_severity_required(cfg, rule_id)?;
+    get_rule_enabled_required(cfg, rule_id)?;
+    Ok(())
 }
 
 /// The `Rule` trait defines a single hook that runs on the canonical
@@ -138,7 +171,7 @@ pub trait Rule: Send + Sync {
     /// The default checks the base `enabled` / `severity` fields. Rules with
     /// a custom config section override this to validate their own fields.
     fn validate(&self, cfg: &crate::config::Config) -> anyhow::Result<()> {
-        parse_rule_config(cfg, self.id()).map(|_| ())
+        validate_rule_table(cfg, self.id())
     }
 
     /// The scope where the rule should be executed. Default is `Both`;
@@ -371,7 +404,7 @@ pub trait ProtocolRule: Send + Sync {
     /// Validate the rule's configuration section at startup. See
     /// [`Rule::validate`] for the contract.
     fn validate(&self, cfg: &crate::config::Config) -> anyhow::Result<()> {
-        parse_rule_config(cfg, self.id()).map(|_| ())
+        validate_rule_table(cfg, self.id())
     }
 
     /// Evaluate a single protocol event against this rule. Rules parse
@@ -1177,8 +1210,35 @@ severity = "warn"
         );
 
         let rc = parse_rule_config(&cfg, "server_cache_control_present")?;
-        assert!(rc.enabled);
         assert_eq!(rc.severity, crate::lint::Severity::Warn);
+
+        // The reading is the severity's, and the `enabled` key beside it is not
+        // read: a table carrying a severity and no `enabled` is a config a rule
+        // can be run under, and one `validate_rule_table` refuses.
+        let mut severity_only = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("severity".to_string(), toml::Value::String("error".into()));
+        severity_only.rules.insert(
+            "server_cache_control_present".into(),
+            toml::Value::Table(table),
+        );
+        assert_eq!(
+            parse_rule_config(&severity_only, "server_cache_control_present")?.severity,
+            crate::lint::Severity::Error
+        );
+        assert!(validate_rule_table(&severity_only, "server_cache_control_present").is_err());
+
+        // And a table with neither is refused by both, because the severity is
+        // the reading lint time cannot do without.
+        let empty = crate::config::Config::default();
+        assert!(parse_rule_config(&empty, "server_cache_control_present").is_err());
+        assert!(validate_rule_table(&empty, "server_cache_control_present").is_err());
+
+        // And the reason dropping the flag is not an engine-visible change:
+        // `is_enabled` reads a missing `enabled` as `false`, so the rule whose
+        // severity is now readable is one `PreparedEngine` never dispatches. The
+        // lookup was dead twice over on that path.
+        assert!(!severity_only.is_enabled("server_cache_control_present"));
         Ok(())
     }
 

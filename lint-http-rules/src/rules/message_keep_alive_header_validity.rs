@@ -11,7 +11,6 @@ use crate::rules::Rule;
 
 #[derive(Debug, Clone)]
 pub struct MessageKeepAliveConfig {
-    pub enabled: bool,
     pub severity: crate::lint::Severity,
     pub max_timeout_seconds: u64,
 }
@@ -29,7 +28,6 @@ fn parse_keep_alive_config(
     rule_id: &str,
 ) -> anyhow::Result<MessageKeepAliveConfig> {
     let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-    let enabled = crate::rules::get_rule_enabled_required(config, rule_id)?;
 
     let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
         anyhow::anyhow!(
@@ -60,7 +58,6 @@ fn parse_keep_alive_config(
     }
 
     Ok(MessageKeepAliveConfig {
-        enabled,
         severity,
         max_timeout_seconds: mt_int as u64,
     })
@@ -82,6 +79,12 @@ impl Rule for MessageKeepAliveHeaderValidity {
 
     fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
         parse_keep_alive_config(config, self.id())?;
+        // The two standard keys, **after** this rule's own options, so a config
+        // naming a bad option still fails on that option. `enabled` is checked
+        // here because the parser above stopped reading it: that read ran once
+        // per message at lint time and the flag was discarded, since
+        // `PreparedEngine` had already decided whether the rule runs.
+        crate::rules::validate_rule_table(config, self.id())?;
         Ok(())
     }
 

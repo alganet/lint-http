@@ -7,7 +7,6 @@ use crate::rules::Rule;
 
 #[derive(Debug, Clone)]
 pub struct ContentTypeConfig {
-    pub enabled: bool,
     pub severity: crate::lint::Severity,
     pub allowed: Vec<String>,
 }
@@ -17,7 +16,6 @@ fn parse_allowed_config(
     rule_id: &str,
 ) -> anyhow::Result<ContentTypeConfig> {
     let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-    let enabled = crate::rules::get_rule_enabled_required(config, rule_id)?;
 
     let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
         anyhow::anyhow!(
@@ -55,7 +53,6 @@ fn parse_allowed_config(
     }
 
     Ok(ContentTypeConfig {
-        enabled,
         severity,
         allowed: out,
     })
@@ -74,6 +71,12 @@ impl Rule for MessageContentTypeIanaRegistered {
 
     fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
         parse_allowed_config(config, self.id())?;
+        // The two standard keys, **after** this rule's own options, so a config
+        // naming a bad option still fails on that option. `enabled` is checked
+        // here because the parser above stopped reading it: that read ran once
+        // per message at lint time and the flag was discarded, since
+        // `PreparedEngine` had already decided whether the rule runs.
+        crate::rules::validate_rule_table(config, self.id())?;
         Ok(())
     }
 
