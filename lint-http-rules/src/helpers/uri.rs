@@ -177,6 +177,32 @@ pub fn split_userinfo(authority: &str) -> (Option<&str>, &str) {
     }
 }
 
+/// `Some(authority with the password elided)`, or `None` when there is nothing
+/// to elide.
+///
+/// The point of a userinfo finding is that credentials arrived somewhere a
+/// server logs, and a lint report is one more place they would be written down
+/// in clear. The sentence asking for this names the *first* colon and exempts
+/// an empty tail, so `user:@host` has nothing to elide and `user:s3cret@host`
+/// becomes `user:...@host`.
+///
+/// Shared on its second caller: `message_referer_uri_valid` wrote this for the
+/// field whose MUST NOT names the component, and the two pseudo-header rules
+/// print an authority rather than a whole reference — the elision is the same
+/// decision in both shapes, so the authority form lives here and the
+/// whole-value caller substitutes the result back into its value.
+// cite(RFC 3986 § 3.2.1): "Applications should not render as clear text any data after the first colon (":") character found within a userinfo subcomponent unless the data after the colon is the empty string (indicating no password)."
+pub fn userinfo_password_withheld(authority: &str) -> Option<String> {
+    let (Some(userinfo), host_and_port) = split_userinfo(authority) else {
+        return None;
+    };
+    let (user, secret) = userinfo.split_once(':')?;
+    if secret.is_empty() {
+        return None;
+    }
+    Some(format!("{user}:...@{host_and_port}"))
+}
+
 /// The `authority` a URI reference carries, or `None` when it carries none.
 ///
 /// § 3.2's sentence is the whole of this function, in both directions: the
@@ -1102,6 +1128,27 @@ pub fn validate_host_and_optional_port(value: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+
+    /// § 3.2.1's sentence names the *first* colon and exempts an empty tail:
+    /// only a nonempty secret is elided, and everything else comes back `None`
+    /// so the caller shows the value as written.
+    #[test]
+    fn userinfo_password_withheld_elides_only_a_nonempty_secret() {
+        use super::userinfo_password_withheld;
+        assert_eq!(
+            userinfo_password_withheld("user:s3cret@h:1"),
+            Some("user:...@h:1".into())
+        );
+        // The first colon decides; later ones are part of the secret and go
+        // with it.
+        assert_eq!(
+            userinfo_password_withheld("user:a:b@h"),
+            Some("user:...@h".into())
+        );
+        assert_eq!(userinfo_password_withheld("user:@h"), None);
+        assert_eq!(userinfo_password_withheld("user@h"), None);
+        assert_eq!(userinfo_password_withheld("h:1"), None);
+    }
 
     /// Both sets, spelled out from the productions rather than composed from the
     /// predicates, and asserted over the whole US-ASCII range — four component
