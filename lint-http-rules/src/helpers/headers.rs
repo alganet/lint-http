@@ -924,9 +924,18 @@ pub static PROHIBITED_TRAILER_FIELDS: &[&str] = &[
     "content-range",
     "content-type",
     "trailer",
-    // Connection-specific (RFC 9110 §7.6.1)
+    // Connection-specific (RFC 9110 §7.6.1). The section's own list is bullets
+    // too short to cite; the citable form is RFC 9113's parenthetical, a
+    // published reading of that list, and it names `Proxy-Connection` in it —
+    // the member this table omitted while `CONNECTION_SPECIFIC_FIELDS` below
+    // held it, which is what made the omission a reading rather than a
+    // decision (RULECITES P46). `transfer-encoding` and `te` are §7.6.1's too
+    // and sit above under the framing and request-modifier categories §6.5.1
+    // names them by.
+    // cite(RFC 9113 § 8.2.2): "This includes the Connection header field and those listed as having connection-specific semantics in Section 7.6.1 of [HTTP] (that is, Proxy-Connection, Keep-Alive, Transfer-Encoding, and Upgrade)."
     "connection",
     "keep-alive",
+    "proxy-connection",
     "upgrade",
     // The cleanest member of this list: § 6.5.1 asks whether the field's own
     // definition permits the usage, and this field's definition answers by name.
