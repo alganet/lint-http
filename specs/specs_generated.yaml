@@ -980,6 +980,16 @@ sources:
       line: 192
     - file: lint-http-rules/src/rules/server_sec_websocket_version_advertisement.rs
       line: 23
+- label: RFC 2617
+  url: https://www.rfc-editor.org/rfc/rfc2617.txt
+  type: text/plain
+  fragments:
+  - label: message_digest_auth_validity
+    section: § 3.2.2
+    snippet: This MUST be specified if a qop directive is sent (see above), and MUST NOT be specified if the server did not send a qop directive in the WWW-Authenticate header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
+      line: 112
 - label: RFC 3230
   url: https://www.rfc-editor.org/rfc/rfc3230.txt
   type: text/plain
@@ -3475,16 +3485,28 @@ sources:
       line: 377
   - label: message_digest_auth_validity
     section: § 3.4
+    snippet: 'For historical reasons, a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc.'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
+      line: 151
+  - label: message_digest_auth_validity (2)
+    section: § 3.4
     snippet: 'For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque.'
     cited_by:
     - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
-      line: 123
-  - label: message_digest_auth_validity (2)
+      line: 150
+  - label: message_digest_auth_validity (3)
     section: § 3.4
     snippet: If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code.
     cited_by:
     - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
-      line: 63
+      line: 61
+  - label: cnonce
+    section: § 3.4
+    snippet: This parameter MUST be used by all implementations.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
+      line: 111
   - label: stateful_digest_auth_nonce_handling
     section: § 3.3
     snippet: A case-insensitive flag indicating that the previous request from the client was rejected because the nonce value was stale.
