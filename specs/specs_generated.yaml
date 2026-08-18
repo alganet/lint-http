@@ -4881,6 +4881,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
       line: 89
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 37
   - label: client_request_method_token_valid
     section: § 16.1.1
     snippet: The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names.
@@ -5435,6 +5437,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 97
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 36
   - label: lint-http-rules/src/helpers/content_range.rs (5)
     section: § 14.4
     snippet: complete-length = 1*DIGIT
@@ -5631,6 +5635,8 @@ sources:
       line: 40
     - file: lint-http-rules/src/rules/message_sec_fetch_user_value_valid.rs
       line: 40
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 248
     - file: lint-http-rules/src/rules/server_deprecation_header_syntax.rs
       line: 40
     - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
@@ -5707,12 +5713,16 @@ sources:
       line: 1592
     - file: lint-http-rules/src/rules/message_content_disposition_token_valid.rs
       line: 124
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 250
   - label: lint-http-rules/src/helpers/headers.rs (14)
     section: § 5.5
     snippet: This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1593
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 251
   - label: lint-http-rules/src/helpers/headers.rs (15)
     section: § 5.5
     snippet: field-content  = field-vchar [ 1*( SP / HTAB / field-vchar ) field-vchar ]
@@ -6893,6 +6903,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
       line: 56
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 35
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 102
   - label: message_date_and_time_headers_consistency
@@ -6935,6 +6947,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_etag_syntax.rs
       line: 30
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 34
   - label: message_extension_headers_registered
     section: § 16.3
     snippet: Most fields are designed with the expectation that a recipient can safely ignore (but forward downstream) any field not recognized
@@ -7061,6 +7075,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_if_modified_since_date_format.rs
       line: 64
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 39
     - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
       line: 76
   - label: message_if_modified_since_date_format (2)
@@ -7087,6 +7103,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_if_unmodified_since_date_format.rs
       line: 64
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 40
   - label: message_keep_alive_header_validity
     section: § 7.6.1
     snippet: Keep-Alive (Section 19.7.1 of [RFC2068])
@@ -7529,6 +7547,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_retry_after_date_or_delay.rs
       line: 44
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 43
   - label: message_retry_after_date_or_delay (3)
     section: § 10.2.3
     snippet: Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request.
@@ -7571,6 +7591,56 @@ sources:
       line: 45
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
       line: 65
+  - label: message_singleton_fields_not_repeated
+    section: § 10.1.5
+    snippet: User-Agent = product *( RWS ( product / comment ) )
+    cited_by:
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 31
+  - label: message_singleton_fields_not_repeated (2)
+    section: § 10.2.4
+    snippet: Server = product *( RWS ( product / comment ) )
+    cited_by:
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 30
+  - label: message_singleton_fields_not_repeated (3)
+    section: § 11.6.2
+    snippet: Authorization = credentials
+    cited_by:
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 41
+  - label: message_singleton_fields_not_repeated (4)
+    section: § 11.7.2
+    snippet: Proxy-Authorization = credentials
+    cited_by:
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 42
+  - label: message_singleton_fields_not_repeated (5)
+    section: § 13.1.5
+    snippet: If-Range = entity-tag / HTTP-date
+    cited_by:
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 38
+  - label: the exception's shape
+    section: § 5.3
+    snippet: 'such as an ABNF rule of #(values) defined in Section 5.6.1'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 249
+  - label: message_singleton_fields_not_repeated (6)
+    section: § 6.6.1
+    snippet: The "Date" header field represents the date and time at which the message was originated, having the same semantics as the Origination Date Field (orig-date) defined in Section 3.6.1 of [RFC5322].
+    cited_by:
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 32
+  - label: message_singleton_fields_not_repeated (7)
+    section: § 8.8.2
+    snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
+    cited_by:
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 33
+    - file: lint-http-rules/src/rules/semantic_cache_coherence.rs
+      line: 54
   - label: message_te_header_constraints
     section: § 10.1.4
     snippet: A sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
@@ -7833,12 +7903,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/semantic_cache_coherence.rs
       line: 42
-  - label: semantic_cache_coherence (2)
-    section: § 8.8.2
-    snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_cache_coherence.rs
-      line: 54
   - label: semantic_head_response_headers_match_get
     section: § 12.5.5
     snippet: A Vary field value is either the wildcard member "*" or a list of request field names, known as the selecting header fields, that might have had a role in selecting the representation for this response.
@@ -8793,6 +8857,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_age_header_numeric.rs
       line: 36
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 45
   - label: message_age_header_numeric (3)
     section: § 5.1
     snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server
@@ -8927,6 +8993,20 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
       line: 63
+  - label: message_singleton_fields_not_repeated
+    section: § 5.1
+    snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 44
+  - label: message_singleton_fields_not_repeated (2)
+    section: § 5.3
+    snippet: The "Expires" response header field gives the date/time after which the response is considered stale.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 46
+    - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
+      line: 75
   - label: semantic_cache_coherence
     section: § 4.2.4
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
@@ -8959,12 +9039,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
       line: 55
-  - label: server_status_and_caching_semantics (4)
-    section: § 5.3
-    snippet: The "Expires" response header field gives the date/time after which the response is considered stale.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
-      line: 75
   - label: stateful_cache_validation_chain
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.

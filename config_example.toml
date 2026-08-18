@@ -907,6 +907,13 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[rules.message_singleton_fields_not_repeated]
+# RFC 9110 §5.3's MUST NOT is unconditional, so the shipped severity is error:
+# a second field line of a singleton is a defect of the message however a
+# recipient recovers from it.
+enabled = true
+severity = "error"
+
 [rules.message_extension_headers_registered]
 # The 'allowed' array is this rule's only authority: it is not the IANA field
 # name registry, so every field name the deployment expects has to be listed
