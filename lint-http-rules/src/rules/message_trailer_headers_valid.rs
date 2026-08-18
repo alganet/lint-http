@@ -16,7 +16,7 @@ use crate::rules::Rule;
 #[derive(Debug, Clone)]
 pub struct MessageTrailerHeadersValid;
 
-use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
+use crate::helpers::headers::{combined_field_value_as_written, sender_list_members, trim_ows};
 
 impl MessageTrailerHeadersValid {
     /// One field section: its `Trailer` list, measured against its own `Connection`.
@@ -61,9 +61,7 @@ impl MessageTrailerHeadersValid {
 
         let mut saw_an_empty_element = false;
 
-        for member in value.split(',') {
-            let member = trim_ows(member);
-
+        for member in sender_list_members(&value) {
             if member.is_empty() {
                 // Reported after the members that are present, and reported as the
                 // list's defect rather than the element's: there is no such thing as

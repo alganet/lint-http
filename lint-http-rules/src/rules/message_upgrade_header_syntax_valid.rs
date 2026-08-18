@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, describe_char, shown_in_finding, trim_ows,
+    combined_field_value_as_written, describe_char, sender_list_members, shown_in_finding, trim_ows,
 };
 use crate::helpers::token::{find_invalid_token_char, token_run_end};
 use crate::lint::Violation;
@@ -106,20 +106,14 @@ impl MessageUpgradeHeaderSyntaxValid {
     /// no `token` admits — so the value that most needs measuring is the one that
     /// read would drop.
     ///
-    /// **Neither shared list reader answers this, and the two axes are why.** A
-    /// walk over a `#rule` decides two things separately: whether a DQUOTE opens
-    /// a `quoted-string`, and whether an empty member survives it.
-    /// `list_members_as_written` is quote-aware and empty-preserving,
-    /// `list_members` is naive and empty-dropping, and what a `protocol` wants is
-    /// the fourth combination. **Naive**, because a `protocol` is two tokens and a
-    /// slash and admits no `quoted-string` anywhere inside it — so a DQUOTE here
-    /// is a character the member may not hold, and reading it as opening one would
-    /// make the next comma data when there is nothing for it to be data in.
-    /// **Empty-preserving**, because dropping the empty member is § 5.6.1.2's
-    /// instruction to a *recipient* and would erase § 5.6.1.1's requirement on the
-    /// sender, which is the party this rule measures. Written out at four other
-    /// sites for the same two reasons; it is the one combination `helpers::headers`
-    /// does not hold.
+    /// **The walk is [`sender_list_members`]: naive and empty-preserving**,
+    /// which is what a `protocol` wants of a `#rule` walk's two axes. Naive,
+    /// because the production is two tokens and a slash and admits no
+    /// `quoted-string` anywhere inside it; preserving, because this rule
+    /// measures the sender. The two reasons — and why the other two shared
+    /// readers each answer a different question — are written at the helper,
+    /// which this rule's own audit opened the row for (RULECITES P47) after
+    /// writing the walk out inline as the fifth site.
     ///
     /// cite(RFC 9110 § 5.5): "HTTP field values consist of a sequence of characters in a format defined by the field's grammar."
     /// cite(RFC 9110 § A, label: Upgrade grammar, sender-expanded): "Upgrade = [ protocol *( OWS "," OWS protocol ) ]"
@@ -147,9 +141,7 @@ impl MessageUpgradeHeaderSyntaxValid {
 
         let mut saw_an_empty_member = false;
 
-        for member in value.split(',') {
-            let member = trim_ows(member);
-
+        for member in sender_list_members(&value) {
             if member.is_empty() {
                 // Reported after the members that are present, and reported as
                 // the list's defect rather than the element's: there is no such

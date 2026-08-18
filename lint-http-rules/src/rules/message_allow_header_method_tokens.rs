@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, describe_octet, shown_in_finding, trim_ows,
+    combined_field_value_as_written, describe_octet, sender_list_members, shown_in_finding,
+    trim_ows,
 };
 use crate::lint::Violation;
 use crate::rules::Rule;
@@ -79,9 +80,7 @@ impl MessageAllowHeaderMethodTokens {
         // about this one.
         //
         // cite(RFC 9110 § 5.6.2): "Delimiters are chosen from the set of US-ASCII visual characters not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}")."
-        for member in value.split(',') {
-            let member = trim_ows(member);
-
+        for member in sender_list_members(value) {
             if member.is_empty() {
                 // Reported after the members that are present, and reported as the
                 // list's defect rather than the element's: there is no such thing as

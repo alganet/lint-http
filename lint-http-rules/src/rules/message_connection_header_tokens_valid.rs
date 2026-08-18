@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
+use crate::helpers::headers::{combined_field_value_as_written, sender_list_members, trim_ows};
 use crate::lint::Violation;
 use crate::rules::Rule;
 
@@ -60,9 +60,7 @@ impl MessageConnectionHeaderTokensValid {
 
         let mut saw_an_empty_element = false;
 
-        for member in value.split(',') {
-            let member = trim_ows(member);
-
+        for member in sender_list_members(&value) {
             if member.is_empty() {
                 // Reported after the members that are present, and reported as the
                 // list's defect rather than the element's: there is no such thing as
