@@ -4946,7 +4946,7 @@ sources:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 241
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 97
+      line: 127
   - label: client_request_target_form_checks (3)
     section: § 7.1
     snippet: For historical reasons, the parsed target URI components, collectively referred to as the "request target", are sent within the message control data and the Host header field
@@ -4972,7 +4972,7 @@ sources:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 242
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 98
+      line: 128
   - label: client_request_target_form_checks (6)
     section: § 7.1
     snippet: This reconstruction is specific to each major protocol version.
@@ -10064,7 +10064,7 @@ sources:
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 269
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 126
+      line: 156
   - label: message_host_and_authority_consistency (3)
     section: § 4.3.1
     snippet: If these fields are present, they MUST NOT be empty.
@@ -10079,28 +10079,36 @@ sources:
       line: 42
   - label: message_http3_pseudo_headers_validity (2)
     section: § 4.3.1
+    snippet: The authority MUST NOT include the deprecated userinfo subcomponent for URIs of scheme "http" or "https".
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 180
+  - label: message_http3_pseudo_headers_validity (3)
+    section: § 4.3.1
     snippet: This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of / (ASCII 0x2f).
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 111
-  - label: message_http3_pseudo_headers_validity (3)
+      line: 141
+  - label: message_http3_pseudo_headers_validity (4)
     section: § 4.3.2
     snippet: For responses, a single ":status" pseudo-header field is defined that carries the HTTP status code; see Section 15 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 157
-  - label: message_http3_pseudo_headers_validity (4)
+      line: 215
+  - label: message_http3_pseudo_headers_validity (5)
     section: § 4.3.2
     snippet: This pseudo-header field MUST be included in all responses; otherwise, the response is malformed (see Section 4.1.2).
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 158
-  - label: message_http3_pseudo_headers_validity (5)
+      line: 216
+  - label: message_http3_pseudo_headers_validity (6)
     section: § 4.4
     snippet: The :authority pseudo-header field contains the host and port to connect to
     cited_by:
     - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
       line: 58
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 107
   - label: message_no_connection_specific_fields
     section: § 4.2
     snippet: An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/3 endpoints as malformed.

@@ -66,8 +66,8 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
                             .into(),
                 });
             }
-            let has_authority =
-                crate::helpers::uri::extract_authority_from_request_target(uri_trimmed).is_some();
+            let authority = crate::helpers::uri::extract_authority_from_request_target(uri_trimmed);
+            let has_authority = authority.is_some();
             let has_host = tx.request.headers.contains_key("host");
             let is_origin_form = uri_trimmed.starts_with('/');
             if is_origin_form {
@@ -88,6 +88,36 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
                     message:
                         "HTTP/3 CONNECT request must include ':authority' pseudo-header or Host header"
                             .into(),
+                });
+            }
+
+            // § 4.4 gives a CONNECT's `:authority` two components and no
+            // third: the host and port to connect to. This is not the scheme
+            // question the non-CONNECT branch asks — the field here is a
+            // tunnel destination, not an http(s) URI's authority — so the
+            // sentence is § 4.4's own and the '@' is reported whatever came
+            // before it. The password half is withheld from the finding
+            // (RFC 3986 § 3.2.1, at the shared helper).
+            //
+            // Only an authority-form target is judged. An absolute-form
+            // CONNECT target is a conforming extended CONNECT and a malformed
+            // basic one with nothing in a capture to choose between them —
+            // the same decline the HTTP/2 twin publishes — and § 4.4's
+            // sentence describes the basic form only.
+            // cite(RFC 9114 § 4.4): "The :authority pseudo-header field contains the host and port to connect to"
+            if let Some(authority) = authority
+                .filter(|a| a.contains('@'))
+                .filter(|_| crate::helpers::uri::scheme_authority_marker(uri_trimmed).is_none())
+            {
+                let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
+                    .unwrap_or(authority);
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "HTTP/3 CONNECT ':authority' '{}' carries a userinfo subcomponent and its '@' delimiter: the field is only the host and port to connect to",
+                        crate::helpers::headers::shown_in_finding(&shown)
+                    ),
                 });
             }
         } else {
@@ -124,11 +154,10 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
             // https, both of which have a mandatory authority component — the
             // requirement applies to every non-CONNECT request.
             // cite(RFC 9114 § 4.3.1): "If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field."
-            let has_authority =
-                crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri)
-                    .is_some();
+            let authority =
+                crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri);
             let has_host = tx.request.headers.contains_key("host");
-            if !has_authority && !has_host {
+            if authority.is_none() && !has_host {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
@@ -136,6 +165,35 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
                         "HTTP/3 request must include ':authority' pseudo-header or Host header"
                             .into(),
                 });
+            }
+
+            // § 4.3.1's userinfo MUST NOT, readable exactly where the
+            // userinfo is. The deprecated subcomponent travels in
+            // `:authority`, the capture shows that field only where the
+            // transport reassembled it into an absolute-form target — and an
+            // absolute-form target is also the one place the scheme the
+            // sentence gates on is on the wire, so the gate and the evidence
+            // arrive together or not at all. The twin sentence for HTTP/2 is
+            // enforced by `message_http2_pseudo_headers_validity` in the same
+            // shape. The password half is withheld from the finding
+            // (RFC 3986 § 3.2.1, at the shared helper).
+            // cite(RFC 9114 § 4.3.1): "The authority MUST NOT include the deprecated userinfo subcomponent for URIs of scheme "http" or "https"."
+            if let Some(marker) = crate::helpers::uri::scheme_authority_marker(uri_trimmed) {
+                let scheme = &uri_trimmed[..marker];
+                if let Some(authority) = authority.filter(|a| a.contains('@')) {
+                    if scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https") {
+                        let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
+                            .unwrap_or(authority);
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "HTTP/3 ':authority' '{}' of an '{scheme}' target includes the deprecated userinfo subcomponent and its '@' delimiter",
+                                crate::helpers::headers::shown_in_finding(&shown)
+                            ),
+                        });
+                    }
+                }
             }
         }
 
@@ -165,7 +223,7 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
     }
 
     fn description(&self) -> &'static str {
-        "HTTP/3 requests encode control data as pseudo-header fields. This rule validates that every request includes exactly one `:method` pseudo-header field and that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\n**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `server_status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3."
+        "HTTP/3 requests encode control data as pseudo-header fields. This rule validates that every request includes exactly one `:method` pseudo-header field and that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\n**The deprecated userinfo subcomponent is reported where it can be seen.** RFC 9114 §4.3.1 forbids `:authority` from including it for URIs of scheme `http` or `https`, and the capture shows `:authority` only where the transport reassembled it into an absolute-form target — which is also the one place the scheme the sentence gates on is on the wire, so the gate and the evidence arrive together or not at all. A CONNECT's `:authority` is §4.4's host-and-port tunnel destination, with no scheme to gate on and no third component, so a userinfo in an authority-form target is reported outright — while an absolute-form CONNECT target is a conforming extended CONNECT and a malformed basic one with nothing in a capture to choose between them, and is declined here as the HTTP/2 twin declines it. Both findings withhold the password half (RFC 3986 §3.2.1). The twin sentence for HTTP/2 (RFC 9113 §8.3.1) is `message_http2_pseudo_headers_validity`'s.\n\n**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `server_status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -180,7 +238,18 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
                 spec: "RFC 9114",
                 section: Some("4.3.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1",
-                note: "Request Pseudo-Header Fields",
+                note: "Request Pseudo-Header Fields — the exactly-one MUST for `:method`, \
+                       `:scheme` and `:path`, the `:authority`-or-Host requirement for schemes \
+                       with a mandatory authority component, and the MUST NOT on the deprecated \
+                       userinfo subcomponent for http and https URIs",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 3986",
+                section: Some("3.2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.1",
+                note: "User Information — the sentence asking an application not to render what \
+                       follows the first colon of a userinfo, which is why both findings here \
+                       withhold the password half",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9114",
@@ -246,6 +315,11 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
                 label: None,
                 snippet: "HTTP/3 0",
             },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the deprecated userinfo subcomponent in :authority)"),
+                snippet: "GET https://user@example.com/resource HTTP/3",
+            },
         ]
     }
 }
@@ -307,6 +381,78 @@ mod tests {
         );
         assert!(v.is_some());
         assert!(v.unwrap().message.contains(":method"));
+    }
+
+    // --- the deprecated userinfo subcomponent ---
+
+    fn judge(method: &str, uri: &str) -> Option<String> {
+        let rule = MessageHttp3PseudoHeadersValidity;
+        let mut tx = make_h3_transaction();
+        tx.request.method = method.into();
+        tx.request.uri = uri.into();
+        rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .map(|v| v.message)
+    }
+
+    /// § 4.3.1's MUST NOT names the two schemes it is about, and the capture
+    /// shows `:authority` where the transport reassembled it into an
+    /// absolute-form target — the one place the scheme is on the wire too.
+    #[rstest]
+    #[case("https://user@example.com/p", true)]
+    #[case("http://user:pass@example.com/p", true)]
+    #[case("HTTPS://user@example.com/p", true)]
+    // Another scheme is outside the sentence.
+    #[case("ftp://user@example.com/p", false)]
+    // No userinfo, nothing to report.
+    #[case("https://example.com/p", false)]
+    fn userinfo_is_reported_for_http_and_https_targets(#[case] uri: &str, #[case] reported: bool) {
+        let message = judge("GET", uri);
+        assert_eq!(
+            message.as_deref().is_some_and(|m| m.contains("userinfo")),
+            reported,
+            "{uri}: {message:?}"
+        );
+    }
+
+    /// A CONNECT's `:authority` is § 4.4's host and port, with no scheme to
+    /// gate on: the '@' is reported whatever came before it.
+    #[test]
+    fn connect_authority_with_userinfo_is_reported() {
+        let msg = judge("CONNECT", "user@example.com:443").expect("reported");
+        assert_eq!(
+            msg,
+            "HTTP/3 CONNECT ':authority' 'user@example.com:443' carries a userinfo subcomponent \
+             and its '@' delimiter: the field is only the host and port to connect to"
+        );
+        assert_eq!(judge("CONNECT", "example.com:443"), None);
+
+        // An absolute-form CONNECT target is a conforming extended CONNECT
+        // and a malformed basic one, with nothing in a capture to choose
+        // between them — the HTTP/2 twin's decline, mirrored here, so the
+        // § 4.4 wording is never pinned on a target § 4.4 may not describe.
+        assert_eq!(judge("CONNECT", "https://user@example.com/ws"), None);
+    }
+
+    /// Both findings withhold the password half (RFC 3986 § 3.2.1): the
+    /// finding is about credentials arriving where a server logs, and a lint
+    /// report must not be one more place they are written in clear.
+    #[test]
+    fn userinfo_findings_withhold_the_password() {
+        let msg = judge("GET", "https://user:s3cret@example.com/p").expect("reported");
+        assert_eq!(
+            msg,
+            "HTTP/3 ':authority' 'user:...@example.com' of an 'https' target includes the \
+             deprecated userinfo subcomponent and its '@' delimiter"
+        );
+        assert!(!msg.contains("s3cret"), "{msg}");
+
+        let msg = judge("CONNECT", "user:s3cret@example.com:443").expect("reported");
+        assert!(msg.contains("'user:...@example.com:443'"), "{msg}");
+        assert!(!msg.contains("s3cret"), "{msg}");
     }
 
     // --- :path pseudo-header required for non-CONNECT ---
