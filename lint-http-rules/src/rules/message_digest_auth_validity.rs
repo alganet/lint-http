@@ -55,11 +55,9 @@ impl Rule for MessageDigestAuthValidity {
                             // Required fields: username, realm, nonce, uri, response. §3.4 lists the
                             // parameters and names the consequence for missing required ones, but
                             // labels no "required" set; these five are the ones the response
-                            // computation (§3.4.1) cannot be verified without. Deliberate gap: §3.4
-                            // also marks cnonce and nc "MUST be used by all implementations", so RFC
-                            // 7616 requires those too — but demanding them would reject
-                            // otherwise-checkable RFC 2617-style credentials, so they are recorded
-                            // here rather than enforced.
+                            // computation (§3.4.1) cannot be verified without whatever the
+                            // credential's vintage. cnonce and nc are demanded below, behind the
+                            // observable line that keeps RFC 2617-style credentials checkable.
                             // cite(RFC 7616 § 3.4): "If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code."
                             let required = ["username", "realm", "nonce", "uri", "response"];
                             for &k in &required {
@@ -99,6 +97,33 @@ impl Rule for MessageDigestAuthValidity {
                                     }
                                 }
                             }
+                            // The two parameters RFC 7616 §3.4 marks "MUST be used by all
+                            // implementations", demanded where the credential's own qop makes
+                            // the demand observable. RFC 2617 computes a qop-less response
+                            // without either, so requiring them of every Digest credential
+                            // would reject that document's otherwise-checkable shape — but a
+                            // credential that *carries* qop is inside both documents' MUSTs at
+                            // once: RFC 2617's conditional is met by the message itself, and
+                            // both compute the response value over cnonce and nc, so their
+                            // absence leaves the response unverifiable by the recipient it was
+                            // written for. The qop-less decline is published in
+                            // `description()`.
+                            // cite(RFC 7616 § 3.4, label: cnonce): "This parameter MUST be used by all implementations."
+                            // cite(RFC 2617 § 3.2.2): "This MUST be specified if a qop directive is sent (see above), and MUST NOT be specified if the server did not send a qop directive in the WWW-Authenticate header field."
+                            if map.contains_key("qop") {
+                                for &k in &["cnonce", "nc"] {
+                                    if !map.contains_key(k) {
+                                        return Some(Violation {
+                                            rule: self.id().into(),
+                                            severity: config.severity,
+                                            message: format!(
+                                                "Digest Authorization sends 'qop' and no '{k}': RFC 7616 \u{a7}3.4 marks the parameter \"MUST be used by all implementations\", RFC 2617 \u{a7}3.2.2 requires it whenever a qop directive is sent, and both documents compute the response value over it, so without it the credential cannot be verified"
+                                            ),
+                                        });
+                                    }
+                                }
+                            }
+
                             // validate tokensexp and quoted values basic syntax
                             for (k, v) in map.iter() {
                                 // param names must be tokens
@@ -113,15 +138,46 @@ impl Rule for MessageDigestAuthValidity {
                                         ),
                                     });
                                 }
-                                // A value that opens with a quote is validated as a quoted-string
-                                // (grammar helper-owned, RFC 9110 §5.6.4). §3.4 also dictates *which*
-                                // parameters must or must not use quoted syntax; that MUST is only
-                                // loosely enforced here — the rule checks whatever quoting is present
-                                // rather than requiring the per-parameter form, and the `uri` branch
-                                // below deliberately accepts an unquoted value §3.4 says must be
-                                // quoted. The per-parameter quoting MUST is recorded, not enforced.
+                                // §3.4's two per-parameter quoting MUSTs, enforced in both
+                                // directions. The historical reason is the point: recipients
+                                // of these parameters were deployed against one spelling each,
+                                // so the wrong spelling is a credential some verifiers will
+                                // not read. The seven-name list is why the old `uri` branch —
+                                // which deliberately accepted an unquoted value — is gone: an
+                                // unquoted uri is exactly what the first sentence forbids.
+                                // `username*`, `userhash` and unknown extensions are in
+                                // neither list, and only their present spelling is judged.
                                 // cite(RFC 7616 § 3.4): "For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque."
-                                if v.starts_with('"') {
+                                // cite(RFC 7616 § 3.4): "For historical reasons, a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc."
+                                const MUST_QUOTE: &[&str] = &[
+                                    "username", "realm", "nonce", "uri", "response", "cnonce",
+                                    "opaque",
+                                ];
+                                const MUST_NOT_QUOTE: &[&str] = &["algorithm", "qop", "nc"];
+
+                                let quoted = v.starts_with('"');
+                                if MUST_QUOTE.contains(&k.as_str()) && !quoted {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: config.severity,
+                                        message: format!(
+                                            "Digest Authorization sends '{k}' unquoted, and RFC 7616 \u{a7}3.4 admits only the quoted string syntax for it (\"a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque\")"
+                                        ),
+                                    });
+                                }
+                                if MUST_NOT_QUOTE.contains(&k.as_str()) && quoted {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: config.severity,
+                                        message: format!(
+                                            "Digest Authorization sends '{k}' as a quoted string, and RFC 7616 \u{a7}3.4 forbids that spelling for it (\"a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc\")"
+                                        ),
+                                    });
+                                }
+
+                                // A value that opens with a quote is validated as a quoted-string
+                                // (grammar helper-owned, RFC 9110 §5.6.4).
+                                if quoted {
                                     if let Err(msg) =
                                         crate::helpers::headers::validate_quoted_string(v)
                                     {
@@ -135,33 +191,20 @@ impl Rule for MessageDigestAuthValidity {
                                         });
                                     }
                                 } else {
-                                    // Unquoted values: 'uri' may contain '/' and other URI characters,
-                                    // allow it if it doesn't contain control characters.
-                                    if k.eq_ignore_ascii_case("uri") {
-                                        if v.chars().any(|c| (c as u32) < 0x20 || c == '\x7f') {
-                                            return Some(Violation {
-                                                rule: self.id().into(),
-                                                severity: config.severity,
-                                                message: format!(
-                                                    "Digest auth-param '{}' contains control characters",
-                                                    k
-                                                ),
-                                            });
-                                        }
-                                    } else {
-                                        // For other params, require token-like values
-                                        if let Some(inv) =
-                                            crate::helpers::token::find_invalid_token_char(v)
-                                        {
-                                            return Some(Violation {
-                                                rule: self.id().into(),
-                                                severity: config.severity,
-                                                message: format!(
-                                                    "Invalid character '{}' in Digest auth-param value for '{}'",
-                                                    inv, k
-                                                ),
-                                            });
-                                        }
+                                    // Unquoted values are tokens. The `uri` carve-out that
+                                    // stood here (allow anything without control characters)
+                                    // is unreachable now: an unquoted `uri` returns above.
+                                    if let Some(inv) =
+                                        crate::helpers::token::find_invalid_token_char(v)
+                                    {
+                                        return Some(Violation {
+                                            rule: self.id().into(),
+                                            severity: config.severity,
+                                            message: format!(
+                                                "Invalid character '{}' in Digest auth-param value for '{}'",
+                                                inv, k
+                                            ),
+                                        });
                                     }
                                 }
                             }
@@ -188,16 +231,24 @@ impl Rule for MessageDigestAuthValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Digest `Authorization` credentials must include the required auth-params and use syntactically valid tokens or quoted-strings. This rule checks `Authorization: Digest ...` request headers for presence of required fields and basic syntactic validity (e.g., `username`, `realm`, `nonce`, `uri`, `response`).\n\nServers and clients relying on Digest authentication may behave incorrectly when required parameters are missing or malformed."
+        "Digest `Authorization` credentials must include the required auth-params and use syntactically valid tokens or quoted-strings. This rule checks `Authorization: Digest ...` request headers for presence of required fields and basic syntactic validity (e.g., `username`, `realm`, `nonce`, `uri`, `response`).\n\n**`cnonce` and `nc` are demanded exactly where the credential's own `qop` makes the demand observable.** RFC 7616 §3.4 marks each *\"MUST be used by all implementations\"*; RFC 2617 computes a qop-less response without either and makes both conditional on a qop directive. A credential that carries `qop` is inside both documents' requirements at once — and both compute the `response` value over `cnonce` and `nc`, so their absence leaves the credential unverifiable by the recipient it was written for. A credential with no `qop` is RFC 2617's older shape and neither is demanded of it: RFC 7616 alone would ask for them, but rejecting the qop-less form outright would reject credentials the obsolete document defines and deployed servers still verify, and no observable line short of `qop` separates the two vintages.\n\n**§3.4's two per-parameter quoting MUSTs are enforced in both directions.** A sender *\"MUST only generate the quoted string syntax\"* for `username`, `realm`, `nonce`, `uri`, `response`, `cnonce` and `opaque`, and *\"MUST NOT\"* for `algorithm`, `qop` and `nc` — for historical reasons, which is the point: recipients of each parameter were deployed against one spelling, so the wrong spelling is a credential some verifiers will not read. An unquoted `uri` was deliberately accepted here for a long time and no longer is. `username*`, `userhash` and unknown extension parameters are in neither list, so only the spelling they arrived in is judged.\n\nServers and clients relying on Digest authentication may behave incorrectly when required parameters are missing or malformed."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 7616",
-            section: Some("3.4"),
-            url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4",
-            note: "The Authorization Header Field — the Digest credentials, their parameters, and the 4xx consequence for missing or improper ones",
-        }]
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 7616",
+                section: Some("3.4"),
+                url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4",
+                note: "The Authorization Header Field — the Digest credentials, their parameters, the 4xx consequence for missing or improper ones, the \"MUST be used by all implementations\" on cnonce and nc, and the two historical-reasons quoting MUSTs enforced here in both directions",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 2617",
+                section: Some("3.2.2"),
+                url: "https://www.rfc-editor.org/rfc/rfc2617.html#section-3.2.2",
+                note: "The obsolete document whose qop-less credential shape is why cnonce and nc are demanded only beside a qop: its own conditional (\"MUST be specified if a qop directive is sent\") is the observable line, and deployed servers still verify the older shape",
+            },
+        ]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -215,8 +266,13 @@ impl Rule for MessageDigestAuthValidity {
             },
             Example {
                 compliance: Compliance::NonCompliant,
-                label: Some("(invalid token characters)"),
+                label: Some("(username unquoted — §3.4 admits only the quoted string syntax for it)"),
                 snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=Mu!fasa, realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8c\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(qop sent with no cnonce or nc — the response value is computed over both)"),
+                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8c\", qop=auth",
             },
         ]
     }
@@ -231,22 +287,55 @@ mod tests {
     use super::*;
     use rstest::rstest;
 
+    // The conforming fixtures write each parameter in the spelling §3.4's two
+    // historical-reasons MUSTs assign it — the seven quoted, `algorithm`, `qop`
+    // and `nc` bare. The fixtures used to write everything unquoted, which is
+    // the tolerance RULECITES P37 removed.
     #[rstest]
     #[case(
-        Some("Digest username=Mufasa, realm=test, nonce=abc, uri=/, response=d"),
+        Some(
+            "Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"d\""
+        ),
         false
     )]
     #[case(
-        Some("Digest username=Mufasa, realm=test, nonce=abc, uri=/, response=d, algorithm=MD5"),
+        Some("Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"d\", algorithm=MD5"),
         false
     )]
-    #[case(Some("Digest username=Mufasa, realm=test, nonce=abc, uri=/"), true)]
+    // RFC 7616's full shape: qop with cnonce and nc beside it.
     #[case(
-        Some("Digest username=, realm=test, nonce=abc, uri=/, response=d"),
+        Some("Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"d\", qop=auth, cnonce=\"xyz\", nc=00000001"),
+        false
+    )]
+    // qop without nc, and qop without cnonce: both documents' MUSTs at once.
+    #[case(
+        Some("Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"d\", qop=auth, cnonce=\"xyz\""),
         true
     )]
     #[case(
-        Some("Digest username=Mufasa, realm=test, nonce=a@bad, uri=/, response=d"),
+        Some("Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"d\", qop=auth, nc=00000001"),
+        true
+    )]
+    // The spelling findings, one per direction: an unquoted `uri` — the value
+    // the old rule deliberately accepted — and a quoted `nc`.
+    #[case(
+        Some("Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=/, response=\"d\""),
+        true
+    )]
+    #[case(
+        Some("Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"d\", qop=auth, cnonce=\"xyz\", nc=\"00000001\""),
+        true
+    )]
+    #[case(
+        Some("Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/\""),
+        true
+    )]
+    #[case(
+        Some("Digest username=, realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"d\""),
+        true
+    )]
+    #[case(
+        Some("Digest username=\"Mufasa\", realm=\"test\", nonce=a@bad, uri=\"/\", response=\"d\""),
         true
     )]
     #[case(Some("Basic abc"), false)]
@@ -321,7 +410,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers.append(
             "authorization",
-            "digest username=Mufasa, realm=test, nonce=abc, uri=/, response=d"
+            "digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"d\""
                 .parse()
                 .unwrap(),
         );
@@ -531,7 +620,7 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers.append(
             "authorization",
-            "Digest username=Mufasa, realm=test, nonce=abc, uri=/, response=ab@d"
+            "Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"d\", userhash=tr@e"
                 .parse()
                 .unwrap(),
         );
@@ -560,7 +649,7 @@ mod tests {
         // username quoted-string followed by extra chars should trigger quoted-string validation error
         tx.request.headers.append(
             "authorization",
-            "Digest username=\"Mufasa\"x, realm=test, nonce=abc, uri=/, response=d"
+            "Digest username=\"Mufasa\"x, realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"d\""
                 .parse()
                 .unwrap(),
         );
@@ -652,7 +741,7 @@ mod tests {
         // first a valid Digest, then an invalid Digest (empty response)
         tx.request.headers.append(
             "authorization",
-            "Digest username=Alice, realm=test, nonce=abc, uri=/, response=resp1"
+            "Digest username=\"Alice\", realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"resp1\""
                 .parse()
                 .unwrap(),
         );
@@ -682,13 +771,13 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers.append(
             "authorization",
-            "Digest username=Alice, realm=test, nonce=abc, uri=/, response=resp1"
+            "Digest username=\"Alice\", realm=\"test\", nonce=\"abc\", uri=\"/\", response=\"resp1\""
                 .parse()
                 .unwrap(),
         );
         tx.request.headers.append(
             "authorization",
-            "Digest username=Bob, realm=test, nonce=def, uri=/, response=resp2"
+            "Digest username=\"Bob\", realm=\"test\", nonce=\"def\", uri=\"/\", response=\"resp2\""
                 .parse()
                 .unwrap(),
         );
