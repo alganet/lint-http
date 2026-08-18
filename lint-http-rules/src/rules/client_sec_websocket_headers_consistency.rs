@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, describe_octet, is_nominated_by_connection, shown_in_finding,
-    trim_ows,
+    combined_field_value_as_written, describe_octet, is_nominated_by_connection,
+    sender_list_members, shown_in_finding, trim_ows,
 };
 use crate::helpers::websocket::{sec_websocket_key_defect, version_production_defect};
 use crate::lint::Violation;
@@ -118,7 +118,7 @@ impl ClientSecWebsocketHeadersConsistency {
     // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
     fn subprotocol_defect(headers: &hyper::HeaderMap) -> Option<String> {
         let raw = combined_field_value_as_written(headers, "sec-websocket-protocol")?;
-        let members: Vec<&str> = raw.split(',').map(trim_ows).collect();
+        let members: Vec<&str> = sender_list_members(&raw).collect();
 
         // The floor, which a field carrying only separators reaches without being
         // empty: `1#token` needs one element and `,` supplies none.

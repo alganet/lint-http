@@ -557,6 +557,42 @@ pub fn list_members(val: &str) -> impl Iterator<Item = &str> {
     val.split(',').map(trim_ows).filter(|s| !s.is_empty())
 }
 
+/// The sender's members of a list whose element admits no `quoted-string`:
+/// cut at every comma, `OWS`-trimmed, empty members preserved.
+///
+/// **The fourth cell of a walk this module already held two cells of.** A walk
+/// over a `#rule` decides two things separately: whether a DQUOTE opens a
+/// `quoted-string`, and whether an empty member survives.
+/// [`list_members_as_written`] is quote-aware and empty-preserving;
+/// [`list_members`] is naive and empty-dropping; this is naive *and*
+/// preserving, and both halves are decisions rather than shortcuts.
+///
+/// **Naive**, because the caller's element admits no `quoted-string` anywhere
+/// inside it — a DQUOTE there is a character the member may not hold, and
+/// reading it as opening a string would make the next comma data when there is
+/// nothing for it to be data in. The delimiters sentence is why the comma is
+/// safe to cut at: `,` is one of the characters chosen *because* no `token`
+/// holds it.
+///
+/// **Empty-preserving**, because dropping the empty member is § 5.6.1.2's
+/// instruction to a *recipient*, and the callers here measure the *sender* —
+/// § 5.6.1.1's MUST NOT is exactly about the member that instruction would
+/// erase. Each caller decides for itself what an empty member means in its
+/// field and reports it in its own words; what is shared is the walk, not the
+/// verdict.
+///
+/// This body is two calls, and the extraction is for the name and the
+/// paragraph above it: five rules wrote the walk out inline, three of them
+/// with this same reasoning beside it, and a reader meeting `split(',')` in a
+/// rule could not tell a decision from an accident.
+// cite(RFC 9110 § 5.6.2): "Delimiters are chosen from the set of US-ASCII visual characters not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}")."
+// cite(RFC 9110 § 5.6.1.2): "A recipient MUST parse and ignore a reasonable number of empty list elements:"
+// cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+// cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+pub fn sender_list_members(val: &str) -> impl Iterator<Item = &str> {
+    val.split(',').map(trim_ows)
+}
+
 /// Parse a semicolon-separated list of directive values.
 ///
 /// This iterator splits by semicolon, trims whitespace, and skips empty parts.
