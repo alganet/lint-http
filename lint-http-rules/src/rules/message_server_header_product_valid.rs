@@ -41,7 +41,7 @@ impl Rule for MessageServerHeaderProductValid {
         // comma a recipient would insert is not a `tchar` -- joining would turn
         // a second field line into a grammar finding, which blames the wrong
         // sentence. The second line is a violation of §5.3 as a whole message,
-        // which no rule in the tree currently owns.
+        // which `message_singleton_fields_not_repeated` owns and reports.
         // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers)"
         for hv in resp.headers.get_all("server").iter() {
             // The raw octets, not `to_str()`: `ctext` admits `obs-text`, so a
