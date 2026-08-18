@@ -914,6 +914,13 @@ severity = "warn"
 enabled = true
 severity = "error"
 
+[rules.message_context_fields_direction]
+# RFC 9110 §10 attaches no BCP 14 keyword to a context field arriving in the
+# direction it is not defined for; the finding is that the field states
+# nothing where it was sent, so it ships as advice.
+enabled = true
+severity = "info"
+
 [rules.message_extension_headers_registered]
 # The 'allowed' array is this rule's only authority: it is not the IANA field
 # name registry, so every field name the deployment expects has to be listed
